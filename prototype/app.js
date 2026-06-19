@@ -1384,6 +1384,7 @@
         <div class="seg">${[3, 4].map((n) => `<button class="${n === count ? 'on' : ''}" onclick="CATAN._setCount(${n})">${n} players</button>`).join('')}</div>
         ${seats}
         <button class="btn full" onclick="CATAN._start()">Start game (pass &amp; play)</button>
+        <button class="btn wood full" onclick="CATAN.demo()">🎲 Demo — jump into a mid-game</button>
         ${AUTH.me ? `<button class="btn wood full" onclick="CATAN.showLobby()">← Back to lobby</button>`
           : (window.SUPA ? `<button class="btn wood full" onclick="CATAN.backToPlayers()">← Back to players</button>` : '')}
         <p class="muted small" style="text-align:center;margin-top:8px">Pass-and-play shares one device.</p>
@@ -1402,6 +1403,48 @@
         const bd = $('board'); if (bd) bd.classList.add('enter');
         showFirstPlayerSpin(() => { afterAction(); render(); });
       });
+    };
+    // jump straight into a believable mid-game (skips setup) — for quick testing
+    window.CATAN.demo = () => {
+      const players = Array.from({ length: count }, (_, i) => ({ color: SEAT_COLORS[i], name: ($('pn' + i).value || DEFAULT_NAMES[i]).trim() }));
+      const s = C.createGame({ id: 'demo-' + Date.now(), players, seed: (Math.random() * 1e9) | 0, randomFirst: true });
+      const V = s.board.vertices.length;
+      let cursor = (Math.random() * V) | 0;
+      const legalVertex = () => {   // distance rule: empty + no neighbour built
+        for (let t = 0; t < V; t++) {
+          const v = ((cursor % V) + V) % V; cursor += 5 + ((Math.random() * 6) | 0);
+          if (s.settlements[v]) continue;
+          if (s.board.vertices[v].neighbors.some((n) => s.settlements[n])) continue;
+          return v;
+        }
+        return -1;
+      };
+      const placeBuilding = (owner, type) => { const v = legalVertex(); if (v >= 0) s.settlements[v] = { type, owner }; return v; };
+      const placeRoadNear = (owner, v) => { if (v < 0) return; for (const e of s.board.vertices[v].edges) { if (!s.roads[e]) { s.roads[e] = owner; return; } } };
+      const ri = (a, b) => a + ((Math.random() * (b - a + 1)) | 0);
+      s.players.forEach((p) => {
+        const c = p.color;
+        const a = placeBuilding(c, Math.random() < 0.45 ? 'city' : 'settlement');   // 1st spot (sometimes a city)
+        const b = placeBuilding(c, 'settlement');                                    // 2nd spot
+        placeRoadNear(c, a); placeRoadNear(c, a); placeRoadNear(c, b);               // a few roads
+        p.resources = { brick: ri(0, 3), wood: ri(0, 3), sheep: ri(0, 3), wheat: ri(0, 4), ore: ri(0, 3) };
+        if (Math.random() < 0.5) p.devCards = [['knight', 'road_building', 'year_of_plenty', 'monopoly'][ri(0, 3)]];
+        if (Math.random() < 0.5) p.playedKnights = ri(0, 2);
+      });
+      // recompute supply from what's on the board so builds stay valid
+      s.players.forEach((p) => {
+        const mine = Object.values(s.settlements).filter((x) => x.owner === p.color);
+        p.settlementsLeft = 5 - mine.filter((x) => x.type === 'settlement').length;
+        p.citiesLeft = 4 - mine.filter((x) => x.type === 'city').length;
+        p.roadsLeft = 15 - Object.values(s.roads).filter((o) => o === p.color).length;
+      });
+      try { C.updateLongestRoad(s); } catch (_) { }
+      s.phase = 'play'; s.currentPlayerIndex = 0; s.turnPhase = 'main'; s.hasRolledThisTurn = true;   // your turn, ready to build
+      state = s; ui = { mode: 'idle', pending: null }; resetZoom(); renderedBoardKey = null;
+      title.classList.add('hidden'); hideOverlay(); document.body.style.background = GAME_BG;
+      afterAction(); render();
+      const bd = $('board'); if (bd) bd.classList.add('enter');
+      toast('Demo — mid-game, your turn');
     };
     render2();
   }
