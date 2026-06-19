@@ -176,6 +176,11 @@
     font-size:11px; font-weight:700; color:var(--ink); text-shadow:0 1px 2px #000;}
   .radbtn.off{filter:grayscale(0.85) brightness(0.5); pointer-events:none;}
   .radbtn.off .rlbl{color:var(--muted);}
+  /* Leave/Exit radial button: charcoal sphere + gold ring (matches the action buttons) + door */
+  .radbtn.exit{border-radius:50%; background:radial-gradient(circle at 38% 30%, #5a554e, #272320 56%, #15120f);
+    border:2px solid #1c160f; box-shadow:0 0 0 3px #c79a3e, 0 0 0 5px #7a5c24, 0 3px 7px rgba(0,0,0,0.5);}
+  .radbtn .rico{display:flex; align-items:center; justify-content:center; width:100%; height:100%;
+    font-size:32px; line-height:1; filter:drop-shadow(0 2px 3px rgba(0,0,0,0.6));}
   .radbtn.center{width:62px; height:62px; left:-31px; top:-31px; transform:none; opacity:1; transition:opacity .16s;}
   #radialroot.open .radbtn.center{transform:none;}
   /* ---- full-screen menus (Build / Cards / Trade) — original-app style ---- */
