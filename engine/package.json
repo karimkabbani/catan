@@ -1,0 +1,20 @@
+{
+  "name": "catan-engine",
+  "version": "0.1.0",
+  "description": "Pure TypeScript rules engine for base (3-4 player) Catan. Framework-agnostic, serializable state, deterministic with seeds. Built to be dropped into a React/Supabase app.",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.1",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  },
+  "dependencies": {
+    "@rollup/rollup-darwin-arm64": "^4.62.0"
+  }
+}

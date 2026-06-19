@@ -1,0 +1,15 @@
+node_modules/
+.DS_Store
+*.log
+_*.html
+.netlify/
+.vscode/
+# raw rip material — not needed for the site (extracted PNGs live in prototype/assets/)
+source material catan ipa/
+source-material/
+*.ipa
+*.pvr
+*.mp4
+*.MP4
+*.mov
+*.MOV
