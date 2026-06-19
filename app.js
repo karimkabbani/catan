@@ -1200,37 +1200,38 @@
     // actions: in roll/main the radial menu holds them (bottom stays clear);
     // in setup / guided sub-states show the hint at the bottom.
     const tp = state.turnPhase;
+    // The radial is the universal in-game menu: always available (so Leave/Exit is always
+    // reachable, including off-turn and for spectators); it pulses only when it's your
+    // turn to act, and the build/trade/end/dev actions only appear then.
     const radialPhase = state.phase === 'play' && tp === 'main' && isMyTurn();
-    if (radialPhase) {
-      $('radialwrap').innerHTML = radialButtons();
-      $('radialtab').classList.remove('hidden');
-      $('radialtab').classList.add('pulse');
-    } else {
-      // no bottom prompts (ghost markers + toasts guide instead)
-      $('radialtab').classList.add('hidden');
-      closeRadial();
-    }
+    $('radialwrap').innerHTML = radialButtons();
+    $('radialtab').classList.remove('hidden');
+    $('radialtab').classList.toggle('pulse', radialPhase);
     $('confirmbar').classList.toggle('hidden', !ui.confirm);
     justPlaced = null;  // pop-in only plays on the render right after placement
-    $('leavetab').classList.remove('hidden');   // available to players (end game) and spectators (leave to lobby)
+    $('leavetab').classList.add('hidden');   // exit lives in the radial menu now
     syncTradeUI();      // show/refresh/close the pending-trade overlays off shared state
   }
 
   // the radial cluster: five actions arranged around a centre close button
   function radialButtons() {
     const R = 90;
-    // dice roll automatically, so no Roll button — four actions in a diamond
-    const items = [
-      { k: 'build', label: 'Build', a: 90, on: true },
-      { k: 'trade', label: 'Trade', a: 0, on: true },
-      { k: 'end', label: 'End turn', a: -90, on: true },
-      { k: 'dev', label: 'Cards', a: 180, on: true },
-    ];
+    // build/trade/end/dev only on your turn (dice roll automatically); Leave is always here.
+    const canAct = state.phase === 'play' && state.turnPhase === 'main' && isMyTurn();
+    const acts = canAct ? [
+      { k: 'build', label: 'Build', a: 90 },
+      { k: 'trade', label: 'Trade', a: 0 },
+      { k: 'end', label: 'End turn', a: -90 },
+      { k: 'dev', label: 'Cards', a: 180 },
+    ] : [];
+    const items = acts.concat([{ k: 'exit', label: (online && !myColor) ? 'Stop' : 'Leave', a: canAct ? 135 : 180, emoji: '🚪' }]);
     let html = `<button class="radbtn center" onclick="CATAN.closeRadial()"><img src="assets/hud/radial/close.png" alt="close"></button>`;
     for (const it of items) {
       const x = Math.round(R * Math.cos(it.a * Math.PI / 180));
       const y = Math.round(-R * Math.sin(it.a * Math.PI / 180));
-      html += `<button class="radbtn${it.on ? '' : ' off'}" style="--x:${x}px;--y:${y}px" ${it.on ? `onclick="CATAN.radial('${it.k}')"` : ''}><img src="assets/hud/radial/${it.k}.png" alt="${it.label}"><span class="rlbl">${it.label}</span></button>`;
+      const inner = it.emoji ? `<span class="rico">${it.emoji}</span>` : `<img src="assets/hud/radial/${it.k}.png" alt="${it.label}">`;
+      const click = it.k === 'exit' ? 'CATAN.exitGame()' : `CATAN.radial('${it.k}')`;
+      html += `<button class="radbtn${it.k === 'exit' ? ' exit' : ''}" style="--x:${x}px;--y:${y}px" onclick="${click}">${inner}<span class="rlbl">${it.label}</span></button>`;
     }
     return html;
   }
