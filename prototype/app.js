@@ -162,7 +162,8 @@
     }
     const fromRobber = state.robberHex;
     state = r.state;
-    const robberMoved = state.robberHex !== fromRobber;   // fly the thief across to its new hex
+    // fly the thief across — unless I dragged it there myself (the drag was the motion)
+    const robberMoved = state.robberHex !== fromRobber && !skipRobberFly;
     if (robberMoved) ui.robberFlying = true;
     afterAction(); render();
     if (robberMoved) showRobberFly(fromRobber, state.robberHex);
@@ -195,7 +196,7 @@
       }, 350);
       return;
     }
-    if (state.turnPhase === 'moveRobber') { ui.mode = 'moveRobber'; toast('Move the robber — tap a hex'); return; }
+    if (state.turnPhase === 'moveRobber') { ui.mode = 'moveRobber'; toast('Drag the robber onto a hex'); return; }
     if (state.turnPhase === 'steal') { promptSteal(); return; }
     if (state.turnPhase === 'placeRoad' && state.phase === 'play') { ui.mode = 'placeRoad'; return; }
     if (state.phase === 'setup') ui.mode = state.turnPhase === 'placeRoad' ? 'placeRoad' : 'placeSettlement';
@@ -389,10 +390,12 @@
     if (dyn) {
     // robber — drawn figure + your robber sprite on top (dynamic: it moves on a 7).
     // Hidden while it's mid-flight to a new hex (showRobberFly animates the piece across).
-    if (!ui.robberFlying) {
+    if (!ui.robberFlying && !ui.robberDragging) {
     const rb = state.board.hexes[state.robberHex];
-    P.push(`<g filter="url(#soft)"><ellipse cx="${rb.cx}" cy="${rb.cy + 0.34}" rx="0.18" ry="0.05" fill="#000" opacity="0.3"/><path d="M ${rb.cx} ${rb.cy - 0.34} q 0.2 0 0.2 0.28 l 0.05 0.34 q 0 0.08 -0.1 0.08 l -0.3 0 q -0.1 0 -0.1 -0.08 l 0.05 -0.34 q 0 -0.28 0.2 -0.28 z" fill="#33312f" stroke="#111" stroke-width="0.02"/><circle cx="${rb.cx}" cy="${rb.cy - 0.28}" r="0.11" fill="#33312f" stroke="#111" stroke-width="0.02"/></g>`);
+    // just the transparent sprite (matches the flying robber); the drawn silhouette is
+    // only a fallback when no art is supplied.
     if (ASSETS.robber) P.push(`<image href="${ASSETS.robber}" x="${rb.cx - 0.42}" y="${rb.cy - 0.55}" width="0.84" height="0.95" preserveAspectRatio="xMidYMid meet"/>`);
+    else P.push(`<g filter="url(#soft)"><ellipse cx="${rb.cx}" cy="${rb.cy + 0.34}" rx="0.18" ry="0.05" fill="#000" opacity="0.3"/><path d="M ${rb.cx} ${rb.cy - 0.34} q 0.2 0 0.2 0.28 l 0.05 0.34 q 0 0.08 -0.1 0.08 l -0.3 0 q -0.1 0 -0.1 -0.08 l 0.05 -0.34 q 0 -0.28 0.2 -0.28 z" fill="#33312f" stroke="#111" stroke-width="0.02"/><circle cx="${rb.cx}" cy="${rb.cy - 0.28}" r="0.11" fill="#33312f" stroke="#111" stroke-width="0.02"/></g>`);
     }
 
     // roads — authentic wooden road sprite rotated to each edge angle (falls
@@ -499,6 +502,50 @@
     if (kind === 'vertex') { ui.confirm = { action: ui.mode === 'placeCity' ? { type: 'buildCity', vertex: id } : { type: 'buildSettlement', vertex: id }, color }; render(); }
     else if (kind === 'edge') { ui.confirm = { action: { type: 'buildRoad', edge: id }, color }; render(); }
     else if (kind === 'hex') { ui.confirm = { action: { type: 'moveRobber', hex: id }, color }; render(); }
+  }
+
+  // ---- drag the robber onto a hex (on a 7 / knight) ------------------------
+  let robberDrag = null, skipRobberFly = false;
+  function hexAtPoint(x, y) {
+    const el = document.elementFromPoint(x, y);
+    const hit = el && el.closest ? el.closest('.hit[data-kind="hex"]') : null;
+    return hit ? Number(hit.getAttribute('data-id')) : null;
+  }
+  function highlightDropHex(id) {
+    document.querySelectorAll('.hit[data-kind="hex"]').forEach((c) =>
+      c.classList.toggle('droptarget', Number(c.getAttribute('data-id')) === id));
+  }
+  function startRobberDrag(e) {
+    if (ui.mode !== 'moveRobber' || (online && !isMyTurn()) || !ASSETS.robber) return;
+    e.preventDefault(); e.stopPropagation();
+    const svg = $('board'), m = svg && svg.getScreenCTM ? svg.getScreenCTM() : null;
+    const img = document.createElement('img');
+    img.src = ASSETS.robber; img.className = 'robberdrag';
+    img.style.width = (m ? 0.84 * m.a : 60) + 'px'; img.style.height = (m ? 0.95 * m.a : 68) + 'px';
+    img.style.left = e.clientX + 'px'; img.style.top = e.clientY + 'px';
+    document.body.appendChild(img);
+    robberDrag = { img, over: undefined };
+    ui.robberDragging = true; render();   // hide the resting robber while it's in hand
+    document.addEventListener('pointermove', moveRobberDrag);
+    document.addEventListener('pointerup', dropRobberDrag);
+  }
+  function moveRobberDrag(e) {
+    if (!robberDrag) return;
+    robberDrag.img.style.left = e.clientX + 'px'; robberDrag.img.style.top = e.clientY + 'px';
+    const hex = hexAtPoint(e.clientX, e.clientY);
+    if (hex !== robberDrag.over) { robberDrag.over = hex; highlightDropHex(hex); }
+  }
+  function dropRobberDrag(e) {
+    document.removeEventListener('pointermove', moveRobberDrag);
+    document.removeEventListener('pointerup', dropRobberDrag);
+    const hex = hexAtPoint(e.clientX, e.clientY);
+    if (robberDrag && robberDrag.img) robberDrag.img.remove();
+    robberDrag = null; ui.robberDragging = false; zoom.swallowClick = true;
+    if (hex != null && hex !== state.robberHex) {
+      skipRobberFly = true; dispatch({ type: 'moveRobber', hex }); skipRobberFly = false;   // drag = the motion
+    } else {
+      render();   // dropped off-board or on the same hex -> cancel, robber stays put
+    }
   }
 
   // ---- panels --------------------------------------------------------------
@@ -1143,6 +1190,7 @@
       $('board-dyn').outerHTML = boardSVG('dynamic');   // replaces only the dynamic SVG
     }
     $('board-dyn').addEventListener('click', onBoardClick);
+    $('board-dyn').addEventListener('pointerdown', startRobberDrag);   // drag the robber on a 7
     $('hand').innerHTML = handBar();
     // actions: in roll/main the radial menu holds them (bottom stays clear);
     // in setup / guided sub-states show the hint at the bottom.
