@@ -41,12 +41,9 @@
   #app{position:fixed; inset:0;}
 
   /* sea */
-  /* deep-ocean backdrop behind the water-hex grid: the same ripped water tile,
-     tinted to match the hexes so panning past them reads as continuous ocean
-     (no jarring solid blue at the edge). */
-  #stage{position:absolute; inset:0;
-    background:linear-gradient(rgba(20,62,104,0.45), rgba(13,46,82,0.62)), url('assets/tiles/water.png') center/170px repeat;
-    background-color:#1c4f7c;}
+  /* the water-hex grid fills the screen; this deep-ocean colour only ever peeks at the
+     extreme edge and is tuned to match the hexes so it never looks like a hard blue seam */
+  #stage{position:absolute; inset:0; background:#1d5589;}
   #stage::after{content:""; position:absolute; inset:0; pointer-events:none;
     background:repeating-linear-gradient(0deg, rgba(255,255,255,0.03) 0 2px, transparent 2px 6px);}
   /* optional sea image overlay; empty/missing -> the gradient above shows */

@@ -77,16 +77,20 @@
   // so the grid tiles seamlessly against the land hexes.
   const HEX_PTS = [];
   for (let i = 0; i < 6; i++) { const a = (Math.PI / 180) * (60 * i); HEX_PTS.push([Math.cos(a), Math.sin(a)]); }
-  const WATER_MAXR = 9;
+  // Fill a RECTANGLE of water hexes (not a hexagon) so the whole viewport — including
+  // its corners and anywhere you can pan to — is real ocean hexes, never a blue gap.
+  // X is the wide axis (landscape); bounds cover the 1x view plus the pan overscroll.
+  const WATER_X = 20, WATER_Y = 10.5;
+  const VB_HALF = 6.2;            // viewBox half-size (keep in sync with boardSVG)
+  let boardCx = 0, boardCy = 0;   // island/viewBox centre, set in boardSVG, used by zClamp
   const WATER_HEXES = (() => {
     const out = [];
-    for (let q = -WATER_MAXR; q <= WATER_MAXR; q++) for (let r = -WATER_MAXR; r <= WATER_MAXR; r++) {
+    for (let q = -13; q <= 13; q++) for (let r = -14; r <= 14; r++) {
       const s = -q - r;
-      const dist = Math.max(Math.abs(q), Math.abs(r), Math.abs(s));
-      if (dist >= 3 && dist <= WATER_MAXR) {
-        const cx = 1.5 * q, cy = Math.sqrt(3) * (r + q / 2);
-        out.push({ cx, cy, pts: HEX_PTS.map(([dx, dy]) => [cx + dx, cy + dy]) });
-      }
+      if (Math.max(Math.abs(q), Math.abs(r), Math.abs(s)) < 3) continue;   // skip the island region
+      const cx = 1.5 * q, cy = Math.sqrt(3) * (r + q / 2);
+      if (Math.abs(cx) > WATER_X || Math.abs(cy) > WATER_Y) continue;        // rectangular sea
+      out.push({ cx, cy, pts: HEX_PTS.map(([dx, dy]) => [cx + dx, cy + dy]) });
     }
     return out;
   })();
@@ -303,7 +307,8 @@
     // extends beyond it and (with meet on a full-screen SVG) fills the screen.
     const xs = state.board.vertices.map((v) => v.x), ys = state.board.vertices.map((v) => v.y);
     const cx0 = (Math.min(...xs) + Math.max(...xs)) / 2, cy0 = (Math.min(...ys) + Math.max(...ys)) / 2;
-    const half = 6.2;
+    boardCx = cx0; boardCy = cy0;
+    const half = VB_HALF;
     const minx = cx0 - half, miny = cy0 - half, w = half * 2, h = half * 2;
     const P = [defs(state.board.hexes)];
 
@@ -1467,11 +1472,11 @@
   function zClamp() {
     const r = zRect();
     if (zoom.s < 1) zoom.s = 1;
-    // allow a small overscroll "nudge" even at 1x, so the south of the island can
-    // be pulled out from under the bottom bar; the board stays where you leave it.
-    const pad = Math.min(r.width, r.height) * 0.14;
-    zoom.tx = Math.min(pad, Math.max(-(zoom.s - 1) * r.width - pad, zoom.tx));
-    zoom.ty = Math.min(pad, Math.max(-(zoom.s - 1) * r.height - pad, zoom.ty));
+    // The SVG = the viewport and renders the water grid out to its edges, so the rule is
+    // simply: never pan the viewport past the SVG. The rectangular water fills every
+    // viewport corner at the clamp limits, so you only ever see ocean hexes — no stage.
+    zoom.tx = Math.min(0, Math.max(-(zoom.s - 1) * r.width, zoom.tx));
+    zoom.ty = Math.min(0, Math.max(-(zoom.s - 1) * r.height, zoom.ty));
   }
   // zoom toward a focal screen point, keeping the content under it fixed
   function zoomTo(newS, fx, fy) {
