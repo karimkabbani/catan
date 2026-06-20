@@ -1795,20 +1795,23 @@
     // build/trade/end/dev only on your turn (dice roll automatically); Leave is always here.
     const canAct = state.phase === 'play' && state.turnPhase === 'main' && isMyTurn();
     const acts = canAct ? [
-      { k: 'build', label: 'Build', a: 90 },
-      { k: 'trade', label: 'Trade', a: 0 },
-      { k: 'end', label: 'End turn', a: -90 },
-      { k: 'dev', label: 'Cards', a: 180 },
+      { k: 'build', label: 'Build' },
+      { k: 'trade', label: 'Trade' },
+      { k: 'end', label: 'End turn' },
+      { k: 'dev', label: 'Cards' },
     ] : [];
-    const items = acts.concat([{ k: 'exit', label: (online && !myColor) ? 'Stop' : 'Leave', a: canAct ? 135 : 180, emoji: '🚪' }]);
+    const items = acts.concat([{ k: 'exit', label: (online && !myColor) ? 'Stop' : 'Leave', emoji: '🚪' }]);
+    // spread the items evenly around the circle, first one at the top
+    const n = items.length;
     let html = `<button class="radbtn center" onclick="CATAN.closeRadial()"><img src="assets/hud/radial/close.png" alt="close"></button>`;
-    for (const it of items) {
-      const x = Math.round(R * Math.cos(it.a * Math.PI / 180));
-      const y = Math.round(-R * Math.sin(it.a * Math.PI / 180));
+    items.forEach((it, i) => {
+      const a = 90 - i * (360 / n);
+      const x = Math.round(R * Math.cos(a * Math.PI / 180));
+      const y = Math.round(-R * Math.sin(a * Math.PI / 180));
       const inner = it.emoji ? `<span class="rico">${it.emoji}</span>` : `<img src="assets/hud/radial/${it.k}.png" alt="${it.label}">`;
       const click = it.k === 'exit' ? 'CATAN.exitGame()' : `CATAN.radial('${it.k}')`;
       html += `<button class="radbtn${it.k === 'exit' ? ' exit' : ''}" style="--x:${x}px;--y:${y}px" onclick="${click}">${inner}<span class="rlbl">${it.label}</span></button>`;
-    }
+    });
     return html;
   }
   function closeRadial() {
