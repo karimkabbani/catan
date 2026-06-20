@@ -214,29 +214,70 @@
   .menubar{display:flex; align-items:center; justify-content:center; gap:7px; padding:4px 0 8px;}
   .menuclose{position:absolute; left:14px; bottom:9px; width:44px; height:44px; padding:0; border:none; background:none; cursor:pointer;}
   .menuclose img{width:100%; height:100%; object-fit:contain; filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5));}
-  /* Cards screen — composited parchment dev-card faces in a horizontal scroll */
-  .cardscroll{flex:1; display:flex; align-items:center; justify-content:safe center; gap:16px;
-    padding:6px 18px; overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch;}
+  /* Cards screen — FULL-SCREEN parchment dev-card carousel (matches the original) */
+  #overlay.menu.devmode{align-items:stretch; background:none;}
+  .devfull{position:absolute; inset:0; display:flex; flex-direction:column; overflow:hidden;
+    background:linear-gradient(rgba(60,33,12,0.25),rgba(40,22,8,0.5)), var(--wood-tex); background-size:cover;}
+  .devstrip{flex:1; display:flex; align-items:center; gap:20px; min-height:0;
+    padding:12px max(28px,12vw) 6px; overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch;}
+  .devstrip::-webkit-scrollbar{display:none;}
   .devcard2{flex:0 0 auto; position:relative; cursor:pointer;
-    height:94%; width:auto; aspect-ratio:523/840; background:center/100% 100% no-repeat;
-    filter:drop-shadow(0 6px 14px rgba(0,0,0,0.5)); transition:transform .12s ease;}
-  @supports not (aspect-ratio:1){ .devcard2{height:94%; width:131px;} }
-  .devcard2:not(.off):active{transform:translateY(1px) scale(0.985);}
-  .devcard2.off{opacity:0.62; cursor:default;}
-  .dtitle{position:absolute; top:4.3%; left:9%; right:9%; text-align:center; color:#fff;
-    font-family:var(--serif); font-size:13px; font-weight:700; letter-spacing:.3px;
+    height:90%; width:auto; aspect-ratio:523/840; background:center/100% 100% no-repeat;
+    filter:drop-shadow(0 8px 18px rgba(0,0,0,0.55)); transition:transform .16s ease;}
+  @supports not (aspect-ratio:1){ .devcard2{height:90%; width:calc(90vh*0.623);} }
+  .devcard2.act:active{transform:scale(0.98);}
+  .devcard2.focused{transform:scale(1.045);}
+  .devcard2.dim{filter:drop-shadow(0 6px 14px rgba(0,0,0,0.5)) grayscale(0.35) brightness(0.98);}
+  /* colour banner+illustration shown over the greyed face when the card is owned */
+  .dcolor{position:absolute; top:1.7%; left:8.6%; width:82.8%; pointer-events:none;}
+  .dtitle{position:absolute; top:4.3%; left:9%; right:9%; text-align:center; color:#fff; z-index:2;
+    font-family:var(--serif); font-size:clamp(13px,2.4vh,20px); font-weight:700; letter-spacing:.3px;
     text-shadow:0 1px 2px #000, 0 0 5px rgba(0,0,0,0.6); white-space:nowrap; overflow:hidden;}
-  .dtext{position:absolute; top:57%; left:13%; right:13%; text-align:center; color:#3a2712;
-    font-family:var(--serif); font-size:9px; line-height:1.24;}
-  .dcount{position:absolute; bottom:4.5%; right:12%; color:#23170a; font-weight:800; font-size:16px;
-    text-shadow:0 1px 0 rgba(255,240,210,0.4);}
-  /* buy card: title higher, then cost row, then deck-remaining */
-  .devcard2.buy .dtext{top:50%; font-weight:700; font-size:11px; color:#23170a;}
-  .dcost2{position:absolute; bottom:24%; left:0; right:0; display:flex; justify-content:center; gap:10px;
-    font-weight:800; color:#23170a; font-size:13px;}
-  .dcost2 .ci{display:flex; align-items:center; gap:2px;}
-  .dcost2 .ci img{width:18px; height:18px; object-fit:contain;}
-  .dremain2{position:absolute; bottom:8.5%; left:6%; right:6%; text-align:center; font-size:9px; color:#5a4326; font-style:italic;}
+  .dtext{position:absolute; top:57%; left:12%; right:12%; text-align:center; color:#3a2712; z-index:2;
+    font-family:var(--serif); font-size:clamp(10px,1.9vh,16px); line-height:1.26;}
+  .dcount{position:absolute; bottom:4.5%; right:12%; color:#23170a; font-weight:800; z-index:2;
+    font-size:clamp(15px,2.6vh,22px); text-shadow:0 1px 0 rgba(255,240,210,0.4);}
+  .devcard2.buy .dtext{top:50%; font-weight:700; color:#23170a; font-size:clamp(11px,2vh,17px);}
+  .dcost2{position:absolute; bottom:24%; left:0; right:0; display:flex; justify-content:center; gap:12px; z-index:2;
+    font-weight:800; color:#23170a; font-size:clamp(13px,2.3vh,18px);}
+  .dcost2 .ci{display:flex; align-items:center; gap:3px;}
+  .dcost2 .ci img{width:clamp(18px,3.4vh,26px); height:clamp(18px,3.4vh,26px); object-fit:contain;}
+  .dremain2{position:absolute; bottom:8.5%; left:6%; right:6%; text-align:center; z-index:2;
+    font-size:clamp(9px,1.6vh,14px); color:#5a4326; font-style:italic;}
+  /* nav arrows (green triangles) */
+  .devnav{position:absolute; top:46%; transform:translateY(-50%); width:54px; height:60px; padding:0;
+    border:none; background:none; cursor:pointer; z-index:3; display:flex; align-items:center; justify-content:center;}
+  .devnav.left{left:4px;} .devnav.right{right:4px;}
+  .devnav i{display:block; width:0; height:0; border-top:17px solid transparent; border-bottom:17px solid transparent;
+    filter:drop-shadow(0 2px 3px rgba(0,0,0,0.6));}
+  .devnav.left i{border-right:26px solid #54a012;}
+  .devnav.right i{border-left:26px solid #54a012;}
+  .devnav:active{transform:translateY(-50%) scale(0.92);}
+  /* slim resource bar at the bottom (mirrors the in-game strip) */
+  .devbar{display:flex; align-items:flex-end; justify-content:center; gap:30px; padding:0 38px 7px;
+    background:linear-gradient(rgba(74,42,17,0.62),rgba(34,19,7,0.82)), var(--wood-tex); background-size:cover;
+    border-top:2px solid var(--wood-edge); box-shadow:0 -3px 12px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,220,170,0.18);}
+  .devclose,.devok{position:absolute; bottom:14px; width:54px; height:54px; padding:0; border:none; background:none; cursor:pointer; z-index:4;}
+  .devclose{left:16px;} .devok{right:16px;}
+  .devclose img,.devok img{width:100%; height:100%; object-fit:contain; filter:drop-shadow(0 2px 5px rgba(0,0,0,0.55));}
+  .devok.hidden{display:none;}
+  /* play-confirmation panel */
+  .devconfirm{position:absolute; inset:0; z-index:6; display:flex; flex-direction:column; justify-content:flex-end;
+    background:rgba(0,0,0,0.45); animation:fadein .15s ease;}
+  .dcpanel{position:relative; height:60%; display:flex; flex-direction:column; align-items:center;
+    background:linear-gradient(rgba(74,42,17,0.97),rgba(40,22,8,0.99)), var(--wood-tex); background-size:cover;
+    border:2px solid var(--gold-edge); border-radius:14px 14px 0 0; box-shadow:0 -12px 44px rgba(0,0,0,0.65);
+    animation:sheetup .24s cubic-bezier(.2,.9,.3,1.1);}
+  .dcbanner{align-self:stretch; height:38px; line-height:38px; text-align:center; color:#fff;
+    font-family:var(--serif); font-size:19px; letter-spacing:.4px; text-shadow:0 1px 3px #000;
+    background:linear-gradient(180deg,#2b5c96,#1a3e6e); border-radius:11px 11px 0 0;}
+  .dcq{flex:1; display:flex; align-items:center; justify-content:center; text-align:center; padding:0 14%;
+    color:var(--gold); font-family:var(--serif); font-size:clamp(16px,3.2vh,24px); line-height:1.35;}
+  .dcbtn{position:absolute; bottom:18px; width:62px; height:62px; padding:0; border:none; background:none; cursor:pointer;}
+  .dcbtn img{width:100%; height:100%; object-fit:contain; filter:drop-shadow(0 2px 6px #000);}
+  .dcbtn.no{left:22px;} .dcbtn.yes{right:22px;}
+  .dcbtn:active{transform:scale(0.93);}
+  @keyframes fadein{from{opacity:0} to{opacity:1}}
   /* online: title-screen controls + lobby */
   .t-or{text-align:center; color:#caa44e; font-size:12px; margin:10px 0 7px; letter-spacing:.3px; opacity:.85;}
   .t-online{display:flex; flex-direction:column; gap:7px;}
@@ -566,6 +607,7 @@
           build:{ placeRoad:'assets/hud/build-road.png', placeSettlement:'assets/hud/build-settlement.png', placeCity:'assets/hud/build-city.png' },
           dev:  { knight:'assets/hud/dev-knight.png', road_building:'assets/hud/dev-road.png', year_of_plenty:'assets/hud/dev-plenty.png', monopoly:'assets/hud/dev-monopoly.png', victory_point:'assets/hud/dev-vp.png', back:'assets/hud/dev-back.png' },
           devFace:{ knight:'assets/hud/dev-face-knight.png', road_building:'assets/hud/dev-face-road.png', year_of_plenty:'assets/hud/dev-face-plenty.png', monopoly:'assets/hud/dev-face-monopoly.png', victory_point:'assets/hud/dev-face-vp.png', buy:'assets/hud/dev-face-buy.png' },
+          devArt:{ knight:'assets/hud/dev-knight.png', road_building:'assets/hud/dev-road.png', year_of_plenty:'assets/hud/dev-plenty.png', monopoly:'assets/hud/dev-monopoly.png', victory_point:'assets/hud/dev-vp.png', buy:'assets/hud/dev-buy.png' },
           badge:{ road:'assets/hud/badge-road.png', army:'assets/hud/badge-army.png', vp:'assets/hud/badge-vp.png', card:'assets/hud/badge-card.png', res:'assets/hud/badge-res.png' },
         },
       };
