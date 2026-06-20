@@ -315,17 +315,20 @@
   /* ===== trade: half-height wood sheet, board shows above, 3-row placeholder grid ===== */
   #overlay.menu.trademode{align-items:stretch; background:none;}
   body.trading #banner, body.trading .corner, body.trading #dock{display:none !important;}
-  .traderoot{position:absolute; inset:0;}
+  /* fixed to the DYNAMIC viewport so the mobile-browser URL bar can't push the sheet
+     (and its buttons) off-screen — dvh tracks the visible height, vh is the fallback */
+  .traderoot{position:fixed; left:0; right:0; top:0; height:100vh; height:100dvh;}
   .ttitle2{position:absolute; top:1.6%; left:0; right:0; text-align:center; color:#fff; font-family:var(--serif);
     font-size:clamp(18px,3.6vh,28px); letter-spacing:.4px; text-shadow:0 2px 5px #000;}
   /* the wooden table — bottom ~56%, board visible above it */
   .tradesheet{position:absolute; left:0; right:0; bottom:0; height:56%; display:flex; flex-direction:column;
     background:linear-gradient(rgba(70,40,16,0.55),rgba(34,19,7,0.86)), var(--wood-tex); background-size:cover;
     border-top:3px solid var(--gold-edge); box-shadow:0 -10px 34px rgba(0,0,0,0.55);
-    padding:clamp(30px,6vh,52px) 2% 8px; animation:sheetup .26s cubic-bezier(.2,.9,.3,1.1);}
-  /* targets straddle the sheet's top edge (sticking up into the board area) */
+    padding:clamp(30px,6vh,52px) 2% calc(8px + env(safe-area-inset-bottom,0px)); animation:sheetup .26s cubic-bezier(.2,.9,.3,1.1);}
+  /* targets straddle the sheet's top edge; players centred, the bank chest off to the right */
   .ttargets{position:absolute; left:0; right:0; top:0; transform:translateY(-54%);
     display:flex; align-items:flex-end; justify-content:center; gap:clamp(8px,2.5vw,24px);}
+  .ttarget.chest{position:absolute; right:clamp(16px,7vw,90px); bottom:0;}
   .ttarget{cursor:pointer; opacity:0.55; transition:opacity .14s, transform .14s; transform:scale(0.92); line-height:0;}
   .ttarget.on{opacity:1; transform:scale(1);}
   .tav{width:clamp(46px,8.5vh,80px); height:clamp(46px,8.5vh,80px); border-radius:11px; overflow:hidden;
@@ -354,7 +357,7 @@
     text-shadow:-1.3px -1.3px 0 #000,1.3px -1.3px 0 #000,-1.3px 1.3px 0 #000,1.3px 1.3px 0 #000;}
   .tratio{color:#f1e3c2; font-weight:800; font-size:clamp(11px,1.8vh,15px); text-shadow:0 1px 2px #000;}
   /* cancel + confirm (✓ only shows when the trade is valid) */
-  .tclose,.tconfirm{position:absolute; bottom:13px; width:clamp(46px,7.5vh,60px); height:clamp(46px,7.5vh,60px);
+  .tclose,.tconfirm{position:absolute; bottom:calc(13px + env(safe-area-inset-bottom,0px)); width:clamp(46px,7.5vh,60px); height:clamp(46px,7.5vh,60px);
     padding:0; border:none; background:none; cursor:pointer; z-index:4;}
   .tclose{left:16px;} .tconfirm{right:16px;}
   .tclose img,.tconfirm img{width:100%; height:100%; object-fit:contain; filter:drop-shadow(0 2px 5px rgba(0,0,0,0.55));}
