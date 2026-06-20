@@ -312,30 +312,47 @@
   .watchtag{margin-left:8px; font-size:0.85em; opacity:0.85; padding:1px 7px; border-radius:10px; background:rgba(0,0,0,0.3);}
   .loblist .lobrow{justify-content:space-between;}
   /* trade screen */
-  .trade-tabs{display:flex; justify-content:center; margin:8px 0 2px;}
-  .ttab{background:rgba(0,0,0,0.32); border:1px solid var(--wood-edge); color:var(--ink); font-weight:700;
-    padding:7px 24px; cursor:pointer; font-size:14px;}
-  .ttab:first-child{border-radius:9px 0 0 9px;} .ttab:last-child{border-radius:0 9px 9px 0;}
-  .ttab.on{background:linear-gradient(180deg,#d8b258,#a9802a); color:#3a2400;}
-  .tgrid{flex:1; display:flex; align-items:center; justify-content:center; gap:3%; padding:0 4%;}
-  .tcol{display:flex; flex-direction:column; align-items:center; gap:6px; flex:1; max-width:118px;}
-  .tratio{color:#f1e3c2; font-weight:800; font-size:14px; text-shadow:0 1px 2px #000;}
-  .tarrow{width:44px; height:28px; border:none; border-radius:8px; cursor:pointer; font-size:15px; font-weight:900; line-height:1;
-    color:#fff; box-shadow:0 2px 5px rgba(0,0,0,0.4);}
-  .tarrow.give{background:linear-gradient(#d6534b,#a32f27);}
-  .tarrow.want{background:linear-gradient(#54b15a,#2f8a3a);}
-  .tarrow.on{outline:3px solid var(--gold);}
-  .tarrow:disabled{opacity:0.3; cursor:default;}
-  .tamt{font-weight:800; font-size:14px; min-height:18px; text-shadow:0 1px 1px #000;}
-  .tamt.give{color:#ff9a90;} .tamt.want{color:#9be79f;}
-  .torb{position:relative; width:54px; height:54px; display:flex; align-items:center; justify-content:center;}
-  .torb img{width:50px; height:50px; object-fit:contain; filter:drop-shadow(0 1px 2px #0008);}
-  .torb.gsel{outline:3px solid #d6534b; border-radius:50%;} .torb.wsel{outline:3px solid #54b15a; border-radius:50%;}
-  .torb .tcount{position:absolute; bottom:-4px; right:-4px; background:#2b1808; color:var(--gold);
-    border:1px solid var(--gold-edge); border-radius:9px; min-width:18px; height:18px; line-height:16px; font-size:12px; font-weight:800; text-align:center; padding:0 3px;}
-  .tactions{display:flex; gap:10px; align-items:center; justify-content:center; padding:8px 12px 12px; max-width:560px; margin:0 auto; width:100%;}
-  .tbal{flex:1 0 100%; text-align:center; font-size:12px; color:var(--muted); margin-bottom:4px;}
-  .tbal.ok{color:#7fe089; font-weight:700;}
+  /* ===== full-screen trade table (matches the original) ===== */
+  #overlay.menu.trademode{align-items:stretch; background:none;}
+  .tradefull{position:absolute; inset:0; display:flex; flex-direction:column; overflow:hidden;
+    background:linear-gradient(rgba(60,33,12,0.32),rgba(40,22,8,0.58)), var(--wood-tex); background-size:cover;}
+  .ttitle2{text-align:center; color:#fff; font-family:var(--serif); font-size:clamp(18px,3.4vh,26px);
+    letter-spacing:.4px; text-shadow:0 2px 4px #000; padding:6px 0 2px;}
+  /* targets: other players' avatars + the bank chest */
+  .ttargets{display:flex; align-items:flex-end; justify-content:center; gap:clamp(10px,3vw,30px); padding:4px 10px 6px; flex:0 0 auto;}
+  .ttarget{display:flex; flex-direction:column; align-items:center; gap:3px; cursor:pointer; opacity:0.5;
+    transition:opacity .14s, transform .14s; transform:scale(0.92);}
+  .ttarget.on{opacity:1; transform:scale(1);}
+  .tav{width:clamp(48px,9vh,82px); height:clamp(48px,9vh,82px); border-radius:11px; overflow:hidden;
+    border:3px solid #caa24a; box-shadow:0 3px 9px rgba(0,0,0,0.5); background:#2a1c0c;}
+  .tav img{width:100%; height:100%; object-fit:cover;}
+  .ttarget.on .tav{box-shadow:0 0 0 3px var(--gold), 0 3px 10px rgba(0,0,0,0.55);}
+  .tchest{width:clamp(56px,10vh,96px); height:auto; filter:drop-shadow(0 3px 7px rgba(0,0,0,0.55));}
+  .ttarget.chest.on .tchest{filter:drop-shadow(0 0 7px var(--gold)) drop-shadow(0 3px 7px rgba(0,0,0,0.55));}
+  .tnm2{font-size:clamp(10px,1.7vh,14px); font-weight:700; color:#f1e3c2; text-shadow:0 1px 2px #000;
+    max-width:92px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;}
+  /* resource columns — swipe up to give, down to receive (arrows also tappable) */
+  .tgrid{flex:1; display:flex; align-items:center; justify-content:center; gap:clamp(6px,2.5vw,22px); padding:0 4% 8px; min-height:0;}
+  .tcol{display:flex; flex-direction:column; align-items:center; gap:clamp(3px,0.9vh,8px); flex:1 1 0; max-width:132px;
+    touch-action:none; user-select:none; -webkit-user-select:none; cursor:grab;}
+  .tcol:active{cursor:grabbing;}
+  .tarr{width:clamp(32px,6vh,50px); height:clamp(24px,4.6vh,38px); border:none; background:none; padding:0; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; opacity:0.45; transition:opacity .12s, transform .12s;}
+  .tarr img{height:100%; width:auto; object-fit:contain; filter:drop-shadow(0 1px 2px rgba(0,0,0,0.5));}
+  .tarr.on{opacity:1; transform:scale(1.14);}
+  .tamt{font-weight:800; font-size:clamp(13px,2.4vh,20px); min-height:1.1em; line-height:1; text-shadow:0 1px 2px #000;}
+  .tamt.give{color:#ff8a7e;} .tamt.want{color:#8fe89a;}
+  .torb{position:relative; width:clamp(48px,9.5vh,80px); height:clamp(48px,9.5vh,80px); display:flex; align-items:center; justify-content:center;}
+  .torb img{width:100%; height:100%; object-fit:contain; filter:drop-shadow(0 2px 4px #0008); pointer-events:none;}
+  .torb .tcount{position:absolute; bottom:-3px; right:-3px; color:#fff; font-weight:800; font-size:clamp(12px,2vh,17px);
+    text-shadow:-1.3px -1.3px 0 #000,1.3px -1.3px 0 #000,-1.3px 1.3px 0 #000,1.3px 1.3px 0 #000;}
+  .tratio{color:#f1e3c2; font-weight:800; font-size:clamp(11px,1.9vh,16px); text-shadow:0 1px 2px #000; margin-top:2px;}
+  /* cancel + confirm (✓ only shows when the trade is valid) */
+  .tclose,.tconfirm{position:absolute; bottom:14px; width:clamp(48px,8vh,62px); height:clamp(48px,8vh,62px);
+    padding:0; border:none; background:none; cursor:pointer; z-index:4;}
+  .tclose{left:16px;} .tconfirm{right:16px;}
+  .tclose img,.tconfirm img{width:100%; height:100%; object-fit:contain; filter:drop-shadow(0 2px 5px rgba(0,0,0,0.55));}
+  .tconfirm.hidden{display:none;}
   .toffer{display:flex; gap:8px; align-items:center; justify-content:center; flex-wrap:wrap; color:var(--ink); font-weight:700; font-size:16px; padding:10px 12px;}
   .toffer .for{color:var(--muted); font-weight:400; font-style:italic;}
   .toffer .ri{width:22px; height:22px; vertical-align:-5px;}
@@ -614,6 +631,7 @@
           dev:  { knight:'assets/hud/dev-knight.png', road_building:'assets/hud/dev-road.png', year_of_plenty:'assets/hud/dev-plenty.png', monopoly:'assets/hud/dev-monopoly.png', victory_point:'assets/hud/dev-vp.png', back:'assets/hud/dev-back.png' },
           devFace:{ knight:'assets/hud/dev-face-knight.png', road_building:'assets/hud/dev-face-road.png', year_of_plenty:'assets/hud/dev-face-plenty.png', monopoly:'assets/hud/dev-face-monopoly.png', victory_point:'assets/hud/dev-face-vp.png', buy:'assets/hud/dev-face-buy.png' },
           devArt:{ knight:'assets/hud/dev-knight.png', road_building:'assets/hud/dev-road.png', year_of_plenty:'assets/hud/dev-plenty.png', monopoly:'assets/hud/dev-monopoly.png', victory_point:'assets/hud/dev-vp.png', buy:'assets/hud/dev-buy.png' },
+          trade:{ bank:'assets/hud/trade/bank.png', give:'assets/hud/trade/arrow-give.png', get:'assets/hud/trade/arrow-get.png' },
           badge:{ road:'assets/hud/badge-road.png', army:'assets/hud/badge-army.png', vp:'assets/hud/badge-vp.png', card:'assets/hud/badge-card.png', res:'assets/hud/badge-res.png' },
         },
       };
@@ -1535,8 +1553,8 @@
   }
 
   // ---- overlays (unchanged logic) -----------------------------------------
-  function showOverlay(html) { const o = $('overlay'); o.innerHTML = `<div class="sheet">${html}</div>`; o.classList.remove('hidden', 'menu'); }
-  function showFullMenu(html) { const o = $('overlay'); o.innerHTML = html; o.classList.remove('hidden'); o.classList.add('menu'); }
+  function showOverlay(html) { const o = $('overlay'); o.innerHTML = `<div class="sheet">${html}</div>`; o.classList.remove('hidden', 'menu', 'devmode', 'trademode'); }
+  function showFullMenu(html) { const o = $('overlay'); o.innerHTML = html; o.classList.remove('hidden', 'devmode', 'trademode'); o.classList.add('menu'); }
   // Re-render a menu sheet without replaying its slide-up / reloading images: if the
   // same view is already open, swap only its inner content; otherwise mount fresh.
   function paintMenu(view, html) {
@@ -1550,7 +1568,7 @@
       const ms = o.querySelector('.menuscreen'); if (ms) ms.dataset.view = view;
     }
   }
-  function hideOverlay() { const o = $('overlay'); o.classList.add('hidden'); o.classList.remove('menu', 'devmode'); o.innerHTML = ''; o.onclick = null; }
+  function hideOverlay() { const o = $('overlay'); o.classList.add('hidden'); o.classList.remove('menu', 'devmode', 'trademode'); o.innerHTML = ''; o.onclick = null; }
   // discard order: starting from the player AFTER the roller, around the table,
   // with the roller last (matches the original app).
   function discardOrder() {
@@ -1713,50 +1731,86 @@
     renderTradeBuilder();
   }
   function zeroRes() { return { brick: 0, wood: 0, sheep: 0, wheat: 0, ore: 0 }; }
+  function tBankMode() { return ui.trade && ui.trade.mode === 'bank'; }
+  // a single signed "net" per resource: >0 = you give (bank: in ratio bundles), <0 = you want
+  function tNetOf(r) { const t = ui.trade; if (t.give[r]) return tBankMode() ? Math.round(t.give[r] / bankRatio(activeColor(), r)) : t.give[r]; if (t.want[r]) return -t.want[r]; return 0; }
+  function tSetNet(r, net) {
+    const t = ui.trade, hold = activePlayer().resources[r], cap = state.bank[r];
+    if (tBankMode()) {
+      const ratio = bankRatio(activeColor(), r), maxGive = Math.floor(hold / ratio);
+      net = Math.max(-cap, Math.min(maxGive, net));
+      t.give[r] = net > 0 ? net * ratio : 0; t.want[r] = net < 0 ? -net : 0;
+    } else {
+      net = Math.max(-cap, Math.min(hold, net));
+      t.give[r] = Math.max(0, net); t.want[r] = Math.max(0, -net);
+    }
+  }
+  function tradeValid() {
+    const t = ui.trade, color = activeColor();
+    if (tBankMode()) {
+      const credits = RES.reduce((n, r) => n + t.give[r] / bankRatio(color, r), 0);
+      const wantTot = RES.reduce((n, r) => n + t.want[r], 0);
+      return credits >= 1 && credits === wantTot;
+    }
+    const gt = RES.reduce((n, r) => n + t.give[r], 0), wt = RES.reduce((n, r) => n + t.want[r], 0);
+    return gt > 0 && wt > 0;
+  }
+  // full-screen trade table (matches the original): targets up top (other players + the
+  // bank chest), then a row of resources you SWIPE up to give / down to receive, and a
+  // check-mark that appears only when the offer is valid.
   function renderTradeBuilder() {
-    const t = ui.trade, p = activePlayer(), color = activeColor(), res = HUD.res || {};
-    const bank = t.mode === 'bank';
+    const t = ui.trade, p = activePlayer(), color = activeColor(), res = HUD.res || {}, tr = HUD.trade || {};
+    const bank = tBankMode();
+    const others = state.players.filter((x) => x.color !== color);
+    const avatar = (pl) => { const i = state.players.indexOf(pl); return (ASSETS.avatars && ASSETS.avatars[i]) ? ASSETS.avatars[i] : ''; };
+    const targets = others.map((pl) => `<div class="ttarget${bank ? '' : ' on'}" onclick="CATAN.tradeMode('players')">
+        <div class="tav" style="border-color:${PCOLOR[pl.color]}"><img src="${avatar(pl)}" alt="" onerror="this.style.display='none'"></div>
+        <span class="tnm2">${escapeHtml(pl.name)}</span></div>`).join('')
+      + `<div class="ttarget chest${bank ? ' on' : ''}" onclick="CATAN.tradeMode('bank')"><img class="tchest" src="${tr.bank || ''}" alt=""><span class="tnm2">Bank</span></div>`;
     const cols = HAND_ORDER.map((r) => {
-      const hold = p.resources[r], ratio = bankRatio(color, r);
-      if (bank) {
-        const canGive = Math.floor(hold / ratio) >= 1;   // need a full ratio's worth to give
-        return `<div class="tcol">
-          <div class="tratio">${ratio}:1</div>
-          <button class="tarrow give" ${canGive ? '' : 'disabled'} onclick="CATAN.tBankGive('${r}')">▲</button>
-          <div class="tamt give">${t.give[r] ? '−' + t.give[r] : ''}</div>
-          <div class="torb"><img src="${res[r] || ''}"><span class="tcount">${hold}</span></div>
-          <div class="tamt want">${t.want[r] ? '+' + t.want[r] : ''}</div>
-          <button class="tarrow want" ${state.bank[r] > 0 ? '' : 'disabled'} onclick="CATAN.tBankWant('${r}')">▼</button>
-        </div>`;
-      }
-      return `<div class="tcol">
-        <button class="tarrow give" ${hold > 0 ? '' : 'disabled'} onclick="CATAN.tGive('${r}')">▲</button>
-        <div class="tamt give">${t.give[r] ? '−' + t.give[r] : ''}</div>
+      const hold = p.resources[r], ratio = bankRatio(color, r), g = t.give[r], w = t.want[r];
+      return `<div class="tcol" data-r="${r}">
+        <button class="tarr give${g ? ' on' : ''}" onclick="CATAN.tStep('${r}',1)"><img src="${tr.give || ''}" alt="give"></button>
+        <div class="tamt give">${g ? '−' + g : ''}</div>
         <div class="torb"><img src="${res[r] || ''}"><span class="tcount">${hold}</span></div>
-        <div class="tamt want">${t.want[r] ? '+' + t.want[r] : ''}</div>
-        <button class="tarrow want" onclick="CATAN.tWant('${r}')">▼</button>
+        <div class="tamt want">${w ? '+' + w : ''}</div>
+        <button class="tarr want${w ? ' on' : ''}" onclick="CATAN.tStep('${r}',-1)"><img src="${tr.get || ''}" alt="get"></button>
+        ${bank ? `<div class="tratio">${ratio}:1</div>` : ''}
       </div>`;
     }).join('');
-    let action;
-    if (bank) {
-      const credits = RES.reduce((n, r) => n + t.give[r] / bankRatio(color, r), 0);   // give is always a ratio multiple
-      const wantTot = RES.reduce((n, r) => n + t.want[r], 0);
-      const balanced = credits >= 1 && credits === wantTot;
-      const hint = (credits > 0 || wantTot > 0)
-        ? `<span class="tbal${balanced ? ' ok' : ''}">giving ${credits} card${credits === 1 ? '' : 's'} · receiving ${wantTot}</span>`
-        : `<span class="tbal">tap ▲ to give at the ratio, ▼ to receive</span>`;
-      action = `${hint}<button class="btn" onclick="CATAN.tradeClear()">Clear</button><button class="btn full" ${balanced ? '' : 'disabled'} onclick="CATAN.tradeBank()">Trade with bank</button>`;
-    } else {
-      const gt = RES.reduce((n, r) => n + t.give[r], 0), wt = RES.reduce((n, r) => n + t.want[r], 0);
-      action = `<button class="btn" onclick="CATAN.tradeClear()">Clear</button><button class="btn full" ${gt && wt ? '' : 'disabled'} onclick="CATAN.tradeSend()">Send offer</button>`;
-    }
-    const tabs = `<button class="ttab${bank ? '' : ' on'}" onclick="CATAN.tradeMode('players')">Players</button><button class="ttab${bank ? ' on' : ''}" onclick="CATAN.tradeMode('bank')">Bank</button>`;
-    paintMenu('trade-builder', `<div class="menuscreen trade">
-      <div class="trade-tabs">${tabs}</div>
+    const valid = tradeValid();
+    showFullMenu(`<div class="tradefull">
+      <div class="ttitle2">${bank ? 'Bank' : 'Players'}</div>
+      <div class="ttargets">${targets}</div>
       <div class="tgrid">${cols}</div>
-      <div class="tactions">${action}</div>
-      <button class="menuclose" onclick="CATAN.tradeClose()"><img src="assets/hud/decline.png" alt="Close"></button>
+      <button class="tclose" onclick="CATAN.tradeClose()"><img src="assets/hud/decline.png" alt="Cancel"></button>
+      <button class="tconfirm${valid ? '' : ' hidden'}" onclick="CATAN.tradeConfirmTrade()"><img src="assets/hud/confirm.png" alt="Confirm"></button>
     </div>`);
+    $('overlay').classList.add('trademode');
+    setTimeout(attachTradeSwipe, 0);
+  }
+  function attachTradeSwipe() {
+    document.querySelectorAll('.tradefull .tcol').forEach((col) => {
+      const r = col.dataset.r; let sy = 0, sNet = 0, drag = false;
+      col.addEventListener('pointerdown', (e) => {
+        if (e.target.closest('.tarr')) return;        // let arrow taps act on their own
+        drag = true; sy = e.clientY; sNet = tNetOf(r);
+        try { col.setPointerCapture(e.pointerId); } catch (_) {}
+      });
+      col.addEventListener('pointermove', (e) => { if (drag) tradePreview(col, r, sNet + Math.round((sy - e.clientY) / 26)); });
+      const end = (e) => { if (!drag) return; drag = false; tSetNet(r, sNet + Math.round((sy - (e.clientY || sy)) / 26)); renderTradeBuilder(); };
+      col.addEventListener('pointerup', end);
+      col.addEventListener('pointercancel', () => { if (drag) { drag = false; renderTradeBuilder(); } });
+    });
+  }
+  // update one column + the confirm button live during a swipe, without a full re-render
+  function tradePreview(col, r, net) {
+    tSetNet(r, net); const t = ui.trade;
+    col.querySelector('.tamt.give').textContent = t.give[r] ? '−' + t.give[r] : '';
+    col.querySelector('.tamt.want').textContent = t.want[r] ? '+' + t.want[r] : '';
+    col.querySelector('.tarr.give').classList.toggle('on', !!t.give[r]);
+    col.querySelector('.tarr.want').classList.toggle('on', !!t.want[r]);
+    const cf = document.querySelector('.tconfirm'); if (cf) cf.classList.toggle('hidden', !tradeValid());
   }
   // proposer's view after sending — live reactions + confirm/cancel
   function renderTradeWait(pt) {
@@ -1954,13 +2008,11 @@
     devCancelPlay: () => { const el = $('devconfirm'); if (el) el.remove(); },
     yop: (r) => { ui.pending.yop.push(r); $('yopsel').textContent = 'Selected: ' + ui.pending.yop.map((x) => ICON[x]).join(' '); if (ui.pending.yop.length === 2) { const t = ui.pending.yop; hideOverlay(); dispatch({ type: 'playYearOfPlenty', resources: [t[0], t[1]] }); } },
     mono: (r) => { hideOverlay(); dispatch({ type: 'playMonopoly', resource: r }); },
-    tradeMode: (m) => { ui.trade.mode = m; ui.trade.bankGive = null; ui.trade.bankWant = null; renderTradeBuilder(); },
-    // per resource it's give OR want, never both; clamp at the limit (don't wrap to 0)
-    tGive: (r) => { const t = ui.trade, hold = activePlayer().resources[r]; t.want[r] = 0; t.give[r] = Math.min(t.give[r] + 1, hold); renderTradeBuilder(); },
-    tWant: (r) => { const t = ui.trade, cap = state.bank[r]; t.give[r] = 0; t.want[r] = Math.min(t.want[r] + 1, cap); renderTradeBuilder(); },
-    tBankGive: (r) => { const t = ui.trade, hold = activePlayer().resources[r], ratio = bankRatio(activeColor(), r); const max = Math.floor(hold / ratio) * ratio; t.want[r] = 0; t.give[r] = Math.min(t.give[r] + ratio, max); renderTradeBuilder(); },
-    tBankWant: (r) => { const t = ui.trade; t.give[r] = 0; t.want[r] = Math.min(t.want[r] + 1, state.bank[r]); renderTradeBuilder(); },
-    tradeClear: () => { ui.trade.give = zeroRes(); ui.trade.want = zeroRes(); renderTradeBuilder(); },
+    // switch target (players <-> bank); clear the offer since the ratios differ
+    tradeMode: (m) => { if (ui.trade.mode === m) return; ui.trade.mode = m; ui.trade.give = zeroRes(); ui.trade.want = zeroRes(); renderTradeBuilder(); },
+    // one step toward give (dir +1) or want (dir -1) on a resource; swipe does the same
+    tStep: (r, dir) => { tSetNet(r, tNetOf(r) + dir); renderTradeBuilder(); },
+    tradeConfirmTrade: () => { if (!tradeValid()) return; if (tBankMode()) window.CATAN.tradeBank(); else window.CATAN.tradeSend(); },
     tradeSend: () => { const t = ui.trade, give = {}, want = {}; RES.forEach((r) => { if (t.give[r]) give[r] = t.give[r]; if (t.want[r]) want[r] = t.want[r]; }); dispatch({ type: 'offerTrade', give, want }); },
     tradeBank: () => {
       const t = ui.trade, color = activeColor();
