@@ -1598,7 +1598,9 @@
         const b = placeBuilding(c, 'settlement');                                    // 2nd spot
         placeRoadNear(c, a); placeRoadNear(c, a); placeRoadNear(c, b);               // a few roads
         p.resources = { brick: ri(0, 3), wood: ri(0, 3), sheep: ri(0, 3), wheat: ri(0, 4), ore: ri(0, 3) };
-        if (Math.random() < 0.5) p.devCards = [['knight', 'road_building', 'year_of_plenty', 'monopoly'][ri(0, 3)]];
+        // everyone holds a Knight so the start-of-turn "play knight or roll?" question shows
+        p.devCards = ['knight'];
+        if (Math.random() < 0.5) p.devCards.push(['road_building', 'year_of_plenty', 'monopoly'][ri(0, 2)]);
         if (Math.random() < 0.5) p.playedKnights = ri(0, 2);
       });
       // recompute supply from what's on the board so builds stay valid
@@ -1609,12 +1611,13 @@
         p.roadsLeft = 15 - Object.values(s.roads).filter((o) => o === p.color).length;
       });
       try { C.updateLongestRoad(s); } catch (_) { }
-      s.phase = 'play'; s.currentPlayerIndex = 0; s.turnPhase = 'main'; s.hasRolledThisTurn = true;   // your turn, ready to build
+      // start at the roll phase (not yet rolled) so the Knight question fires right away
+      s.phase = 'play'; s.currentPlayerIndex = 0; s.turnPhase = 'roll'; s.hasRolledThisTurn = false; s.hasPlayedDevCardThisTurn = false;
       state = s; ui = { mode: 'idle', pending: null }; resetZoom(); renderedBoardKey = null;
       title.classList.add('hidden'); hideOverlay(); document.body.style.background = GAME_BG;
       afterAction(); render();
       const bd = $('board'); if (bd) bd.classList.add('enter');
-      toast('Demo — mid-game, your turn');
+      toast('Demo — you hold a Knight: play it or roll');
     };
     render2();
   }
