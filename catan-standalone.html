@@ -910,11 +910,21 @@
       const b = pid != null ? state.board.vertices[pid] : null;
       portSeen.add(v.id); if (b) portSeen.add(b.id);
       const ends = b ? [v, b] : [v];
-      // badge sits out in the water (centered on the perpendicular bisector of
-      // the port edge, so it's symmetric between the two bridges)
+      // badge sits just off the coast at the MIDPOINT between the two coastal points,
+      // pushed straight out along the port edge's perpendicular bisector so the two
+      // bridges are exactly equal length. PORT_OUT controls how far off the coast it
+      // sits (smaller = closer to the island).
+      const PORT_OUT = 0.5;
       const mx0 = b ? (v.x + b.x) / 2 : v.x, my0 = b ? (v.y + b.y) / 2 : v.y;
-      const dl = Math.hypot(mx0 - cx0, my0 - cy0) || 1;
-      const bx = mx0 + ((mx0 - cx0) / dl) * 0.78, by = my0 + ((my0 - cy0) / dl) * 0.78;
+      let nx, ny;
+      if (b) {                                  // perpendicular to the edge (v -> b)
+        nx = -(b.y - v.y); ny = (b.x - v.x);
+        const nl = Math.hypot(nx, ny) || 1; nx /= nl; ny /= nl;
+        if (nx * (mx0 - cx0) + ny * (my0 - cy0) < 0) { nx = -nx; ny = -ny; }  // point seaward
+      } else {                                  // lone-vertex port: push radially outward
+        const dl = Math.hypot(mx0 - cx0, my0 - cy0) || 1; nx = (mx0 - cx0) / dl; ny = (my0 - cy0) / dl;
+      }
+      const bx = mx0 + nx * PORT_OUT, by = my0 + ny * PORT_OUT;
       // a real plank bridge from each coastal corner to the badge: the plank
       // sprite is TILED along the span at its natural proportions (no stretching),
       // rotated to the bridge's actual angle.
