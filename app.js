@@ -189,15 +189,16 @@
     // discards happen sequentially in turn order; promptDiscards picks who's up
     if (state.turnPhase === 'discard') { promptDiscards(); return; }
     if (!isMyTurn()) { render(); return; }   // online: spectating another player's turn
-    // dice roll automatically at the start of each turn (no manual roll)
+    // start of turn: if you hold a playable Knight you may play it BEFORE rolling, so ask;
+    // otherwise the dice roll automatically (no manual roll).
     if (state.phase === 'play' && state.turnPhase === 'roll') {
-      setTimeout(() => {
-        if (state.turnPhase === 'roll' && isMyTurn()) {
-          ui.diceRevealing = true;          // suppress the corner dice during the reveal
-          dispatch({ type: 'rollDice' });
-          showDiceReveal(state.dice);
-        }
-      }, 350);
+      const me = activePlayer();
+      if (!state.hasPlayedDevCardThisTurn && me.devCards.includes('knight')) {
+        if (ui.knightDismissed) showRollPrompt();
+        else if (!$('overlay').classList.contains('qmode')) showKnightQuestion();
+        return;
+      }
+      doAutoRoll();
       return;
     }
     if (state.turnPhase === 'moveRobber') { ui.mode = 'moveRobber'; toast('Drag the robber onto a hex'); return; }
@@ -205,6 +206,36 @@
     if (state.turnPhase === 'placeRoad' && state.phase === 'play') { ui.mode = 'placeRoad'; return; }
     if (state.phase === 'setup') ui.mode = state.turnPhase === 'placeRoad' ? 'placeRoad' : 'placeSettlement';
   }
+
+  // auto-roll the dice (the default start-of-turn action) with the big reveal animation
+  function doAutoRoll() {
+    ui.knightDismissed = false; hideRollPrompt();
+    setTimeout(() => {
+      if (state.turnPhase === 'roll' && isMyTurn()) {
+        ui.diceRevealing = true;          // suppress the corner dice during the reveal
+        dispatch({ type: 'rollDice' });
+        showDiceReveal(state.dice);
+      }
+    }, 350);
+  }
+  // the "play the knight first, or roll?" question (matches the original)
+  function showKnightQuestion() {
+    hideRollPrompt();
+    const o = $('overlay');
+    o.innerHTML = `<div class="qdlg">
+      <div class="qbanner">Question</div>
+      <div class="qbody">
+        <p class="qtext">You have a Knight Card. Do you want to play it or roll the dice?</p>
+        <button class="qbtn" onclick="CATAN.qKnight()">Play Knight Card</button>
+        <button class="qbtn" onclick="CATAN.qRoll()">Throw the dice</button>
+        <button class="qbtn" onclick="CATAN.qMap()">Show game map</button>
+      </div></div>`;
+    o.classList.remove('hidden', 'menu', 'devmode', 'trademode');
+    o.classList.add('qmode');
+    document.body.classList.remove('trading');
+  }
+  function showRollPrompt() { const e = $('rollprompt'); if (e) e.classList.remove('hidden'); }
+  function hideRollPrompt() { const e = $('rollprompt'); if (e) e.classList.add('hidden'); }
 
   // ---- tile art ------------------------------------------------------------
   // Optional exact-art swap: place your own cropped tile images in assets/tiles/
@@ -907,8 +938,8 @@
   }
 
   // ---- overlays (unchanged logic) -----------------------------------------
-  function showOverlay(html) { const o = $('overlay'); o.innerHTML = `<div class="sheet">${html}</div>`; o.classList.remove('hidden', 'menu', 'devmode', 'trademode'); document.body.classList.remove('trading'); }
-  function showFullMenu(html) { const o = $('overlay'); o.innerHTML = html; o.classList.remove('hidden', 'devmode', 'trademode'); o.classList.add('menu'); document.body.classList.remove('trading'); }
+  function showOverlay(html) { const o = $('overlay'); o.innerHTML = `<div class="sheet">${html}</div>`; o.classList.remove('hidden', 'menu', 'devmode', 'trademode', 'qmode'); document.body.classList.remove('trading'); }
+  function showFullMenu(html) { const o = $('overlay'); o.innerHTML = html; o.classList.remove('hidden', 'devmode', 'trademode', 'qmode'); o.classList.add('menu'); document.body.classList.remove('trading'); }
   // Re-render a menu sheet without replaying its slide-up / reloading images: if the
   // same view is already open, swap only its inner content; otherwise mount fresh.
   function paintMenu(view, html) {
@@ -922,7 +953,7 @@
       const ms = o.querySelector('.menuscreen'); if (ms) ms.dataset.view = view;
     }
   }
-  function hideOverlay() { const o = $('overlay'); o.classList.add('hidden'); o.classList.remove('menu', 'devmode', 'trademode'); document.body.classList.remove('trading'); o.innerHTML = ''; o.onclick = null; }
+  function hideOverlay() { const o = $('overlay'); o.classList.add('hidden'); o.classList.remove('menu', 'devmode', 'trademode', 'qmode'); document.body.classList.remove('trading'); o.innerHTML = ''; o.onclick = null; }
   // discard order: starting from the player AFTER the roller, around the table,
   // with the roller last (matches the original app).
   function discardOrder() {
@@ -1314,6 +1345,8 @@
     $('confirmbar').classList.toggle('hidden', !ui.confirm);
     justPlaced = null;  // pop-in only plays on the render right after placement
     $('leavetab').classList.add('hidden');   // exit lives in the radial menu now
+    // the "show game map" roll prompt only belongs in your own pre-roll phase
+    if (!(state.phase === 'play' && tp === 'roll' && isMyTurn())) hideRollPrompt();
     syncTradeUI();      // show/refresh/close the pending-trade overlays off shared state
   }
 
@@ -1351,6 +1384,11 @@
 
   window.CATAN = {
     roll: () => { animateDice = true; dispatch({ type: 'rollDice' }); },
+    // start-of-turn "Question" dialog: play the knight first, just roll, or peek at the map
+    qKnight: () => { ui.knightDismissed = false; hideRollPrompt(); hideOverlay(); dispatch({ type: 'playKnight' }); },
+    qRoll: () => { hideOverlay(); doAutoRoll(); },
+    qMap: () => { ui.knightDismissed = true; hideOverlay(); render(); showRollPrompt(); },
+    qReopen: () => { ui.knightDismissed = false; hideRollPrompt(); showKnightQuestion(); },
     endTurn: () => dispatch({ type: 'endTurn' }),
     buyDev: () => dispatch({ type: 'buyDevCard' }),
     playKnight: () => dispatch({ type: 'playKnight' }),

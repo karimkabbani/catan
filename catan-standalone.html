@@ -369,6 +369,31 @@
   .tclose{left:16px;} .tconfirm{right:16px;}
   .tclose img,.tconfirm img{width:100%; height:100%; object-fit:contain; filter:drop-shadow(0 2px 5px rgba(0,0,0,0.55));}
   .tconfirm.hidden{display:none;}
+
+  /* ===== start-of-turn "Question" dialog (play knight before rolling?) ===== */
+  #overlay.qmode{background:rgba(0,0,0,0.3);}
+  .qdlg{width:min(92%,640px); border-radius:14px; overflow:hidden; border:2px solid var(--gold-edge);
+    box-shadow:0 14px 50px rgba(0,0,0,0.65); animation:qpop .2s cubic-bezier(.2,.9,.3,1.1);}
+  @keyframes qpop{from{transform:scale(0.94);opacity:0} to{transform:scale(1);opacity:1}}
+  .qbanner{height:42px; line-height:42px; text-align:center; color:#fff; font-family:var(--serif);
+    font-size:clamp(17px,2.7vh,23px); letter-spacing:.4px; text-shadow:0 1px 3px #000;
+    background:linear-gradient(180deg,#2b5c96,#1a3e6e);}
+  .qbody{padding:clamp(14px,3vh,26px) clamp(14px,4vw,40px) clamp(16px,3vh,28px);
+    background:linear-gradient(rgba(74,42,17,0.96),rgba(40,22,8,0.98)), var(--wood-tex); background-size:cover;}
+  .qtext{text-align:center; color:var(--gold); font-family:var(--serif); font-size:clamp(16px,2.7vh,22px);
+    line-height:1.35; margin:0 0 clamp(14px,2.6vh,22px);}
+  .qbtn{display:block; width:100%; max-width:420px; margin:0 auto clamp(9px,1.6vh,13px); padding:clamp(10px,1.9vh,15px);
+    border-radius:9px; cursor:pointer; font-family:var(--serif); font-size:clamp(15px,2.4vh,19px); color:#f1e6cf;
+    background:linear-gradient(180deg,#3a4047,#23272c); border:2px solid #b9923f;
+    box-shadow:0 3px 7px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.08); text-shadow:0 1px 2px #000;}
+  .qbtn:last-child{margin-bottom:0;}
+  .qbtn:active{transform:translateY(1px); filter:brightness(0.95);}
+  /* floating "back to the decision" prompt after Show game map */
+  #rollprompt{position:fixed; left:50%; bottom:calc(56px + env(safe-area-inset-bottom,0px)); transform:translateX(-50%);
+    width:62px; height:62px; border-radius:50%; border:3px solid var(--gold-edge); cursor:pointer; z-index:20; font-size:28px;
+    background:radial-gradient(circle at 40% 32%, #5a554e, #272320 58%, #15120f);
+    box-shadow:0 4px 12px rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; animation:tabpulse 1.6s ease-in-out infinite;}
+  #rollprompt.hidden{display:none;}
   .toffer{display:flex; gap:8px; align-items:center; justify-content:center; flex-wrap:wrap; color:var(--ink); font-weight:700; font-size:16px; padding:10px 12px;}
   .toffer .for{color:var(--muted); font-weight:400; font-style:italic;}
   .toffer .ri{width:22px; height:22px; vertical-align:-5px;}
@@ -607,6 +632,7 @@
   </div>
   <div id="dicereveal" class="hidden"></div>
   <div id="countdown" class="hidden"></div>
+  <button id="rollprompt" class="hidden" onclick="CATAN.qReopen()" aria-label="Continue your turn">🎲</button>
   <div id="confirmbar" class="hidden">
     <button onclick="CATAN.confirmPlace()"><img src="assets/hud/confirm.png" alt="Confirm"></button>
     <button onclick="CATAN.cancelPlace()"><img src="assets/hud/decline.png" alt="Cancel"></button>
@@ -851,15 +877,16 @@
     // discards happen sequentially in turn order; promptDiscards picks who's up
     if (state.turnPhase === 'discard') { promptDiscards(); return; }
     if (!isMyTurn()) { render(); return; }   // online: spectating another player's turn
-    // dice roll automatically at the start of each turn (no manual roll)
+    // start of turn: if you hold a playable Knight you may play it BEFORE rolling, so ask;
+    // otherwise the dice roll automatically (no manual roll).
     if (state.phase === 'play' && state.turnPhase === 'roll') {
-      setTimeout(() => {
-        if (state.turnPhase === 'roll' && isMyTurn()) {
-          ui.diceRevealing = true;          // suppress the corner dice during the reveal
-          dispatch({ type: 'rollDice' });
-          showDiceReveal(state.dice);
-        }
-      }, 350);
+      const me = activePlayer();
+      if (!state.hasPlayedDevCardThisTurn && me.devCards.includes('knight')) {
+        if (ui.knightDismissed) showRollPrompt();
+        else if (!$('overlay').classList.contains('qmode')) showKnightQuestion();
+        return;
+      }
+      doAutoRoll();
       return;
     }
     if (state.turnPhase === 'moveRobber') { ui.mode = 'moveRobber'; toast('Drag the robber onto a hex'); return; }
@@ -867,6 +894,36 @@
     if (state.turnPhase === 'placeRoad' && state.phase === 'play') { ui.mode = 'placeRoad'; return; }
     if (state.phase === 'setup') ui.mode = state.turnPhase === 'placeRoad' ? 'placeRoad' : 'placeSettlement';
   }
+
+  // auto-roll the dice (the default start-of-turn action) with the big reveal animation
+  function doAutoRoll() {
+    ui.knightDismissed = false; hideRollPrompt();
+    setTimeout(() => {
+      if (state.turnPhase === 'roll' && isMyTurn()) {
+        ui.diceRevealing = true;          // suppress the corner dice during the reveal
+        dispatch({ type: 'rollDice' });
+        showDiceReveal(state.dice);
+      }
+    }, 350);
+  }
+  // the "play the knight first, or roll?" question (matches the original)
+  function showKnightQuestion() {
+    hideRollPrompt();
+    const o = $('overlay');
+    o.innerHTML = `<div class="qdlg">
+      <div class="qbanner">Question</div>
+      <div class="qbody">
+        <p class="qtext">You have a Knight Card. Do you want to play it or roll the dice?</p>
+        <button class="qbtn" onclick="CATAN.qKnight()">Play Knight Card</button>
+        <button class="qbtn" onclick="CATAN.qRoll()">Throw the dice</button>
+        <button class="qbtn" onclick="CATAN.qMap()">Show game map</button>
+      </div></div>`;
+    o.classList.remove('hidden', 'menu', 'devmode', 'trademode');
+    o.classList.add('qmode');
+    document.body.classList.remove('trading');
+  }
+  function showRollPrompt() { const e = $('rollprompt'); if (e) e.classList.remove('hidden'); }
+  function hideRollPrompt() { const e = $('rollprompt'); if (e) e.classList.add('hidden'); }
 
   // ---- tile art ------------------------------------------------------------
   // Optional exact-art swap: place your own cropped tile images in assets/tiles/
@@ -1569,8 +1626,8 @@
   }
 
   // ---- overlays (unchanged logic) -----------------------------------------
-  function showOverlay(html) { const o = $('overlay'); o.innerHTML = `<div class="sheet">${html}</div>`; o.classList.remove('hidden', 'menu', 'devmode', 'trademode'); document.body.classList.remove('trading'); }
-  function showFullMenu(html) { const o = $('overlay'); o.innerHTML = html; o.classList.remove('hidden', 'devmode', 'trademode'); o.classList.add('menu'); document.body.classList.remove('trading'); }
+  function showOverlay(html) { const o = $('overlay'); o.innerHTML = `<div class="sheet">${html}</div>`; o.classList.remove('hidden', 'menu', 'devmode', 'trademode', 'qmode'); document.body.classList.remove('trading'); }
+  function showFullMenu(html) { const o = $('overlay'); o.innerHTML = html; o.classList.remove('hidden', 'devmode', 'trademode', 'qmode'); o.classList.add('menu'); document.body.classList.remove('trading'); }
   // Re-render a menu sheet without replaying its slide-up / reloading images: if the
   // same view is already open, swap only its inner content; otherwise mount fresh.
   function paintMenu(view, html) {
@@ -1584,7 +1641,7 @@
       const ms = o.querySelector('.menuscreen'); if (ms) ms.dataset.view = view;
     }
   }
-  function hideOverlay() { const o = $('overlay'); o.classList.add('hidden'); o.classList.remove('menu', 'devmode', 'trademode'); document.body.classList.remove('trading'); o.innerHTML = ''; o.onclick = null; }
+  function hideOverlay() { const o = $('overlay'); o.classList.add('hidden'); o.classList.remove('menu', 'devmode', 'trademode', 'qmode'); document.body.classList.remove('trading'); o.innerHTML = ''; o.onclick = null; }
   // discard order: starting from the player AFTER the roller, around the table,
   // with the roller last (matches the original app).
   function discardOrder() {
@@ -1976,6 +2033,8 @@
     $('confirmbar').classList.toggle('hidden', !ui.confirm);
     justPlaced = null;  // pop-in only plays on the render right after placement
     $('leavetab').classList.add('hidden');   // exit lives in the radial menu now
+    // the "show game map" roll prompt only belongs in your own pre-roll phase
+    if (!(state.phase === 'play' && tp === 'roll' && isMyTurn())) hideRollPrompt();
     syncTradeUI();      // show/refresh/close the pending-trade overlays off shared state
   }
 
@@ -2013,6 +2072,11 @@
 
   window.CATAN = {
     roll: () => { animateDice = true; dispatch({ type: 'rollDice' }); },
+    // start-of-turn "Question" dialog: play the knight first, just roll, or peek at the map
+    qKnight: () => { ui.knightDismissed = false; hideRollPrompt(); hideOverlay(); dispatch({ type: 'playKnight' }); },
+    qRoll: () => { hideOverlay(); doAutoRoll(); },
+    qMap: () => { ui.knightDismissed = true; hideOverlay(); render(); showRollPrompt(); },
+    qReopen: () => { ui.knightDismissed = false; hideRollPrompt(); showKnightQuestion(); },
     endTurn: () => dispatch({ type: 'endTurn' }),
     buyDev: () => dispatch({ type: 'buyDevCard' }),
     playKnight: () => dispatch({ type: 'playKnight' }),
