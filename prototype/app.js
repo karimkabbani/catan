@@ -907,8 +907,8 @@
   }
 
   // ---- overlays (unchanged logic) -----------------------------------------
-  function showOverlay(html) { const o = $('overlay'); o.innerHTML = `<div class="sheet">${html}</div>`; o.classList.remove('hidden', 'menu', 'devmode', 'trademode'); }
-  function showFullMenu(html) { const o = $('overlay'); o.innerHTML = html; o.classList.remove('hidden', 'devmode', 'trademode'); o.classList.add('menu'); }
+  function showOverlay(html) { const o = $('overlay'); o.innerHTML = `<div class="sheet">${html}</div>`; o.classList.remove('hidden', 'menu', 'devmode', 'trademode'); document.body.classList.remove('trading'); }
+  function showFullMenu(html) { const o = $('overlay'); o.innerHTML = html; o.classList.remove('hidden', 'devmode', 'trademode'); o.classList.add('menu'); document.body.classList.remove('trading'); }
   // Re-render a menu sheet without replaying its slide-up / reloading images: if the
   // same view is already open, swap only its inner content; otherwise mount fresh.
   function paintMenu(view, html) {
@@ -922,7 +922,7 @@
       const ms = o.querySelector('.menuscreen'); if (ms) ms.dataset.view = view;
     }
   }
-  function hideOverlay() { const o = $('overlay'); o.classList.add('hidden'); o.classList.remove('menu', 'devmode', 'trademode'); o.innerHTML = ''; o.onclick = null; }
+  function hideOverlay() { const o = $('overlay'); o.classList.add('hidden'); o.classList.remove('menu', 'devmode', 'trademode'); document.body.classList.remove('trading'); o.innerHTML = ''; o.onclick = null; }
   // discard order: starting from the player AFTER the roller, around the table,
   // with the roller last (matches the original app).
   function discardOrder() {
@@ -1118,53 +1118,50 @@
     const others = state.players.filter((x) => x.color !== color);
     const avatar = (pl) => { const i = state.players.indexOf(pl); return (ASSETS.avatars && ASSETS.avatars[i]) ? ASSETS.avatars[i] : ''; };
     const targets = others.map((pl) => `<div class="ttarget${bank ? '' : ' on'}" onclick="CATAN.tradeMode('players')">
-        <div class="tav" style="border-color:${PCOLOR[pl.color]}"><img src="${avatar(pl)}" alt="" onerror="this.style.display='none'"></div>
-        <span class="tnm2">${escapeHtml(pl.name)}</span></div>`).join('')
-      + `<div class="ttarget chest${bank ? ' on' : ''}" onclick="CATAN.tradeMode('bank')"><img class="tchest" src="${tr.bank || ''}" alt=""><span class="tnm2">Bank</span></div>`;
+        <div class="tav" style="border-color:${PCOLOR[pl.color]}"><img src="${avatar(pl)}" alt="" onerror="this.style.display='none'"></div></div>`).join('')
+      + `<div class="ttarget chest${bank ? ' on' : ''}" onclick="CATAN.tradeMode('bank')"><img class="tchest" src="${tr.bank || ''}" alt=""></div>`;
+    // 3 rows per resource: give placeholder (top) · your hand (middle) · want placeholder (bottom)
     const cols = HAND_ORDER.map((r) => {
       const hold = p.resources[r], ratio = bankRatio(color, r), g = t.give[r], w = t.want[r];
+      const slot = (n, kind) => n
+        ? `<div class="tslot ${kind} filled"><img src="${res[r] || ''}" alt=""><span class="sct">${n}</span></div>`
+        : `<div class="tslot ${kind}"><img class="ahint" src="${(kind === 'give' ? tr.give : tr.get) || ''}" alt=""></div>`;
       return `<div class="tcol" data-r="${r}">
-        <button class="tarr give${g ? ' on' : ''}" onclick="CATAN.tStep('${r}',1)"><img src="${tr.give || ''}" alt="give"></button>
-        <div class="tamt give">${g ? '−' + g : ''}</div>
-        <div class="torb"><img src="${res[r] || ''}"><span class="tcount">${hold}</span></div>
-        <div class="tamt want">${w ? '+' + w : ''}</div>
-        <button class="tarr want${w ? ' on' : ''}" onclick="CATAN.tStep('${r}',-1)"><img src="${tr.get || ''}" alt="get"></button>
+        ${slot(g, 'give')}
+        <div class="tmid"><img src="${res[r] || ''}" alt=""><span class="tcount">${hold}</span></div>
+        ${slot(w, 'want')}
         ${bank ? `<div class="tratio">${ratio}:1</div>` : ''}
       </div>`;
     }).join('');
     const valid = tradeValid();
-    showFullMenu(`<div class="tradefull">
+    showFullMenu(`<div class="traderoot">
       <div class="ttitle2">${bank ? 'Bank' : 'Players'}</div>
-      <div class="ttargets">${targets}</div>
-      <div class="tgrid">${cols}</div>
+      <div class="tradesheet">
+        <div class="ttargets">${targets}</div>
+        <div class="tgrid">${cols}</div>
+      </div>
       <button class="tclose" onclick="CATAN.tradeClose()"><img src="assets/hud/decline.png" alt="Cancel"></button>
       <button class="tconfirm${valid ? '' : ' hidden'}" onclick="CATAN.tradeConfirmTrade()"><img src="assets/hud/confirm.png" alt="Confirm"></button>
     </div>`);
     $('overlay').classList.add('trademode');
+    document.body.classList.add('trading');     // hide the in-game HUD so the board shows clean above the sheet
     setTimeout(attachTradeSwipe, 0);
   }
+  // each swipe up = give +1, swipe down = want +1 (single increment); slots are tappable too
   function attachTradeSwipe() {
-    document.querySelectorAll('.tradefull .tcol').forEach((col) => {
-      const r = col.dataset.r; let sy = 0, sNet = 0, drag = false;
-      col.addEventListener('pointerdown', (e) => {
-        if (e.target.closest('.tarr')) return;        // let arrow taps act on their own
-        drag = true; sy = e.clientY; sNet = tNetOf(r);
-        try { col.setPointerCapture(e.pointerId); } catch (_) {}
+    document.querySelectorAll('.traderoot .tcol').forEach((col) => {
+      const r = col.dataset.r; let sy = 0, drag = false;
+      col.addEventListener('pointerdown', (e) => { drag = true; sy = e.clientY; try { col.setPointerCapture(e.pointerId); } catch (_) {} });
+      col.addEventListener('pointerup', (e) => {
+        if (!drag) return; drag = false;
+        const dy = sy - (e.clientY || sy);
+        if (dy > 16) window.CATAN.tStep(r, 1);
+        else if (dy < -16) window.CATAN.tStep(r, -1);
+        else if (e.target.closest('.tslot.give')) window.CATAN.tStep(r, 1);
+        else if (e.target.closest('.tslot.want')) window.CATAN.tStep(r, -1);
       });
-      col.addEventListener('pointermove', (e) => { if (drag) tradePreview(col, r, sNet + Math.round((sy - e.clientY) / 26)); });
-      const end = (e) => { if (!drag) return; drag = false; tSetNet(r, sNet + Math.round((sy - (e.clientY || sy)) / 26)); renderTradeBuilder(); };
-      col.addEventListener('pointerup', end);
-      col.addEventListener('pointercancel', () => { if (drag) { drag = false; renderTradeBuilder(); } });
+      col.addEventListener('pointercancel', () => { drag = false; });
     });
-  }
-  // update one column + the confirm button live during a swipe, without a full re-render
-  function tradePreview(col, r, net) {
-    tSetNet(r, net); const t = ui.trade;
-    col.querySelector('.tamt.give').textContent = t.give[r] ? '−' + t.give[r] : '';
-    col.querySelector('.tamt.want').textContent = t.want[r] ? '+' + t.want[r] : '';
-    col.querySelector('.tarr.give').classList.toggle('on', !!t.give[r]);
-    col.querySelector('.tarr.want').classList.toggle('on', !!t.want[r]);
-    const cf = document.querySelector('.tconfirm'); if (cf) cf.classList.toggle('hidden', !tradeValid());
   }
   // proposer's view after sending — live reactions + confirm/cancel
   function renderTradeWait(pt) {
