@@ -922,7 +922,7 @@
       const ms = o.querySelector('.menuscreen'); if (ms) ms.dataset.view = view;
     }
   }
-  function hideOverlay() { const o = $('overlay'); o.classList.add('hidden'); o.classList.remove('menu'); o.innerHTML = ''; o.onclick = null; }
+  function hideOverlay() { const o = $('overlay'); o.classList.add('hidden'); o.classList.remove('menu', 'devmode'); o.innerHTML = ''; o.onclick = null; }
   // discard order: starting from the player AFTER the roller, around the table,
   // with the roller last (matches the original app).
   function discardOrder() {
@@ -982,46 +982,85 @@
   // Cards screen — full-bleed, matching the original app (8267): a horizontal row
   // of parchment cards (composited faces: template + faded illustration), with the
   // title on the banner, the exact rules text, and the owned-count in the corner.
+  const DEV_TITLE = { knight: 'Knight', year_of_plenty: 'Year of Plenty', road_building: 'Road Building', monopoly: 'Monopoly', victory_point: 'Victory Point' };
+  const DEV_RULES = {
+    knight: 'When you play this Card, you move the Robber and steal a Resource from the owner of an adjacent Settlement or City.',
+    year_of_plenty: 'When you play this Card, you can select 2 Resources of your choice from the bank.',
+    road_building: 'When you play this Card, you can build 2 Roads free of charge.',
+    monopoly: 'When you play this Card, announce 1 type of Resource. All other players must give you their entire supply of that Resource type.',
+    victory_point: 'You obtain an extra Victory Point with this Card, which will remain invisible to the other players until the end of the game.',
+  };
+  // full-screen development-cards carousel (matches the original app)
   function openDev() {
-    const p = activePlayer(), res = HUD.res || {}, face = HUD.devFace || {};
+    const p = activePlayer(), res = HUD.res || {}, face = HUD.devFace || {}, art = HUD.devArt || {};
     const ORDER = ['knight', 'year_of_plenty', 'road_building', 'monopoly', 'victory_point'];
-    const TITLE = { knight: 'Knight', year_of_plenty: 'Year of Plenty', road_building: 'Road Building', monopoly: 'Monopoly', victory_point: 'Victory Point' };
-    const RULES = {
-      knight: 'When you play this Card, you move the Robber and steal a Resource from the owner of an adjacent Settlement or City.',
-      year_of_plenty: 'When you play this Card, you can select 2 Resources of your choice from the bank.',
-      road_building: 'When you play this Card, you can build 2 Roads free of charge.',
-      monopoly: 'When you play this Card, announce 1 type of Resource. All other players must give you their entire supply of that Resource type.',
-      victory_point: 'You obtain an extra Victory Point with this Card, which will remain invisible to the other players until the end of the game.',
-    };
     const played = state.hasPlayedDevCardThisTurn;
     const cnt = (list) => list.reduce((m, c) => (m[c] = (m[c] || 0) + 1, m), {});
     const owned = cnt(p.devCards), fresh = cnt(p.newDevCards);
 
-    // Buy card first
+    // Buy card first — owned-coloured when you can afford it
     const COSTD = { ore: 1, wheat: 1, sheep: 1 };
     const canBuy = RES.every((r) => (p.resources[r] || 0) >= (COSTD[r] || 0)) && state.devDeck.length > 0;
     const costRow = (c) => RES.filter((r) => c[r]).map((r) => `<span class="ci"><img src="${res[r] || ''}">${c[r]}</span>`).join('');
-    let cards = `<div class="devcard2 buy${canBuy ? '' : ' off'}" style="background-image:url('${face.buy || ''}')" ${canBuy ? 'onclick="CATAN.buyDev()"' : ''}>
+    let cards = `<div class="devcard2 buy${canBuy ? ' act' : ' dim'}" data-act="${canBuy ? 'buy' : ''}" style="background-image:url('${face.buy || ''}')" onclick="CATAN.devTap('${canBuy ? 'buy' : ''}')">
+      ${canBuy && art.buy ? `<img class="dcolor" src="${art.buy}" alt="">` : ''}
       <div class="dtext">Buy Development Card</div>
       <div class="dcost2">${costRow(COSTD)}</div>
       <div class="dremain2">Dev. Cards remaining: ${state.devDeck.length}</div></div>`;
 
-    // every card type, always shown, with the owned count in the corner
+    // every card type, always shown; owned -> colour art overlay, count in the corner
     for (const c of ORDER) {
       const n = (owned[c] || 0) + (fresh[c] || 0);
       const playable = c !== 'victory_point' && !played && (owned[c] || 0) > 0;
-      cards += `<div class="devcard2${playable ? '' : ' off'}" style="background-image:url('${face[c] || ''}')" ${playable ? `onclick="CATAN.dev('${c}')"` : ''}>
-        <div class="dtitle">${TITLE[c]}</div>
-        <div class="dtext">${RULES[c]}</div>
+      const tap = playable ? `play:${c}` : '';
+      cards += `<div class="devcard2${n > 0 ? '' : ' dim'}${playable ? ' act' : ''}" data-act="${tap}" style="background-image:url('${face[c] || ''}')" onclick="CATAN.devTap('${tap}')">
+        ${n > 0 && art[c] ? `<img class="dcolor" src="${art[c]}" alt="">` : ''}
+        <div class="dtitle">${DEV_TITLE[c]}</div>
+        <div class="dtext">${DEV_RULES[c]}</div>
         <div class="dcount">${n}</div></div>`;
     }
 
-    showFullMenu(`<div class="menuscreen">
-      <div class="menutitle">Development Cards</div>
-      <div class="cardscroll">${cards}</div>
-      <div class="menubar">${handBar()}</div>
-      <button class="menuclose" onclick="CATAN.close()"><img src="assets/hud/decline.png" alt="Close"></button>
+    showFullMenu(`<div class="devfull">
+      <div class="devstrip" id="devstrip" onscroll="CATAN.devFocus()">${cards}</div>
+      <button class="devnav left" onclick="CATAN.devScroll(-1)"><i></i></button>
+      <button class="devnav right" onclick="CATAN.devScroll(1)"><i></i></button>
+      <div class="devbar">${handBar()}</div>
+      <button class="devclose" onclick="CATAN.close()"><img src="assets/hud/decline.png" alt="Close"></button>
+      <button class="devok hidden" id="devok" data-act="" onclick="CATAN.devOk()"><img src="assets/hud/confirm.png" alt="Confirm"></button>
     </div>`);
+    $('overlay').classList.add('devmode');
+    setTimeout(devFocus, 40);
+  }
+  // find the most-centred card; mark it focused and surface the ✓ if it's actionable
+  function devFocus() {
+    const strip = $('devstrip'); if (!strip) return;
+    const mid = strip.scrollLeft + strip.clientWidth / 2;
+    let best = null, bestD = 1e9;
+    const cards = strip.querySelectorAll('.devcard2');
+    cards.forEach((el) => { const c = el.offsetLeft + el.offsetWidth / 2, d = Math.abs(c - mid); if (d < bestD) { bestD = d; best = el; } });
+    cards.forEach((el) => el.classList.toggle('focused', el === best));
+    const ok = $('devok'); if (!ok) return;
+    const act = best ? best.dataset.act : '';
+    ok.dataset.act = act || '';
+    ok.classList.toggle('hidden', !act);
+  }
+  // play-confirmation panel ("Would you like to play this Development Card now?")
+  function devConfirm(c) {
+    const full = document.querySelector('.devfull'); if (!full || $('devconfirm')) return;
+    const panel = document.createElement('div');
+    panel.className = 'devconfirm'; panel.id = 'devconfirm';
+    panel.innerHTML = `<div class="dcpanel">
+      <div class="dcbanner">${DEV_TITLE[c]}</div>
+      <div class="dcq">Would you like to play this Development Card now?</div>
+      <button class="dcbtn no" onclick="CATAN.devCancelPlay()"><img src="assets/hud/decline.png" alt="No"></button>
+      <button class="dcbtn yes" onclick="CATAN.dev('${c}')"><img src="assets/hud/confirm.png" alt="Yes"></button>
+    </div>`;
+    full.appendChild(panel);
+  }
+  function devAct(act) {
+    if (!act) return;
+    if (act === 'buy') { window.CATAN.buyDev(); openDev(); }      // buy, then refresh the carousel
+    else if (act.indexOf('play:') === 0) devConfirm(act.slice(5));
   }
   function openYoP() {
     ui.pending = { yop: [] };
@@ -1279,6 +1318,12 @@
     restart: () => startScreen(),
     rig: (n) => rigNearWin(n),
     dev: (c) => { hideOverlay(); if (c === 'knight') dispatch({ type: 'playKnight' }); else if (c === 'road_building') dispatch({ type: 'playRoadBuilding' }); else if (c === 'year_of_plenty') openYoP(); else if (c === 'monopoly') openMonopoly(); },
+    // dev-cards carousel
+    devTap: (act) => devAct(act),
+    devOk: () => devAct(($('devok') || {}).dataset ? $('devok').dataset.act : ''),
+    devFocus: () => devFocus(),
+    devScroll: (dir) => { const s = $('devstrip'); if (!s) return; const card = s.querySelector('.devcard2'); const stride = card ? card.offsetWidth + 18 : 200; s.scrollBy({ left: dir * stride, behavior: 'smooth' }); },
+    devCancelPlay: () => { const el = $('devconfirm'); if (el) el.remove(); },
     yop: (r) => { ui.pending.yop.push(r); $('yopsel').textContent = 'Selected: ' + ui.pending.yop.map((x) => ICON[x]).join(' '); if (ui.pending.yop.length === 2) { const t = ui.pending.yop; hideOverlay(); dispatch({ type: 'playYearOfPlenty', resources: [t[0], t[1]] }); } },
     mono: (r) => { hideOverlay(); dispatch({ type: 'playMonopoly', resource: r }); },
     tradeMode: (m) => { ui.trade.mode = m; ui.trade.bankGive = null; ui.trade.bankWant = null; renderTradeBuilder(); },
