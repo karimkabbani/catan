@@ -1109,9 +1109,26 @@
     const gt = RES.reduce((n, r) => n + t.give[r], 0), wt = RES.reduce((n, r) => n + t.want[r], 0);
     return gt > 0 && wt > 0;
   }
-  // full-screen trade table (matches the original): targets up top (other players + the
-  // bank chest), then a row of resources you SWIPE up to give / down to receive, and a
-  // check-mark that appears only when the offer is valid.
+  // one give/want placeholder slot: blackish well, or the resource + count once filled
+  function tradeSlotHTML(r, n, kind) {
+    const res = HUD.res || {}, tr = HUD.trade || {};
+    return n
+      ? `<div class="tslot ${kind} filled"><img src="${res[r] || ''}" alt=""><span class="sct">${n}</span></div>`
+      : `<div class="tslot ${kind}"><img class="ahint" src="${(kind === 'give' ? tr.give : tr.get) || ''}" alt=""></div>`;
+  }
+  // a single step (swipe/tap) — update ONLY this column's two slots + the confirm button,
+  // never a full re-render (which would flash the board/HUD and feel broken on mobile)
+  function tradeStep(r, dir) {
+    tSetNet(r, tNetOf(r) + dir);
+    const col = document.querySelector('.traderoot .tcol[data-r="' + r + '"]');
+    if (!col) { renderTradeBuilder(); return; }
+    col.querySelector('.tslot.give').outerHTML = tradeSlotHTML(r, ui.trade.give[r], 'give');
+    col.querySelector('.tslot.want').outerHTML = tradeSlotHTML(r, ui.trade.want[r], 'want');
+    const cf = document.querySelector('.tconfirm'); if (cf) cf.classList.toggle('hidden', !tradeValid());
+  }
+  // trade table (matches the original): targets up top (other players + the bank chest),
+  // then a row of resources you SWIPE up to give / down to receive, and a check-mark
+  // that appears only when the offer is valid.
   function renderTradeBuilder() {
     const t = ui.trade, p = activePlayer(), color = activeColor(), res = HUD.res || {}, tr = HUD.trade || {};
     const bank = tBankMode();
@@ -1123,13 +1140,10 @@
     // 3 rows per resource: give placeholder (top) · your hand (middle) · want placeholder (bottom)
     const cols = HAND_ORDER.map((r) => {
       const hold = p.resources[r], ratio = bankRatio(color, r), g = t.give[r], w = t.want[r];
-      const slot = (n, kind) => n
-        ? `<div class="tslot ${kind} filled"><img src="${res[r] || ''}" alt=""><span class="sct">${n}</span></div>`
-        : `<div class="tslot ${kind}"><img class="ahint" src="${(kind === 'give' ? tr.give : tr.get) || ''}" alt=""></div>`;
       return `<div class="tcol" data-r="${r}">
-        ${slot(g, 'give')}
+        ${tradeSlotHTML(r, g, 'give')}
         <div class="tmid"><img src="${res[r] || ''}" alt=""><span class="tcount">${hold}</span></div>
-        ${slot(w, 'want')}
+        ${tradeSlotHTML(r, w, 'want')}
         ${bank ? `<div class="tratio">${ratio}:1</div>` : ''}
       </div>`;
     }).join('');
@@ -1155,10 +1169,10 @@
       col.addEventListener('pointerup', (e) => {
         if (!drag) return; drag = false;
         const dy = sy - (e.clientY || sy);
-        if (dy > 16) window.CATAN.tStep(r, 1);
-        else if (dy < -16) window.CATAN.tStep(r, -1);
-        else if (e.target.closest('.tslot.give')) window.CATAN.tStep(r, 1);
-        else if (e.target.closest('.tslot.want')) window.CATAN.tStep(r, -1);
+        if (dy > 16) tradeStep(r, 1);
+        else if (dy < -16) tradeStep(r, -1);
+        else if (e.target.closest('.tslot.give')) tradeStep(r, 1);
+        else if (e.target.closest('.tslot.want')) tradeStep(r, -1);
       });
       col.addEventListener('pointercancel', () => { drag = false; });
     });
@@ -1362,7 +1376,7 @@
     // switch target (players <-> bank); clear the offer since the ratios differ
     tradeMode: (m) => { if (ui.trade.mode === m) return; ui.trade.mode = m; ui.trade.give = zeroRes(); ui.trade.want = zeroRes(); renderTradeBuilder(); },
     // one step toward give (dir +1) or want (dir -1) on a resource; swipe does the same
-    tStep: (r, dir) => { tSetNet(r, tNetOf(r) + dir); renderTradeBuilder(); },
+    tStep: (r, dir) => tradeStep(r, dir),
     tradeConfirmTrade: () => { if (!tradeValid()) return; if (tBankMode()) window.CATAN.tradeBank(); else window.CATAN.tradeSend(); },
     tradeSend: () => { const t = ui.trade, give = {}, want = {}; RES.forEach((r) => { if (t.give[r]) give[r] = t.give[r]; if (t.want[r]) want[r] = t.want[r]; }); dispatch({ type: 'offerTrade', give, want }); },
     tradeBank: () => {
