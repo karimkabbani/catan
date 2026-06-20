@@ -312,30 +312,47 @@
   .watchtag{margin-left:8px; font-size:0.85em; opacity:0.85; padding:1px 7px; border-radius:10px; background:rgba(0,0,0,0.3);}
   .loblist .lobrow{justify-content:space-between;}
   /* trade screen */
-  .trade-tabs{display:flex; justify-content:center; margin:8px 0 2px;}
-  .ttab{background:rgba(0,0,0,0.32); border:1px solid var(--wood-edge); color:var(--ink); font-weight:700;
-    padding:7px 24px; cursor:pointer; font-size:14px;}
-  .ttab:first-child{border-radius:9px 0 0 9px;} .ttab:last-child{border-radius:0 9px 9px 0;}
-  .ttab.on{background:linear-gradient(180deg,#d8b258,#a9802a); color:#3a2400;}
-  .tgrid{flex:1; display:flex; align-items:center; justify-content:center; gap:3%; padding:0 4%;}
-  .tcol{display:flex; flex-direction:column; align-items:center; gap:6px; flex:1; max-width:118px;}
-  .tratio{color:#f1e3c2; font-weight:800; font-size:14px; text-shadow:0 1px 2px #000;}
-  .tarrow{width:44px; height:28px; border:none; border-radius:8px; cursor:pointer; font-size:15px; font-weight:900; line-height:1;
-    color:#fff; box-shadow:0 2px 5px rgba(0,0,0,0.4);}
-  .tarrow.give{background:linear-gradient(#d6534b,#a32f27);}
-  .tarrow.want{background:linear-gradient(#54b15a,#2f8a3a);}
-  .tarrow.on{outline:3px solid var(--gold);}
-  .tarrow:disabled{opacity:0.3; cursor:default;}
-  .tamt{font-weight:800; font-size:14px; min-height:18px; text-shadow:0 1px 1px #000;}
-  .tamt.give{color:#ff9a90;} .tamt.want{color:#9be79f;}
-  .torb{position:relative; width:54px; height:54px; display:flex; align-items:center; justify-content:center;}
-  .torb img{width:50px; height:50px; object-fit:contain; filter:drop-shadow(0 1px 2px #0008);}
-  .torb.gsel{outline:3px solid #d6534b; border-radius:50%;} .torb.wsel{outline:3px solid #54b15a; border-radius:50%;}
-  .torb .tcount{position:absolute; bottom:-4px; right:-4px; background:#2b1808; color:var(--gold);
-    border:1px solid var(--gold-edge); border-radius:9px; min-width:18px; height:18px; line-height:16px; font-size:12px; font-weight:800; text-align:center; padding:0 3px;}
-  .tactions{display:flex; gap:10px; align-items:center; justify-content:center; padding:8px 12px 12px; max-width:560px; margin:0 auto; width:100%;}
-  .tbal{flex:1 0 100%; text-align:center; font-size:12px; color:var(--muted); margin-bottom:4px;}
-  .tbal.ok{color:#7fe089; font-weight:700;}
+  /* ===== full-screen trade table (matches the original) ===== */
+  #overlay.menu.trademode{align-items:stretch; background:none;}
+  .tradefull{position:absolute; inset:0; display:flex; flex-direction:column; overflow:hidden;
+    background:linear-gradient(rgba(60,33,12,0.32),rgba(40,22,8,0.58)), var(--wood-tex); background-size:cover;}
+  .ttitle2{text-align:center; color:#fff; font-family:var(--serif); font-size:clamp(18px,3.4vh,26px);
+    letter-spacing:.4px; text-shadow:0 2px 4px #000; padding:6px 0 2px;}
+  /* targets: other players' avatars + the bank chest */
+  .ttargets{display:flex; align-items:flex-end; justify-content:center; gap:clamp(10px,3vw,30px); padding:4px 10px 6px; flex:0 0 auto;}
+  .ttarget{display:flex; flex-direction:column; align-items:center; gap:3px; cursor:pointer; opacity:0.5;
+    transition:opacity .14s, transform .14s; transform:scale(0.92);}
+  .ttarget.on{opacity:1; transform:scale(1);}
+  .tav{width:clamp(48px,9vh,82px); height:clamp(48px,9vh,82px); border-radius:11px; overflow:hidden;
+    border:3px solid #caa24a; box-shadow:0 3px 9px rgba(0,0,0,0.5); background:#2a1c0c;}
+  .tav img{width:100%; height:100%; object-fit:cover;}
+  .ttarget.on .tav{box-shadow:0 0 0 3px var(--gold), 0 3px 10px rgba(0,0,0,0.55);}
+  .tchest{width:clamp(56px,10vh,96px); height:auto; filter:drop-shadow(0 3px 7px rgba(0,0,0,0.55));}
+  .ttarget.chest.on .tchest{filter:drop-shadow(0 0 7px var(--gold)) drop-shadow(0 3px 7px rgba(0,0,0,0.55));}
+  .tnm2{font-size:clamp(10px,1.7vh,14px); font-weight:700; color:#f1e3c2; text-shadow:0 1px 2px #000;
+    max-width:92px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;}
+  /* resource columns — swipe up to give, down to receive (arrows also tappable) */
+  .tgrid{flex:1; display:flex; align-items:center; justify-content:center; gap:clamp(6px,2.5vw,22px); padding:0 4% 8px; min-height:0;}
+  .tcol{display:flex; flex-direction:column; align-items:center; gap:clamp(3px,0.9vh,8px); flex:1 1 0; max-width:132px;
+    touch-action:none; user-select:none; -webkit-user-select:none; cursor:grab;}
+  .tcol:active{cursor:grabbing;}
+  .tarr{width:clamp(32px,6vh,50px); height:clamp(24px,4.6vh,38px); border:none; background:none; padding:0; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; opacity:0.45; transition:opacity .12s, transform .12s;}
+  .tarr img{height:100%; width:auto; object-fit:contain; filter:drop-shadow(0 1px 2px rgba(0,0,0,0.5));}
+  .tarr.on{opacity:1; transform:scale(1.14);}
+  .tamt{font-weight:800; font-size:clamp(13px,2.4vh,20px); min-height:1.1em; line-height:1; text-shadow:0 1px 2px #000;}
+  .tamt.give{color:#ff8a7e;} .tamt.want{color:#8fe89a;}
+  .torb{position:relative; width:clamp(48px,9.5vh,80px); height:clamp(48px,9.5vh,80px); display:flex; align-items:center; justify-content:center;}
+  .torb img{width:100%; height:100%; object-fit:contain; filter:drop-shadow(0 2px 4px #0008); pointer-events:none;}
+  .torb .tcount{position:absolute; bottom:-3px; right:-3px; color:#fff; font-weight:800; font-size:clamp(12px,2vh,17px);
+    text-shadow:-1.3px -1.3px 0 #000,1.3px -1.3px 0 #000,-1.3px 1.3px 0 #000,1.3px 1.3px 0 #000;}
+  .tratio{color:#f1e3c2; font-weight:800; font-size:clamp(11px,1.9vh,16px); text-shadow:0 1px 2px #000; margin-top:2px;}
+  /* cancel + confirm (✓ only shows when the trade is valid) */
+  .tclose,.tconfirm{position:absolute; bottom:14px; width:clamp(48px,8vh,62px); height:clamp(48px,8vh,62px);
+    padding:0; border:none; background:none; cursor:pointer; z-index:4;}
+  .tclose{left:16px;} .tconfirm{right:16px;}
+  .tclose img,.tconfirm img{width:100%; height:100%; object-fit:contain; filter:drop-shadow(0 2px 5px rgba(0,0,0,0.55));}
+  .tconfirm.hidden{display:none;}
   .toffer{display:flex; gap:8px; align-items:center; justify-content:center; flex-wrap:wrap; color:var(--ink); font-weight:700; font-size:16px; padding:10px 12px;}
   .toffer .for{color:var(--muted); font-weight:400; font-style:italic;}
   .toffer .ri{width:22px; height:22px; vertical-align:-5px;}
@@ -614,6 +631,7 @@
           dev:  { knight:'assets/hud/dev-knight.png', road_building:'assets/hud/dev-road.png', year_of_plenty:'assets/hud/dev-plenty.png', monopoly:'assets/hud/dev-monopoly.png', victory_point:'assets/hud/dev-vp.png', back:'assets/hud/dev-back.png' },
           devFace:{ knight:'assets/hud/dev-face-knight.png', road_building:'assets/hud/dev-face-road.png', year_of_plenty:'assets/hud/dev-face-plenty.png', monopoly:'assets/hud/dev-face-monopoly.png', victory_point:'assets/hud/dev-face-vp.png', buy:'assets/hud/dev-face-buy.png' },
           devArt:{ knight:'assets/hud/dev-knight.png', road_building:'assets/hud/dev-road.png', year_of_plenty:'assets/hud/dev-plenty.png', monopoly:'assets/hud/dev-monopoly.png', victory_point:'assets/hud/dev-vp.png', buy:'assets/hud/dev-buy.png' },
+          trade:{ bank:'assets/hud/trade/bank.png', give:'assets/hud/trade/arrow-give.png', get:'assets/hud/trade/arrow-get.png' },
           badge:{ road:'assets/hud/badge-road.png', army:'assets/hud/badge-army.png', vp:'assets/hud/badge-vp.png', card:'assets/hud/badge-card.png', res:'assets/hud/badge-res.png' },
         },
       };

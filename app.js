@@ -907,8 +907,8 @@
   }
 
   // ---- overlays (unchanged logic) -----------------------------------------
-  function showOverlay(html) { const o = $('overlay'); o.innerHTML = `<div class="sheet">${html}</div>`; o.classList.remove('hidden', 'menu'); }
-  function showFullMenu(html) { const o = $('overlay'); o.innerHTML = html; o.classList.remove('hidden'); o.classList.add('menu'); }
+  function showOverlay(html) { const o = $('overlay'); o.innerHTML = `<div class="sheet">${html}</div>`; o.classList.remove('hidden', 'menu', 'devmode', 'trademode'); }
+  function showFullMenu(html) { const o = $('overlay'); o.innerHTML = html; o.classList.remove('hidden', 'devmode', 'trademode'); o.classList.add('menu'); }
   // Re-render a menu sheet without replaying its slide-up / reloading images: if the
   // same view is already open, swap only its inner content; otherwise mount fresh.
   function paintMenu(view, html) {
@@ -922,7 +922,7 @@
       const ms = o.querySelector('.menuscreen'); if (ms) ms.dataset.view = view;
     }
   }
-  function hideOverlay() { const o = $('overlay'); o.classList.add('hidden'); o.classList.remove('menu', 'devmode'); o.innerHTML = ''; o.onclick = null; }
+  function hideOverlay() { const o = $('overlay'); o.classList.add('hidden'); o.classList.remove('menu', 'devmode', 'trademode'); o.innerHTML = ''; o.onclick = null; }
   // discard order: starting from the player AFTER the roller, around the table,
   // with the roller last (matches the original app).
   function discardOrder() {
@@ -1085,50 +1085,86 @@
     renderTradeBuilder();
   }
   function zeroRes() { return { brick: 0, wood: 0, sheep: 0, wheat: 0, ore: 0 }; }
+  function tBankMode() { return ui.trade && ui.trade.mode === 'bank'; }
+  // a single signed "net" per resource: >0 = you give (bank: in ratio bundles), <0 = you want
+  function tNetOf(r) { const t = ui.trade; if (t.give[r]) return tBankMode() ? Math.round(t.give[r] / bankRatio(activeColor(), r)) : t.give[r]; if (t.want[r]) return -t.want[r]; return 0; }
+  function tSetNet(r, net) {
+    const t = ui.trade, hold = activePlayer().resources[r], cap = state.bank[r];
+    if (tBankMode()) {
+      const ratio = bankRatio(activeColor(), r), maxGive = Math.floor(hold / ratio);
+      net = Math.max(-cap, Math.min(maxGive, net));
+      t.give[r] = net > 0 ? net * ratio : 0; t.want[r] = net < 0 ? -net : 0;
+    } else {
+      net = Math.max(-cap, Math.min(hold, net));
+      t.give[r] = Math.max(0, net); t.want[r] = Math.max(0, -net);
+    }
+  }
+  function tradeValid() {
+    const t = ui.trade, color = activeColor();
+    if (tBankMode()) {
+      const credits = RES.reduce((n, r) => n + t.give[r] / bankRatio(color, r), 0);
+      const wantTot = RES.reduce((n, r) => n + t.want[r], 0);
+      return credits >= 1 && credits === wantTot;
+    }
+    const gt = RES.reduce((n, r) => n + t.give[r], 0), wt = RES.reduce((n, r) => n + t.want[r], 0);
+    return gt > 0 && wt > 0;
+  }
+  // full-screen trade table (matches the original): targets up top (other players + the
+  // bank chest), then a row of resources you SWIPE up to give / down to receive, and a
+  // check-mark that appears only when the offer is valid.
   function renderTradeBuilder() {
-    const t = ui.trade, p = activePlayer(), color = activeColor(), res = HUD.res || {};
-    const bank = t.mode === 'bank';
+    const t = ui.trade, p = activePlayer(), color = activeColor(), res = HUD.res || {}, tr = HUD.trade || {};
+    const bank = tBankMode();
+    const others = state.players.filter((x) => x.color !== color);
+    const avatar = (pl) => { const i = state.players.indexOf(pl); return (ASSETS.avatars && ASSETS.avatars[i]) ? ASSETS.avatars[i] : ''; };
+    const targets = others.map((pl) => `<div class="ttarget${bank ? '' : ' on'}" onclick="CATAN.tradeMode('players')">
+        <div class="tav" style="border-color:${PCOLOR[pl.color]}"><img src="${avatar(pl)}" alt="" onerror="this.style.display='none'"></div>
+        <span class="tnm2">${escapeHtml(pl.name)}</span></div>`).join('')
+      + `<div class="ttarget chest${bank ? ' on' : ''}" onclick="CATAN.tradeMode('bank')"><img class="tchest" src="${tr.bank || ''}" alt=""><span class="tnm2">Bank</span></div>`;
     const cols = HAND_ORDER.map((r) => {
-      const hold = p.resources[r], ratio = bankRatio(color, r);
-      if (bank) {
-        const canGive = Math.floor(hold / ratio) >= 1;   // need a full ratio's worth to give
-        return `<div class="tcol">
-          <div class="tratio">${ratio}:1</div>
-          <button class="tarrow give" ${canGive ? '' : 'disabled'} onclick="CATAN.tBankGive('${r}')">▲</button>
-          <div class="tamt give">${t.give[r] ? '−' + t.give[r] : ''}</div>
-          <div class="torb"><img src="${res[r] || ''}"><span class="tcount">${hold}</span></div>
-          <div class="tamt want">${t.want[r] ? '+' + t.want[r] : ''}</div>
-          <button class="tarrow want" ${state.bank[r] > 0 ? '' : 'disabled'} onclick="CATAN.tBankWant('${r}')">▼</button>
-        </div>`;
-      }
-      return `<div class="tcol">
-        <button class="tarrow give" ${hold > 0 ? '' : 'disabled'} onclick="CATAN.tGive('${r}')">▲</button>
-        <div class="tamt give">${t.give[r] ? '−' + t.give[r] : ''}</div>
+      const hold = p.resources[r], ratio = bankRatio(color, r), g = t.give[r], w = t.want[r];
+      return `<div class="tcol" data-r="${r}">
+        <button class="tarr give${g ? ' on' : ''}" onclick="CATAN.tStep('${r}',1)"><img src="${tr.give || ''}" alt="give"></button>
+        <div class="tamt give">${g ? '−' + g : ''}</div>
         <div class="torb"><img src="${res[r] || ''}"><span class="tcount">${hold}</span></div>
-        <div class="tamt want">${t.want[r] ? '+' + t.want[r] : ''}</div>
-        <button class="tarrow want" onclick="CATAN.tWant('${r}')">▼</button>
+        <div class="tamt want">${w ? '+' + w : ''}</div>
+        <button class="tarr want${w ? ' on' : ''}" onclick="CATAN.tStep('${r}',-1)"><img src="${tr.get || ''}" alt="get"></button>
+        ${bank ? `<div class="tratio">${ratio}:1</div>` : ''}
       </div>`;
     }).join('');
-    let action;
-    if (bank) {
-      const credits = RES.reduce((n, r) => n + t.give[r] / bankRatio(color, r), 0);   // give is always a ratio multiple
-      const wantTot = RES.reduce((n, r) => n + t.want[r], 0);
-      const balanced = credits >= 1 && credits === wantTot;
-      const hint = (credits > 0 || wantTot > 0)
-        ? `<span class="tbal${balanced ? ' ok' : ''}">giving ${credits} card${credits === 1 ? '' : 's'} · receiving ${wantTot}</span>`
-        : `<span class="tbal">tap ▲ to give at the ratio, ▼ to receive</span>`;
-      action = `${hint}<button class="btn" onclick="CATAN.tradeClear()">Clear</button><button class="btn full" ${balanced ? '' : 'disabled'} onclick="CATAN.tradeBank()">Trade with bank</button>`;
-    } else {
-      const gt = RES.reduce((n, r) => n + t.give[r], 0), wt = RES.reduce((n, r) => n + t.want[r], 0);
-      action = `<button class="btn" onclick="CATAN.tradeClear()">Clear</button><button class="btn full" ${gt && wt ? '' : 'disabled'} onclick="CATAN.tradeSend()">Send offer</button>`;
-    }
-    const tabs = `<button class="ttab${bank ? '' : ' on'}" onclick="CATAN.tradeMode('players')">Players</button><button class="ttab${bank ? ' on' : ''}" onclick="CATAN.tradeMode('bank')">Bank</button>`;
-    paintMenu('trade-builder', `<div class="menuscreen trade">
-      <div class="trade-tabs">${tabs}</div>
+    const valid = tradeValid();
+    showFullMenu(`<div class="tradefull">
+      <div class="ttitle2">${bank ? 'Bank' : 'Players'}</div>
+      <div class="ttargets">${targets}</div>
       <div class="tgrid">${cols}</div>
-      <div class="tactions">${action}</div>
-      <button class="menuclose" onclick="CATAN.tradeClose()"><img src="assets/hud/decline.png" alt="Close"></button>
+      <button class="tclose" onclick="CATAN.tradeClose()"><img src="assets/hud/decline.png" alt="Cancel"></button>
+      <button class="tconfirm${valid ? '' : ' hidden'}" onclick="CATAN.tradeConfirmTrade()"><img src="assets/hud/confirm.png" alt="Confirm"></button>
     </div>`);
+    $('overlay').classList.add('trademode');
+    setTimeout(attachTradeSwipe, 0);
+  }
+  function attachTradeSwipe() {
+    document.querySelectorAll('.tradefull .tcol').forEach((col) => {
+      const r = col.dataset.r; let sy = 0, sNet = 0, drag = false;
+      col.addEventListener('pointerdown', (e) => {
+        if (e.target.closest('.tarr')) return;        // let arrow taps act on their own
+        drag = true; sy = e.clientY; sNet = tNetOf(r);
+        try { col.setPointerCapture(e.pointerId); } catch (_) {}
+      });
+      col.addEventListener('pointermove', (e) => { if (drag) tradePreview(col, r, sNet + Math.round((sy - e.clientY) / 26)); });
+      const end = (e) => { if (!drag) return; drag = false; tSetNet(r, sNet + Math.round((sy - (e.clientY || sy)) / 26)); renderTradeBuilder(); };
+      col.addEventListener('pointerup', end);
+      col.addEventListener('pointercancel', () => { if (drag) { drag = false; renderTradeBuilder(); } });
+    });
+  }
+  // update one column + the confirm button live during a swipe, without a full re-render
+  function tradePreview(col, r, net) {
+    tSetNet(r, net); const t = ui.trade;
+    col.querySelector('.tamt.give').textContent = t.give[r] ? '−' + t.give[r] : '';
+    col.querySelector('.tamt.want').textContent = t.want[r] ? '+' + t.want[r] : '';
+    col.querySelector('.tarr.give').classList.toggle('on', !!t.give[r]);
+    col.querySelector('.tarr.want').classList.toggle('on', !!t.want[r]);
+    const cf = document.querySelector('.tconfirm'); if (cf) cf.classList.toggle('hidden', !tradeValid());
   }
   // proposer's view after sending — live reactions + confirm/cancel
   function renderTradeWait(pt) {
@@ -1326,13 +1362,11 @@
     devCancelPlay: () => { const el = $('devconfirm'); if (el) el.remove(); },
     yop: (r) => { ui.pending.yop.push(r); $('yopsel').textContent = 'Selected: ' + ui.pending.yop.map((x) => ICON[x]).join(' '); if (ui.pending.yop.length === 2) { const t = ui.pending.yop; hideOverlay(); dispatch({ type: 'playYearOfPlenty', resources: [t[0], t[1]] }); } },
     mono: (r) => { hideOverlay(); dispatch({ type: 'playMonopoly', resource: r }); },
-    tradeMode: (m) => { ui.trade.mode = m; ui.trade.bankGive = null; ui.trade.bankWant = null; renderTradeBuilder(); },
-    // per resource it's give OR want, never both; clamp at the limit (don't wrap to 0)
-    tGive: (r) => { const t = ui.trade, hold = activePlayer().resources[r]; t.want[r] = 0; t.give[r] = Math.min(t.give[r] + 1, hold); renderTradeBuilder(); },
-    tWant: (r) => { const t = ui.trade, cap = state.bank[r]; t.give[r] = 0; t.want[r] = Math.min(t.want[r] + 1, cap); renderTradeBuilder(); },
-    tBankGive: (r) => { const t = ui.trade, hold = activePlayer().resources[r], ratio = bankRatio(activeColor(), r); const max = Math.floor(hold / ratio) * ratio; t.want[r] = 0; t.give[r] = Math.min(t.give[r] + ratio, max); renderTradeBuilder(); },
-    tBankWant: (r) => { const t = ui.trade; t.give[r] = 0; t.want[r] = Math.min(t.want[r] + 1, state.bank[r]); renderTradeBuilder(); },
-    tradeClear: () => { ui.trade.give = zeroRes(); ui.trade.want = zeroRes(); renderTradeBuilder(); },
+    // switch target (players <-> bank); clear the offer since the ratios differ
+    tradeMode: (m) => { if (ui.trade.mode === m) return; ui.trade.mode = m; ui.trade.give = zeroRes(); ui.trade.want = zeroRes(); renderTradeBuilder(); },
+    // one step toward give (dir +1) or want (dir -1) on a resource; swipe does the same
+    tStep: (r, dir) => { tSetNet(r, tNetOf(r) + dir); renderTradeBuilder(); },
+    tradeConfirmTrade: () => { if (!tradeValid()) return; if (tBankMode()) window.CATAN.tradeBank(); else window.CATAN.tradeSend(); },
     tradeSend: () => { const t = ui.trade, give = {}, want = {}; RES.forEach((r) => { if (t.give[r]) give[r] = t.give[r]; if (t.want[r]) want[r] = t.want[r]; }); dispatch({ type: 'offerTrade', give, want }); },
     tradeBank: () => {
       const t = ui.trade, color = activeColor();
