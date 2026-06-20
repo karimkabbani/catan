@@ -1376,7 +1376,21 @@
     const s = Math.max(0.3, Math.min(sH, sW, 1.7));
     card.style.transform = 'scale(' + s.toFixed(3) + ')';
   }
+  // Recompute the fit several times after a (re)launch: the web font and the iOS PWA
+  // viewport both settle a beat AFTER first paint. If we only measured once on the first
+  // frame we'd sometimes catch a too-small card / too-tall viewport and over-scale to the
+  // 1.7x cap (the "launches zoomed-in, needs a refresh" bug). Re-measuring on fonts-ready,
+  // window load, and a couple of short delays self-corrects without a manual refresh.
+  function scheduleFit() {
+    requestAnimationFrame(fitTitle);
+    setTimeout(fitTitle, 120);
+    setTimeout(fitTitle, 400);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitTitle).catch(() => {});
+  }
   window.addEventListener('resize', fitTitle);
+  window.addEventListener('load', scheduleFit);
+  window.addEventListener('pageshow', scheduleFit);            // PWA resume / bfcache restore
+  window.addEventListener('orientationchange', () => setTimeout(fitTitle, 80));
   if (window.visualViewport) window.visualViewport.addEventListener('resize', fitTitle);
 
   // ---- DEBUG: rig a near-win game so you can preview the victory experience ---
@@ -1454,7 +1468,7 @@
           : (window.SUPA ? `<button class="btn wood full" onclick="CATAN.backToPlayers()">← Back to players</button>` : '')}
         <p class="muted small" style="text-align:center;margin-top:8px">Pass-and-play shares one device.</p>
       </div></div>`;
-      requestAnimationFrame(fitTitle);
+      scheduleFit();
     };
     window.CATAN._setCount = (n) => { count = n; render2(); };
     const myName = () => { const el = $('pn0'); return (el && el.value || DEFAULT_NAMES[0]).trim(); };
@@ -1917,7 +1931,7 @@
     t.classList.remove('hidden'); hideOverlay();
     document.body.style.background = MENU_BG;   // canvas (incl. iOS safe-area strip) matches the wood menu
     $('leavetab').classList.add('hidden'); $('radialtab').classList.add('hidden');
-    requestAnimationFrame(fitTitle);
+    scheduleFit();
   }
   async function showIdentity(mode) {
     mode = mode || 'list';
