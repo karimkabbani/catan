@@ -316,15 +316,17 @@
   #hand{display:flex;align-items:flex-end;justify-content:center;gap:30px;
     background:linear-gradient(rgba(74,42,17,0.62),rgba(34,19,7,0.82)), var(--wood-tex);
     background-size:cover; border:2px solid var(--wood-edge); border-bottom:none; border-radius:12px 12px 0 0;
-    padding:0 38px 5px;
+    padding:0 38px 7px;
     box-shadow:0 -3px 12px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,220,170,0.18);}
   .handname{font-size:12px;font-weight:700;color:var(--gold);margin-right:3px;text-shadow:0 1px 2px #000;}
   /* each resource: round icon + count to its right; pulled up so half the icon
      sits above the bar (the slim bar's top edge crosses the icon's middle) */
   .res{display:inline-flex;align-items:center;gap:7px;height:29px;margin-top:-15px;}
   .res img{width:29px;height:29px;object-fit:contain;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.5));}
+  /* count sits down inside the bar (its top just below the bar's top edge) */
   .rcount{color:#fff;font-family:-apple-system,system-ui,'Segoe UI',Roboto,Arial,sans-serif;
-    font-weight:700;font-size:16px;line-height:1;text-shadow:0 1px 3px #000,0 0 3px #000;}
+    font-weight:700;font-size:16px;line-height:1;text-shadow:0 1px 3px #000,0 0 3px #000;
+    position:relative;top:11px;}
   .chip{display:flex;align-items:center;gap:4px;background:rgba(0,0,0,0.28);border:1px solid rgba(0,0,0,0.4);
     border-radius:9px;padding:3px 8px;font-size:14px;font-weight:700;min-width:42px;justify-content:center;}
   .chip .ic{font-size:15px;}
