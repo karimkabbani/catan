@@ -312,43 +312,49 @@
   .watchtag{margin-left:8px; font-size:0.85em; opacity:0.85; padding:1px 7px; border-radius:10px; background:rgba(0,0,0,0.3);}
   .loblist .lobrow{justify-content:space-between;}
   /* trade screen */
-  /* ===== full-screen trade table (matches the original) ===== */
+  /* ===== trade: half-height wood sheet, board shows above, 3-row placeholder grid ===== */
   #overlay.menu.trademode{align-items:stretch; background:none;}
-  .tradefull{position:absolute; inset:0; display:flex; flex-direction:column; overflow:hidden;
-    background:linear-gradient(rgba(60,33,12,0.32),rgba(40,22,8,0.58)), var(--wood-tex); background-size:cover;}
-  .ttitle2{text-align:center; color:#fff; font-family:var(--serif); font-size:clamp(18px,3.4vh,26px);
-    letter-spacing:.4px; text-shadow:0 2px 4px #000; padding:6px 0 2px;}
-  /* targets: other players' avatars + the bank chest */
-  .ttargets{display:flex; align-items:flex-end; justify-content:center; gap:clamp(10px,3vw,30px); padding:4px 10px 6px; flex:0 0 auto;}
-  .ttarget{display:flex; flex-direction:column; align-items:center; gap:3px; cursor:pointer; opacity:0.5;
-    transition:opacity .14s, transform .14s; transform:scale(0.92);}
+  body.trading #banner, body.trading .corner, body.trading #dock{display:none !important;}
+  .traderoot{position:absolute; inset:0;}
+  .ttitle2{position:absolute; top:1.6%; left:0; right:0; text-align:center; color:#fff; font-family:var(--serif);
+    font-size:clamp(18px,3.6vh,28px); letter-spacing:.4px; text-shadow:0 2px 5px #000;}
+  /* the wooden table — bottom ~56%, board visible above it */
+  .tradesheet{position:absolute; left:0; right:0; bottom:0; height:56%; display:flex; flex-direction:column;
+    background:linear-gradient(rgba(70,40,16,0.55),rgba(34,19,7,0.86)), var(--wood-tex); background-size:cover;
+    border-top:3px solid var(--gold-edge); box-shadow:0 -10px 34px rgba(0,0,0,0.55);
+    padding:clamp(30px,6vh,52px) 2% 8px; animation:sheetup .26s cubic-bezier(.2,.9,.3,1.1);}
+  /* targets straddle the sheet's top edge (sticking up into the board area) */
+  .ttargets{position:absolute; left:0; right:0; top:0; transform:translateY(-54%);
+    display:flex; align-items:flex-end; justify-content:center; gap:clamp(8px,2.5vw,24px);}
+  .ttarget{cursor:pointer; opacity:0.55; transition:opacity .14s, transform .14s; transform:scale(0.92); line-height:0;}
   .ttarget.on{opacity:1; transform:scale(1);}
-  .tav{width:clamp(48px,9vh,82px); height:clamp(48px,9vh,82px); border-radius:11px; overflow:hidden;
-    border:3px solid #caa24a; box-shadow:0 3px 9px rgba(0,0,0,0.5); background:#2a1c0c;}
+  .tav{width:clamp(46px,8.5vh,80px); height:clamp(46px,8.5vh,80px); border-radius:11px; overflow:hidden;
+    border:3px solid #caa24a; box-shadow:0 3px 9px rgba(0,0,0,0.55); background:#2a1c0c;}
   .tav img{width:100%; height:100%; object-fit:cover;}
-  .ttarget.on .tav{box-shadow:0 0 0 3px var(--gold), 0 3px 10px rgba(0,0,0,0.55);}
-  .tchest{width:clamp(56px,10vh,96px); height:auto; filter:drop-shadow(0 3px 7px rgba(0,0,0,0.55));}
-  .ttarget.chest.on .tchest{filter:drop-shadow(0 0 7px var(--gold)) drop-shadow(0 3px 7px rgba(0,0,0,0.55));}
-  .tnm2{font-size:clamp(10px,1.7vh,14px); font-weight:700; color:#f1e3c2; text-shadow:0 1px 2px #000;
-    max-width:92px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;}
-  /* resource columns — swipe up to give, down to receive (arrows also tappable) */
-  .tgrid{flex:1; display:flex; align-items:center; justify-content:center; gap:clamp(6px,2.5vw,22px); padding:0 4% 8px; min-height:0;}
-  .tcol{display:flex; flex-direction:column; align-items:center; gap:clamp(3px,0.9vh,8px); flex:1 1 0; max-width:132px;
-    touch-action:none; user-select:none; -webkit-user-select:none; cursor:grab;}
-  .tcol:active{cursor:grabbing;}
-  .tarr{width:clamp(32px,6vh,50px); height:clamp(24px,4.6vh,38px); border:none; background:none; padding:0; cursor:pointer;
-    display:flex; align-items:center; justify-content:center; opacity:0.45; transition:opacity .12s, transform .12s;}
-  .tarr img{height:100%; width:auto; object-fit:contain; filter:drop-shadow(0 1px 2px rgba(0,0,0,0.5));}
-  .tarr.on{opacity:1; transform:scale(1.14);}
-  .tamt{font-weight:800; font-size:clamp(13px,2.4vh,20px); min-height:1.1em; line-height:1; text-shadow:0 1px 2px #000;}
-  .tamt.give{color:#ff8a7e;} .tamt.want{color:#8fe89a;}
-  .torb{position:relative; width:clamp(48px,9.5vh,80px); height:clamp(48px,9.5vh,80px); display:flex; align-items:center; justify-content:center;}
-  .torb img{width:100%; height:100%; object-fit:contain; filter:drop-shadow(0 2px 4px #0008); pointer-events:none;}
-  .torb .tcount{position:absolute; bottom:-3px; right:-3px; color:#fff; font-weight:800; font-size:clamp(12px,2vh,17px);
+  .ttarget.on .tav{box-shadow:0 0 0 3px var(--gold), 0 3px 10px rgba(0,0,0,0.6);}
+  .tchest{width:clamp(58px,10.5vh,98px); height:auto; vertical-align:bottom; filter:drop-shadow(0 3px 7px rgba(0,0,0,0.6));}
+  .ttarget.chest.on .tchest{filter:drop-shadow(0 0 7px var(--gold)) drop-shadow(0 3px 7px rgba(0,0,0,0.6));}
+  /* 3-row resource grid: give slot · hand · want slot */
+  .tgrid{flex:1; display:flex; align-items:center; justify-content:center; gap:clamp(6px,2.6vw,26px); min-height:0;}
+  .tcol{display:flex; flex-direction:column; align-items:center; gap:clamp(5px,1.5vh,13px); flex:1 1 0; max-width:120px;
+    touch-action:none; user-select:none; -webkit-user-select:none; cursor:pointer;}
+  /* placeholder slot: blackish well; shows the resource + count once swiped in */
+  .tslot{position:relative; width:clamp(38px,7.4vh,62px); height:clamp(38px,7.4vh,62px); border-radius:50%;
+    background:radial-gradient(circle at 50% 36%, rgba(0,0,0,0.40), rgba(0,0,0,0.66));
+    box-shadow:inset 0 2px 6px rgba(0,0,0,0.7), inset 0 -1px 0 rgba(255,255,255,0.05);
+    display:flex; align-items:center; justify-content:center;}
+  .tslot .ahint{width:40%; height:auto; opacity:0.55; pointer-events:none;}
+  .tslot.filled{background:radial-gradient(circle at 50% 36%, rgba(20,10,2,0.32), rgba(0,0,0,0.5));}
+  .tslot.filled img{width:86%; height:86%; object-fit:contain; filter:drop-shadow(0 1px 2px #000a); pointer-events:none;}
+  .tslot .sct{position:absolute; bottom:-2px; right:-3px; color:#fff; font-weight:800; font-size:clamp(11px,1.9vh,16px);
+    text-shadow:-1.2px -1.2px 0 #000,1.2px -1.2px 0 #000,-1.2px 1.2px 0 #000,1.2px 1.2px 0 #000;}
+  .tmid{position:relative; width:clamp(46px,8.6vh,74px); height:clamp(46px,8.6vh,74px); display:flex; align-items:center; justify-content:center;}
+  .tmid img{width:100%; height:100%; object-fit:contain; filter:drop-shadow(0 2px 4px #0008); pointer-events:none;}
+  .tmid .tcount{position:absolute; bottom:-2px; right:-3px; color:#fff; font-weight:800; font-size:clamp(12px,2vh,17px);
     text-shadow:-1.3px -1.3px 0 #000,1.3px -1.3px 0 #000,-1.3px 1.3px 0 #000,1.3px 1.3px 0 #000;}
-  .tratio{color:#f1e3c2; font-weight:800; font-size:clamp(11px,1.9vh,16px); text-shadow:0 1px 2px #000; margin-top:2px;}
+  .tratio{color:#f1e3c2; font-weight:800; font-size:clamp(11px,1.8vh,15px); text-shadow:0 1px 2px #000;}
   /* cancel + confirm (✓ only shows when the trade is valid) */
-  .tclose,.tconfirm{position:absolute; bottom:14px; width:clamp(48px,8vh,62px); height:clamp(48px,8vh,62px);
+  .tclose,.tconfirm{position:absolute; bottom:13px; width:clamp(46px,7.5vh,60px); height:clamp(46px,7.5vh,60px);
     padding:0; border:none; background:none; cursor:pointer; z-index:4;}
   .tclose{left:16px;} .tconfirm{right:16px;}
   .tclose img,.tconfirm img{width:100%; height:100%; object-fit:contain; filter:drop-shadow(0 2px 5px rgba(0,0,0,0.55));}
