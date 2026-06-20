@@ -1126,9 +1126,12 @@
     tSetNet(r, tNetOf(r) + dir);
     const col = document.querySelector('.traderoot .tcol[data-r="' + r + '"]');
     if (!col) { renderTradeBuilder(); return; }
+    const g = ui.trade.give[r], w = ui.trade.want[r];
     const setSlot = (sel, n) => { const s = col.querySelector(sel); if (!s) return; s.classList.toggle('filled', !!n); s.querySelector('.sct').textContent = n || ''; };
-    setSlot('.tslot.give', ui.trade.give[r]);
-    setSlot('.tslot.want', ui.trade.want[r]);
+    setSlot('.tslot.give', g);
+    setSlot('.tslot.want', w);
+    // middle count = what you'd hold if this trade goes through (gave some, received some)
+    const mid = col.querySelector('.tmid .tcount'); if (mid) mid.textContent = activePlayer().resources[r] - g + w;
     const cf = document.querySelector('.tconfirm'); if (cf) cf.classList.toggle('hidden', !tradeValid());
   }
   // trade table (matches the original): targets up top (other players + the bank chest),
@@ -1147,7 +1150,7 @@
       const hold = p.resources[r], ratio = bankRatio(color, r), g = t.give[r], w = t.want[r];
       return `<div class="tcol" data-r="${r}">
         ${tradeSlotHTML(r, g, 'give')}
-        <div class="tmid"><img src="${res[r] || ''}" alt=""><span class="tcount">${hold}</span></div>
+        <div class="tmid"><img src="${res[r] || ''}" alt=""><span class="tcount">${hold - g + w}</span></div>
         ${tradeSlotHTML(r, w, 'want')}
         ${bank ? `<div class="tratio">${ratio}:1</div>` : ''}
       </div>`;
