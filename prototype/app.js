@@ -1109,21 +1109,26 @@
     const gt = RES.reduce((n, r) => n + t.give[r], 0), wt = RES.reduce((n, r) => n + t.want[r], 0);
     return gt > 0 && wt > 0;
   }
-  // one give/want placeholder slot: blackish well, or the resource + count once filled
+  // one give/want placeholder slot. BOTH the arrow hint and the resource icon are always
+  // in the DOM; the `filled` class shows/hides them via CSS. So a swipe never creates or
+  // destroys any element (no image reload / flash) — it only flips a class + a number.
   function tradeSlotHTML(r, n, kind) {
     const res = HUD.res || {}, tr = HUD.trade || {};
-    return n
-      ? `<div class="tslot ${kind} filled"><img src="${res[r] || ''}" alt=""><span class="sct">${n}</span></div>`
-      : `<div class="tslot ${kind}"><img class="ahint" src="${(kind === 'give' ? tr.give : tr.get) || ''}" alt=""></div>`;
+    return `<div class="tslot ${kind}${n ? ' filled' : ''}">
+      <img class="ahint" src="${(kind === 'give' ? tr.give : tr.get) || ''}" alt="">
+      <img class="rimg" src="${res[r] || ''}" alt="">
+      <span class="sct">${n || ''}</span></div>`;
   }
-  // a single step (swipe/tap) — update ONLY this column's two slots + the confirm button,
-  // never a full re-render (which would flash the board/HUD and feel broken on mobile)
+  // a single step (swipe/tap): flip the `filled` class + set the count on this column's
+  // two slots, and toggle the ✓ — nothing else in the DOM is touched, so the board, the
+  // targets and every other resource stay perfectly still.
   function tradeStep(r, dir) {
     tSetNet(r, tNetOf(r) + dir);
     const col = document.querySelector('.traderoot .tcol[data-r="' + r + '"]');
     if (!col) { renderTradeBuilder(); return; }
-    col.querySelector('.tslot.give').outerHTML = tradeSlotHTML(r, ui.trade.give[r], 'give');
-    col.querySelector('.tslot.want').outerHTML = tradeSlotHTML(r, ui.trade.want[r], 'want');
+    const setSlot = (sel, n) => { const s = col.querySelector(sel); if (!s) return; s.classList.toggle('filled', !!n); s.querySelector('.sct').textContent = n || ''; };
+    setSlot('.tslot.give', ui.trade.give[r]);
+    setSlot('.tslot.want', ui.trade.want[r]);
     const cf = document.querySelector('.tconfirm'); if (cf) cf.classList.toggle('hidden', !tradeValid());
   }
   // trade table (matches the original): targets up top (other players + the bank chest),
