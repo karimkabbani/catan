@@ -1794,13 +1794,14 @@
     const R = 90;
     // build/trade/end/dev only on your turn (dice roll automatically); Leave is always here.
     const canAct = state.phase === 'play' && state.turnPhase === 'main' && isMyTurn();
-    const acts = canAct ? [
+    const exit = { k: 'exit', label: (online && !myColor) ? 'Stop' : 'Leave', emoji: '🚪' };
+    const items = canAct ? [
       { k: 'build', label: 'Build' },
       { k: 'trade', label: 'Trade' },
       { k: 'end', label: 'End turn' },
+      exit,
       { k: 'dev', label: 'Cards' },
-    ] : [];
-    const items = acts.concat([{ k: 'exit', label: (online && !myColor) ? 'Stop' : 'Leave', emoji: '🚪' }]);
+    ] : [exit];
     // spread the items evenly around the circle, first one at the top
     const n = items.length;
     let html = `<button class="radbtn center" onclick="CATAN.closeRadial()"><img src="assets/hud/radial/close.png" alt="close"></button>`;
