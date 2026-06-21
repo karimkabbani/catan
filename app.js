@@ -99,6 +99,13 @@
     if (el.paused) el.play().catch(() => {});                 // succeeds within a gesture; retried on the next tap otherwise
   }
   function stopMusic() { if (musicEl) { try { musicEl.pause(); } catch (_) {} } }
+  function musicSkip(dir) {                                   // ‹ › track navigation in the settings menu
+    const el = ensureMusicEl();
+    musicIdx = (musicIdx + dir + MUSIC.length) % MUSIC.length;
+    el.src = `assets/audio/${MUSIC[musicIdx]}.mp3`;
+    if (SETTINGS.music) el.play().catch(() => {});
+    if (!$('overlay').classList.contains('hidden')) openSettings();   // refresh the track number
+  }
 
   // Translucent placement-ghost markers (match the original game's look).
   const GHOST = { settlement: 'assets/hud/candidate-settlement.png', city: 'assets/hud/candidate-city.png', road: 'assets/hud/candidate-road.png' };
@@ -1327,14 +1334,17 @@
   // per-device settings (music / sfx / animation speed / auto-zoom). Toggles persist here;
   // each setting's actual effect is wired separately.
   function openSettings() {
-    const toggle = (key, label) => `<div class="setrow"><span class="setlbl">${label}</span>
-      <button class="swtch${SETTINGS[key] ? ' on' : ''}" role="switch" aria-checked="${!!SETTINGS[key]}" onclick="CATAN.setToggle('${key}')"><span class="knob"></span></button></div>`;
+    const sw = (key) => `<button class="swtch${SETTINGS[key] ? ' on' : ''}" role="switch" aria-checked="${!!SETTINGS[key]}" onclick="CATAN.setToggle('${key}')"><span class="knob"></span></button>`;
+    const toggle = (key, label) => `<div class="setrow"><span class="setlbl">${label}</span>${sw(key)}</div>`;
     const speeds = [['slow', 'Slow'], ['medium', 'Medium'], ['fast', 'Fast']];
     const seg = `<div class="setrow"><span class="setlbl">Animation speed</span>
       <div class="setseg">${speeds.map(([v, t]) => `<button class="${SETTINGS.anim === v ? 'on' : ''}" onclick="CATAN.setAnim('${v}')">${t}</button>`).join('')}</div></div>`;
+    // music row carries the on/off toggle plus ‹ track › navigation when it's on
+    const musicRow = `<div class="setrow"><span class="setlbl">Music</span>
+      <div class="setctl">${SETTINGS.music ? `<button class="trknav" onclick="CATAN.musicPrev()" aria-label="Previous track">‹</button><span class="trknum">${musicIdx + 1}/${MUSIC.length}</span><button class="trknav" onclick="CATAN.musicNext()" aria-label="Next track">›</button>` : ''}${sw('music')}</div></div>`;
     showOverlay(`<div class="settingsmenu">
       <h3>Settings</h3>
-      ${toggle('music', 'Music')}
+      ${musicRow}
       ${toggle('sfx', 'Sound effects')}
       ${seg}
       ${toggle('autozoom', 'Auto-zoom')}
@@ -1664,6 +1674,8 @@
     openDev, openTrade, openMonopoly, openYoP,
     openSettings,
     setToggle: (key) => { SETTINGS[key] = !SETTINGS[key]; saveSettings(); openSettings(); if (key === 'music') { if (SETTINGS.music) startMusic(); else stopMusic(); } },
+    musicNext: () => musicSkip(1),
+    musicPrev: () => musicSkip(-1),
     setAnim: (v) => { SETTINGS.anim = v; saveSettings(); openSettings(); },
     // radial menu
     openRadial: () => {
