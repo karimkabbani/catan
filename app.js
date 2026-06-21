@@ -1177,10 +1177,11 @@
     for (const c of ORDER) {
       const n = (owned[c] || 0) + (fresh[c] || 0);
       // a card you could play this turn (ignoring the once-per-turn rule). Still tappable
-      // when you've already played one, so the tap can EXPLAIN the rule rather than do nothing.
-      const ownsPlayable = c !== 'victory_point' && (owned[c] || 0) > 0;
-      const tap = ownsPlayable ? `play:${c}` : '';
-      cards += `<div class="devcard2${n > 0 ? '' : ' dim'}${ownsPlayable ? ' act' : ''}" data-act="${tap}" style="background-image:url('${face[c] || ''}')" onclick="CATAN.devTap('${tap}')">
+      // when the play is blocked (already played one / just bought it), so the tap can
+      // EXPLAIN the rule rather than do nothing.
+      const tappable = c !== 'victory_point' && n > 0;
+      const tap = tappable ? `play:${c}` : '';
+      cards += `<div class="devcard2${n > 0 ? '' : ' dim'}${tappable ? ' act' : ''}" data-act="${tap}" style="background-image:url('${face[c] || ''}')" onclick="CATAN.devTap('${tap}')">
         ${n > 0 && art[c] ? `<img class="dcolor" src="${art[c]}" alt="">` : ''}
         <div class="dtitle">${DEV_TITLE[c]}</div>
         <div class="dtext">${DEV_RULES[c]}</div>
@@ -1228,8 +1229,10 @@
     if (!act) return;
     if (act === 'buy') { window.CATAN.buyDev(); }      // dispatch shows the "X Card bought." reveal
     else if (act.indexOf('play:') === 0) {
+      const c = act.slice(5);
       if (state.hasPlayedDevCardThisTurn) { toast('You can only play one development card per turn'); return; }
-      devConfirm(act.slice(5));
+      if (activePlayer().devCards.indexOf(c) < 0) { toast('You can’t play a development card the turn you buy it'); return; }
+      devConfirm(c);
     }
   }
   // Year of Plenty — same trade/discard-style sheet, but you SWIPE 2 resources DOWN into
