@@ -188,6 +188,13 @@
   .setseg button:first-child{border-left:none;}
   .setseg button.on{background:linear-gradient(180deg,#d8b258,#a9802a); color:#3a2400;}
   .settingsmenu .btn.full{margin-top:12px;}
+  /* music row: ‹ track › nav + toggle */
+  .setctl{display:flex; align-items:center; gap:9px;}
+  .trknav{width:30px; height:30px; border-radius:50%; border:1px solid var(--gold-edge); cursor:pointer; padding:0;
+    background:radial-gradient(circle at 40% 34%, #5a554e, #272320 58%, #15120f); color:#f1e6cf; font-size:18px; line-height:1;
+    display:flex; align-items:center; justify-content:center;}
+  .trknav:active{transform:scale(0.92);}
+  .trknum{color:var(--gold); font-weight:800; font-size:13px; min-width:26px; text-align:center; text-shadow:0 1px 1px #000;}
   #radialtab.pulse{animation:tabpulse 1.5s ease-in-out infinite;}
   /* always-available leave button during a game (left edge) */
   #leavetab{position:fixed; left:0; top:50%; transform:translateY(-50%);
