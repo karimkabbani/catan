@@ -1421,8 +1421,11 @@
     // turn to act, and the build/trade/end/dev actions only appear then.
     const radialPhase = state.phase === 'play' && tp === 'main' && isMyTurn();
     $('radialwrap').innerHTML = radialButtons();
-    $('radialtab').classList.remove('hidden');
-    $('radialtab').classList.toggle('pulse', radialPhase);
+    // hide the radial tab during forced, uninterruptible steps: placing the robber,
+    // the ✓/✗ confirm, and picking a steal victim
+    const hideTab = !!ui.confirm || ui.mode === 'moveRobber' || ui.mode === 'steal';
+    $('radialtab').classList.toggle('hidden', hideTab);
+    $('radialtab').classList.toggle('pulse', radialPhase && !hideTab);
     $('confirmbar').classList.toggle('hidden', !ui.confirm);
     justPlaced = null;  // pop-in only plays on the render right after placement
     $('leavetab').classList.add('hidden');   // exit lives in the radial menu now
