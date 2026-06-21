@@ -468,17 +468,24 @@
     // buildings — use the ripped art; the SVG shapes below are only a fallback
     // for when no ripped piece asset exists (never both, or the drawn shape would
     // show through behind the real sprite).
+    // when stealing from a hex with several opponents, the victims' buildings blink and
+    // you pick by tapping one (the map stays visible instead of a covering prompt)
+    const stealMode = state.turnPhase === 'steal' && (state.stealCandidates || []).length > 1;
+    const robberVerts = stealMode ? new Set(state.board.hexes[state.robberHex].vertices) : null;
     for (const [id, b] of Object.entries(state.settlements)) {
       const x = vX(Number(id)), y = vY(Number(id)), c = PCOLOR[b.owner], s = PSTROKE[b.owner];
       const art = ASSETS.pieces && ASSETS.pieces[b.type] && ASSETS.pieces[b.type][b.owner];
       const bpop = (justPlaced && justPlaced.kind === 'v' && justPlaced.id === Number(id)) ? ' popin' : '';
+      const target = stealMode && robberVerts.has(Number(id)) && state.stealCandidates.includes(b.owner);
+      const cls = bpop + (target ? ' blink' : '');
       if (art) {
-        P.push(`<image class="piece${bpop}" href="${art}" x="${x - 0.32}" y="${y - 0.42}" width="0.64" height="0.72" preserveAspectRatio="xMidYMid meet"/>`);
+        P.push(`<image class="piece${cls}" href="${art}" x="${x - 0.32}" y="${y - 0.42}" width="0.64" height="0.72" preserveAspectRatio="xMidYMid meet"/>`);
       } else if (b.type === 'city') {
-        P.push(`<g filter="url(#soft)"><rect x="${x - 0.28}" y="${y - 0.16}" width="0.56" height="0.4" rx="0.05" fill="${c}" stroke="${s}" stroke-width="0.05"/><polygon points="${x - 0.28},${y - 0.16} ${x},${y - 0.34} ${x + 0.06},${y - 0.34} ${x + 0.06},${y - 0.05} ${x + 0.28},${y - 0.05} ${x + 0.28},${y - 0.16}" fill="${c}" stroke="${s}" stroke-width="0.04"/><rect x="${x - 0.18}" y="${y + 0.02}" width="0.12" height="0.14" fill="${s}"/></g>`);
+        P.push(`<g class="${target ? 'blink' : ''}" filter="url(#soft)"><rect x="${x - 0.28}" y="${y - 0.16}" width="0.56" height="0.4" rx="0.05" fill="${c}" stroke="${s}" stroke-width="0.05"/><polygon points="${x - 0.28},${y - 0.16} ${x},${y - 0.34} ${x + 0.06},${y - 0.34} ${x + 0.06},${y - 0.05} ${x + 0.28},${y - 0.05} ${x + 0.28},${y - 0.16}" fill="${c}" stroke="${s}" stroke-width="0.04"/><rect x="${x - 0.18}" y="${y + 0.02}" width="0.12" height="0.14" fill="${s}"/></g>`);
       } else {
-        P.push(`<g filter="url(#soft)"><polygon points="${x},${y - 0.3} ${x + 0.22},${y - 0.08} ${x + 0.22},${y + 0.22} ${x - 0.22},${y + 0.22} ${x - 0.22},${y - 0.08}" fill="${c}" stroke="${s}" stroke-width="0.05"/></g>`);
+        P.push(`<g class="${target ? 'blink' : ''}" filter="url(#soft)"><polygon points="${x},${y - 0.3} ${x + 0.22},${y - 0.08} ${x + 0.22},${y + 0.22} ${x - 0.22},${y + 0.22} ${x - 0.22},${y - 0.08}" fill="${c}" stroke="${s}" stroke-width="0.05"/></g>`);
       }
+      if (target) P.push(`<circle class="hit" data-kind="steal" data-id="${b.owner}" cx="${x}" cy="${y}" r="0.4" fill="#fff" fill-opacity="0"/>`);
     }
 
     // interactive targets — translucent ghost markers (like the original game),
@@ -543,7 +550,10 @@
     if (zoom.swallowClick) { zoom.swallowClick = false; return; }  // a pan/pinch/double-tap, not a tap-to-place
     if (online && !isMyTurn()) return;                            // only the active player touches the board online
     const t = e.target.closest('.hit'); if (!t) return;
-    const kind = t.getAttribute('data-kind'), id = Number(t.getAttribute('data-id')), color = activeColor();
+    const kind = t.getAttribute('data-kind');
+    // steal: tapping a blinking victim building steals from that player immediately
+    if (kind === 'steal') { ui.mode = 'idle'; dispatch({ type: 'steal', victim: t.getAttribute('data-id') }, activeColor()); return; }
+    const id = Number(t.getAttribute('data-id')), color = activeColor();
     // placements are tentative — tap a spot, then confirm with the check
     if (kind === 'vertex') { ui.confirm = { action: ui.mode === 'placeCity' ? { type: 'buildCity', vertex: id } : { type: 'buildSettlement', vertex: id }, color }; render(); }
     else if (kind === 'edge') { ui.confirm = { action: { type: 'buildRoad', edge: id }, color }; render(); }
@@ -1030,8 +1040,11 @@
   function promptSteal() {
     const cands = state.stealCandidates;
     if (cands.length === 1) { dispatch({ type: 'steal', victim: cands[0] }, activeColor()); return; }
-    const btns = cands.map((c) => { const pl = state.players.find((p) => p.color === c); return `<button class="btn full" onclick="CATAN.steal('${c}')"><span class="dot" style="background:${PCOLOR[c]}"></span> ${escapeHtml(pl.name)}</button>`; }).join('');
-    showOverlay(`<h3>Steal from…</h3>${btns}`);
+    // several opponents on the hex: keep the island visible and blink their buildings;
+    // the active player taps one to steal (handled as data-kind="steal" in onBoardClick)
+    ui.mode = 'steal'; hideOverlay();
+    if (isMyTurn()) toast('Tap a glowing building to steal from that player');
+    render();
   }
   // Build screen — full-bleed, matching the original app's "Building" menu:
   // three piece cards (art + remaining count + resource cost), red X, resource bar.
