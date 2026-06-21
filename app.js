@@ -234,8 +234,9 @@
     o.classList.add('qmode');
     document.body.classList.remove('trading');
   }
-  function showRollPrompt() { const e = $('rollprompt'); if (e) e.classList.remove('hidden'); }
-  function hideRollPrompt() { const e = $('rollprompt'); if (e) e.classList.add('hidden'); }
+  // during "Show game map" the right-edge radial tab becomes an X that returns to the question
+  function showRollPrompt() { const e = $('radialtab'); if (e) { e.classList.remove('hidden'); e.classList.add('xback'); } }
+  function hideRollPrompt() { const e = $('radialtab'); if (e) e.classList.remove('xback'); }
 
   // ---- tile art ------------------------------------------------------------
   // Optional exact-art swap: place your own cropped tile images in assets/tiles/
@@ -1397,7 +1398,10 @@
     cancelPlace: () => { ui.confirm = null; render(); },
     openDev, openTrade, openMonopoly, openYoP,
     // radial menu
-    openRadial: () => { const r = $('radialroot'); r.classList.remove('hidden'); requestAnimationFrame(() => r.classList.add('open')); },
+    openRadial: () => {
+      if (ui.knightDismissed) { window.CATAN.qReopen(); return; }   // X tab during Show game map → back to the question
+      const r = $('radialroot'); r.classList.remove('hidden'); requestAnimationFrame(() => r.classList.add('open'));
+    },
     closeRadial,
     radial: (k) => {
       closeRadial();
