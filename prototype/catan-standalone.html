@@ -858,6 +858,7 @@
         .map((p) => ({ color: p.color, n: p.resources[action.resource] })).filter((x) => x.n > 0);
       if (from.length) mono = { res: action.resource, to: actor, from };
     }
+    const yop = action.type === 'playYearOfPlenty' ? { to: actor, n: (action.resources || []).length || 2 } : null;
     const fromRobber = state.robberHex;
     state = r.state;
     // fly the thief across — unless I dragged it there myself (the drag was the motion)
@@ -868,6 +869,7 @@
     if (steal) showStealFly(steal.victim, steal.thief);   // res known only to detect a steal happened, not shown
     if (trade) showTradeFly(trade.a, trade.b, trade.g, trade.w);   // bank fly fires once from tradeBank()
     if (mono) showMonopolyFly(mono.to, mono.res, mono.from);   // monopolised cards fly in, face-up
+    if (yop) showYoPFly(yop.to, yop.n);                        // year-of-plenty cards fly in, face-down
     if (online) NET.syncAction(action, actor);   // push my move to the server as the correct actor
     return true;
   }
@@ -1536,6 +1538,19 @@
   }
   // a stolen card flies FACE-DOWN from the victim's corner to the thief's corner
   // (the resource is kept secret — only that something was taken is shown)
+  // year of plenty: the 2 taken cards fly FACE-DOWN from the island centre into your panel
+  function showYoPFly(color, count) {
+    const pi = state.players.findIndex((p) => p.color === color);
+    const panel = $('p-' + SEATS[pi]); if (!panel) return;
+    const r = panel.getBoundingClientRect();
+    const px = r.left + r.width / 2, py = r.top + r.height / 2;
+    const svg = $('board');
+    const br = svg ? svg.getBoundingClientRect() : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
+    const cx = br.left + br.width / 2, cy = br.top + br.height / 2;
+    playSound('trade', 0.5);
+    let d = 0;
+    for (let i = 0; i < (count || 2); i++) { flyImage('assets/hud/cardback.png', cx, cy, px, py, d, { card: true }); d += 170; }
+  }
   // monopoly: the taken cards fly FACE-UP from every other player's panel into yours
   function showMonopolyFly(toColor, res, from) {
     const ti = state.players.findIndex((p) => p.color === toColor);
