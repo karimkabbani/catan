@@ -163,6 +163,12 @@
       const pt = state.pendingTrade;
       trade = { a: pt.from, b: action.with, g: sumObj(pt.give), w: sumObj(pt.want) };
     }
+    let mono = null;
+    if (action.type === 'playMonopoly') {   // capture who's losing how many BEFORE the swap
+      const from = state.players.filter((p) => p.color !== actor)
+        .map((p) => ({ color: p.color, n: p.resources[action.resource] })).filter((x) => x.n > 0);
+      if (from.length) mono = { res: action.resource, to: actor, from };
+    }
     const fromRobber = state.robberHex;
     state = r.state;
     // fly the thief across — unless I dragged it there myself (the drag was the motion)
@@ -172,6 +178,7 @@
     if (robberMoved) showRobberFly(fromRobber, state.robberHex);
     if (steal) showStealFly(steal.victim, steal.thief);   // res known only to detect a steal happened, not shown
     if (trade) showTradeFly(trade.a, trade.b, trade.g, trade.w);   // bank fly fires once from tradeBank()
+    if (mono) showMonopolyFly(mono.to, mono.res, mono.from);   // monopolised cards fly in, face-up
     if (online) NET.syncAction(action, actor);   // push my move to the server as the correct actor
     return true;
   }
@@ -840,6 +847,24 @@
   }
   // a stolen card flies FACE-DOWN from the victim's corner to the thief's corner
   // (the resource is kept secret — only that something was taken is shown)
+  // monopoly: the taken cards fly FACE-UP from every other player's panel into yours
+  function showMonopolyFly(toColor, res, from) {
+    const ti = state.players.findIndex((p) => p.color === toColor);
+    const tp = $('p-' + SEATS[ti]); if (!tp) return;
+    const tr = tp.getBoundingClientRect();
+    const tx = tr.left + tr.width / 2, ty = tr.top + tr.height / 2;
+    const resImg = (HUD.res && HUD.res[res]) || (ASSETS.icons && ASSETS.icons[res]);
+    playSound('trade', 0.5);
+    let d = 0;
+    for (const f of from) {
+      const fi = state.players.findIndex((p) => p.color === f.color);
+      const fp = $('p-' + SEATS[fi]); if (!fp) continue;
+      const fr = fp.getBoundingClientRect();
+      const fx = fr.left + fr.width / 2, fy = fr.top + fr.height / 2;
+      const cards = Math.min(f.n, 5);   // cap the visual flurry
+      for (let i = 0; i < cards; i++) { flyImage(resImg, fx, fy, tx, ty, d); d += 110; }
+    }
+  }
   function showStealFly(victimColor, thiefColor) {
     const vi = state.players.findIndex((p) => p.color === victimColor);
     const ti = state.players.findIndex((p) => p.color === thiefColor);
@@ -1106,9 +1131,11 @@
     // every card type, always shown; owned -> colour art overlay, count in the corner
     for (const c of ORDER) {
       const n = (owned[c] || 0) + (fresh[c] || 0);
-      const playable = c !== 'victory_point' && !played && (owned[c] || 0) > 0;
-      const tap = playable ? `play:${c}` : '';
-      cards += `<div class="devcard2${n > 0 ? '' : ' dim'}${playable ? ' act' : ''}" data-act="${tap}" style="background-image:url('${face[c] || ''}')" onclick="CATAN.devTap('${tap}')">
+      // a card you could play this turn (ignoring the once-per-turn rule). Still tappable
+      // when you've already played one, so the tap can EXPLAIN the rule rather than do nothing.
+      const ownsPlayable = c !== 'victory_point' && (owned[c] || 0) > 0;
+      const tap = ownsPlayable ? `play:${c}` : '';
+      cards += `<div class="devcard2${n > 0 ? '' : ' dim'}${ownsPlayable ? ' act' : ''}" data-act="${tap}" style="background-image:url('${face[c] || ''}')" onclick="CATAN.devTap('${tap}')">
         ${n > 0 && art[c] ? `<img class="dcolor" src="${art[c]}" alt="">` : ''}
         <div class="dtitle">${DEV_TITLE[c]}</div>
         <div class="dtext">${DEV_RULES[c]}</div>
@@ -1155,7 +1182,10 @@
   function devAct(act) {
     if (!act) return;
     if (act === 'buy') { window.CATAN.buyDev(); openDev(); }      // buy, then refresh the carousel
-    else if (act.indexOf('play:') === 0) devConfirm(act.slice(5));
+    else if (act.indexOf('play:') === 0) {
+      if (state.hasPlayedDevCardThisTurn) { toast('You can only play one development card per turn'); return; }
+      devConfirm(act.slice(5));
+    }
   }
   function openYoP() {
     ui.pending = { yop: [] };
