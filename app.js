@@ -12,6 +12,13 @@
   // (below the home indicator) with the <body> bg, which no fixed element can cover —
   // so we switch body bg to match: dark wood on menus, deep sea in-game.
   const MENU_BG = '', GAME_BG = '#0c3d68';   // '' = revert to the CSS wood-texture page canvas
+  // per-device preferences (each player's own phone) — persisted in localStorage. The
+  // effects of these are wired up per-setting; here we just store + expose them.
+  const SETTINGS = (() => {
+    const def = { music: false, sfx: true, anim: 'medium', autozoom: true };
+    try { return Object.assign(def, JSON.parse(localStorage.getItem('catan-settings') || '{}')); } catch (_) { return def; }
+  })();
+  function saveSettings() { try { localStorage.setItem('catan-settings', JSON.stringify(SETTINGS)); } catch (_) {} }
   const PSTROKE = { red: '#7d1f1b', blue: '#17376f', green: '#1f6b2c', yellow: '#9a7d0c' };
   const PINK = { red: '#fff', blue: '#fff', green: '#fff', yellow: '#23303c' };
   function hexA(hex, a) { const n = parseInt(hex.slice(1), 16); return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`; }
@@ -1021,7 +1028,7 @@
   }
 
   // ---- overlays (unchanged logic) -----------------------------------------
-  function showOverlay(html) { const o = $('overlay'); o.innerHTML = `<div class="sheet">${html}</div>`; o.classList.remove('hidden', 'menu', 'devmode', 'trademode', 'qmode'); document.body.classList.remove('trading'); }
+  function showOverlay(html) { const o = $('overlay'); o.innerHTML = `<div class="sheet">${html}</div>`; o.classList.remove('hidden', 'menu', 'devmode', 'trademode', 'qmode'); document.body.classList.remove('trading'); $('radialtab').classList.add('hidden'); $('settingstab').classList.add('hidden'); }
   function showFullMenu(html) { const o = $('overlay'); o.innerHTML = html; o.classList.remove('hidden', 'devmode', 'trademode', 'qmode'); o.classList.add('menu'); document.body.classList.remove('trading'); }
   // Re-render a menu sheet without replaying its slide-up / reloading images: if the
   // same view is already open, swap only its inner content; otherwise mount fresh.
@@ -1289,6 +1296,23 @@
   function openMonopoly() {
     showOverlay(`<h3>Monopoly</h3><div class="grid">${RES.map((r) => `<button class="btn wood" onclick="CATAN.mono('${r}')">${resIc(r)} ${r}</button>`).join('')}</div><button class="btn ghost full" onclick="CATAN.close()">Cancel</button>`);
   }
+  // per-device settings (music / sfx / animation speed / auto-zoom). Toggles persist here;
+  // each setting's actual effect is wired separately.
+  function openSettings() {
+    const toggle = (key, label) => `<div class="setrow"><span class="setlbl">${label}</span>
+      <button class="swtch${SETTINGS[key] ? ' on' : ''}" role="switch" aria-checked="${!!SETTINGS[key]}" onclick="CATAN.setToggle('${key}')"><span class="knob"></span></button></div>`;
+    const speeds = [['slow', 'Slow'], ['medium', 'Medium'], ['fast', 'Fast']];
+    const seg = `<div class="setrow"><span class="setlbl">Animation speed</span>
+      <div class="setseg">${speeds.map(([v, t]) => `<button class="${SETTINGS.anim === v ? 'on' : ''}" onclick="CATAN.setAnim('${v}')">${t}</button>`).join('')}</div></div>`;
+    showOverlay(`<div class="settingsmenu">
+      <h3>Settings</h3>
+      ${toggle('music', 'Music')}
+      ${toggle('sfx', 'Sound effects')}
+      ${seg}
+      ${toggle('autozoom', 'Auto-zoom')}
+      <button class="btn full" onclick="CATAN.close()">Done</button>
+    </div>`);
+  }
   // ---- trade -------------------------------------------------------------
   // describe a give/want bundle as little resource icons
   function offerStr(obj) {
@@ -1550,6 +1574,7 @@
     // ✓/✗ confirm, picking a steal victim) and behind any open dialog/menu
     const hideTab = !!ui.confirm || ui.mode === 'moveRobber' || ui.mode === 'steal' || !$('overlay').classList.contains('hidden');
     $('radialtab').classList.toggle('hidden', hideTab);
+    $('settingstab').classList.toggle('hidden', hideTab);   // subtle gear, in-game, hidden behind dialogs
     $('radialtab').classList.toggle('pulse', radialPhase && !hideTab);
     $('confirmbar').classList.toggle('hidden', !ui.confirm);
     justPlaced = null;  // pop-in only plays on the render right after placement
@@ -1606,6 +1631,9 @@
     confirmPlace: () => { const c = ui.confirm; if (!c) return; ui.confirm = null; skipRobberFly = !!c.dragged; dispatch(c.action, c.color); skipRobberFly = false; },
     cancelPlace: () => { ui.confirm = null; render(); },
     openDev, openTrade, openMonopoly, openYoP,
+    openSettings,
+    setToggle: (key) => { SETTINGS[key] = !SETTINGS[key]; saveSettings(); openSettings(); },
+    setAnim: (v) => { SETTINGS.anim = v; saveSettings(); openSettings(); },
     // radial menu
     openRadial: () => {
       if (ui.knightDismissed) { window.CATAN.qReopen(); return; }   // X tab during Show game map → back to the question
@@ -1754,7 +1782,7 @@
     if (ASSETS.sea) { const si = document.getElementById('seaimg'); if (si) si.style.backgroundImage = `url("${ASSETS.sea}")`; }
     hideOverlay();
     document.body.style.background = MENU_BG;   // wood canvas behind the offline title
-    $('leavetab').classList.add('hidden'); $('radialtab').classList.add('hidden');
+    $('leavetab').classList.add('hidden'); $('radialtab').classList.add('hidden'); $('settingstab').classList.add('hidden');
     const title = $('title'); title.classList.remove('hidden');
     let count = 4;
     const banner = ASSETS.logo
@@ -2244,7 +2272,7 @@
     t.innerHTML = `${banner}<div class="t-body"><div class="t-card">${html}</div></div>`;
     t.classList.remove('hidden'); hideOverlay();
     document.body.style.background = MENU_BG;   // canvas (incl. iOS safe-area strip) matches the wood menu
-    $('leavetab').classList.add('hidden'); $('radialtab').classList.add('hidden');
+    $('leavetab').classList.add('hidden'); $('radialtab').classList.add('hidden'); $('settingstab').classList.add('hidden');
     scheduleFit();
   }
   async function showIdentity(mode) {
