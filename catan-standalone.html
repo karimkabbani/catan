@@ -2350,6 +2350,10 @@
   window.addEventListener('pageshow', scheduleFit);            // PWA resume / bfcache restore
   window.addEventListener('orientationchange', () => setTimeout(fitTitle, 80));
   if (window.visualViewport) window.visualViewport.addEventListener('resize', fitTitle);
+  // A direct landscape launch fires no resize/orientationchange, so the early fits run
+  // against an unsettled viewport (card scaled too small -> wood shows below it). Watch
+  // the title box and re-fit the moment iOS settles it to the real viewport size.
+  if (window.ResizeObserver) { try { new ResizeObserver(() => fitTitle()).observe($('title')); } catch (_) {} }
 
   // ---- DEBUG: rig a near-win game so you can preview the victory experience ---
   // Trigger by opening the page with ?rig (e.g. index.html?rig) or calling
