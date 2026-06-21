@@ -97,6 +97,8 @@
   .pstat b{font-weight:800; color:var(--ink); text-shadow:0 1px 1px #000; text-align:left;}
   .pstat.hot img{filter:drop-shadow(0 0 3px var(--gold));}
   .pstat.hot b{color:var(--gold);}
+  /* over 7 cards: at risk of discarding on a 7 — flag the count red */
+  .pstat.over b{color:#ff5a4d; text-shadow:0 1px 1px #000, 0 0 4px rgba(255,40,30,0.5);}
   .pport{display:flex; flex-direction:column; align-items:center; justify-content:flex-end; gap:2px;}
   .pava{width:48px; height:56px; border-radius:7px; overflow:hidden; border:2px solid #0006;
     background:#3a2410; box-shadow:0 2px 5px rgba(0,0,0,0.5); display:flex; align-items:flex-end; justify-content:center;

@@ -640,14 +640,14 @@
       const bdg = (HUD.badge) || {};
       // one stacked stat = real icon + count (emoji fallback); highlight when this
       // player holds Longest Road / Largest Army.
-      const stat = (src, val, emoji, title, hot) =>
-        `<div class="pstat${hot ? ' hot' : ''}" title="${title}">${src ? `<img src="${src}" alt="">` : emoji}<b>${val}</b></div>`;
+      const stat = (src, val, emoji, title, hot, red) =>
+        `<div class="pstat${hot ? ' hot' : ''}${red ? ' over' : ''}" title="${title}">${src ? `<img src="${src}" alt="">` : emoji}<b>${val}</b></div>`;
       const av = (ASSETS.avatars && ASSETS.avatars[i]) ? `<img src="${ASSETS.avatars[i]}" alt="" onerror="this.outerHTML='${escapeHtml(p.name[0] || '?')}'">` : escapeHtml(p.name[0] || '?');
       // dice appear at the active player's corner once they've rolled this turn
       const di = (!ui.diceRevealing && p.color === activeColor() && state.dice && state.phase === 'play')
         ? `<div class="pdice">${diceFaces(state.dice)}</div>` : '';
       el.innerHTML = `${di}
-        <div class="pcol">${stat(bdg.res, cards, '🃏', 'Resource cards')}${stat(bdg.card, dev, '🎴', 'Development cards')}${stat(bdg.vp, vp, '⭐', 'Victory points')}${stat(bdg.army, p.playedKnights, '⚔️', 'Knights played', p.hasLargestArmy)}${stat(bdg.road, road, '🛣️', 'Longest road', p.hasLongestRoad)}</div>
+        <div class="pcol">${stat(bdg.res, cards, '🃏', 'Resource cards', false, cards > 7)}${stat(bdg.card, dev, '🎴', 'Development cards')}${stat(bdg.vp, vp, '⭐', 'Victory points')}${stat(bdg.army, p.playedKnights, '⚔️', 'Knights played', p.hasLargestArmy)}${stat(bdg.road, road, '🛣️', 'Longest road', p.hasLongestRoad)}</div>
         <div class="pport"><div class="pava" style="border-color:${PCOLOR[p.color]}">${av}</div><div class="pname">${escapeHtml(p.name)}</div></div>`;
     });
     for (let i = state.players.length; i < 4; i++) $('p-' + SEATS[i]).style.display = 'none';
