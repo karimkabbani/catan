@@ -151,6 +151,8 @@
     filter:drop-shadow(-2px 3px 5px rgba(0,0,0,0.5));}
   #radialtab:active{transform:translateY(-50%) scale(0.94);}
   #radialtab.hidden{display:none;}
+  /* while "Show game map" is active, the tab becomes a familiar X that returns to the question */
+  #radialtab.xback{background-image:url('assets/hud/decline.png');}
   #radialtab.pulse{animation:tabpulse 1.5s ease-in-out infinite;}
   /* always-available leave button during a game (left edge) */
   #leavetab{position:fixed; left:0; top:50%; transform:translateY(-50%);
@@ -388,12 +390,6 @@
     box-shadow:0 3px 7px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.08); text-shadow:0 1px 2px #000;}
   .qbtn:last-child{margin-bottom:0;}
   .qbtn:active{transform:translateY(1px); filter:brightness(0.95);}
-  /* floating "back to the decision" prompt after Show game map */
-  #rollprompt{position:fixed; left:50%; bottom:calc(56px + env(safe-area-inset-bottom,0px)); transform:translateX(-50%);
-    width:62px; height:62px; border-radius:50%; border:3px solid var(--gold-edge); cursor:pointer; z-index:20; font-size:28px;
-    background:radial-gradient(circle at 40% 32%, #5a554e, #272320 58%, #15120f);
-    box-shadow:0 4px 12px rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; animation:tabpulse 1.6s ease-in-out infinite;}
-  #rollprompt.hidden{display:none;}
   .toffer{display:flex; gap:8px; align-items:center; justify-content:center; flex-wrap:wrap; color:var(--ink); font-weight:700; font-size:16px; padding:10px 12px;}
   .toffer .for{color:var(--muted); font-weight:400; font-style:italic;}
   .toffer .ri{width:22px; height:22px; vertical-align:-5px;}
@@ -632,7 +628,6 @@
   </div>
   <div id="dicereveal" class="hidden"></div>
   <div id="countdown" class="hidden"></div>
-  <button id="rollprompt" class="hidden" onclick="CATAN.qReopen()" aria-label="Continue your turn">🎲</button>
   <div id="confirmbar" class="hidden">
     <button onclick="CATAN.confirmPlace()"><img src="assets/hud/confirm.png" alt="Confirm"></button>
     <button onclick="CATAN.cancelPlace()"><img src="assets/hud/decline.png" alt="Cancel"></button>
@@ -922,8 +917,9 @@
     o.classList.add('qmode');
     document.body.classList.remove('trading');
   }
-  function showRollPrompt() { const e = $('rollprompt'); if (e) e.classList.remove('hidden'); }
-  function hideRollPrompt() { const e = $('rollprompt'); if (e) e.classList.add('hidden'); }
+  // during "Show game map" the right-edge radial tab becomes an X that returns to the question
+  function showRollPrompt() { const e = $('radialtab'); if (e) { e.classList.remove('hidden'); e.classList.add('xback'); } }
+  function hideRollPrompt() { const e = $('radialtab'); if (e) e.classList.remove('xback'); }
 
   // ---- tile art ------------------------------------------------------------
   // Optional exact-art swap: place your own cropped tile images in assets/tiles/
@@ -2085,7 +2081,10 @@
     cancelPlace: () => { ui.confirm = null; render(); },
     openDev, openTrade, openMonopoly, openYoP,
     // radial menu
-    openRadial: () => { const r = $('radialroot'); r.classList.remove('hidden'); requestAnimationFrame(() => r.classList.add('open')); },
+    openRadial: () => {
+      if (ui.knightDismissed) { window.CATAN.qReopen(); return; }   // X tab during Show game map → back to the question
+      const r = $('radialroot'); r.classList.remove('hidden'); requestAnimationFrame(() => r.classList.add('open'));
+    },
     closeRadial,
     radial: (k) => {
       closeRadial();
