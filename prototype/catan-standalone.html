@@ -773,7 +773,7 @@
         .then((buf) => { sndBuf[name] = buf; }).catch(() => {});
     }
   }
-  function unlockAudio() { if (!actx) initAudio(); if (actx && actx.state === 'suspended') actx.resume(); }
+  function unlockAudio() { if (!actx) initAudio(); if (actx && actx.state === 'suspended') actx.resume(); startMusic(); }
   function playSound(name, vol) {
     if (!actx || !sndBuf[name]) return;
     try {
@@ -802,6 +802,32 @@
     const t = e.target;
     if (t && t.closest && t.closest('button, .dcard, .radbtn, .seg, [onclick]')) { unlockAudio(); playSound('click', 0.5); }
   }, { passive: true });
+
+  // ---- background music: the three in-game tracks looped as a playlist (iOS + Android) ----
+  // mp3 (not the source .ogg) so it plays on iOS too. Browsers won't autoplay audio, so the
+  // first play() must land inside a user gesture — unlockAudio (any tap) drives that.
+  const MUSIC = ['ingame_01', 'ingame_02', 'ingame_03'];
+  let musicEl = null, musicIdx = 0;
+  function inGame() { const t = $('title'); return !!t && t.classList.contains('hidden'); }
+  function ensureMusicEl() {
+    if (musicEl) return musicEl;
+    musicEl = new Audio();
+    musicEl.id = 'bgmusic'; musicEl.volume = 0.2;
+    musicEl.addEventListener('ended', () => {                 // next track, looping 01->02->03->01
+      musicIdx = (musicIdx + 1) % MUSIC.length;
+      musicEl.src = `assets/audio/${MUSIC[musicIdx]}.mp3`;
+      musicEl.play().catch(() => {});
+    });
+    document.body.appendChild(musicEl);                       // (no `controls` -> renders nothing)
+    return musicEl;
+  }
+  function startMusic() {
+    if (!SETTINGS.music || !inGame()) return;
+    const el = ensureMusicEl();
+    if (!el.getAttribute('src')) el.src = `assets/audio/${MUSIC[musicIdx]}.mp3`;
+    if (el.paused) el.play().catch(() => {});                 // succeeds within a gesture; retried on the next tap otherwise
+  }
+  function stopMusic() { if (musicEl) { try { musicEl.pause(); } catch (_) {} } }
 
   // Translucent placement-ghost markers (match the original game's look).
   const GHOST = { settlement: 'assets/hud/candidate-settlement.png', city: 'assets/hud/candidate-city.png', road: 'assets/hud/candidate-road.png' };
@@ -2311,6 +2337,7 @@
     // the "show game map" roll prompt only belongs in your own pre-roll phase
     if (!(state.phase === 'play' && tp === 'roll' && isMyTurn())) hideRollPrompt();
     syncTradeUI();      // show/refresh/close the pending-trade overlays off shared state
+    startMusic();       // keep the playlist going in-game (no-op if off / already playing)
   }
 
   // the radial cluster: five actions arranged around a centre close button
@@ -2361,7 +2388,7 @@
     cancelPlace: () => { ui.confirm = null; render(); },
     openDev, openTrade, openMonopoly, openYoP,
     openSettings,
-    setToggle: (key) => { SETTINGS[key] = !SETTINGS[key]; saveSettings(); openSettings(); },
+    setToggle: (key) => { SETTINGS[key] = !SETTINGS[key]; saveSettings(); openSettings(); if (key === 'music') { if (SETTINGS.music) startMusic(); else stopMusic(); } },
     setAnim: (v) => { SETTINGS.anim = v; saveSettings(); openSettings(); },
     // radial menu
     openRadial: () => {
@@ -2512,7 +2539,7 @@
     hideOverlay();
     document.body.style.background = MENU_BG;   // wood canvas behind the offline title
     $('leavetab').classList.add('hidden'); $('radialtab').classList.add('hidden'); $('settingstab').classList.add('hidden');
-    const title = $('title'); title.classList.remove('hidden');
+    const title = $('title'); title.classList.remove('hidden'); stopMusic();
     let count = 4;
     const banner = ASSETS.logo
       ? `<div class="t-banner"><img src="${ASSETS.logo}" alt="CATAN"></div>`
@@ -2999,7 +3026,7 @@
       ? `<div class="t-banner"><img src="${ASSETS.logo}" alt="CATAN"></div>`
       : `<div class="t-banner"><h2 style="color:#e9c45a;text-align:center;line-height:30vh;font-family:var(--serif)">CATAN</h2></div>`;
     t.innerHTML = `${banner}<div class="t-body"><div class="t-card">${html}</div></div>`;
-    t.classList.remove('hidden'); hideOverlay();
+    t.classList.remove('hidden'); hideOverlay(); stopMusic();
     document.body.style.background = MENU_BG;   // canvas (incl. iOS safe-area strip) matches the wood menu
     $('leavetab').classList.add('hidden'); $('radialtab').classList.add('hidden'); $('settingstab').classList.add('hidden');
     scheduleFit();
