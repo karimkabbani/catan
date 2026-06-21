@@ -861,8 +861,7 @@
       const fp = $('p-' + SEATS[fi]); if (!fp) continue;
       const fr = fp.getBoundingClientRect();
       const fx = fr.left + fr.width / 2, fy = fr.top + fr.height / 2;
-      const cards = Math.min(f.n, 5);   // cap the visual flurry
-      for (let i = 0; i < cards; i++) { flyImage(resImg, fx, fy, tx, ty, d); d += 110; }
+      for (let i = 0; i < f.n; i++) { flyImage(resImg, fx, fy, tx, ty, d); d += 110; }
     }
   }
   function showStealFly(victimColor, thiefColor) {
@@ -1187,9 +1186,56 @@
       devConfirm(act.slice(5));
     }
   }
-  function openYoP() {
-    ui.pending = { yop: [] };
-    showOverlay(`<h3>Year of Plenty — pick 2</h3><div class="grid">${RES.map((r) => `<button class="btn wood" onclick="CATAN.yop('${r}')">${resIc(r)} (${state.bank[r]})</button>`).join('')}</div><p class="muted" id="yopsel">Selected: none</p><button class="btn ghost full" onclick="CATAN.close()">Cancel</button>`);
+  // Year of Plenty — same trade/discard-style sheet, but you SWIPE 2 resources DOWN into
+  // their slots to take them from the bank (the receive direction); ✓ once you've picked 2.
+  function openYoP() { ui.yop = {}; renderYoP(); }
+  function renderYoP() {
+    const sel = ui.yop, p = activePlayer(), res = HUD.res || {}, tr = HUD.trade || {};
+    const total = RES.reduce((n, r) => n + (sel[r] || 0), 0);
+    const cols = HAND_ORDER.map((r) => {
+      const hold = p.resources[r], d = sel[r] || 0, canTake = state.bank[r] > 0;
+      return `<div class="tcol" data-r="${r}">
+        <div class="tmid"><img src="${res[r] || ''}" alt=""><span class="tcount">${hold + d}</span></div>
+        <div class="tslot want${d ? ' filled' : ''}${canTake ? '' : ' noarrow'}">
+          <img class="ahint" src="${tr.get || ''}" alt=""><img class="rimg" src="${res[r] || ''}" alt=""><span class="sct">${d || ''}</span></div>
+      </div>`;
+    }).join('');
+    showFullMenu(`<div class="traderoot discard">
+      <div class="ttitle2">Year of Plenty — take ${Math.max(0, 2 - total)}</div>
+      <div class="tradesheet"><div class="tgrid">${cols}</div></div>
+      <button class="tconfirm${total === 2 ? '' : ' hidden'}" onclick="CATAN.yopSubmit()"><img src="assets/hud/confirm.png" alt="Confirm"></button>
+    </div>`);
+    $('overlay').classList.add('trademode');
+    document.body.classList.add('trading');
+    setTimeout(attachYoPSwipe, 0);
+  }
+  function yopStep(r, dir) {
+    const sel = ui.yop, p = activePlayer();
+    const total = RES.reduce((n, x) => n + (sel[x] || 0), 0);
+    if (dir > 0) { if ((sel[r] || 0) >= state.bank[r] || total >= 2) return; sel[r] = (sel[r] || 0) + 1; }
+    else { if ((sel[r] || 0) <= 0) return; sel[r]--; }
+    const col = document.querySelector('.traderoot .tcol[data-r="' + r + '"]');
+    if (!col) { renderYoP(); return; }
+    const d = sel[r] || 0, slot = col.querySelector('.tslot.want');
+    slot.classList.toggle('filled', !!d); slot.querySelector('.sct').textContent = d || '';
+    col.querySelector('.tmid .tcount').textContent = p.resources[r] + d;
+    const newTotal = RES.reduce((n, x) => n + (sel[x] || 0), 0);
+    const ttl = document.querySelector('.ttitle2'); if (ttl) ttl.textContent = `Year of Plenty — take ${Math.max(0, 2 - newTotal)}`;
+    const cf = document.querySelector('.tconfirm'); if (cf) cf.classList.toggle('hidden', newTotal !== 2);
+  }
+  function attachYoPSwipe() {
+    document.querySelectorAll('.traderoot .tcol').forEach((col) => {
+      const r = col.dataset.r; let sy = 0, drag = false;
+      col.addEventListener('pointerdown', (e) => { drag = true; sy = e.clientY; try { col.setPointerCapture(e.pointerId); } catch (_) {} });
+      col.addEventListener('pointerup', (e) => {
+        if (!drag) return; drag = false;
+        const dy = sy - (e.clientY || sy);
+        if (dy < -16) yopStep(r, 1);          // swipe DOWN = take one from the bank
+        else if (dy > 16) yopStep(r, -1);     // swipe UP = put it back
+        else if (e.target.closest('.tslot')) yopStep(r, 1);
+      });
+      col.addEventListener('pointercancel', () => { drag = false; });
+    });
   }
   function openMonopoly() {
     showOverlay(`<h3>Monopoly</h3><div class="grid">${RES.map((r) => `<button class="btn wood" onclick="CATAN.mono('${r}')">${resIc(r)} ${r}</button>`).join('')}</div><button class="btn ghost full" onclick="CATAN.close()">Cancel</button>`);
@@ -1534,7 +1580,7 @@
     devFocus: () => devFocus(),
     devScroll: (dir) => { const s = $('devstrip'); if (!s) return; const card = s.querySelector('.devcard2'); const stride = card ? card.offsetWidth + 18 : 200; s.scrollBy({ left: dir * stride, behavior: 'smooth' }); },
     devCancelPlay: () => { const el = $('devconfirm'); if (el) el.remove(); },
-    yop: (r) => { ui.pending.yop.push(r); $('yopsel').textContent = 'Selected: ' + ui.pending.yop.map((x) => ICON[x]).join(' '); if (ui.pending.yop.length === 2) { const t = ui.pending.yop; hideOverlay(); dispatch({ type: 'playYearOfPlenty', resources: [t[0], t[1]] }); } },
+    yopSubmit: () => { const sel = ui.yop || {}, picks = []; RES.forEach((r) => { for (let i = 0; i < (sel[r] || 0); i++) picks.push(r); }); if (picks.length !== 2) return; hideOverlay(); dispatch({ type: 'playYearOfPlenty', resources: [picks[0], picks[1]] }); },
     mono: (r) => { hideOverlay(); dispatch({ type: 'playMonopoly', resource: r }); },
     // switch target (players <-> bank) in place — no sheet rebuild / re-animation
     tradeMode: (m) => tradeSetMode(m),
