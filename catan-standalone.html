@@ -2373,6 +2373,9 @@
         if (Math.random() < 0.5) p.devCards.push(['road_building', 'year_of_plenty', 'monopoly'][ri(0, 2)]);
         if (Math.random() < 0.5) p.playedKnights = ri(0, 2);
       });
+      // the first-to-play player gets 2 of every dev card so all the flows are testable
+      const first = s.players.find((p) => p.color === s.order[0]);
+      if (first) first.devCards = ['knight', 'knight', 'year_of_plenty', 'year_of_plenty', 'road_building', 'road_building', 'monopoly', 'monopoly', 'victory_point', 'victory_point'];
       // recompute supply from what's on the board so builds stay valid
       s.players.forEach((p) => {
         const mine = Object.values(s.settlements).filter((x) => x.owner === p.color);
