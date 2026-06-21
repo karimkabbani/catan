@@ -1165,6 +1165,23 @@
     const mid = col.querySelector('.tmid .tcount'); if (mid) mid.textContent = activePlayer().resources[r] - g + w;
     const cf = document.querySelector('.tconfirm'); if (cf) cf.classList.toggle('hidden', !tradeValid());
   }
+  // switch Players <-> Bank IN PLACE (don't rebuild the sheet, which would replay the
+  // slide-up animation): just retitle, move the highlight, show/hide ratios, clear the offer.
+  function tradeSetMode(m) {
+    if (ui.trade.mode === m) return;
+    ui.trade.mode = m; ui.trade.give = zeroRes(); ui.trade.want = zeroRes();
+    const bank = m === 'bank';
+    const root = document.querySelector('.traderoot');
+    if (!root) { renderTradeBuilder(); return; }
+    const title = root.querySelector('.ttitle2'); if (title) title.textContent = bank ? 'Bank' : 'Players';
+    root.querySelectorAll('.ttarget').forEach((el) => el.classList.toggle('on', el.classList.contains('chest') ? bank : !bank));
+    const sheet = root.querySelector('.tradesheet'); if (sheet) sheet.classList.toggle('bank', bank);
+    root.querySelectorAll('.tcol').forEach((col) => {
+      col.querySelectorAll('.tslot').forEach((s) => { s.classList.remove('filled'); s.querySelector('.sct').textContent = ''; });
+      const mid = col.querySelector('.tmid .tcount'); if (mid) mid.textContent = activePlayer().resources[col.dataset.r];
+    });
+    const cf = root.querySelector('.tconfirm'); if (cf) cf.classList.toggle('hidden', !tradeValid());
+  }
   // trade table (matches the original): targets up top (other players + the bank chest),
   // then a row of resources you SWIPE up to give / down to receive, and a check-mark
   // that appears only when the offer is valid.
@@ -1183,13 +1200,13 @@
         ${tradeSlotHTML(r, g, 'give')}
         <div class="tmid"><img src="${res[r] || ''}" alt=""><span class="tcount">${hold - g + w}</span></div>
         ${tradeSlotHTML(r, w, 'want')}
-        ${bank ? `<div class="tratio">${ratio}:1</div>` : ''}
+        <div class="tratio">${ratio}:1</div>
       </div>`;
     }).join('');
     const valid = tradeValid();
     showFullMenu(`<div class="traderoot">
       <div class="ttitle2">${bank ? 'Bank' : 'Players'}</div>
-      <div class="tradesheet">
+      <div class="tradesheet${bank ? ' bank' : ''}">
         <div class="ttargets">${targets}</div>
         <div class="tgrid">${cols}</div>
       </div>
@@ -1422,8 +1439,8 @@
     devCancelPlay: () => { const el = $('devconfirm'); if (el) el.remove(); },
     yop: (r) => { ui.pending.yop.push(r); $('yopsel').textContent = 'Selected: ' + ui.pending.yop.map((x) => ICON[x]).join(' '); if (ui.pending.yop.length === 2) { const t = ui.pending.yop; hideOverlay(); dispatch({ type: 'playYearOfPlenty', resources: [t[0], t[1]] }); } },
     mono: (r) => { hideOverlay(); dispatch({ type: 'playMonopoly', resource: r }); },
-    // switch target (players <-> bank); clear the offer since the ratios differ
-    tradeMode: (m) => { if (ui.trade.mode === m) return; ui.trade.mode = m; ui.trade.give = zeroRes(); ui.trade.want = zeroRes(); renderTradeBuilder(); },
+    // switch target (players <-> bank) in place — no sheet rebuild / re-animation
+    tradeMode: (m) => tradeSetMode(m),
     // one step toward give (dir +1) or want (dir -1) on a resource; swipe does the same
     tStep: (r, dir) => tradeStep(r, dir),
     tradeConfirmTrade: () => { if (!tradeValid()) return; if (tBankMode()) window.CATAN.tradeBank(); else window.CATAN.tradeSend(); },

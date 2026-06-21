@@ -364,7 +364,9 @@
   .tmid img{width:100%; height:100%; object-fit:contain; filter:drop-shadow(0 2px 4px #0008); pointer-events:none;}
   .tmid .tcount{position:absolute; bottom:-2px; right:-3px; color:#fff; font-weight:800; font-size:clamp(12px,2vh,17px);
     text-shadow:-1.3px -1.3px 0 #000,1.3px -1.3px 0 #000,-1.3px 1.3px 0 #000,1.3px 1.3px 0 #000;}
-  .tratio{color:#f1e3c2; font-weight:800; font-size:clamp(11px,1.8vh,15px); text-shadow:0 1px 2px #000;}
+  /* ratios are always in the DOM (so switching modes doesn't rebuild the sheet); shown only for the bank */
+  .tratio{color:#f1e3c2; font-weight:800; font-size:clamp(11px,1.8vh,15px); text-shadow:0 1px 2px #000; display:none;}
+  .tradesheet.bank .tratio{display:block;}
   /* cancel + confirm (✓ only shows when the trade is valid) */
   .tclose,.tconfirm{position:absolute; bottom:calc(13px + env(safe-area-inset-bottom,0px)); width:clamp(46px,7.5vh,60px); height:clamp(46px,7.5vh,60px);
     padding:0; border:none; background:none; cursor:pointer; z-index:4;}
