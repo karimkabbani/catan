@@ -357,6 +357,7 @@
   .tslot.filled{background:radial-gradient(circle at 50% 36%, rgba(20,10,2,0.32), rgba(0,0,0,0.5));}
   .tslot.filled .ahint{opacity:0;}
   .tslot.filled .rimg{opacity:1;}
+  .tslot.noarrow .ahint{opacity:0;}   /* a resource you hold 0 of can't be discarded — no arrow */
   .tslot .sct{position:absolute; bottom:-2px; right:-3px; color:#fff; font-weight:800; font-size:clamp(11px,1.9vh,16px);
     opacity:0; transition:opacity .12s; text-shadow:-1.2px -1.2px 0 #000,1.2px -1.2px 0 #000,-1.2px 1.2px 0 #000,1.2px 1.2px 0 #000;}
   .tslot.filled .sct{opacity:1;}
@@ -1657,12 +1658,60 @@
       showOverlay(`<h3>Discarding</h3><p class="muted" style="text-align:center;margin:10px 0"><b style="color:var(--gold)">${escapeHtml(cur.name)}</b> is discarding…</p>`);
     }
   }
+  // discard (after a 7) — trade-style sheet: SWIPE a resource up into its slot to discard
+  // it; the ✓ appears once you've discarded exactly the required number.
   function renderDiscard() {
     const { color, need, sel } = ui.pending;
     const p = state.players.find((x) => x.color === color);
+    const res = HUD.res || {}, tr = HUD.trade || {};
     const total = RES.reduce((n, r) => n + sel[r], 0);
-    const rows = RES.map((r) => `<div class="trow"><span>${resIc(r)} ${r}</span><span class="ctr"><button onclick="CATAN.disc('${r}',-1)">−</button> ${sel[r]} / ${p.resources[r]} <button onclick="CATAN.disc('${r}',1)">+</button></span></div>`).join('');
-    showOverlay(`<h3>${escapeHtml(p.name)}: discard ${need}</h3><p class="muted">Over 7 cards — pass the device.</p>${rows}<button class="btn full" ${total === need ? '' : 'disabled'} onclick="CATAN.discSubmit()">Discard ${total}/${need}</button>`);
+    const cols = HAND_ORDER.map((r) => {
+      const hold = p.resources[r], d = sel[r];
+      return `<div class="tcol" data-r="${r}">
+        <div class="tslot give${d ? ' filled' : ''}${hold === 0 ? ' noarrow' : ''}">
+          <img class="ahint" src="${tr.give || ''}" alt=""><img class="rimg" src="${res[r] || ''}" alt=""><span class="sct">${d || ''}</span></div>
+        <div class="tmid"><img src="${res[r] || ''}" alt=""><span class="tcount">${hold - d}</span></div>
+      </div>`;
+    }).join('');
+    showFullMenu(`<div class="traderoot discard">
+      <div class="ttitle2">${escapeHtml(p.name)} — discard ${Math.max(0, need - total)}</div>
+      <div class="tradesheet">
+        <div class="tgrid">${cols}</div>
+      </div>
+      <button class="tconfirm${total === need ? '' : ' hidden'}" onclick="CATAN.discSubmit()"><img src="assets/hud/confirm.png" alt="Confirm"></button>
+    </div>`);
+    $('overlay').classList.add('trademode');
+    document.body.classList.add('trading');
+    setTimeout(attachDiscardSwipe, 0);
+  }
+  // swipe up = discard one (down = undo); updates this column + the title + ✓ in place
+  function discardStep(r, dir) {
+    const s = ui.pending, p = state.players.find((x) => x.color === s.color);
+    const total = RES.reduce((n, x) => n + s.sel[x], 0);
+    if (dir > 0) { if (s.sel[r] >= p.resources[r] || total >= s.need) return; s.sel[r]++; }
+    else { if (s.sel[r] <= 0) return; s.sel[r]--; }
+    const col = document.querySelector('.traderoot.discard .tcol[data-r="' + r + '"]');
+    if (!col) { renderDiscard(); return; }
+    const d = s.sel[r], slot = col.querySelector('.tslot.give');
+    slot.classList.toggle('filled', !!d); slot.querySelector('.sct').textContent = d || '';
+    col.querySelector('.tmid .tcount').textContent = p.resources[r] - d;
+    const newTotal = RES.reduce((n, x) => n + s.sel[x], 0);
+    const ttl = document.querySelector('.ttitle2'); if (ttl) ttl.textContent = `${p.name} — discard ${Math.max(0, s.need - newTotal)}`;
+    const cf = document.querySelector('.tconfirm'); if (cf) cf.classList.toggle('hidden', newTotal !== s.need);
+  }
+  function attachDiscardSwipe() {
+    document.querySelectorAll('.traderoot.discard .tcol').forEach((col) => {
+      const r = col.dataset.r; let sy = 0, drag = false;
+      col.addEventListener('pointerdown', (e) => { drag = true; sy = e.clientY; try { col.setPointerCapture(e.pointerId); } catch (_) {} });
+      col.addEventListener('pointerup', (e) => {
+        if (!drag) return; drag = false;
+        const dy = sy - (e.clientY || sy);
+        if (dy > 16) discardStep(r, 1);
+        else if (dy < -16) discardStep(r, -1);
+        else if (e.target.closest('.tslot')) discardStep(r, 1);
+      });
+      col.addEventListener('pointercancel', () => { drag = false; });
+    });
   }
   function promptSteal() {
     const cands = state.stealCandidates;
