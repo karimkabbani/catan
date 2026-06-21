@@ -579,12 +579,14 @@
     pointer-events:none;max-width:86%;text-align:center;border:1px solid var(--gold-edge);}
   #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 
-  /* force landscape: any touch device in portrait gets the rotate gate (the game is
-     landscape-only, like the original app). Android PWA also locks via the manifest. */
+  /* only the actual game board forces landscape; every pre-game screen (login, lobby,
+     pass & play setup) works in portrait so you can type your PIN comfortably. The
+     `body.ingame` class (set while the board is showing) gates the rotate screen. */
   #rotate{display:none;}
   @media (orientation:portrait) and (pointer:coarse){
-    #stage,#title,#overlay,#confirmbar,#radialroot,#radialtab,#dicereveal,#toast{display:none !important;}
-    #rotate{display:flex !important; position:fixed; inset:0; z-index:200; flex-direction:column; align-items:center; justify-content:center;
+    body.ingame #stage, body.ingame #overlay, body.ingame #confirmbar, body.ingame #radialroot,
+    body.ingame #radialtab, body.ingame #settingstab, body.ingame #dicereveal, body.ingame #toast{display:none !important;}
+    body.ingame #rotate{display:flex !important; position:fixed; inset:0; z-index:200; flex-direction:column; align-items:center; justify-content:center;
       gap:16px; background:radial-gradient(120% 120% at 50% 40%, #1f4f74, #0a2336); text-align:center; padding:24px;}
     #rotate .ico{font-size:60px; animation:spin 2.4s ease-in-out infinite;}
     #rotate h2{color:var(--gold);font-size:24px;} #rotate p{color:#cdd6e4;max-width:300px;}

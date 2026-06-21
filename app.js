@@ -1588,6 +1588,7 @@
 
   let renderedBoardKey = null;
   function render() {
+    document.body.classList.add('ingame');   // board is showing -> portrait now forces the rotate gate
     renderPanels();
     $('banner').innerHTML = banner();
     // Static terrain is built once per game; only the dynamic layer (pieces, roads,
@@ -1826,7 +1827,7 @@
     hideOverlay();
     document.body.style.background = MENU_BG;   // wood canvas behind the offline title
     $('leavetab').classList.add('hidden'); $('radialtab').classList.add('hidden'); $('settingstab').classList.add('hidden');
-    const title = $('title'); title.classList.remove('hidden'); stopMusic();
+    const title = $('title'); title.classList.remove('hidden'); stopMusic(); document.body.classList.remove('ingame');   // pre-game: portrait allowed
     let count = 4;
     const banner = ASSETS.logo
       ? `<div class="t-banner"><img src="${ASSETS.logo}" alt="CATAN"></div>`
@@ -2313,7 +2314,7 @@
       ? `<div class="t-banner"><img src="${ASSETS.logo}" alt="CATAN"></div>`
       : `<div class="t-banner"><h2 style="color:#e9c45a;text-align:center;line-height:30vh;font-family:var(--serif)">CATAN</h2></div>`;
     t.innerHTML = `${banner}<div class="t-body"><div class="t-card">${html}</div></div>`;
-    t.classList.remove('hidden'); hideOverlay(); stopMusic();
+    t.classList.remove('hidden'); hideOverlay(); stopMusic(); document.body.classList.remove('ingame');   // pre-game: portrait allowed
     document.body.style.background = MENU_BG;   // canvas (incl. iOS safe-area strip) matches the wood menu
     $('leavetab').classList.add('hidden'); $('radialtab').classList.add('hidden'); $('settingstab').classList.add('hidden');
     scheduleFit();
@@ -2342,7 +2343,8 @@
         <div id="auErr" class="auerr"></div>
         <button class="btn full" onclick="CATAN.authLogin('${encodeURIComponent(name)}')">Log in</button>
         <button class="btn ghost full" onclick="CATAN.authBack()">Back</button>`);
-      setTimeout(() => { const el = $('auPin'); if (el) el.focus(); }, 50);
+      // focus SYNCHRONOUSLY, still inside the name-tap gesture, so iOS opens the keyboard
+      const el = $('auPin'); if (el) el.focus();
     }
   }
   function showLobby() {
