@@ -172,6 +172,9 @@
     const yop = action.type === 'playYearOfPlenty' ? { to: actor, n: (action.resources || []).length || 2 } : null;
     const fromRobber = state.robberHex;
     state = r.state;
+    // a bought dev card: the buyer is told WHAT they drew; everyone else just sees it fly in face-down
+    const bought = action.type === 'buyDevCard'
+      ? { buyer: actor, card: (state.players.find((p) => p.color === actor).newDevCards.slice(-1)[0]) } : null;
     // fly the thief across — unless I dragged it there myself (the drag was the motion)
     const robberMoved = state.robberHex !== fromRobber && !skipRobberFly;
     if (robberMoved) ui.robberFlying = true;
@@ -181,6 +184,7 @@
     if (trade) showTradeFly(trade.a, trade.b, trade.g, trade.w);   // bank fly fires once from tradeBank()
     if (mono) showMonopolyFly(mono.to, mono.res, mono.from);   // monopolised cards fly in, face-up
     if (yop) showYoPFly(yop.to, yop.n);                        // year-of-plenty cards fly in, face-down
+    if (bought) { if (!online || actor === myColor) showDevBought(bought.card); else showDevBuyFly(bought.buyer); }
     if (online) NET.syncAction(action, actor);   // push my move to the server as the correct actor
     return true;
   }
@@ -849,6 +853,31 @@
   }
   // a stolen card flies FACE-DOWN from the victim's corner to the thief's corner
   // (the resource is kept secret — only that something was taken is shown)
+  // the buyer's reveal: a "Development Card / X Card bought." dialog (matches the original)
+  function showDevBought(card) {
+    const o = $('overlay');
+    o.innerHTML = `<div class="qdlg">
+      <div class="qbanner">Development Card</div>
+      <div class="qbody">
+        <p class="qtext">${DEV_TITLE[card] || 'Development'} Card bought.</p>
+        <button class="devboughtok" onclick="CATAN.devBoughtOk()"><img src="assets/hud/confirm.png" alt="OK"></button>
+      </div></div>`;
+    o.classList.remove('hidden', 'menu', 'devmode', 'trademode');
+    o.classList.add('qmode');
+    document.body.classList.remove('trading');
+  }
+  // everyone else: a face-down dev card flies from the deck (island centre) to the buyer
+  function showDevBuyFly(buyerColor) {
+    const pi = state.players.findIndex((p) => p.color === buyerColor);
+    const panel = $('p-' + SEATS[pi]); if (!panel) return;
+    const r = panel.getBoundingClientRect();
+    const px = r.left + r.width / 2, py = r.top + r.height / 2;
+    const svg = $('board');
+    const br = svg ? svg.getBoundingClientRect() : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
+    const cx = br.left + br.width / 2, cy = br.top + br.height / 2;
+    playSound('buy', 0.5);
+    flyImage('assets/hud/dev-back.png', cx, cy, px, py, 0, { card: true, w: 42, h: 58 });
+  }
   // year of plenty: the 2 taken cards fly FACE-DOWN from the island centre into your panel
   function showYoPFly(color, count) {
     const pi = state.players.findIndex((p) => p.color === color);
@@ -1195,7 +1224,7 @@
   }
   function devAct(act) {
     if (!act) return;
-    if (act === 'buy') { window.CATAN.buyDev(); openDev(); }      // buy, then refresh the carousel
+    if (act === 'buy') { window.CATAN.buyDev(); }      // dispatch shows the "X Card bought." reveal
     else if (act.indexOf('play:') === 0) {
       if (state.hasPlayedDevCardThisTurn) { toast('You can only play one development card per turn'); return; }
       devConfirm(act.slice(5));
@@ -1564,6 +1593,7 @@
     qRoll: () => { hideOverlay(); doAutoRoll(); },
     qMap: () => { ui.knightDismissed = true; hideOverlay(); render(); showRollPrompt(); },
     qReopen: () => { ui.knightDismissed = false; hideRollPrompt(); showKnightQuestion(); },
+    devBoughtOk: () => { hideOverlay(); render(); },
     endTurn: () => dispatch({ type: 'endTurn' }),
     buyDev: () => dispatch({ type: 'buyDevCard' }),
     playKnight: () => dispatch({ type: 'playKnight' }),
