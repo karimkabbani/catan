@@ -11,7 +11,7 @@
   // Document-canvas backgrounds per screen. iOS standalone paints the safe-area strip
   // (below the home indicator) with the <body> bg, which no fixed element can cover —
   // so we switch body bg to match: dark wood on menus, deep sea in-game.
-  const MENU_BG = '#24150a', GAME_BG = '#0c3d68';
+  const MENU_BG = '', GAME_BG = '#0c3d68';   // '' = revert to the CSS wood-texture page canvas
   const PSTROKE = { red: '#7d1f1b', blue: '#17376f', green: '#1f6b2c', yellow: '#9a7d0c' };
   const PINK = { red: '#fff', blue: '#fff', green: '#fff', yellow: '#23303c' };
   function hexA(hex, a) { const n = parseInt(hex.slice(1), 16); return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`; }

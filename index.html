@@ -36,8 +36,13 @@
   body{ -webkit-tap-highlight-color:transparent; -webkit-touch-callout:none;
     user-select:none; -webkit-user-select:none; overscroll-behavior:none; }
   input{ user-select:text; -webkit-user-select:text; }
+  /* the page canvas defaults to the wood table — so if iOS mis-sizes the viewport on a
+     landscape launch, the uncovered strip reads as more table, not a dark band */
   body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; color:var(--ink);
-       background:#0c3d68; overflow:hidden; overscroll-behavior:none;}
+       background-color:#24150a;
+       background-image:linear-gradient(rgba(45,24,10,0.30),rgba(18,9,3,0.55)), var(--wood-tex);
+       background-size:auto, 360px 360px; background-repeat:repeat; background-position:center top;
+       overflow:hidden; overscroll-behavior:none;}
   #app{position:fixed; inset:0;}
 
   /* sea */
