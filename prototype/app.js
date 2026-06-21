@@ -436,7 +436,8 @@
     if (dyn) {
     // robber — drawn figure + your robber sprite on top (dynamic: it moves on a 7).
     // Hidden while it's mid-flight to a new hex (showRobberFly animates the piece across).
-    if (!ui.robberFlying && !ui.robberDragging) {
+    // hide the resting robber while a dragged move awaits the ✓/✗ (the tentative one shows instead)
+    if (!ui.robberFlying && !ui.robberDragging && !(ui.confirm && ui.confirm.dragged)) {
     const rb = state.board.hexes[state.robberHex];
     // just the transparent sprite (matches the flying robber); the drawn silhouette is
     // only a fallback when no art is supplied.
@@ -598,7 +599,9 @@
     if (robberDrag && robberDrag.img) robberDrag.img.remove();
     robberDrag = null; ui.robberDragging = false; zoom.swallowClick = true;
     if (hex != null && hex !== state.robberHex) {
-      skipRobberFly = true; dispatch({ type: 'moveRobber', hex }); skipRobberFly = false;   // drag = the motion
+      // the drop is tentative — confirm with the ✓ / ✗ (no fly on ✓; you dragged it there)
+      ui.confirm = { action: { type: 'moveRobber', hex }, color: activeColor(), dragged: true };
+      render();
     } else {
       render();   // dropped off-board or on the same hex -> cancel, robber stays put
     }
@@ -1471,7 +1474,7 @@
     buyDev: () => dispatch({ type: 'buyDevCard' }),
     playKnight: () => dispatch({ type: 'playKnight' }),
     build: (mode) => { hideOverlay(); ui.mode = mode; ui.confirm = null; render(); toast(mode === 'placeCity' ? 'Tap a settlement to upgrade' : 'Tap a highlighted spot'); },
-    confirmPlace: () => { const c = ui.confirm; if (!c) return; ui.confirm = null; dispatch(c.action, c.color); },
+    confirmPlace: () => { const c = ui.confirm; if (!c) return; ui.confirm = null; skipRobberFly = !!c.dragged; dispatch(c.action, c.color); skipRobberFly = false; },
     cancelPlace: () => { ui.confirm = null; render(); },
     openDev, openTrade, openMonopoly, openYoP,
     // radial menu
