@@ -1838,15 +1838,14 @@
         const medal = (ASSETS.avatars && ASSETS.avatars[i]) ? `<img src="${ASSETS.avatars[i]}" alt="">` : '';
         return `<div class="t-seat"><span class="medal">${medal}</span><span class="cdot" style="background:${PCOLOR[c]}"></span><input id="pn${i}" value="${DEFAULT_NAMES[i]}" maxlength="14"/></div>`;
       }).join('');
-      title.innerHTML = `${banner}<div class="t-body"><div class="t-card">
+      title.innerHTML = `${banner}<div class="t-body"><div class="t-card newgame">
+        <button class="demobtn" onclick="CATAN.demo()" title="Jump into a mid-game (testing)">🎲 Demo</button>
         <h3>New Game</h3>
         <div class="seg">${[3, 4].map((n) => `<button class="${n === count ? 'on' : ''}" onclick="CATAN._setCount(${n})">${n} players</button>`).join('')}</div>
-        ${seats}
-        <button class="btn full" onclick="CATAN._start()">Start game (pass &amp; play)</button>
-        <button class="btn wood full" onclick="CATAN.demo()">🎲 Demo — jump into a mid-game</button>
-        ${AUTH.me ? `<button class="btn wood full" onclick="CATAN.showLobby()">← Back to lobby</button>`
-          : (window.SUPA ? `<button class="btn wood full" onclick="CATAN.backToPlayers()">← Back to players</button>` : '')}
-        <p class="muted small" style="text-align:center;margin-top:8px">Pass-and-play shares one device.</p>
+        <div class="t-seats">${seats}</div>
+        <button class="btn full" onclick="CATAN._start()">Start game</button>
+        ${AUTH.me ? `<button class="btn ghost full" onclick="CATAN.showLobby()">← Back to lobby</button>`
+          : (window.SUPA ? `<button class="btn ghost full" onclick="CATAN.backToPlayers()">← Back to players</button>` : '')}
       </div></div>`;
       scheduleFit();
     };
