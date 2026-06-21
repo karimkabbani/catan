@@ -944,6 +944,7 @@
     o.classList.remove('hidden', 'menu', 'devmode', 'trademode');
     o.classList.add('qmode');
     document.body.classList.remove('trading');
+    $('radialtab').classList.add('hidden');   // no left-arrow tab behind the question
   }
   // during "Show game map" the right-edge radial tab becomes an X that returns to the question
   function showRollPrompt() { const e = $('radialtab'); if (e) { e.classList.remove('hidden'); e.classList.add('xback'); } }
@@ -1564,6 +1565,7 @@
     o.classList.remove('hidden', 'menu', 'devmode', 'trademode');
     o.classList.add('qmode');
     document.body.classList.remove('trading');
+    $('radialtab').classList.add('hidden');   // no left-arrow tab behind the dialog
   }
   // everyone else: a face-down dev card flies from the deck (island centre) to the buyer
   function showDevBuyFly(buyerColor) {
@@ -2240,9 +2242,9 @@
     // turn to act, and the build/trade/end/dev actions only appear then.
     const radialPhase = state.phase === 'play' && tp === 'main' && isMyTurn();
     $('radialwrap').innerHTML = radialButtons();
-    // hide the radial tab during forced, uninterruptible steps: placing the robber,
-    // the ✓/✗ confirm, and picking a steal victim
-    const hideTab = !!ui.confirm || ui.mode === 'moveRobber' || ui.mode === 'steal';
+    // hide the radial tab during forced, uninterruptible steps (placing the robber, the
+    // ✓/✗ confirm, picking a steal victim) and behind any open dialog/menu
+    const hideTab = !!ui.confirm || ui.mode === 'moveRobber' || ui.mode === 'steal' || !$('overlay').classList.contains('hidden');
     $('radialtab').classList.toggle('hidden', hideTab);
     $('radialtab').classList.toggle('pulse', radialPhase && !hideTab);
     $('confirmbar').classList.toggle('hidden', !ui.confirm);
