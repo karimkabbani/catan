@@ -1120,6 +1120,7 @@
     const total = RES.reduce((n, x) => n + s.sel[x], 0);
     if (dir > 0) { if (s.sel[r] >= p.resources[r] || total >= s.need) return; s.sel[r]++; }
     else { if (s.sel[r] <= 0) return; s.sel[r]--; }
+    playSound('buy', 0.5);   // a card slid into / out of a slot (sfx_button_down)
     const col = document.querySelector('.traderoot.discard .tcol[data-r="' + r + '"]');
     if (!col) { renderDiscard(); return; }
     const d = s.sel[r], slot = col.querySelector('.tslot.give');
@@ -1296,6 +1297,7 @@
     const total = RES.reduce((n, x) => n + (sel[x] || 0), 0);
     if (dir > 0) { if ((sel[r] || 0) >= state.bank[r] || total >= 2) return; sel[r] = (sel[r] || 0) + 1; }
     else { if ((sel[r] || 0) <= 0) return; sel[r]--; }
+    playSound('buy', 0.5);   // a card slid into / out of a slot (sfx_button_down)
     const col = document.querySelector('.traderoot .tcol[data-r="' + r + '"]');
     if (!col) { renderYoP(); return; }
     const d = sel[r] || 0, slot = col.querySelector('.tslot.want');
@@ -1393,7 +1395,9 @@
   // two slots, and toggle the ✓ — nothing else in the DOM is touched, so the board, the
   // targets and every other resource stay perfectly still.
   function tradeStep(r, dir) {
-    tSetNet(r, tNetOf(r) + dir);
+    const before = tNetOf(r);
+    tSetNet(r, before + dir);
+    if (tNetOf(r) !== before) playSound('buy', 0.5);   // a card slid into / out of a slot (sfx_button_down)
     const col = document.querySelector('.traderoot .tcol[data-r="' + r + '"]');
     if (!col) { renderTradeBuilder(); return; }
     const g = ui.trade.give[r], w = ui.trade.want[r];
