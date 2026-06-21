@@ -54,7 +54,6 @@
       case 'moveRobber': playSound('robber'); break;
       case 'bankTrade': playSound('trade'); break;
       case 'buyDevCard': playSound('buy'); break;
-      case 'playKnight': playSound('knight'); break;
     }
   }
   // create + unlock the audio on the first user interaction (required by iOS)
