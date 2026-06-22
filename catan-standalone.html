@@ -2601,8 +2601,8 @@
         <div class="seg">${[3, 4].map((n) => `<button class="${n === count ? 'on' : ''}" onclick="CATAN._setCount(${n})">${n} players</button>`).join('')}</div>
         <div class="t-seats">${seats}</div>
         <button class="btn full" onclick="CATAN._start()">Start game</button>
-        ${AUTH.me ? `<button class="btn ghost full" onclick="CATAN.showLobby()">← Back to lobby</button>`
-          : (window.SUPA ? `<button class="btn ghost full" onclick="CATAN.backToPlayers()">← Back to players</button>` : '')}
+        ${AUTH.me ? `<button class="btn ghost full" data-nav="lobby">← Back to lobby</button>`
+          : (window.SUPA ? `<button class="btn ghost full" data-nav="players">← Back to players</button>` : '')}
       </div></div>`;
       scheduleFit();
     };
@@ -2955,20 +2955,23 @@
     }).join('');
   }
   let lobbySig = null;
-  // Footer actions fire on pointerup via a capture-phase delegate on document — pointerup
-  // (not click) so a re-render landing between press and release can't swallow the tap,
-  // and capture so nothing downstream can stop it.
+  // Menu navigation (Switch player / Change PIN / Back to players / Back to lobby) fires on
+  // pointerup via a capture-phase delegate on document. pointerup (not click) so a re-render
+  // landing between press and release can't swallow it, and because some mobile browsers drop
+  // the synthetic click on these screen-switching buttons while pointerup always lands.
   document.addEventListener('pointerup', (e) => {
-    const b = e.target && e.target.closest && e.target.closest('.lobby-foot [data-lact]');
+    const b = e.target && e.target.closest && e.target.closest('[data-nav]');
     if (!b) return;
-    const a = b.getAttribute('data-lact');
+    const a = b.getAttribute('data-nav');
     if (a === 'logout') CATAN.lobbyLogout();
     else if (a === 'changepin') CATAN.authChangePin();
+    else if (a === 'players') CATAN.backToPlayers();
+    else if (a === 'lobby') CATAN.showLobby();
   }, true);
   // Build the static lobby frame (title + dyn slot + footer) ONCE per entry. Only an
   // explicit showLobby() ever calls this; background ticks never rebuild the frame.
   function lobbyShell() {
-    const foot = `<div class="lobby-foot"><button class="btn ghost" data-lact="logout">← Switch player</button><button class="btn ghost" data-lact="changepin">Change PIN</button></div>`;
+    const foot = `<div class="lobby-foot"><button class="btn ghost" data-nav="logout">← Switch player</button><button class="btn ghost" data-nav="changepin">Change PIN</button></div>`;
     titleCard(`<h3>Lobby</h3><div id="lobby-dyn"></div>${foot}`);
     lobbySig = null;
   }
@@ -3154,7 +3157,7 @@
       <input id="auNew" class="authin" type="password" inputmode="numeric" placeholder="New PIN (4+ digits)" autocomplete="off"/>
       <div id="auErr" class="auerr"></div>
       <button class="btn full" onclick="CATAN.authDoChangePin()">Save</button>
-      <button class="btn ghost full" onclick="CATAN.showLobby()">Back</button>`);
+      <button class="btn ghost full" data-nav="lobby">Back</button>`);
   };
   window.CATAN.authDoChangePin = async () => { const r = await AUTH.setPin(($('auOld') || {}).value, ($('auNew') || {}).value); if (r && r.ok) { toast('PIN changed'); showLobby(); } else { const e = $('auErr'); if (e) e.textContent = (r && r.error) || 'Failed'; } };
 
