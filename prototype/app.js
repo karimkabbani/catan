@@ -2200,23 +2200,35 @@
     }).join('');
   }
   let lobbySig = null;
-  // Footer actions fire via a single capture-phase delegate on document, so they work no
-  // matter how the lobby card re-renders and nothing downstream can swallow the tap.
-  document.addEventListener('click', (e) => {
-    const b = e.target.closest && e.target.closest('.lobby-foot [data-lact]');
+  // Footer actions fire on pointerup via a capture-phase delegate on document — pointerup
+  // (not click) so a re-render landing between press and release can't swallow the tap,
+  // and capture so nothing downstream can stop it.
+  document.addEventListener('pointerup', (e) => {
+    const b = e.target && e.target.closest && e.target.closest('.lobby-foot [data-lact]');
     if (!b) return;
     const a = b.getAttribute('data-lact');
     if (a === 'logout') CATAN.lobbyLogout();
     else if (a === 'changepin') CATAN.authChangePin();
   }, true);
+  // Build the static lobby frame (title + dyn slot + footer) ONCE per entry. Only an
+  // explicit showLobby() ever calls this; background ticks never rebuild the frame.
+  function lobbyShell() {
+    const foot = `<div class="lobby-foot"><button class="btn ghost" data-lact="logout">← Switch player</button><button class="btn ghost" data-lact="changepin">Change PIN</button></div>`;
+    titleCard(`<h3>Lobby</h3><div id="lobby-dyn"></div>${foot}`);
+    lobbySig = null;
+  }
   function renderLobby() {
     if (NET.started || !AUTH.me) return;
     document.body.classList.remove('ingame');   // lobby is a menu -> the rotate gate must never cover it
+    // Background ticks (presence/poll) land here. If the lobby frame ISN'T the visible
+    // screen — e.g. Change PIN or the player picker is open — do nothing. Rebuilding here
+    // would paint the lobby right over that screen and make it look unresponsive.
+    const dynEl = $('lobby-dyn'), t = $('title');
+    if (!dynEl || !t || t.classList.contains('hidden')) return;
     const list = LOBBY.online(), ready = LOBBY.readyList();
     // Skip when nothing visible changed (presence pings etc.).
     const sig = JSON.stringify([LOBBY.inProgress, LOBBY.mode, list.map((p) => p.id + ':' + pmode(p) + ':' + p.name + ':' + (p.readyAt || 0)).sort()]);
-    const t = $('title'), shown = t && !t.classList.contains('hidden');
-    if (sig === lobbySig && shown && $('lobby-dyn')) return;
+    if (sig === lobbySig) return;
     lobbySig = sig;
     const rows = lobbyRows(list, ready), me = escapeHtml(AUTH.me.name);
     // The DYNAMIC half (count / list / ready+start buttons) is the only thing that changes.
@@ -2244,13 +2256,7 @@
         </div>
         ${startBtn}`;
     }
-    // Update only the dynamic half in place when already in the lobby — so the footer
-    // (Switch player / Change PIN) is NEVER torn down and can't eat a tap. Full rebuild
-    // only on first entry (or after leaving and coming back).
-    const dynEl = $('lobby-dyn');
-    if (dynEl && shown) { dynEl.innerHTML = dyn; return; }
-    const foot = `<div class="lobby-foot"><button class="btn ghost" data-lact="logout">← Switch player</button><button class="btn ghost" data-lact="changepin">Change PIN</button></div>`;
-    titleCard(`<h3>Lobby</h3><div id="lobby-dyn">${dyn}</div>${foot}`);
+    dynEl.innerHTML = dyn;   // only ever the dynamic half — the footer frame is untouched
   }
   window.CATAN.lobbyReady = () => LOBBY.setReady();
   window.CATAN.lobbySpectate = () => LOBBY.setSpectate();
@@ -2375,9 +2381,9 @@
   function showLobby() {
     if (!AUTH.me) { showIdentity(); return; }
     exitGameUI();      // clear any lingering game layer before the lobby paints
-    lobbySig = null;   // force a fresh paint on (re-)entry to the lobby
+    lobbyShell();      // build the frame (title + footer + empty dyn slot) once
     LOBBY.join();
-    renderLobby();
+    renderLobby();     // fill the dynamic half
   }
   window.CATAN.authPick = (n) => showIdentity('login:' + n);
   window.CATAN.authNew = () => showIdentity('new');
