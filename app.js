@@ -2201,40 +2201,44 @@
   function renderLobby() {
     if (NET.started || !AUTH.me) return;
     const list = LOBBY.online(), ready = LOBBY.readyList();
-    // Skip the rebuild when nothing visible changed. titleCard tears down & recreates the
-    // footer buttons, so a redundant rebuild (e.g. a presence ping) lands between a tap's
-    // down/up and the button does nothing — looks "disabled". Only rebuild on real change.
+    // Skip when nothing visible changed (presence pings etc.).
     const sig = JSON.stringify([LOBBY.inProgress, LOBBY.mode, list.map((p) => p.id + ':' + pmode(p) + ':' + p.name + ':' + (p.readyAt || 0)).sort()]);
-    const t = $('title');
-    if (sig === lobbySig && t && !t.classList.contains('hidden')) return;
+    const t = $('title'), shown = t && !t.classList.contains('hidden');
+    if (sig === lobbySig && shown && $('lobby-dyn')) return;
     lobbySig = sig;
-    const rows = lobbyRows(list, ready);
-    const foot = `<div class="lobby-foot"><button class="btn ghost" onclick="CATAN.lobbyLogout()">← Switch player</button><button class="btn ghost" onclick="CATAN.authChangePin()">Change PIN</button></div>`;
+    const rows = lobbyRows(list, ready), me = escapeHtml(AUTH.me.name);
+    // The DYNAMIC half (count / list / ready+start buttons) is the only thing that changes.
+    let dyn;
     if (LOBBY.inProgress) {   // a game is running -> only offer to watch it
-      titleCard(`<h3>Lobby</h3>
-        <p class="muted small" style="text-align:center">${escapeHtml(AUTH.me.name)} · ${list.length} online</p>
+      dyn = `<p class="muted small" style="text-align:center">${me} · ${list.length} online</p>
         <div class="loblist">${rows}</div>
         <button class="btn wood full" onclick="CATAN.lobbyWatch()">🔴 Game in progress · Watch</button>
-        <p class="muted small" style="text-align:center;margin-top:6px">Watch, or wait for it to finish.</p>${foot}`);
-      return;
+        <p class="muted small" style="text-align:center;margin-top:6px">Watch, or wait for it to finish.</p>`;
+    } else {
+      const canStart = ready.length >= 3;
+      const host = ready[0];   // the first player to ready up owns the Start button
+      const iAmHost = host && host.id === AUTH.me.id;
+      const seatN = Math.min(4, ready.length), tgt = ready.length >= 4 ? 11 : 13;
+      const startBtn = !canStart
+        ? `<button class="btn full" disabled>Start game (need 3 ready)</button>`
+        : iAmHost
+          ? `<button class="btn full" onclick="CATAN.lobbyStart()">Start game · ${seatN}p (${tgt} pts)</button>`
+          : `<button class="btn full" disabled>Waiting for ${escapeHtml(host.name)} to start…</button>`;
+      dyn = `<p class="muted small" style="text-align:center">${me} · ${list.length} online · ${ready.length} ready</p>
+        <div class="loblist">${rows}</div>
+        <div class="lobrow2">
+          <button class="btn ${LOBBY.mode === 'ready' ? '' : 'wood'}" onclick="CATAN.lobbyReady()">${LOBBY.mode === 'ready' ? '✓ Ready' : "I'm ready"}</button>
+          <button class="btn ${LOBBY.mode === 'spectate' ? '' : 'wood'}" onclick="CATAN.lobbySpectate()">${LOBBY.mode === 'spectate' ? '✓ Spectating' : '👁 Spectate'}</button>
+        </div>
+        ${startBtn}`;
     }
-    const canStart = ready.length >= 3;
-    const host = ready[0];   // the first player to ready up owns the Start button
-    const iAmHost = host && host.id === AUTH.me.id;
-    const seatN = Math.min(4, ready.length), tgt = ready.length >= 4 ? 11 : 13;
-    const startBtn = !canStart
-      ? `<button class="btn full" disabled>Start game (need 3 ready)</button>`
-      : iAmHost
-        ? `<button class="btn full" onclick="CATAN.lobbyStart()">Start game · ${seatN}p (${tgt} pts)</button>`
-        : `<button class="btn full" disabled>Waiting for ${escapeHtml(host.name)} to start…</button>`;
-    titleCard(`<h3>Lobby</h3>
-      <p class="muted small" style="text-align:center">${escapeHtml(AUTH.me.name)} · ${list.length} online · ${ready.length} ready</p>
-      <div class="loblist">${rows}</div>
-      <div class="lobrow2">
-        <button class="btn ${LOBBY.mode === 'ready' ? '' : 'wood'}" onclick="CATAN.lobbyReady()">${LOBBY.mode === 'ready' ? '✓ Ready' : "I'm ready"}</button>
-        <button class="btn ${LOBBY.mode === 'spectate' ? '' : 'wood'}" onclick="CATAN.lobbySpectate()">${LOBBY.mode === 'spectate' ? '✓ Spectating' : '👁 Spectate'}</button>
-      </div>
-      ${startBtn}${foot}`);
+    // Update only the dynamic half in place when already in the lobby — so the footer
+    // (Switch player / Change PIN) is NEVER torn down and can't eat a tap. Full rebuild
+    // only on first entry (or after leaving and coming back).
+    const dynEl = $('lobby-dyn');
+    if (dynEl && shown) { dynEl.innerHTML = dyn; return; }
+    const foot = `<div class="lobby-foot"><button class="btn ghost" onclick="CATAN.lobbyLogout()">← Switch player</button><button class="btn ghost" onclick="CATAN.authChangePin()">Change PIN</button></div>`;
+    titleCard(`<h3>Lobby</h3><div id="lobby-dyn">${dyn}</div>${foot}`);
   }
   window.CATAN.lobbyReady = () => LOBBY.setReady();
   window.CATAN.lobbySpectate = () => LOBBY.setSpectate();
