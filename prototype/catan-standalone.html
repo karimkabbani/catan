@@ -2521,6 +2521,8 @@
       // set BOTH winner and the engine state's phase — afterAction shows victory on phase==='ended'
       const s2 = Object.assign({}, data.state, { winner: leaderColor(data.state), phase: 'ended' });
       await c.from('games').update({ state: s2, phase: 'ended', version: data.version + 1 }).eq('code', 'TABLE');
+      // show the result briefly, then idle the table so EVERY client is returned to the lobby
+      setTimeout(() => { try { LOBBY.reset(); } catch (_) {} }, 6000);
     } catch (_) { }
   }
   function showSurrenderPrompt() {
