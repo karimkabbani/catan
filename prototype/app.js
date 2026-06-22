@@ -1694,7 +1694,8 @@
     try {
       const { data } = await c.from('games').select('state,version').eq('code', 'TABLE').maybeSingle();
       if (!data || !data.state) return;
-      const s2 = Object.assign({}, data.state, { winner: leaderColor(data.state) });
+      // set BOTH winner and the engine state's phase — afterAction shows victory on phase==='ended'
+      const s2 = Object.assign({}, data.state, { winner: leaderColor(data.state), phase: 'ended' });
       await c.from('games').update({ state: s2, phase: 'ended', version: data.version + 1 }).eq('code', 'TABLE');
     } catch (_) { }
   }
