@@ -3277,7 +3277,8 @@
   window.CATAN.clearAvatar = async () => { const r = await AUTH.setAvatar(null); if (r && r.ok) { LOBBY.track(); manageProfile(); } else toast((r && r.error) || 'Failed'); };
 
   // --- photo picker -> cropper -------------------------------------------------
-  let cropImg = null, cropState = null;
+  let cropImg = null, cropState = null, cropUrl = null;
+  function freeCropUrl() { if (cropUrl) { try { URL.revokeObjectURL(cropUrl); } catch (_) {} cropUrl = null; } }
   window.CATAN.pickAvatar = () => {
     let inp = $('avatarFile');
     if (!inp) { inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*'; inp.id = 'avatarFile'; inp.style.display = 'none'; inp.addEventListener('change', onAvatarFile); document.body.appendChild(inp); }
@@ -3285,11 +3286,12 @@
   };
   function onAvatarFile(e) {
     const f = e.target.files && e.target.files[0]; if (!f) return;
-    const url = URL.createObjectURL(f);
+    freeCropUrl();
+    cropUrl = URL.createObjectURL(f);   // kept alive until the cropper closes (revoking early left a dead src)
     const img = new Image();
-    img.onload = () => { URL.revokeObjectURL(url); openCropper(img); };
-    img.onerror = () => { URL.revokeObjectURL(url); toast("Couldn't read that image"); };
-    img.src = url;   // <img> decodes HEIC on iOS where createImageBitmap can't
+    img.onload = () => openCropper(img);
+    img.onerror = () => { freeCropUrl(); toast("Couldn't read that image"); };
+    img.src = cropUrl;   // <img> decodes HEIC on iOS where createImageBitmap can't
   }
   function openCropper(img) {
     cropImg = img;
@@ -3329,7 +3331,7 @@
     stage.addEventListener('wheel', (e) => { e.preventDefault(); cropState.z = Math.max(1, Math.min(5, cropState.z * Math.exp(-e.deltaY * 0.0015))); clampCrop(); applyCrop(); }, { passive: false });
     ov.querySelector('.cropzoom').addEventListener('input', (e) => { cropState.z = 1 + Number(e.target.value) / 100 * 4; clampCrop(); applyCrop(); });
   }
-  window.CATAN.cropCancel = () => { $('cropper').classList.add('hidden'); cropImg = null; };
+  window.CATAN.cropCancel = () => { $('cropper').classList.add('hidden'); cropImg = null; freeCropUrl(); };
   window.CATAN.cropConfirm = async () => {
     const s = cropState, OUT = 256, scale = s.base * s.z;
     const sw = s.CB / scale, sh = s.CB / scale;                          // source square in image px
@@ -3339,7 +3341,7 @@
     ctx.drawImage(cropImg, sx, sy, sw, sh, 0, 0, OUT, OUT);
     let data = cv.toDataURL('image/jpeg', 0.72);
     if (data.length > 90000) data = cv.toDataURL('image/jpeg', 0.5);      // keep it light for the DB + presence
-    $('cropper').classList.add('hidden'); cropImg = null;
+    $('cropper').classList.add('hidden'); cropImg = null; freeCropUrl();
     const btn = document.querySelector('.profpic'); if (btn) btn.style.opacity = '0.5';
     const r = await AUTH.setAvatar(data);
     if (r && r.ok) { LOBBY.track(); manageProfile(); } else { manageProfile(); toast((r && r.error) || 'Upload failed'); }
