@@ -348,6 +348,41 @@
   .authin{width:100%; box-sizing:border-box; background:rgba(0,0,0,0.32); border:1px solid var(--wood-edge);
     border-radius:8px; color:var(--ink); padding:11px; font-size:16px; margin:6px 0; text-align:center;}
   .auerr{color:#ff9a90; font-size:12px; text-align:center; min-height:16px; margin:2px 0;}
+  /* ===== player faces (uploaded photo, else initial on a disc) ===== */
+  .face{display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:50%;
+    overflow:hidden; flex:0 0 auto; background:radial-gradient(circle at 38% 32%, #5a4326, #2c1c0d); color:#f0dcb0;
+    font-weight:800; font-family:var(--serif); font-size:18px; border:2px solid var(--gold-edge); box-shadow:0 1px 4px rgba(0,0,0,0.5);}
+  .face img{width:100%; height:100%; object-fit:cover; display:block;}
+  .face.sm{width:26px; height:26px; font-size:13px; border-width:1px;}
+  .face.lg{width:104px; height:104px; font-size:46px; border-width:3px;}
+  .authrow{display:flex !important; align-items:center; gap:12px; text-align:left; padding:12px 14px;}
+  .authrow .anm{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .lobrow .tnm{display:flex; align-items:center; gap:8px; min-width:0;}
+  .lobrow .tnm > span:last-child{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  /* ===== Manage Profile ===== */
+  .profhead{display:flex; flex-direction:column; align-items:center; gap:10px; margin:6px 0 14px;}
+  .profpic{position:relative; border:none; background:none; padding:0; cursor:pointer; line-height:0;}
+  .profcam{position:absolute; right:-2px; bottom:-2px; width:32px; height:32px; border-radius:50%;
+    background:linear-gradient(180deg,var(--gold),var(--gold-edge)); color:#3a2400; display:flex; align-items:center;
+    justify-content:center; font-size:15px; border:2px solid #2c1c0d;}
+  .profhbtns{display:flex; gap:8px;}
+  .profhbtns .btn{padding:9px 16px; font-size:14px;}
+  .proflbl{display:block; color:var(--muted); font-size:13px; margin:4px 2px 2px; text-align:left;}
+  .profname{display:flex; gap:8px; align-items:center;}
+  .profname .authin{flex:1 1 auto; min-width:0; margin:0;}
+  .profname .btn{flex:0 0 auto; padding:11px 16px;}
+  /* ===== photo cropper ===== */
+  #cropper{position:fixed; inset:0; z-index:60; background:rgba(8,5,2,0.93); display:flex; align-items:center; justify-content:center; padding:16px;}
+  #cropper.hidden{display:none;}
+  .cropwrap{display:flex; flex-direction:column; align-items:center; gap:14px; width:min(420px,94vw);}
+  .cropwrap h3{color:var(--gold); font-family:var(--serif); margin:0;}
+  .cropframe{position:relative; width:min(76vw,300px); height:min(76vw,300px); overflow:hidden; touch-action:none;
+    border-radius:10px; background:#000; cursor:grab;}
+  .cropimg{position:absolute; left:50%; top:50%; transform-origin:center center; user-select:none; -webkit-user-drag:none; max-width:none; max-height:none;}
+  .cropmask{position:absolute; inset:0; border-radius:50%; box-shadow:0 0 0 9999px rgba(0,0,0,0.5); pointer-events:none;}
+  .cropzoom{width:82%; accent-color:var(--gold);}
+  .cropbtns{display:flex; gap:12px; width:100%;}
+  .cropbtns .btn{flex:1;}
   .lobby-foot{display:flex; gap:8px; margin-top:10px;}
   .lobby-foot .btn{flex:1; font-size:14px; padding:14px 9px;}
   /* Ready / Spectate side-by-side in the lobby */
@@ -709,6 +744,20 @@
   <div id="radialroot" class="hidden"><div id="radialback" onclick="CATAN.closeRadial()"></div><div id="radialwrap"></div></div>
   <div id="title" class="hidden"></div>
   <div id="overlay" class="hidden"></div>
+  <div id="cropper" class="hidden">
+    <div class="cropwrap">
+      <h3>Move &amp; zoom</h3>
+      <div class="cropframe">
+        <img class="cropimg" alt="">
+        <div class="cropmask"></div>
+      </div>
+      <input class="cropzoom" type="range" min="0" max="100" value="0" aria-label="Zoom">
+      <div class="cropbtns">
+        <button class="btn ghost" onclick="CATAN.cropCancel()">Cancel</button>
+        <button class="btn" onclick="CATAN.cropConfirm()">Use photo</button>
+      </div>
+    </div>
+  </div>
   <div id="toast"></div>
   <script>
     /* Optional custom art. Drop your own PNGs into the assets/ subfolders using
