@@ -1353,7 +1353,10 @@
 
     }  // ----- end dynamic layer -----
     const id = layer === 'dynamic' ? 'board-dyn' : 'board';
-    return `<svg id="${id}" viewBox="${minx} ${miny} ${w} ${h}" preserveAspectRatio="xMidYMid meet"><style>.ghost{pointer-events:none}</style>${P.join('')}</svg>`;
+    // Scope this to the board SVG: an SVG <style> applies to the WHOLE document, and a bare
+    // `.ghost` rule was silently killing every `.btn.ghost` (Switch player, Change PIN, Back
+    // to players, …) the moment a board existed in the DOM.
+    return `<svg id="${id}" viewBox="${minx} ${miny} ${w} ${h}" preserveAspectRatio="xMidYMid meet"><style>#${id} .ghost{pointer-events:none}</style>${P.join('')}</svg>`;
   }
 
   function onBoardClick(e) {
