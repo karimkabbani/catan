@@ -1072,7 +1072,7 @@
   }
 
   // ---- overlays (unchanged logic) -----------------------------------------
-  function showOverlay(html) { const o = $('overlay'); o.innerHTML = `<div class="sheet">${html}</div>`; o.classList.remove('hidden', 'menu', 'devmode', 'trademode', 'qmode'); document.body.classList.remove('trading'); $('radialtab').classList.add('hidden'); $('settingstab').classList.add('hidden'); }
+  function showOverlay(html) { const o = $('overlay'); o.innerHTML = `<div class="sheet">${html}</div>`; o.classList.remove('hidden', 'menu', 'devmode', 'trademode', 'qmode'); document.body.classList.remove('trading'); const rr = $('radialroot'); rr.classList.remove('open'); rr.classList.add('hidden'); $('radialtab').classList.add('hidden'); $('settingstab').classList.add('hidden'); }
   function showFullMenu(html) { const o = $('overlay'); o.innerHTML = html; o.classList.remove('hidden', 'devmode', 'trademode', 'qmode'); o.classList.add('menu'); document.body.classList.remove('trading'); }
   // Re-render a menu sheet without replaying its slide-up / reloading images: if the
   // same view is already open, swap only its inner content; otherwise mount fresh.
@@ -1635,7 +1635,8 @@
     // ✓/✗ confirm, picking a steal victim) and behind any open dialog/menu
     const hideTab = !!ui.confirm || ui.mode === 'moveRobber' || ui.mode === 'steal' || !$('overlay').classList.contains('hidden');
     $('radialtab').classList.toggle('hidden', hideTab);
-    $('settingstab').classList.toggle('hidden', hideTab);   // subtle gear, in-game, hidden behind dialogs
+    // the settings gear only appears while the radial menu is open (and rides above it)
+    $('settingstab').classList.toggle('hidden', hideTab || !$('radialroot').classList.contains('open'));
     $('radialtab').classList.toggle('pulse', radialPhase && !hideTab);
     $('confirmbar').classList.toggle('hidden', !ui.confirm);
     justPlaced = null;  // pop-in only plays on the render right after placement
@@ -1675,6 +1676,7 @@
   function closeRadial() {
     const r = $('radialroot');
     r.classList.remove('open');
+    $('settingstab').classList.add('hidden');   // gear lives with the radial
     setTimeout(() => r.classList.add('hidden'), 180);
   }
 
@@ -1702,6 +1704,7 @@
     openRadial: () => {
       if (ui.knightDismissed) { window.CATAN.qReopen(); return; }   // X tab during Show game map → back to the question
       const r = $('radialroot'); r.classList.remove('hidden'); requestAnimationFrame(() => r.classList.add('open'));
+      $('settingstab').classList.remove('hidden');   // the settings gear appears with the radial
     },
     closeRadial,
     radial: (k) => {

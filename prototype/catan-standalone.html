@@ -162,12 +162,12 @@
   #radialtab.xback{background-image:url('assets/hud/decline.png');}
   /* subtle settings gear on the left edge */
   /* clear of the landscape notch/camera (safe-area) and a bit into the ocean (~30% from the edge) */
-  #settingstab{position:fixed; left:calc(env(safe-area-inset-left, 0px) + 4vw); top:50%; transform:translateY(-50%); z-index:8; width:38px; height:38px;
-    border-radius:50%; cursor:pointer; opacity:0.4; transition:opacity .15s, transform .1s;
-    display:flex; align-items:center; justify-content:center; font-size:21px; line-height:1; color:#e7d3a3;
-    background:radial-gradient(circle at 40% 34%, rgba(62,50,36,0.8), rgba(20,12,5,0.82));
-    border:1px solid rgba(201,154,62,0.45); box-shadow:0 2px 6px rgba(0,0,0,0.4);}
-  #settingstab:hover, #settingstab:active{opacity:0.9;}
+  /* only shown while the radial menu is open, so it sits ABOVE the radial (z-31) and stays solid */
+  #settingstab{position:fixed; left:calc(env(safe-area-inset-left, 0px) + 4vw); top:50%; transform:translateY(-50%); z-index:32; width:40px; height:40px;
+    border-radius:50%; cursor:pointer; transition:transform .1s;
+    display:flex; align-items:center; justify-content:center; font-size:22px; line-height:1; color:#f0dcb0;
+    background:radial-gradient(circle at 40% 34%, #4a3a26, #170d04);
+    border:1px solid var(--gold-edge); box-shadow:0 3px 10px rgba(0,0,0,0.6);}
   #settingstab:active{transform:translateY(-50%) scale(0.92);}
   #settingstab.hidden{display:none;}
   /* settings menu */
@@ -1876,7 +1876,7 @@
   }
 
   // ---- overlays (unchanged logic) -----------------------------------------
-  function showOverlay(html) { const o = $('overlay'); o.innerHTML = `<div class="sheet">${html}</div>`; o.classList.remove('hidden', 'menu', 'devmode', 'trademode', 'qmode'); document.body.classList.remove('trading'); $('radialtab').classList.add('hidden'); $('settingstab').classList.add('hidden'); }
+  function showOverlay(html) { const o = $('overlay'); o.innerHTML = `<div class="sheet">${html}</div>`; o.classList.remove('hidden', 'menu', 'devmode', 'trademode', 'qmode'); document.body.classList.remove('trading'); const rr = $('radialroot'); rr.classList.remove('open'); rr.classList.add('hidden'); $('radialtab').classList.add('hidden'); $('settingstab').classList.add('hidden'); }
   function showFullMenu(html) { const o = $('overlay'); o.innerHTML = html; o.classList.remove('hidden', 'devmode', 'trademode', 'qmode'); o.classList.add('menu'); document.body.classList.remove('trading'); }
   // Re-render a menu sheet without replaying its slide-up / reloading images: if the
   // same view is already open, swap only its inner content; otherwise mount fresh.
@@ -2439,7 +2439,8 @@
     // ✓/✗ confirm, picking a steal victim) and behind any open dialog/menu
     const hideTab = !!ui.confirm || ui.mode === 'moveRobber' || ui.mode === 'steal' || !$('overlay').classList.contains('hidden');
     $('radialtab').classList.toggle('hidden', hideTab);
-    $('settingstab').classList.toggle('hidden', hideTab);   // subtle gear, in-game, hidden behind dialogs
+    // the settings gear only appears while the radial menu is open (and rides above it)
+    $('settingstab').classList.toggle('hidden', hideTab || !$('radialroot').classList.contains('open'));
     $('radialtab').classList.toggle('pulse', radialPhase && !hideTab);
     $('confirmbar').classList.toggle('hidden', !ui.confirm);
     justPlaced = null;  // pop-in only plays on the render right after placement
@@ -2479,6 +2480,7 @@
   function closeRadial() {
     const r = $('radialroot');
     r.classList.remove('open');
+    $('settingstab').classList.add('hidden');   // gear lives with the radial
     setTimeout(() => r.classList.add('hidden'), 180);
   }
 
@@ -2506,6 +2508,7 @@
     openRadial: () => {
       if (ui.knightDismissed) { window.CATAN.qReopen(); return; }   // X tab during Show game map → back to the question
       const r = $('radialroot'); r.classList.remove('hidden'); requestAnimationFrame(() => r.classList.add('open'));
+      $('settingstab').classList.remove('hidden');   // the settings gear appears with the radial
     },
     closeRadial,
     radial: (k) => {
