@@ -36,6 +36,7 @@ function snakeOrder(n: number): number[] {
 
 // House-rule win targets by player count (overridable via opts.targetPoints).
 export function targetForCount(n: number): number {
+  if (n === 2) return 15;   // 2-player house rule: longer game
   if (n === 3) return 13;
   if (n === 4) return 11;
   return 10;
