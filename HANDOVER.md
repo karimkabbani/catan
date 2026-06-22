@@ -356,6 +356,53 @@ untouched core. Have Lovable build the lobby, board, and Supabase wiring around
 - Post-game flow is minimal — one "Back to lobby" resets the table for everyone.
 - Presence flickers when phones sleep/background (realtime times out ~30s).
 
+### Feature ideas — requested by Karim (2026-06-22), not yet scoped
+
+Captured to the backlog before they're forgotten; not prioritized or designed yet.
+
+1. **Surrender / concede.** A player signals they want to surrender; if **all other
+   active players agree**, the game ends. Needs: a "request surrender" action that
+   notifies the table, an agree/decline prompt for everyone else, and end-the-game
+   when unanimous (excluding the surrenderer). Online lives in the `games` row /
+   realtime; decide what "ended" looks like (no winner, or remaining leader wins?).
+   Edge cases: spectators don't vote; a second surrender request; someone disconnects
+   mid-vote.
+
+2. **Broadcast message.** Let a player write a quick limited note everyone sees.
+   Constraints (Karim): **~50 char max**, and **only 3–5 total broadcasts per player
+   per game** (pick a number). Ephemeral, toast-style on every client. Implementation:
+   a realtime broadcast (or an event field on the `games` row) + a per-player counter
+   in game/seat metadata. Keep it from being spammy; no history needed.
+
+3. **Wire the remaining in-game settings.** Music is wired. Still to do: **Sound
+   effects on/off** (gate `playSound`), **Animation speed slow/medium/fast** (scale
+   the durations in dice/fly/countdown/zoom animations off `SETTINGS.anim`), and
+   **Auto-zoom on/off** (gate the automatic board zoom-to-action). All per-device via
+   the existing `SETTINGS` localStorage object.
+
+4. **Leaderboard — total wins, split by player count.** Counts total wins per player
+   for **3-player** and **4-player** games **separately**. Complex; Karim will share
+   more specific requirements. Needs a persistent results store (a `results` table or
+   a `wins` column keyed by identity + player-count), written at game end. Tie into
+   the persistent `players` identities already in place.
+
+5. **Player tendency stats.** Track each person's tendencies across games — e.g. who
+   most often gets **Longest Road**, who most often gets **Largest Army**, etc. Likely
+   the same persistent store as the leaderboard: aggregate per-identity counters
+   recorded at game end (longest-road wins, largest-army wins, avg final points,
+   dev-cards bought, robber-on-others, …). Surface in a stats/leaderboard screen.
+
+6. **Special win celebrations.** Variant victory screens for notable wins — e.g. a
+   **"Domination"** celebration when every other player is held **under 10 points** at
+   the win. Detect the condition at game end and branch the victory screen (extra
+   confetti/title/sound). Room for more variants (wire-to-wire, comeback, shutout).
+
+7. **2-player and 5-player games.** Same standard map, **just a different score total**
+   (Karim). 2-player: the engine already allows 2 as a house rule (`setup.ts`); needs
+   UI/seat support + its own target points. 5-player: needs a 5th seat colour/avatar
+   slot and a target-points value; keep the same board (no expansion geometry). Set
+   `targetForCount()` accordingly.
+
 ### Older notes (some now done — left for history)
 
 - 3–4 players only (base game). 5–6 needs the larger board + special build phase.
