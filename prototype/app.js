@@ -1588,6 +1588,8 @@
 
   let renderedBoardKey = null;
   function render() {
+    const tt = $('title');
+    if (tt && !tt.classList.contains('hidden')) return;   // a menu/lobby is up -> never paint the board (or re-arm the rotate gate) under it
     document.body.classList.add('ingame');   // board is showing -> portrait now forces the rotate gate
     renderPanels();
     $('banner').innerHTML = banner();
@@ -2198,8 +2200,18 @@
     }).join('');
   }
   let lobbySig = null;
+  // Footer actions fire via a single capture-phase delegate on document, so they work no
+  // matter how the lobby card re-renders and nothing downstream can swallow the tap.
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest && e.target.closest('.lobby-foot [data-lact]');
+    if (!b) return;
+    const a = b.getAttribute('data-lact');
+    if (a === 'logout') CATAN.lobbyLogout();
+    else if (a === 'changepin') CATAN.authChangePin();
+  }, true);
   function renderLobby() {
     if (NET.started || !AUTH.me) return;
+    document.body.classList.remove('ingame');   // lobby is a menu -> the rotate gate must never cover it
     const list = LOBBY.online(), ready = LOBBY.readyList();
     // Skip when nothing visible changed (presence pings etc.).
     const sig = JSON.stringify([LOBBY.inProgress, LOBBY.mode, list.map((p) => p.id + ':' + pmode(p) + ':' + p.name + ':' + (p.readyAt || 0)).sort()]);
@@ -2237,7 +2249,7 @@
     // only on first entry (or after leaving and coming back).
     const dynEl = $('lobby-dyn');
     if (dynEl && shown) { dynEl.innerHTML = dyn; return; }
-    const foot = `<div class="lobby-foot"><button class="btn ghost" onclick="CATAN.lobbyLogout()">← Switch player</button><button class="btn ghost" onclick="CATAN.authChangePin()">Change PIN</button></div>`;
+    const foot = `<div class="lobby-foot"><button class="btn ghost" data-lact="logout">← Switch player</button><button class="btn ghost" data-lact="changepin">Change PIN</button></div>`;
     titleCard(`<h3>Lobby</h3><div id="lobby-dyn">${dyn}</div>${foot}`);
   }
   window.CATAN.lobbyReady = () => LOBBY.setReady();
@@ -2350,8 +2362,19 @@
       const el = $('auPin'); if (el) el.focus();
     }
   }
+  // Returning to a menu (esp. after spectating a live game): tear down every game-layer
+  // element so nothing lingers over the lobby — a stray fly/countdown layer, the rotate
+  // gate, or a half-open radial can all make the footer look dead.
+  function exitGameUI() {
+    ['leavetab', 'radialtab', 'settingstab', 'dicereveal', 'toast', 'confirmbar', 'countdown'].forEach((id) => { const e = $(id); if (e) e.classList.add('hidden'); });
+    const rr = $('radialroot'); if (rr) { rr.classList.remove('open'); rr.classList.add('hidden'); }
+    document.querySelectorAll('.flyres, .robberdrag').forEach((el) => el.remove());
+    document.body.classList.remove('ingame', 'trading');
+    hideOverlay();
+  }
   function showLobby() {
     if (!AUTH.me) { showIdentity(); return; }
+    exitGameUI();      // clear any lingering game layer before the lobby paints
     lobbySig = null;   // force a fresh paint on (re-)entry to the lobby
     LOBBY.join();
     renderLobby();
