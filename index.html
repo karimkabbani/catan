@@ -162,12 +162,12 @@
   #radialtab.xback{background-image:url('assets/hud/decline.png');}
   /* subtle settings gear on the left edge */
   /* clear of the landscape notch/camera (safe-area) and a bit into the ocean (~30% from the edge) */
-  #settingstab{position:fixed; left:calc(env(safe-area-inset-left, 0px) + 4vw); top:50%; transform:translateY(-50%); z-index:8; width:38px; height:38px;
-    border-radius:50%; cursor:pointer; opacity:0.4; transition:opacity .15s, transform .1s;
-    display:flex; align-items:center; justify-content:center; font-size:21px; line-height:1; color:#e7d3a3;
-    background:radial-gradient(circle at 40% 34%, rgba(62,50,36,0.8), rgba(20,12,5,0.82));
-    border:1px solid rgba(201,154,62,0.45); box-shadow:0 2px 6px rgba(0,0,0,0.4);}
-  #settingstab:hover, #settingstab:active{opacity:0.9;}
+  /* only shown while the radial menu is open, so it sits ABOVE the radial (z-31) and stays solid */
+  #settingstab{position:fixed; left:calc(env(safe-area-inset-left, 0px) + 4vw); top:50%; transform:translateY(-50%); z-index:32; width:40px; height:40px;
+    border-radius:50%; cursor:pointer; transition:transform .1s;
+    display:flex; align-items:center; justify-content:center; font-size:22px; line-height:1; color:#f0dcb0;
+    background:radial-gradient(circle at 40% 34%, #4a3a26, #170d04);
+    border:1px solid var(--gold-edge); box-shadow:0 3px 10px rgba(0,0,0,0.6);}
   #settingstab:active{transform:translateY(-50%) scale(0.92);}
   #settingstab.hidden{display:none;}
   /* settings menu */
