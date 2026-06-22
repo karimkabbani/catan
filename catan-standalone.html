@@ -348,6 +348,41 @@
   .authin{width:100%; box-sizing:border-box; background:rgba(0,0,0,0.32); border:1px solid var(--wood-edge);
     border-radius:8px; color:var(--ink); padding:11px; font-size:16px; margin:6px 0; text-align:center;}
   .auerr{color:#ff9a90; font-size:12px; text-align:center; min-height:16px; margin:2px 0;}
+  /* ===== player faces (uploaded photo, else initial on a disc) ===== */
+  .face{display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:50%;
+    overflow:hidden; flex:0 0 auto; background:radial-gradient(circle at 38% 32%, #5a4326, #2c1c0d); color:#f0dcb0;
+    font-weight:800; font-family:var(--serif); font-size:18px; border:2px solid var(--gold-edge); box-shadow:0 1px 4px rgba(0,0,0,0.5);}
+  .face img{width:100%; height:100%; object-fit:cover; display:block;}
+  .face.sm{width:26px; height:26px; font-size:13px; border-width:1px;}
+  .face.lg{width:104px; height:104px; font-size:46px; border-width:3px;}
+  .authrow{display:flex !important; align-items:center; gap:12px; text-align:left; padding:12px 14px;}
+  .authrow .anm{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .lobrow .tnm{display:flex; align-items:center; gap:8px; min-width:0;}
+  .lobrow .tnm > span:last-child{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  /* ===== Manage Profile ===== */
+  .profhead{display:flex; flex-direction:column; align-items:center; gap:10px; margin:6px 0 14px;}
+  .profpic{position:relative; border:none; background:none; padding:0; cursor:pointer; line-height:0;}
+  .profcam{position:absolute; right:-2px; bottom:-2px; width:32px; height:32px; border-radius:50%;
+    background:linear-gradient(180deg,var(--gold),var(--gold-edge)); color:#3a2400; display:flex; align-items:center;
+    justify-content:center; font-size:15px; border:2px solid #2c1c0d;}
+  .profhbtns{display:flex; gap:8px;}
+  .profhbtns .btn{padding:9px 16px; font-size:14px;}
+  .proflbl{display:block; color:var(--muted); font-size:13px; margin:4px 2px 2px; text-align:left;}
+  .profname{display:flex; gap:8px; align-items:center;}
+  .profname .authin{flex:1 1 auto; min-width:0; margin:0;}
+  .profname .btn{flex:0 0 auto; padding:11px 16px;}
+  /* ===== photo cropper ===== */
+  #cropper{position:fixed; inset:0; z-index:60; background:rgba(8,5,2,0.93); display:flex; align-items:center; justify-content:center; padding:16px;}
+  #cropper.hidden{display:none;}
+  .cropwrap{display:flex; flex-direction:column; align-items:center; gap:14px; width:min(420px,94vw);}
+  .cropwrap h3{color:var(--gold); font-family:var(--serif); margin:0;}
+  .cropframe{position:relative; width:min(76vw,300px); height:min(76vw,300px); overflow:hidden; touch-action:none;
+    border-radius:10px; background:#000; cursor:grab;}
+  .cropimg{position:absolute; left:50%; top:50%; transform-origin:center center; user-select:none; -webkit-user-drag:none; max-width:none; max-height:none;}
+  .cropmask{position:absolute; inset:0; border-radius:50%; box-shadow:0 0 0 9999px rgba(0,0,0,0.5); pointer-events:none;}
+  .cropzoom{width:82%; accent-color:var(--gold);}
+  .cropbtns{display:flex; gap:12px; width:100%;}
+  .cropbtns .btn{flex:1;}
   .lobby-foot{display:flex; gap:8px; margin-top:10px;}
   .lobby-foot .btn{flex:1; font-size:14px; padding:14px 9px;}
   /* Ready / Spectate side-by-side in the lobby */
@@ -709,6 +744,20 @@
   <div id="radialroot" class="hidden"><div id="radialback" onclick="CATAN.closeRadial()"></div><div id="radialwrap"></div></div>
   <div id="title" class="hidden"></div>
   <div id="overlay" class="hidden"></div>
+  <div id="cropper" class="hidden">
+    <div class="cropwrap">
+      <h3>Move &amp; zoom</h3>
+      <div class="cropframe">
+        <img class="cropimg" alt="">
+        <div class="cropmask"></div>
+      </div>
+      <input class="cropzoom" type="range" min="0" max="100" value="0" aria-label="Zoom">
+      <div class="cropbtns">
+        <button class="btn ghost" onclick="CATAN.cropCancel()">Cancel</button>
+        <button class="btn" onclick="CATAN.cropConfirm()">Use photo</button>
+      </div>
+    </div>
+  </div>
   <div id="toast"></div>
   <script>
     /* Optional custom art. Drop your own PNGs into the assets/ subfolders using
@@ -891,6 +940,13 @@
 
   let state = null;
   let ui = { mode: 'idle', pending: null };
+  // seat metadata for the current online game ([{color,name,avatar,...}]); null offline.
+  // Lets the board/corners use each player's uploaded photo, falling back to the seat asset.
+  let gameSeats = null;
+  function seatAvatarSrc(player, i) {
+    const s = gameSeats && player && gameSeats.find((g) => g.color === player.color);
+    return (s && s.avatar) || (ASSETS.avatars && ASSETS.avatars[i]) || '';
+  }
   let animateDice = false;   // set true on a roll, consumed by dice()
   let justPlaced = null;     // {kind:'v'|'e', id} of the most recent placement, for pop-in
   const $ = (id) => document.getElementById(id);
@@ -1440,7 +1496,8 @@
       // player holds Longest Road / Largest Army.
       const stat = (src, val, emoji, title, hot, red) =>
         `<div class="pstat${hot ? ' hot' : ''}${red ? ' over' : ''}" title="${title}">${src ? `<img src="${src}" alt="">` : emoji}<b>${val}</b></div>`;
-      const av = (ASSETS.avatars && ASSETS.avatars[i]) ? `<img src="${ASSETS.avatars[i]}" alt="" onerror="this.outerHTML='${escapeHtml(p.name[0] || '?')}'">` : escapeHtml(p.name[0] || '?');
+      const avSrc = seatAvatarSrc(p, i);
+      const av = avSrc ? `<img src="${avSrc}" alt="" onerror="this.outerHTML='${escapeHtml(p.name[0] || '?')}'">` : escapeHtml(p.name[0] || '?');
       // dice appear at the active player's corner once they've rolled this turn
       const di = (!ui.diceRevealing && p.color === activeColor() && state.dice && state.phase === 'play')
         ? `<div class="pdice">${diceFaces(state.dice)}</div>` : '';
@@ -2200,7 +2257,7 @@
     const t = ui.trade, p = activePlayer(), color = activeColor(), res = HUD.res || {}, tr = HUD.trade || {};
     const bank = tBankMode();
     const others = state.players.filter((x) => x.color !== color);
-    const avatar = (pl) => { const i = state.players.indexOf(pl); return (ASSETS.avatars && ASSETS.avatars[i]) ? ASSETS.avatars[i] : ''; };
+    const avatar = (pl) => seatAvatarSrc(pl, state.players.indexOf(pl));
     const targets = others.map((pl) => `<div class="ttarget${bank ? '' : ' on'}" onclick="CATAN.tradeMode('players')">
         <div class="tav" style="border-color:${PCOLOR[pl.color]}"><img src="${avatar(pl)}" alt="" onerror="this.style.display='none'"></div></div>`).join('')
       + `<div class="ttarget chest${bank ? ' on' : ''}" onclick="CATAN.tradeMode('bank')"><img class="tchest" src="${tr.bank || ''}" alt=""></div>`;
@@ -2306,7 +2363,8 @@
     playSound('win', 0.8);
     const winner = state.players.find((p) => p.color === state.winner);
     const wi = state.players.indexOf(winner);
-    const wav = (ASSETS.avatars && ASSETS.avatars[wi]) ? `<img src="${ASSETS.avatars[wi]}" alt="">` : '';
+    const wavSrc = seatAvatarSrc(winner, wi);
+    const wav = wavSrc ? `<img src="${wavSrc}" alt="">` : '';
     const standings = state.players
       .map((p) => ({ p, vp: C.victoryPoints(state, p.color, true) }))
       .sort((a, b) => b.vp - a.vp)
@@ -2343,6 +2401,12 @@
   let toastT = null;
   function toast(msg) { const el = $('toast'); el.textContent = msg; el.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 2200); }
   function escapeHtml(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+  // a player's round face: their uploaded photo if any, else their initial on a tinted disc
+  function faceHTML(name, dataUrl, extra) {
+    const cls = 'face' + (extra ? ' ' + extra : '');
+    if (dataUrl) return `<span class="${cls}"><img src="${dataUrl}" alt=""></span>`;
+    return `<span class="${cls} init">${escapeHtml((String(name || '?').trim()[0] || '?')).toUpperCase()}</span>`;
+  }
 
   let renderedBoardKey = null;
   function render() {
@@ -2612,6 +2676,7 @@
     window.CATAN._setCount = (n) => { count = n; render2(); };
     const myName = () => { const el = $('pn0'); return (el && el.value || DEFAULT_NAMES[0]).trim(); };
     window.CATAN._start = () => {
+      gameSeats = null;   // offline pass & play uses the default seat avatars
       const players = Array.from({ length: count }, (_, i) => ({ color: SEAT_COLORS[i], name: ($('pn' + i).value || DEFAULT_NAMES[i]).trim() }));
       state = C.createGame({ id: 'local-' + Date.now(), players, seed: (Math.random() * 1e9) | 0, randomFirst: true });
       // 3·2·1 over the setup screen, then drop into the island + who-goes-first spin
@@ -2624,6 +2689,7 @@
     };
     // jump straight into a believable mid-game (skips setup) — for quick testing
     window.CATAN.demo = () => {
+      gameSeats = null;
       const players = Array.from({ length: count }, (_, i) => ({ color: SEAT_COLORS[i], name: ($('pn' + i).value || DEFAULT_NAMES[i]).trim() }));
       const s = C.createGame({ id: 'demo-' + Date.now(), players, seed: (Math.random() * 1e9) | 0, randomFirst: true });
       const V = s.board.vertices.length;
@@ -2854,6 +2920,7 @@
       if (this.started && row.version <= this.version) return;   // dedup my own echo / poll repeats
       this.version = row.version;
       LOBBY.lastRow = row;
+      gameSeats = row.players || null;   // carries each seat's uploaded avatar for the board/corners
       const seat = (row.players || []).find((p) => p.playerId === (AUTH.me && AUTH.me.id));
       if (this.started) { myColor = seat ? seat.color : null; applyRemoteState(row.state); return; }   // already in -> just sync
       // not in the game yet: seated players + anyone who chose Spectate enter now;
@@ -2903,7 +2970,7 @@
       this.channel.on('presence', { event: 'sync' }, () => LOBBY.onPresence());
       this.channel.subscribe((st) => { if (st === 'SUBSCRIBED') LOBBY.track(); });
     },
-    track() { if (this.channel) this.channel.track({ id: AUTH.me.id, name: AUTH.me.name, mode: this.mode, readyAt: this.readyAt }); },
+    track() { if (this.channel) this.channel.track({ id: AUTH.me.id, name: AUTH.me.name, avatar: AUTH.me.avatar || null, mode: this.mode, readyAt: this.readyAt }); },
     onPresence() {
       const st = this.channel.presenceState(); this.presence = {};
       Object.values(st).forEach((arr) => { const m = arr[arr.length - 1]; if (m && m.id) this.presence[m.id] = m; });
@@ -2923,7 +2990,7 @@
       if (ready.length < 3) { toast('Need at least 3 players ready'); return; }
       if (ready[0].id !== AUTH.me.id) { toast('Only the first player to ready up can start'); return; }
       const seated = ready.slice(0, 4), n = seated.length;
-      const players = seated.map((p, i) => ({ seat: i, color: SEAT_COLORS[i], name: p.name, playerId: p.id }));
+      const players = seated.map((p, i) => ({ seat: i, color: SEAT_COLORS[i], name: p.name, playerId: p.id, avatar: p.avatar || null }));
       const target = n === 3 ? 13 : (n === 4 ? 11 : 10);
       let gstate;
       try { gstate = C.createGame({ id: 'table', players: players.map((p) => ({ color: p.color, name: p.name })), seed: (Math.random() * 1e9) | 0, targetPoints: target, randomFirst: true }); }
@@ -2954,7 +3021,7 @@
       else if (m === 'playing') tag = `<span class="t-pend">in game</span>`;
       else if (m === 'ready') tag = ri === 0 ? `<span class="t-acc">Host · 1st to be ready</span>` : (ri < 4 ? `<span class="t-acc">ready</span>` : `<span class="t-pend">ready · spectating (full)</span>`);
       else tag = `<span class="muted">not ready</span>`;
-      return `<div class="lobrow"><span class="tnm">${escapeHtml(p.name)}${p.id === AUTH.me.id ? ' (you)' : ''}</span>${tag}</div>`;
+      return `<div class="lobrow"><span class="tnm">${faceHTML(p.name, p.avatar, 'sm')}<span>${escapeHtml(p.name)}${p.id === AUTH.me.id ? ' (you)' : ''}</span></span>${tag}</div>`;
     }).join('');
   }
   let lobbySig = null;
@@ -2970,11 +3037,13 @@
     else if (a === 'changepin') CATAN.authChangePin();
     else if (a === 'players') CATAN.backToPlayers();
     else if (a === 'lobby') CATAN.showLobby();
+    else if (a === 'profile') CATAN.manageProfile();
+    else if (a === 'profback') CATAN.manageProfile();
   }, true);
   // Build the static lobby frame (title + dyn slot + footer) ONCE per entry. Only an
   // explicit showLobby() ever calls this; background ticks never rebuild the frame.
   function lobbyShell() {
-    const foot = `<div class="lobby-foot"><button class="btn ghost" data-nav="logout">← Switch player</button><button class="btn ghost" data-nav="changepin">Change PIN</button></div>`;
+    const foot = `<div class="lobby-foot"><button class="btn ghost" data-nav="logout">← Switch player</button><button class="btn ghost" data-nav="profile">Manage Profile</button></div>`;
     titleCard(`<h3>Lobby</h3><div id="lobby-dyn"></div>${foot}`);
     lobbySig = null;
   }
@@ -3068,21 +3137,34 @@
     async resume() {
       const s = this.saved(); if (!s || !s.token) return false;
       const r = await this.rpc('player_resume', { p_token: s.token });
-      if (r && r.ok) { this.me = { id: r.id, name: r.name, token: s.token }; return true; }
+      if (r && r.ok) { this.me = { id: r.id, name: r.name, token: s.token, avatar: r.avatar || null }; return true; }
       return false;
     },
     async login(name, pin) {
       const r = await this.rpc('player_login', { p_name: name, p_pin: pin });
-      if (r && r.ok) { this.save({ id: r.id, name: r.name, token: r.token }); return { ok: true }; }
+      if (r && r.ok) { this.save({ id: r.id, name: r.name, token: r.token, avatar: r.avatar || null }); return { ok: true }; }
       return { ok: false, error: (r && r.error) || 'Login failed' };
     },
     async create(name, pin) {
       const r = await this.rpc('player_create', { p_name: name, p_pin: pin });
-      if (r && r.ok) { this.save({ id: r.id, name: r.name, token: r.token }); return { ok: true }; }
+      if (r && r.ok) { this.save({ id: r.id, name: r.name, token: r.token, avatar: null }); return { ok: true }; }
       return { ok: false, error: (r && r.error) || 'Could not create player' };
     },
-    async list() { const r = await this.rpc('player_list', {}); return Array.isArray(r) ? r : []; },
+    // returns [{name, avatar}] (older server returned bare name strings — normalise both)
+    async list() { const r = await this.rpc('player_list', {}); return Array.isArray(r) ? r.map((p) => typeof p === 'string' ? { name: p, avatar: null } : p) : []; },
     async setPin(oldPin, newPin) { if (!this.me) return { ok: false, error: 'Not logged in' }; return await this.rpc('player_set_pin', { p_token: this.me.token, p_old: oldPin, p_new: newPin }); },
+    async setName(name) {
+      if (!this.me) return { ok: false, error: 'Not logged in' };
+      const r = await this.rpc('player_set_name', { p_token: this.me.token, p_name: name });
+      if (r && r.ok) { this.me.name = r.name; this.save(this.me); }
+      return r;
+    },
+    async setAvatar(dataUrl) {
+      if (!this.me) return { ok: false, error: 'Not logged in' };
+      const r = await this.rpc('player_set_avatar', { p_token: this.me.token, p_avatar: dataUrl });
+      if (r && r.ok) { this.me.avatar = dataUrl || null; this.save(this.me); }
+      return r;
+    },
     async start() {
       if (!NET.init()) { startScreen(); return; }   // online not configured -> offline pass & play
       titleCard(`<h3>Catan</h3><p class="muted small" style="text-align:center">Connecting…</p>`);
@@ -3106,7 +3188,7 @@
     const names = mode === 'list' ? await AUTH.list() : [];
     if (mode === 'list') {
       const list = names.length
-        ? names.map((n) => `<button class="btn full" onclick="CATAN.authPick('${encodeURIComponent(n)}')">${escapeHtml(n)}</button>`).join('')
+        ? names.map((n) => `<button class="btn full authrow" onclick="CATAN.authPick('${encodeURIComponent(n.name)}')">${faceHTML(n.name, n.avatar)}<span class="anm">${escapeHtml(n.name)}</span></button>`).join('')
         : `<p class="muted" style="text-align:center;margin:8px 0">No players yet — create one.</p>`;
       titleCard(`<h3>Who are you?</h3><div class="authlist">${list}</div>
         <button class="btn wood full" onclick="CATAN.authNew()">+ New player</button>
@@ -3160,9 +3242,108 @@
       <input id="auNew" class="authin" type="password" inputmode="numeric" placeholder="New PIN (4+ digits)" autocomplete="off"/>
       <div id="auErr" class="auerr"></div>
       <button class="btn full" onclick="CATAN.authDoChangePin()">Save</button>
-      <button class="btn ghost full" data-nav="lobby">Back</button>`);
+      <button class="btn ghost full" data-nav="profback">Back</button>`);
   };
-  window.CATAN.authDoChangePin = async () => { const r = await AUTH.setPin(($('auOld') || {}).value, ($('auNew') || {}).value); if (r && r.ok) { toast('PIN changed'); showLobby(); } else { const e = $('auErr'); if (e) e.textContent = (r && r.error) || 'Failed'; } };
+  window.CATAN.authDoChangePin = async () => { const r = await AUTH.setPin(($('auOld') || {}).value, ($('auNew') || {}).value); if (r && r.ok) { toast('PIN changed'); manageProfile(); } else { const e = $('auErr'); if (e) e.textContent = (r && r.error) || 'Failed'; } };
+
+  // ===== Manage Profile: photo (cropper) + nickname + change PIN ==================
+  function manageProfile() {
+    const me = AUTH.me; if (!me) { showLobby(); return; }
+    titleCard(`<h3>Manage Profile</h3>
+      <div class="profhead">
+        <button class="profpic" onclick="CATAN.pickAvatar()" aria-label="Change photo">${faceHTML(me.name, me.avatar, 'lg')}<span class="profcam">📷</span></button>
+        <div class="profhbtns">
+          <button class="btn wood" onclick="CATAN.pickAvatar()">${me.avatar ? 'Change photo' : 'Add photo'}</button>
+          ${me.avatar ? `<button class="btn ghost" onclick="CATAN.clearAvatar()">Remove</button>` : ''}
+        </div>
+      </div>
+      <label class="proflbl">Nickname</label>
+      <div class="profname">
+        <input id="profName" class="authin" maxlength="20" value="${escapeHtml(me.name)}" autocomplete="off"/>
+        <button class="btn" onclick="CATAN.saveName()">Save</button>
+      </div>
+      <div id="profErr" class="auerr"></div>
+      <button class="btn full" data-nav="changepin">Change PIN</button>
+      <button class="btn ghost full" data-nav="lobby">← Back to lobby</button>`);
+  }
+  window.CATAN.manageProfile = () => manageProfile();
+  window.CATAN.saveName = async () => {
+    const el = $('profName'); const v = (el && el.value || '').trim();
+    if (v === AUTH.me.name) { manageProfile(); return; }
+    const r = await AUTH.setName(v);
+    if (r && r.ok) { LOBBY.track(); toast('Nickname updated'); manageProfile(); }
+    else { const e = $('profErr'); if (e) e.textContent = (r && r.error) || 'Could not rename'; }
+  };
+  window.CATAN.clearAvatar = async () => { const r = await AUTH.setAvatar(null); if (r && r.ok) { LOBBY.track(); manageProfile(); } else toast((r && r.error) || 'Failed'); };
+
+  // --- photo picker -> cropper -------------------------------------------------
+  let cropImg = null, cropState = null;
+  window.CATAN.pickAvatar = () => {
+    let inp = $('avatarFile');
+    if (!inp) { inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*'; inp.id = 'avatarFile'; inp.style.display = 'none'; inp.addEventListener('change', onAvatarFile); document.body.appendChild(inp); }
+    inp.value = ''; inp.click();
+  };
+  function onAvatarFile(e) {
+    const f = e.target.files && e.target.files[0]; if (!f) return;
+    const url = URL.createObjectURL(f);
+    const img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); openCropper(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); toast("Couldn't read that image"); };
+    img.src = url;   // <img> decodes HEIC on iOS where createImageBitmap can't
+  }
+  function openCropper(img) {
+    cropImg = img;
+    const ov = $('cropper');
+    ov.classList.remove('hidden');
+    const frame = ov.querySelector('.cropframe');
+    const CB = Math.min(frame.clientWidth, frame.clientHeight);
+    const base = Math.max(CB / img.naturalWidth, CB / img.naturalHeight);   // cover
+    cropState = { CB, base, z: 1, tx: 0, ty: 0, iw: img.naturalWidth, ih: img.naturalHeight };
+    const el = ov.querySelector('.cropimg');
+    el.src = img.src;
+    clampCrop(); applyCrop();
+    bindCropGestures(ov);
+  }
+  function clampCrop() {
+    const s = cropState, scale = s.base * s.z;
+    const halfW = (s.iw * scale - s.CB) / 2, halfH = (s.ih * scale - s.CB) / 2;   // max pan so image still covers
+    s.tx = Math.max(-halfW, Math.min(halfW, s.tx));
+    s.ty = Math.max(-halfH, Math.min(halfH, s.ty));
+  }
+  function applyCrop() {
+    const s = cropState, ov = $('cropper'), el = ov.querySelector('.cropimg');
+    el.style.transform = `translate(-50%,-50%) translate(${s.tx}px,${s.ty}px) scale(${(s.base * s.z).toFixed(4)})`;
+  }
+  function bindCropGestures(ov) {
+    if (ov._bound) return; ov._bound = true;
+    const pts = new Map(); let pinch = null, pan = null;
+    const stage = ov.querySelector('.cropframe');
+    stage.addEventListener('pointerdown', (e) => { pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); stage.setPointerCapture(e.pointerId);
+      if (pts.size === 1) pan = { x: e.clientX, y: e.clientY, tx: cropState.tx, ty: cropState.ty };
+      else if (pts.size === 2) { const a = [...pts.values()]; pinch = { d: Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y), z: cropState.z }; pan = null; } });
+    stage.addEventListener('pointermove', (e) => { if (!pts.has(e.pointerId)) return; pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pts.size >= 2 && pinch) { const a = [...pts.values()], d = Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y); cropState.z = Math.max(1, Math.min(5, pinch.z * d / (pinch.d || 1))); clampCrop(); applyCrop(); }
+      else if (pan) { cropState.tx = pan.tx + (e.clientX - pan.x); cropState.ty = pan.ty + (e.clientY - pan.y); clampCrop(); applyCrop(); } });
+    const up = (e) => { pts.delete(e.pointerId); if (pts.size < 2) pinch = null; if (pts.size === 1) { const p = [...pts.values()][0]; pan = { x: p.x, y: p.y, tx: cropState.tx, ty: cropState.ty }; } };
+    stage.addEventListener('pointerup', up); stage.addEventListener('pointercancel', up);
+    stage.addEventListener('wheel', (e) => { e.preventDefault(); cropState.z = Math.max(1, Math.min(5, cropState.z * Math.exp(-e.deltaY * 0.0015))); clampCrop(); applyCrop(); }, { passive: false });
+    ov.querySelector('.cropzoom').addEventListener('input', (e) => { cropState.z = 1 + Number(e.target.value) / 100 * 4; clampCrop(); applyCrop(); });
+  }
+  window.CATAN.cropCancel = () => { $('cropper').classList.add('hidden'); cropImg = null; };
+  window.CATAN.cropConfirm = async () => {
+    const s = cropState, OUT = 256, scale = s.base * s.z;
+    const sw = s.CB / scale, sh = s.CB / scale;                          // source square in image px
+    const sx = s.iw / 2 - s.tx / scale - sw / 2, sy = s.ih / 2 - s.ty / scale - sh / 2;
+    const cv = document.createElement('canvas'); cv.width = OUT; cv.height = OUT;
+    const ctx = cv.getContext('2d');
+    ctx.drawImage(cropImg, sx, sy, sw, sh, 0, 0, OUT, OUT);
+    let data = cv.toDataURL('image/jpeg', 0.72);
+    if (data.length > 90000) data = cv.toDataURL('image/jpeg', 0.5);      // keep it light for the DB + presence
+    $('cropper').classList.add('hidden'); cropImg = null;
+    const btn = document.querySelector('.profpic'); if (btn) btn.style.opacity = '0.5';
+    const r = await AUTH.setAvatar(data);
+    if (r && r.ok) { LOBBY.track(); manageProfile(); } else { manageProfile(); toast((r && r.error) || 'Upload failed'); }
+  };
 
   function boot() {
     initBoardZoom();
