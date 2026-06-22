@@ -19,6 +19,9 @@
     try { return Object.assign(def, JSON.parse(localStorage.getItem('catan-settings') || '{}')); } catch (_) { return def; }
   })();
   function saveSettings() { try { localStorage.setItem('catan-settings', JSON.stringify(SETTINGS)); } catch (_) {} }
+  // Animation speed setting -> a time multiplier applied to JS-timed animations.
+  function aScale() { return SETTINGS.anim === 'slow' ? 1.5 : (SETTINGS.anim === 'fast' ? 0.6 : 1); }
+  function aDur(ms) { return Math.round(ms * aScale()); }
   const PSTROKE = { red: '#7d1f1b', blue: '#17376f', green: '#1f6b2c', yellow: '#9a7d0c' };
   const PINK = { red: '#fff', blue: '#fff', green: '#fff', yellow: '#23303c' };
   function hexA(hex, a) { const n = parseInt(hex.slice(1), 16); return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`; }
@@ -46,6 +49,7 @@
   }
   function unlockAudio() { if (!actx) initAudio(); if (actx && actx.state === 'suspended') actx.resume(); startMusic(); }
   function playSound(name, vol) {
+    if (!SETTINGS.sfx) return;            // Sound effects setting (music is separate)
     if (!actx || !sndBuf[name]) return;
     try {
       const s = actx.createBufferSource(); s.buffer = sndBuf[name];
@@ -747,7 +751,7 @@
       el.classList.remove('hidden');
       playSound('click', 0.55);
       n--;
-      setTimeout(step, 900);
+      setTimeout(step, aDur(900));
     })();
   }
   // "who goes first" spinner: corners light up around the table, decelerating, and
@@ -768,12 +772,12 @@
       if (step >= steps) {
         const el = $('p-' + SEATS[ti]); if (el) { el.classList.remove('spin-on'); el.classList.add('spin-win'); }
         playSound('win', 0.7); toast(state.players[ti].name + ' goes first!');   // fanfare on landing
-        setTimeout(() => { clear(); ui.spinning = false; if (done) done(); }, 1500);
+        setTimeout(() => { clear(); ui.spinning = false; if (done) done(); }, aDur(1500));
         return;
       }
       const remaining = steps - step;
       const interval = remaining > n + 1 ? 85 : 85 + (n + 1 - remaining) * 75;   // ease-out near the end
-      setTimeout(tick, interval);
+      setTimeout(tick, interval * aScale());
     }
     tick();
   }
@@ -791,14 +795,15 @@
     const pi = state.players.findIndex((p) => p.color === activeColor());
     const seatEl = $('p-' + SEATS[pi]);
     void el.offsetWidth;  // reflow so the next transition animates
+    const ts = (0.55 * aScale()).toFixed(2), os = (0.4 * aScale()).toFixed(2), od = (0.2 * aScale()).toFixed(2);
     setTimeout(() => {
       const r = seatEl.getBoundingClientRect();
-      el.style.transition = 'left .55s cubic-bezier(.4,0,.5,1), top .55s cubic-bezier(.4,0,.5,1), transform .55s ease, opacity .4s ease .2s';
+      el.style.transition = `left ${ts}s cubic-bezier(.4,0,.5,1), top ${ts}s cubic-bezier(.4,0,.5,1), transform ${ts}s ease, opacity ${os}s ease ${od}s`;
       el.style.left = (r.left + r.width / 2) + 'px';
       el.style.top = (r.top + r.height / 2) + 'px';
       el.style.transform = 'translate(-50%,-50%) scale(0.42)'; el.style.opacity = '0';
-    }, 700);
-    setTimeout(() => { el.classList.add('hidden'); ui.diceRevealing = false; renderPanels(); showResourceFly(); afterAction(); render(); }, 1300);
+    }, aDur(700));
+    setTimeout(() => { el.classList.add('hidden'); ui.diceRevealing = false; renderPanels(); showResourceFly(); afterAction(); render(); }, aDur(1300));
   }
   // which producing hex sends which resource to which player on this roll
   function productionMap() {
@@ -829,10 +834,11 @@
     img.style.left = (sx - hw) + 'px'; img.style.top = (sy - hh) + 'px';
     img.style.setProperty('--dx', (tx - sx).toFixed(1) + 'px');
     img.style.setProperty('--dy', (ty - sy).toFixed(1) + 'px');
-    img.style.animation = `flyto .95s ${Math.round(delay)}ms ease both`;
+    const sc = aScale(), d = delay * sc;
+    img.style.animation = `flyto ${(0.95 * sc).toFixed(2)}s ${Math.round(d)}ms ease both`;
     document.body.appendChild(img);
-    if (opts.sound) setTimeout(() => playSound(opts.sound, opts.vol), delay);
-    setTimeout(() => img.remove(), delay + 1050);
+    if (opts.sound) setTimeout(() => playSound(opts.sound, opts.vol), d);
+    setTimeout(() => img.remove(), d + 1050 * sc);
   }
   function flyResource(res, sx, sy, tx, ty, delay) {
     flyImage((HUD.res && HUD.res[res]) || (ASSETS.icons && ASSETS.icons[res]), sx, sy, tx, ty, delay, { sound: 'res_' + res, vol: 0.45 });
@@ -854,7 +860,7 @@
     if (!ASSETS.robber || !a || !b) { finish(); return; }
     const w = 0.84 * a.scale, h = 0.95 * a.scale;   // match the on-board robber size
     flyImage(ASSETS.robber, a.x, a.y, b.x, b.y, 0, { w, h });   // robber sound already plays from the move
-    setTimeout(finish, 1000);   // the fly animates ~0.95s, then the piece settles at the new hex
+    setTimeout(finish, aDur(1000));   // the fly animates ~0.95s, then the piece settles at the new hex
   }
   function showResourceFly() {
     const map = productionMap();
@@ -901,7 +907,7 @@
         for (let k = 0; k < (sel[res] || 0); k++) { flyResource(res, sx, sy, tx, ty, delay); delay += STAGGER; }
       }
     }
-    setTimeout(() => { ui.discardAnimating = false; afterAction(); render(); }, delay + 1050);
+    setTimeout(() => { ui.discardAnimating = false; afterAction(); render(); }, aDur(delay + 1050));
   }
   // a stolen card flies FACE-DOWN from the victim's corner to the thief's corner
   // (the resource is kept secret — only that something was taken is shown)
@@ -1561,19 +1567,25 @@
     const wi = state.players.indexOf(winner);
     const wavSrc = seatAvatarSrc(winner, wi);
     const wav = wavSrc ? `<img src="${wavSrc}" alt="">` : '';
-    const standings = state.players
+    const rows = state.players
       .map((p) => ({ p, vp: C.victoryPoints(state, p.color, true) }))
-      .sort((a, b) => b.vp - a.vp)
+      .sort((a, b) => b.vp - a.vp);
+    // Domination: the winner held every rival under 10 points (all VP revealed at game end)
+    const domination = rows.length > 1 && rows.every((s) => s.p.color === winner.color || s.vp < 10);
+    const standings = rows
       .map(({ p, vp }, i) => `<div class="standing${p.color === winner.color ? ' win' : ''}" style="animation-delay:${(0.5 + i * 0.12).toFixed(2)}s"><span class="nm"><span class="dot" style="background:${PCOLOR[p.color]}"></span>${escapeHtml(p.name)}</span><span class="pvp">${vp} VP</span></div>`)
       .join('');
     const crown = `<img class="crown" src="assets/hud/crown.png" alt="">`;
-    showOverlay(`<div class="winwrap">
+    const domBadge = domination ? `<div class="dombadge">DOMINATION<span>every rival held under 10</span></div>` : '';
+    showOverlay(`<div class="winwrap${domination ? ' domination' : ''}">
       <div class="winhead"><div class="winrays"></div>${crown}
         <div class="winava" style="background:${PCOLOR[winner.color]}">${wav}</div></div>
       <h2>${escapeHtml(winner.name)} wins!</h2>
+      ${domBadge}
       <div style="margin:12px 0">${standings}</div>
       ${online ? `<button class="btn full" onclick="CATAN.tableReset()">Back to lobby</button>` : `<button class="btn full" onclick="CATAN.restart()">New game</button>`}</div>`);
-    spawnConfetti($('overlay'), 64);
+    spawnConfetti($('overlay'), domination ? 120 : 64);
+    if (domination) setTimeout(() => playSound('win', 0.55), 500);   // a second flourish for the blowout
   }
   // confetti uses the real ripped gold-star sprite, mixed with player-colour flecks
   function spawnConfetti(host, n) {
@@ -1602,6 +1614,104 @@
     const cls = 'face' + (extra ? ' ' + extra : '');
     if (dataUrl) return `<span class="${cls}"><img src="${dataUrl}" alt=""></span>`;
     return `<span class="${cls} init">${escapeHtml((String(name || '?').trim()[0] || '?')).toUpperCase()}</span>`;
+  }
+  // ---- broadcast messages: a quick limited note every online player sees -------
+  const BROADCAST_MAX = 3;
+  let broadcastsLeft = BROADCAST_MAX, bctoastT = null;
+  function openBroadcast() {
+    if (!online || !myColor) return;
+    if (broadcastsLeft <= 0) { toast('No messages left this game'); return; }
+    showOverlay(`<h3>Quick message</h3>
+      <input id="bcInput" class="authin" maxlength="50" placeholder="Say something…" autocomplete="off">
+      <p class="muted small" style="text-align:center;margin:2px 0 10px">${broadcastsLeft} of ${BROADCAST_MAX} left this game</p>
+      <div class="trow2"><button class="btn ghost" onclick="CATAN.close()">Cancel</button><button class="btn" onclick="CATAN.sendBroadcast()">Send</button></div>`);
+    const el = $('bcInput'); if (el) el.focus();   // synchronous -> iOS keyboard opens within the tap
+  }
+  function sendBroadcastMsg() {
+    const el = $('bcInput'); const text = (el && el.value || '').trim().slice(0, 50);
+    hideOverlay(); render();
+    if (!text || broadcastsLeft <= 0) return;
+    broadcastsLeft--;
+    const msg = { name: AUTH.me.name, avatar: AUTH.me.avatar || null, text };
+    LOBBY.sendBroadcast(msg);
+    showBroadcast(msg);   // local echo — broadcast doesn't deliver back to the sender
+  }
+  function showBroadcast(msg) {
+    if (!msg || !msg.text) return;
+    const el = $('bctoast'); if (!el) return;
+    el.innerHTML = `${faceHTML(msg.name, msg.avatar, 'sm')}<span class="bcname">${escapeHtml(msg.name)}</span><span class="bctext">${escapeHtml(String(msg.text).slice(0, 50))}</span>`;
+    el.classList.add('show');
+    clearTimeout(bctoastT); bctoastT = setTimeout(() => el.classList.remove('show'), 4200);
+    playSound('click', 0.4);
+  }
+  // ---- surrender vote: a seated player proposes ending; all other seats must agree,
+  //      then the game ends with the current points leader crowned as winner ----------
+  let surrender = null;   // { by, byName, agreed:{color:true} } while a vote is live
+  function seatedColors() { return state ? state.players.map((p) => p.color) : []; }
+  function leaderColor(s) {
+    return s.players.map((p) => ({ c: p.color, vp: C.victoryPoints(s, p.color, true) }))
+      .sort((a, b) => b.vp - a.vp)[0].c;
+  }
+  function requestSurrender() {
+    if (!online || !myColor || !state || state.players.length < 2) return;
+    surrender = { by: myColor, byName: AUTH.me.name, agreed: { [myColor]: true } };
+    LOBBY.broadcastSurrender({ kind: 'request', by: myColor, name: AUTH.me.name });
+    showSurrenderWait();
+  }
+  function proposeSurrender() { hideOverlay(); requestSurrender(); }
+  function surrenderAgree() {
+    if (!surrender) return;
+    LOBBY.broadcastSurrender({ kind: 'agree', from: myColor });
+    surrender = null; hideOverlay(); render(); toast('You agreed to end the game');
+  }
+  function surrenderDecline() {
+    LOBBY.broadcastSurrender({ kind: 'decline', from: myColor, name: AUTH.me.name });
+    surrender = null; hideOverlay(); render();
+  }
+  function surrenderCancel() { LOBBY.broadcastSurrender({ kind: 'cancel' }); surrender = null; hideOverlay(); render(); }
+  function onSurrender(p) {
+    if (!p || !online || !myColor || !NET.started || !state) return;
+    if (p.kind === 'request') {
+      surrender = { by: p.by, byName: p.name, agreed: { [p.by]: true } };
+      if (p.by === myColor) showSurrenderWait(); else showSurrenderPrompt();
+    } else if (p.kind === 'agree') {
+      if (!surrender) return;
+      surrender.agreed[p.from] = true;
+      if (surrender.by === myColor) { showSurrenderWait(); maybeEndSurrender(); }
+    } else if (p.kind === 'decline') {
+      if (!surrender) return;
+      surrender = null; hideOverlay(); render(); toast((p.name || 'A player') + ' wants to keep playing');
+    } else if (p.kind === 'cancel') {
+      surrender = null; hideOverlay(); render();
+    }
+  }
+  function maybeEndSurrender() {
+    if (!surrender || surrender.by !== myColor) return;   // only the proposer writes the end (no write races)
+    if (seatedColors().every((c) => surrender.agreed[c])) { surrender = null; hideOverlay(); endGameByVote(); }
+  }
+  async function endGameByVote() {
+    const c = NET.init(); if (!c) return;
+    try {
+      const { data } = await c.from('games').select('state,version').eq('code', 'TABLE').maybeSingle();
+      if (!data || !data.state) return;
+      const s2 = Object.assign({}, data.state, { winner: leaderColor(data.state) });
+      await c.from('games').update({ state: s2, phase: 'ended', version: data.version + 1 }).eq('code', 'TABLE');
+    } catch (_) { }
+  }
+  function showSurrenderPrompt() {
+    if (!surrender) return;
+    const lead = state.players.find((p) => p.color === leaderColor(state));
+    showOverlay(`<h3>End the game?</h3>
+      <p class="muted" style="text-align:center;margin:6px 0 12px">${escapeHtml(surrender.byName)} wants to end the game now. The current leader${lead ? ' (' + escapeHtml(lead.name) + ')' : ''} would win.</p>
+      <button class="btn full" style="padding:15px" onclick="CATAN.surrenderAgree()">Agree to end</button>
+      <button class="btn ghost full" style="margin-top:9px" onclick="CATAN.surrenderDecline()">No, keep playing</button>`);
+  }
+  function showSurrenderWait() {
+    if (!surrender) return;
+    const seats = seatedColors(), have = seats.filter((c) => surrender.agreed[c]).length;
+    showOverlay(`<h3>Ending the game…</h3>
+      <p class="muted" style="text-align:center;margin:6px 0 12px">Waiting for everyone to agree — ${have} of ${seats.length} so far. The current leader wins.</p>
+      <button class="btn ghost full" onclick="CATAN.surrenderCancel()">Cancel</button>`);
   }
 
   let renderedBoardKey = null;
@@ -1653,13 +1763,15 @@
     // build/trade/end/dev only on your turn (dice roll automatically); Leave is always here.
     const canAct = state.phase === 'play' && state.turnPhase === 'main' && isMyTurn();
     const exit = { k: 'exit', label: (online && !myColor) ? 'Stop' : 'Leave', emoji: '🚪' };
-    const items = canAct ? [
+    const items = (canAct ? [
       { k: 'build', label: 'Build' },
       { k: 'trade', label: 'Trade' },
       { k: 'end', label: 'End turn' },
       exit,
       { k: 'dev', label: 'Cards' },
-    ] : [exit];
+    ] : [exit]).slice();
+    // online seated players can fire a quick broadcast message any time (on- or off-turn)
+    if (online && myColor) items.push({ k: 'say', label: 'Say', emoji: '💬' });
     // spread the items evenly around the circle, first one at the top
     const n = items.length;
     let html = `<button class="radbtn center" onclick="CATAN.closeRadial()"><img src="assets/hud/radial/close.png" alt="close"></button>`;
@@ -1714,6 +1826,7 @@
       else if (k === 'trade') openTrade();
       else if (k === 'dev') openDev();
       else if (k === 'end') window.CATAN.endTurn();
+      else if (k === 'say') openBroadcast();
     },
     close: () => { hideOverlay(); render(); },
     restart: () => startScreen(),
@@ -1758,6 +1871,8 @@
 
   const DEFAULT_NAMES = ['Karim', 'Sam', 'Alex', 'Jordan'];
   const SEAT_COLORS = ['red', 'blue', 'green', 'yellow'];
+  // win target by player count — mirrors the engine's targetForCount (2p is a 15-pt house rule)
+  function targetForN(n) { return n === 2 ? 15 : n === 3 ? 13 : n === 4 ? 11 : 10; }
   // Scale the New Game card so the whole title screen always fits the viewport,
   // on any device, without scrolling or clipping.
   function fitTitle() {
@@ -1864,7 +1979,7 @@
       title.innerHTML = `${banner}<div class="t-body"><div class="t-card newgame">
         <button class="demobtn" onclick="CATAN.demo()" title="Jump into a mid-game (testing)">🎲 Demo</button>
         <h3>New Game</h3>
-        <div class="seg">${[3, 4].map((n) => `<button class="${n === count ? 'on' : ''}" onclick="CATAN._setCount(${n})">${n} players</button>`).join('')}</div>
+        <div class="seg">${[2, 3, 4].map((n) => `<button class="${n === count ? 'on' : ''}" onclick="CATAN._setCount(${n})">${n} players</button>`).join('')}</div>
         <div class="t-seats">${seats}</div>
         <button class="btn full" onclick="CATAN._start()">Start game</button>
         ${AUTH.me ? `<button class="btn ghost full" data-nav="lobby">← Back to lobby</button>`
@@ -2042,6 +2157,8 @@
   let online = false, myColor = null;
   function enterGame(s) {
     state = s; ui = { mode: 'idle', pending: null }; resetZoom(); renderedBoardKey = null;
+    broadcastsLeft = BROADCAST_MAX;   // fresh message budget per game entry
+    surrender = null;                 // clear any stale surrender vote
     const t = $('title'); if (t) t.classList.add('hidden');
     hideOverlay();
     document.body.style.background = GAME_BG;   // sea canvas behind the board
@@ -2167,9 +2284,13 @@
       if (this.channel) { try { c.removeChannel(this.channel); } catch (_) { } }
       this.channel = c.channel('lobby', { config: { presence: { key: AUTH.me.id } } });
       this.channel.on('presence', { event: 'sync' }, () => LOBBY.onPresence());
+      this.channel.on('broadcast', { event: 'msg' }, (e) => { if (e && e.payload) showBroadcast(e.payload); });
+      this.channel.on('broadcast', { event: 'surrender' }, (e) => { if (e && e.payload) onSurrender(e.payload); });
       this.channel.subscribe((st) => { if (st === 'SUBSCRIBED') LOBBY.track(); });
     },
     track() { if (this.channel) this.channel.track({ id: AUTH.me.id, name: AUTH.me.name, avatar: AUTH.me.avatar || null, mode: this.mode, readyAt: this.readyAt }); },
+    sendBroadcast(msg) { if (this.channel) { try { this.channel.send({ type: 'broadcast', event: 'msg', payload: msg }); } catch (_) { } } },
+    broadcastSurrender(p) { if (this.channel) { try { this.channel.send({ type: 'broadcast', event: 'surrender', payload: p }); } catch (_) { } } },
     onPresence() {
       const st = this.channel.presenceState(); this.presence = {};
       Object.values(st).forEach((arr) => { const m = arr[arr.length - 1]; if (m && m.id) this.presence[m.id] = m; });
@@ -2186,11 +2307,11 @@
     watch() { const row = this.lastRow; if (!row || !row.state) { toast('No game to watch'); return; } myColor = null; online = true; this.enterAs('spectate'); NET.started = true; NET.version = row.version; enterGame(row.state); },   // join an in-progress game as a spectator (no countdown)
     async startTable() {
       const ready = this.readyList();
-      if (ready.length < 3) { toast('Need at least 3 players ready'); return; }
+      if (ready.length < 2) { toast('Need at least 2 players ready'); return; }
       if (ready[0].id !== AUTH.me.id) { toast('Only the first player to ready up can start'); return; }
       const seated = ready.slice(0, 4), n = seated.length;
       const players = seated.map((p, i) => ({ seat: i, color: SEAT_COLORS[i], name: p.name, playerId: p.id, avatar: p.avatar || null }));
-      const target = n === 3 ? 13 : (n === 4 ? 11 : 10);
+      const target = targetForN(n);
       let gstate;
       try { gstate = C.createGame({ id: 'table', players: players.map((p) => ({ color: p.color, name: p.name })), seed: (Math.random() * 1e9) | 0, targetPoints: target, randomFirst: true }); }
       catch (e) { toast('Start failed: ' + e.message); return; }
@@ -2268,12 +2389,12 @@
         <button class="btn wood full" onclick="CATAN.lobbyWatch()">🔴 Game in progress · Watch</button>
         <p class="muted small" style="text-align:center;margin-top:6px">Watch, or wait for it to finish.</p>`;
     } else {
-      const canStart = ready.length >= 3;
+      const canStart = ready.length >= 2;
       const host = ready[0];   // the first player to ready up owns the Start button
       const iAmHost = host && host.id === AUTH.me.id;
-      const seatN = Math.min(4, ready.length), tgt = ready.length >= 4 ? 11 : 13;
+      const seatN = Math.min(4, ready.length), tgt = targetForN(seatN);
       const startBtn = !canStart
-        ? `<button class="btn full" disabled>Start game (need 3 ready)</button>`
+        ? `<button class="btn full" disabled>Start game (need 2 ready)</button>`
         : iAmHost
           ? `<button class="btn full" onclick="CATAN.lobbyStart()">Start game · ${seatN}p (${tgt} pts)</button>`
           : `<button class="btn full" disabled>Waiting for ${escapeHtml(host.name)} to start…</button>`;
@@ -2291,6 +2412,13 @@
   window.CATAN.lobbySpectate = () => LOBBY.setSpectate();
   window.CATAN.lobbyWatch = () => LOBBY.watch();
   window.CATAN.lobbyStart = () => LOBBY.startTable();
+  // broadcast + surrender handlers (declared earlier as hoisted functions; registered here,
+  // after window.CATAN exists, so onclick="CATAN.x()" can reach them)
+  window.CATAN.sendBroadcast = sendBroadcastMsg;
+  window.CATAN.proposeSurrender = proposeSurrender;
+  window.CATAN.surrenderAgree = surrenderAgree;
+  window.CATAN.surrenderDecline = surrenderDecline;
+  window.CATAN.surrenderCancel = surrenderCancel;
   window.CATAN.exitGame = () => {
     // ensure no higher layer (radial root sits at z-31, above the overlay) eats taps
     const rr = $('radialroot'); if (rr) { rr.classList.remove('open'); rr.classList.add('hidden'); }
@@ -2301,9 +2429,13 @@
       : endsForAll ? 'This ends the game for everyone.' : 'You will leave this game.';
     const act = spectator ? 'Leave to lobby' : endsForAll ? 'End game for everyone' : 'Leave game';
     // big, full-width stacked targets — Cancel is the prominent safe action, leave is below
+    // seated online players can propose a graceful end (everyone votes, leader wins)
+    const canVote = endsForAll && state && state.players.length > 1;
+    const voteBtn = canVote ? `<button class="btn wood full" style="padding:14px;font-size:15px;margin-top:9px" onclick="CATAN.proposeSurrender()">Propose to end — leader wins</button>` : '';
     showOverlay(`<h3>${ttl}</h3>
       <p class="muted" style="text-align:center;margin:6px 0 12px">${sub}</p>
       <button class="btn full" style="padding:16px;font-size:16px" onclick="CATAN.close()">${spectator ? 'Cancel — keep watching' : 'Cancel — keep playing'}</button>
+      ${voteBtn}
       <button class="btn ${spectator ? 'wood' : 'end'} full" style="padding:15px;font-size:15px;margin-top:9px" onclick="CATAN.confirmExit()">${act}</button>`);
     const o = $('overlay'); o.onclick = (e) => { if (e.target === o) CATAN.close(); };   // tap outside the card to cancel
   };
