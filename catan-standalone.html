@@ -340,6 +340,13 @@
   .loblist{margin:12px 0; display:flex; flex-direction:column; gap:6px;}
   .lobrow{display:flex; align-items:center; gap:9px; padding:9px 12px; font-weight:700; color:var(--ink);
     background:rgba(0,0,0,0.26); border:1px solid rgba(0,0,0,0.4); border-radius:9px;}
+  /* a joinable table in the table-list */
+  .tablerow{display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%; text-align:left; cursor:pointer;
+    padding:15px 16px; border-radius:10px; font-weight:700; font-family:var(--serif); font-size:16px; color:#3a2400;
+    background:linear-gradient(180deg,#e8cf86,#c79b3f); border:1px solid var(--gold-edge); box-shadow:0 2px 6px rgba(0,0,0,0.35);}
+  .tablerow:active{transform:scale(0.99);}
+  .tablerow .tnm2{overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; min-width:0;}
+  .tablerow .t-acc, .tablerow .t-pend{flex:0 0 auto; color:#5a3a10; font-weight:800; font-size:13px;}
   .lobrow .cdot{width:14px; height:14px; border-radius:50%; box-shadow:0 0 0 2px rgba(0,0,0,0.35);}
   /* identity / auth */
   /* landscape: 2-column player grid so names are big and the list stays short (no scroll, less down-scaling) */
@@ -2469,7 +2476,7 @@
     hideOverlay(); render();
     if (!text || broadcastsLeft <= 0) return;
     broadcastsLeft--;
-    const msg = { name: AUTH.me.name, avatar: AUTH.me.avatar || null, text };
+    const msg = { name: AUTH.me.name, avatar: AUTH.me.avatar || null, text, table: LOBBY.table || null };
     LOBBY.sendBroadcast(msg);
     showBroadcast(msg);   // local echo — broadcast doesn't deliver back to the sender
   }
@@ -2493,15 +2500,15 @@
   // version-guarded read-modify-write on the game row (mirrors NET.syncAction). mutate
   // returns false to abort. Retries if a concurrent write bumped the version.
   async function svUpdate(mutate) {
-    const c = NET.init(); if (!c) return;
+    const c = NET.init(); if (!c || !NET.code) return;
     for (let i = 0; i < 6; i++) {
-      const { data, error } = await c.from('games').select('state,version').eq('code', 'TABLE').maybeSingle();
+      const { data, error } = await c.from('games').select('state,version').eq('code', NET.code).maybeSingle();
       if (error || !data || !data.state) return;
       const s2 = JSON.parse(JSON.stringify(data.state));
       if (mutate(s2) === false) return;
       const phase = s2.phase === 'ended' ? 'ended' : 'playing';
       const { data: upd } = await c.from('games')
-        .update({ state: s2, version: data.version + 1, phase }).eq('code', 'TABLE').eq('version', data.version).select('version');
+        .update({ state: s2, version: data.version + 1, phase }).eq('code', NET.code).eq('version', data.version).select('version');
       if (upd && upd.length) { NET.version = data.version + 1; return; }
       await new Promise((r) => setTimeout(r, 80));
     }
@@ -3049,18 +3056,25 @@
       this.client = window.supabase.createClient(window.SUPA.url, window.SUPA.anonKey);
       return this.client;
     },
-    // watch the single shared TABLE row for an active game
+    // watch the row for THIS table's game (this.code). No-op while browsing (no table).
     subscribe() {
-      const c = this.init(); if (!c) return;
+      const c = this.init(); if (!c || !this.code) return;
+      const code = this.code;
       if (this.channel) { try { c.removeChannel(this.channel); } catch (_) { } }
-      this.channel = c.channel('game-TABLE')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'games', filter: 'code=eq.TABLE' }, (p) => { if (p.new) NET.onRow(p.new); })
+      this.channel = c.channel('game-' + code)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'games', filter: 'code=eq.' + code }, (p) => { if (p.new) NET.onRow(p.new); })
         .subscribe();
       if (this.poll) clearInterval(this.poll);
       this.poll = setInterval(async () => {
-        const { data } = await c.from('games').select('*').eq('code', 'TABLE').maybeSingle();
+        if (!NET.code) return;
+        const { data } = await c.from('games').select('*').eq('code', NET.code).maybeSingle();
         NET.onRow(data || { phase: 'idle' });   // realtime is primary; poll is the safety net
       }, 2500);
+    },
+    unsubscribeGame() {
+      const c = this.init();
+      if (c && this.channel) { try { c.removeChannel(this.channel); } catch (_) { } this.channel = null; }
+      if (this.poll) { clearInterval(this.poll); this.poll = null; }
     },
     onRow(row) {
       if (!row || !row.state || (row.phase !== 'playing' && row.phase !== 'ended')) {
@@ -3095,14 +3109,14 @@
     async syncAction(action, actor) {
       const c = this.init(); if (!c) return;
       for (let i = 0; i < 6; i++) {
-        const { data, error } = await c.from('games').select('state,version').eq('code', 'TABLE').maybeSingle();
+        const { data, error } = await c.from('games').select('state,version').eq('code', this.code).maybeSingle();
         if (error || !data || !data.state) return;
         const r = C.applyAction(data.state, action, actor);
         if (!r.ok) { applyRemoteState(data.state); return; }
         if (data.state.sv && r.state.phase !== 'ended') r.state.sv = data.state.sv;   // keep a live surrender vote across moves
         const phase = r.state.phase === 'ended' ? 'ended' : 'playing';
         const { data: upd, error: uerr } = await c.from('games')
-          .update({ state: r.state, version: data.version + 1, phase }).eq('code', 'TABLE').eq('version', data.version).select('version');
+          .update({ state: r.state, version: data.version + 1, phase }).eq('code', this.code).eq('version', data.version).select('version');
         if (uerr) { toast('Sync error'); return; }
         if (upd && upd.length) { this.version = data.version + 1; return; }
         await new Promise((res) => setTimeout(res, 70));
@@ -3114,17 +3128,21 @@
   // read a presence entry's lobby mode (back-compat with the old {ready} payload)
   function pmode(p) { return p.mode || (p.ready ? 'ready' : 'idle'); }
   const LOBBY = {
-    channel: null, presence: {}, mode: 'idle', readyAt: 0, inProgress: false, lastRow: null,
+    channel: null, presence: {}, mode: 'idle', readyAt: 0, inProgress: false, lastRow: null, table: null,
     join() {
       const c = NET.init(); if (!c || !AUTH.me) return;
-      NET.subscribe();   // watch for an active game
+      if (this.table) { NET.code = this.table; NET.subscribe(); }   // re-watch our table's game if we're sitting at one
+      else NET.unsubscribeGame();                                   // browsing the table list -> no game watch
       if (this.channel) { try { c.removeChannel(this.channel); } catch (_) { } }
       this.channel = c.channel('lobby', { config: { presence: { key: AUTH.me.id } } });
       this.channel.on('presence', { event: 'sync' }, () => LOBBY.onPresence());
-      this.channel.on('broadcast', { event: 'msg' }, (e) => { if (e && e.payload) showBroadcast(e.payload); });
+      this.channel.on('broadcast', { event: 'msg' }, (e) => { if (e && e.payload && (e.payload.table || null) === LOBBY.table) showBroadcast(e.payload); });
       this.channel.subscribe((st) => { if (st === 'SUBSCRIBED') LOBBY.track(); });
     },
-    track() { if (this.channel) this.channel.track({ id: AUTH.me.id, name: AUTH.me.name, avatar: AUTH.me.avatar || null, mode: this.mode, readyAt: this.readyAt }); },
+    track() { if (this.channel) this.channel.track({ id: AUTH.me.id, name: AUTH.me.name, avatar: AUTH.me.avatar || null, mode: this.mode, readyAt: this.readyAt, table: this.table || null }); },
+    // enter / switch tables (a table is a presence grouping keyed by a game code)
+    enterTable(code) { this.table = code; NET.code = code; this.mode = 'idle'; this.readyAt = 0; this.inProgress = false; NET.subscribe(); this.track(); lobbySig = null; renderLobby(); },
+    leaveTable() { this.table = null; NET.code = null; this.mode = 'idle'; this.readyAt = 0; this.inProgress = false; NET.unsubscribeGame(); this.track(); lobbySig = null; renderLobby(); },
     sendBroadcast(msg) { if (this.channel) { try { this.channel.send({ type: 'broadcast', event: 'msg', payload: msg }); } catch (_) { } } },
     onPresence() {
       const st = this.channel.presenceState(); this.presence = {};
@@ -3133,8 +3151,9 @@
       else renderBanner();   // in-game: keep the "N watching" count live as spectators come/go
     },
     online() { return Object.values(this.presence); },
-    readyList() { return this.online().filter((p) => pmode(p) === 'ready').sort((a, b) => a.readyAt - b.readyAt); },
-    spectators() { return this.online().filter((p) => pmode(p) === 'spectate'); },
+    tableMembers() { return this.online().filter((p) => (p.table || null) === this.table); },   // who's at MY table
+    readyList() { return this.tableMembers().filter((p) => pmode(p) === 'ready').sort((a, b) => a.readyAt - b.readyAt); },
+    spectators() { return this.tableMembers().filter((p) => pmode(p) === 'spectate'); },
     setReady() { this.mode = this.mode === 'ready' ? 'idle' : 'ready'; this.readyAt = this.mode === 'ready' ? Date.now() : 0; this.track(); renderLobby(); },
     setSpectate() { this.mode = this.mode === 'spectate' ? 'idle' : 'spectate'; this.readyAt = 0; this.track(); renderLobby(); },
     enterAs(role) { this.mode = role === 'play' ? 'playing' : 'spectate'; this.readyAt = 0; this.inProgress = false; if (this.channel) this.track(); },
@@ -3151,19 +3170,19 @@
       try { gstate = C.createGame({ id: 'table', players: players.map((p) => ({ color: p.color, name: p.name })), seed: (Math.random() * 1e9) | 0, targetPoints: target, randomFirst: true }); }
       catch (e) { toast('Start failed: ' + e.message); return; }
       const c = NET.init();
-      const { error } = await c.from('games').upsert({ code: 'TABLE', phase: 'playing', players, state: gstate, target_points: target, version: 1, host_id: AUTH.me.id });
+      const { error } = await c.from('games').upsert({ code: NET.code, phase: 'playing', players, state: gstate, target_points: target, version: 1, host_id: AUTH.me.id });
       if (error) toast('Start failed: ' + error.message);   // realtime drives everyone in
     },
-    async reset() {   // end the table -> everyone back to the lobby
-      const c = NET.init(); if (!c) return;
-      await c.from('games').upsert({ code: 'TABLE', phase: 'idle', state: null, players: [], version: 0 });
+    async reset() {   // end this table's game -> its members back to the table lobby
+      const c = NET.init(); if (!c || !NET.code) return;
+      await c.from('games').upsert({ code: NET.code, phase: 'idle', state: null, players: [], version: 0 });
     },
     leave() {
       const c = NET.init();
       if (c && this.channel) { try { c.removeChannel(this.channel); } catch (_) { } this.channel = null; }
       if (c && NET.channel) { try { c.removeChannel(NET.channel); } catch (_) { } NET.channel = null; }
       if (NET.poll) { clearInterval(NET.poll); NET.poll = null; }
-      this.presence = {}; this.mode = 'idle'; this.readyAt = 0; this.inProgress = false; this.lastRow = null; online = false; myColor = null; NET.started = false;
+      this.presence = {}; this.mode = 'idle'; this.readyAt = 0; this.inProgress = false; this.lastRow = null; this.table = null; online = false; myColor = null; NET.started = false; NET.code = null;
     },
   };
   function rankMode(p) { const m = pmode(p); return m === 'ready' ? 3 : m === 'playing' ? 2 : m === 'spectate' ? 1 : 0; }
@@ -3205,44 +3224,59 @@
   function renderLobby() {
     if (NET.started || !AUTH.me) return;
     document.body.classList.remove('ingame');   // lobby is a menu -> the rotate gate must never cover it
-    // Background ticks (presence/poll) land here. If the lobby frame ISN'T the visible
-    // screen — e.g. Change PIN or the player picker is open — do nothing. Rebuilding here
-    // would paint the lobby right over that screen and make it look unresponsive.
     const dynEl = $('lobby-dyn'), t = $('title');
-    if (!dynEl || !t || t.classList.contains('hidden')) return;
-    const list = LOBBY.online(), ready = LOBBY.readyList();
-    // Skip when nothing visible changed (presence pings etc.).
-    const sig = JSON.stringify([LOBBY.inProgress, LOBBY.mode, list.map((p) => p.id + ':' + pmode(p) + ':' + p.name + ':' + (p.readyAt || 0)).sort()]);
+    if (!dynEl || !t || t.classList.contains('hidden')) return;   // not the visible screen -> never clobber it
+    const all = LOBBY.online();
+    // sig over the whole presence (table memberships + modes) so any change re-renders
+    const sig = JSON.stringify([LOBBY.table, LOBBY.inProgress, LOBBY.mode,
+      all.map((p) => p.id + ':' + (p.table || '') + ':' + pmode(p) + ':' + p.name + ':' + (p.readyAt || 0)).sort()]);
     if (sig === lobbySig) return;
     lobbySig = sig;
-    const rows = lobbyRows(list, ready), me = escapeHtml(AUTH.me.name);
-    // The DYNAMIC half (count / list / ready+start buttons) is the only thing that changes.
-    let dyn;
-    if (LOBBY.inProgress) {   // a game is running -> only offer to watch it
-      dyn = `<p class="muted small" style="text-align:center">${me} · ${list.length} online</p>
-        <div class="loblist">${rows}</div>
-        <button class="btn wood full" onclick="CATAN.lobbyWatch()">🔴 Game in progress · Watch</button>
-        <p class="muted small" style="text-align:center;margin-top:6px">Watch, or wait for it to finish.</p>`;
-    } else {
-      const canStart = ready.length >= 2;
-      const host = ready[0];   // the first player to ready up owns the Start button
-      const iAmHost = host && host.id === AUTH.me.id;
-      const seatN = Math.min(4, ready.length), tgt = targetForN(seatN);
-      const startBtn = !canStart
-        ? `<button class="btn full" disabled>Start game (need 2 ready)</button>`
-        : iAmHost
-          ? `<button class="btn full" onclick="CATAN.lobbyStart()">Start game · ${seatN}p (${tgt} pts)</button>`
-          : `<button class="btn full" disabled>Waiting for ${escapeHtml(host.name)} to start…</button>`;
-      dyn = `<p class="muted small" style="text-align:center">${me} · ${list.length} online · ${ready.length} ready</p>
-        <div class="loblist">${rows}</div>
-        <div class="lobrow2">
-          <button class="btn ${LOBBY.mode === 'ready' ? '' : 'wood'}" onclick="CATAN.lobbyReady()">${LOBBY.mode === 'ready' ? '✓ Ready' : "I'm ready"}</button>
-          <button class="btn ${LOBBY.mode === 'spectate' ? '' : 'wood'}" onclick="CATAN.lobbySpectate()">${LOBBY.mode === 'spectate' ? '✓ Spectating' : '👁 Spectate'}</button>
-        </div>
-        ${startBtn}`;
-    }
-    dynEl.innerHTML = dyn;   // only ever the dynamic half — the footer frame is untouched
+    dynEl.innerHTML = LOBBY.table ? atTableHTML(all) : tableListHTML(all);   // footer frame untouched
   }
+  // browsing: a list of active tables to join, plus "New table"
+  function tableListHTML(all) {
+    const me = escapeHtml(AUTH.me.name);
+    const tables = {};
+    all.forEach((p) => { if (p.table) (tables[p.table] = tables[p.table] || []).push(p); });
+    const codes = Object.keys(tables).sort();
+    const browsing = all.filter((p) => !p.table).length;
+    const rows = codes.length ? codes.map((code) => {
+      const m = tables[code], inGame = m.some((p) => pmode(p) === 'playing');
+      const names = m.map((p) => escapeHtml(p.name)).join(', ');
+      return `<button class="tablerow" onclick="CATAN.joinTable('${code}')"><span class="tnm2">${names || 'Empty'}</span>` +
+        `<span class="${inGame ? 't-pend' : 't-acc'}">${inGame ? '🔴 watch' : m.length + ' here'}</span></button>`;
+    }).join('') : `<p class="muted" style="text-align:center;margin:12px 0">No tables yet — start one.</p>`;
+    return `<p class="muted small" style="text-align:center">${me} · ${all.length} online${browsing ? ' · ' + browsing + ' browsing' : ''}</p>
+      <div class="loblist">${rows}</div>
+      <button class="btn wood full" onclick="CATAN.newTable()">+ New table</button>`;
+  }
+  // sitting at a table: the ready/spectate/start lobby, scoped to this table's members
+  function atTableHTML(all) {
+    const members = all.filter((p) => (p.table || null) === LOBBY.table);
+    const ready = LOBBY.readyList(), rows = lobbyRows(members, ready);
+    const leave = `<button class="btn ghost full" onclick="CATAN.leaveTable()">← Leave table</button>`;
+    if (LOBBY.inProgress) {
+      return `<p class="muted small" style="text-align:center">Table · ${members.length} here</p>
+        <div class="loblist">${rows}</div>
+        <button class="btn wood full" onclick="CATAN.lobbyWatch()">🔴 Game in progress · Watch</button>${leave}`;
+    }
+    const canStart = ready.length >= 2, host = ready[0], iAmHost = host && host.id === AUTH.me.id;
+    const seatN = Math.min(4, ready.length), tgt = targetForN(seatN);
+    const startBtn = !canStart ? `<button class="btn full" disabled>Start (need 2 ready)</button>`
+      : iAmHost ? `<button class="btn full" onclick="CATAN.lobbyStart()">Start · ${seatN}p (${tgt} pts)</button>`
+        : `<button class="btn full" disabled>Waiting for ${escapeHtml(host.name)} to start…</button>`;
+    return `<p class="muted small" style="text-align:center">Table · ${members.length} here · ${ready.length} ready</p>
+      <div class="loblist">${rows}</div>
+      <div class="lobrow2">
+        <button class="btn ${LOBBY.mode === 'ready' ? '' : 'wood'}" onclick="CATAN.lobbyReady()">${LOBBY.mode === 'ready' ? '✓ Ready' : "I'm ready"}</button>
+        <button class="btn ${LOBBY.mode === 'spectate' ? '' : 'wood'}" onclick="CATAN.lobbySpectate()">${LOBBY.mode === 'spectate' ? '✓ Spectating' : '👁 Spectate'}</button>
+      </div>
+      ${startBtn}${leave}`;
+  }
+  window.CATAN.newTable = () => LOBBY.enterTable(genCode());
+  window.CATAN.joinTable = (code) => LOBBY.enterTable(code);
+  window.CATAN.leaveTable = () => LOBBY.leaveTable();
   window.CATAN.lobbyReady = () => LOBBY.setReady();
   window.CATAN.lobbySpectate = () => LOBBY.setSpectate();
   window.CATAN.lobbyWatch = () => LOBBY.watch();
