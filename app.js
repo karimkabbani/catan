@@ -2411,7 +2411,7 @@
   function atTableHTML(all) {
     const members = all.filter((p) => (p.table || null) === LOBBY.table);
     const ready = LOBBY.readyList(), rows = lobbyRows(members, ready);
-    const leave = `<button class="btn ghost full" onclick="CATAN.leaveTable()">← Leave game</button>`;
+    const leave = `<button class="btn ghost full" onclick="CATAN.leaveTable()">← Back to games</button>`;
     if (LOBBY.inProgress) {
       return `<p class="muted small" style="text-align:center">Game · ${members.length} here</p>
         <div class="loblist">${rows}</div>
