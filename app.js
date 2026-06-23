@@ -1680,6 +1680,9 @@
   // when every seat has agreed, the PROPOSER writes the end (single writer avoids races)
   function endSurrenderNow() {
     if (ui.svEnding) return; ui.svEnding = true;
+    // Apply locally too: the proposer's own row write echoes back deduped (NET.version was
+    // bumped), so without this the proposer — who may BE the winner — never sees the victory.
+    if (state) { state.winner = leaderColor(state); state.phase = 'ended'; delete state.sv; render(); showVictory(); }
     svUpdate((s) => { s.winner = leaderColor(s); s.phase = 'ended'; delete s.sv; });
     setTimeout(() => { try { LOBBY.reset(); } catch (_) {} }, 6000);   // brief victory, then everyone returns to lobby
   }
@@ -1699,7 +1702,7 @@
     ui.svSig = sig; ui.svView = view;
     if (view === 'wait') {
       el.innerHTML = `<div class="svcard"><h3>Ending the game…</h3>
-        <p class="muted">Waiting for everyone to agree — ${agreed.length} of ${seats.length}. The current leader wins.</p>
+        <p class="muted">Waiting for everyone to agree — ${agreed.length} of ${seats.length}. The current leader${lead ? ' (' + escapeHtml(lead.name) + ')' : ''} wins.</p>
         ${sv.by === myColor ? '<button class="btn ghost full" onclick="CATAN.surrenderCancel()">Cancel</button>' : ''}</div>`;
     } else {
       el.innerHTML = `<div class="svcard"><h3>End the game?</h3>
