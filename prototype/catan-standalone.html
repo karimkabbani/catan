@@ -3246,18 +3246,18 @@
       const names = m.map((p) => escapeHtml(p.name)).join(', ');
       return `<button class="tablerow" onclick="CATAN.joinTable('${code}')"><span class="tnm2">${names || 'Empty'}</span>` +
         `<span class="${inGame ? 't-pend' : 't-acc'}">${inGame ? '🔴 watch' : m.length + ' here'}</span></button>`;
-    }).join('') : `<p class="muted" style="text-align:center;margin:12px 0">No tables yet — start one.</p>`;
+    }).join('') : `<p class="muted" style="text-align:center;margin:12px 0">No games yet — start one.</p>`;
     return `<p class="muted small" style="text-align:center">${me} · ${all.length} online${browsing ? ' · ' + browsing + ' browsing' : ''}</p>
       <div class="loblist">${rows}</div>
-      <button class="btn wood full" onclick="CATAN.newTable()">+ New table</button>`;
+      <button class="btn wood full" onclick="CATAN.newTable()">+ New game</button>`;
   }
   // sitting at a table: the ready/spectate/start lobby, scoped to this table's members
   function atTableHTML(all) {
     const members = all.filter((p) => (p.table || null) === LOBBY.table);
     const ready = LOBBY.readyList(), rows = lobbyRows(members, ready);
-    const leave = `<button class="btn ghost full" onclick="CATAN.leaveTable()">← Leave table</button>`;
+    const leave = `<button class="btn ghost full" onclick="CATAN.leaveTable()">← Leave game</button>`;
     if (LOBBY.inProgress) {
-      return `<p class="muted small" style="text-align:center">Table · ${members.length} here</p>
+      return `<p class="muted small" style="text-align:center">Game · ${members.length} here</p>
         <div class="loblist">${rows}</div>
         <button class="btn wood full" onclick="CATAN.lobbyWatch()">🔴 Game in progress · Watch</button>${leave}`;
     }
@@ -3266,7 +3266,7 @@
     const startBtn = !canStart ? `<button class="btn full" disabled>Start (need 2 ready)</button>`
       : iAmHost ? `<button class="btn full" onclick="CATAN.lobbyStart()">Start · ${seatN}p (${tgt} pts)</button>`
         : `<button class="btn full" disabled>Waiting for ${escapeHtml(host.name)} to start…</button>`;
-    return `<p class="muted small" style="text-align:center">Table · ${members.length} here · ${ready.length} ready</p>
+    return `<p class="muted small" style="text-align:center">Game · ${members.length} here · ${ready.length} ready</p>
       <div class="loblist">${rows}</div>
       <div class="lobrow2">
         <button class="btn ${LOBBY.mode === 'ready' ? '' : 'wood'}" onclick="CATAN.lobbyReady()">${LOBBY.mode === 'ready' ? '✓ Ready' : "I'm ready"}</button>
