@@ -1644,77 +1644,70 @@
     clearTimeout(bctoastT); bctoastT = setTimeout(() => el.classList.remove('show'), 4200);
     playSound('click', 0.4);
   }
-  // ---- surrender vote: a seated player proposes ending; all other seats must agree,
-  //      then the game ends with the current points leader crowned as winner ----------
-  let surrender = null;   // { by, byName, agreed:{color:true} } while a vote is live
+  // ---- surrender vote — coordinated through the GAME ROW (version-guarded, exactly how
+  //      moves sync), so it's reliable. A seated player proposes ending; once every other
+  //      seat agrees, the game ends with the current points leader crowned. The live vote
+  //      lives in state.sv = { by, byName, agreed:[colors] }, replicated to all clients. ---
   function seatedColors() { return state ? state.players.map((p) => p.color) : []; }
   function leaderColor(s) {
     return s.players.map((p) => ({ c: p.color, vp: C.victoryPoints(s, p.color, true) }))
       .sort((a, b) => b.vp - a.vp)[0].c;
   }
-  function requestSurrender() {
-    if (!online || !myColor || !state || state.players.length < 2) return;
-    surrender = { by: myColor, byName: AUTH.me.name, agreed: { [myColor]: true } };
-    LOBBY.broadcastSurrender({ kind: 'request', by: myColor, name: AUTH.me.name });
-    showSurrenderWait();
-  }
-  function proposeSurrender() { hideOverlay(); requestSurrender(); }
-  function surrenderAgree() {
-    if (!surrender) return;
-    LOBBY.broadcastSurrender({ kind: 'agree', from: myColor });
-    surrender = null; hideOverlay(); render(); toast('You agreed to end the game');
-  }
-  function surrenderDecline() {
-    LOBBY.broadcastSurrender({ kind: 'decline', from: myColor, name: AUTH.me.name });
-    surrender = null; hideOverlay(); render();
-  }
-  function surrenderCancel() { LOBBY.broadcastSurrender({ kind: 'cancel' }); surrender = null; hideOverlay(); render(); }
-  function onSurrender(p) {
-    if (!p || !online || !myColor || !NET.started || !state) return;
-    if (p.kind === 'request') {
-      surrender = { by: p.by, byName: p.name, agreed: { [p.by]: true } };
-      if (p.by === myColor) showSurrenderWait(); else showSurrenderPrompt();
-    } else if (p.kind === 'agree') {
-      if (!surrender) return;
-      surrender.agreed[p.from] = true;
-      if (surrender.by === myColor) { showSurrenderWait(); maybeEndSurrender(); }
-    } else if (p.kind === 'decline') {
-      if (!surrender) return;
-      surrender = null; hideOverlay(); render(); toast((p.name || 'A player') + ' wants to keep playing');
-    } else if (p.kind === 'cancel') {
-      surrender = null; hideOverlay(); render();
+  // version-guarded read-modify-write on the game row (mirrors NET.syncAction). mutate
+  // returns false to abort. Retries if a concurrent write bumped the version.
+  async function svUpdate(mutate) {
+    const c = NET.init(); if (!c) return;
+    for (let i = 0; i < 6; i++) {
+      const { data, error } = await c.from('games').select('state,version').eq('code', 'TABLE').maybeSingle();
+      if (error || !data || !data.state) return;
+      const s2 = JSON.parse(JSON.stringify(data.state));
+      if (mutate(s2) === false) return;
+      const phase = s2.phase === 'ended' ? 'ended' : 'playing';
+      const { data: upd } = await c.from('games')
+        .update({ state: s2, version: data.version + 1, phase }).eq('code', 'TABLE').eq('version', data.version).select('version');
+      if (upd && upd.length) { NET.version = data.version + 1; return; }
+      await new Promise((r) => setTimeout(r, 80));
     }
   }
-  function maybeEndSurrender() {
-    if (!surrender || surrender.by !== myColor) return;   // only the proposer writes the end (no write races)
-    if (seatedColors().every((c) => surrender.agreed[c])) { surrender = null; hideOverlay(); endGameByVote(); }
+  function requestSurrender() {
+    if (!online || !myColor || !state || state.players.length < 2) return;
+    svUpdate((s) => { s.sv = { by: myColor, byName: AUTH.me.name, agreed: [myColor] }; });
   }
-  async function endGameByVote() {
-    const c = NET.init(); if (!c) return;
-    try {
-      const { data } = await c.from('games').select('state,version').eq('code', 'TABLE').maybeSingle();
-      if (!data || !data.state) return;
-      // set BOTH winner and the engine state's phase — afterAction shows victory on phase==='ended'
-      const s2 = Object.assign({}, data.state, { winner: leaderColor(data.state), phase: 'ended' });
-      await c.from('games').update({ state: s2, phase: 'ended', version: data.version + 1 }).eq('code', 'TABLE');
-      // show the result briefly, then idle the table so EVERY client is returned to the lobby
-      setTimeout(() => { try { LOBBY.reset(); } catch (_) {} }, 6000);
-    } catch (_) { }
+  function proposeSurrender() { hideOverlay(); requestSurrender(); }
+  function surrenderAgree() { svUpdate((s) => { if (!s.sv) return false; if (s.sv.agreed.indexOf(myColor) < 0) s.sv.agreed.push(myColor); }); }
+  function surrenderDecline() { svUpdate((s) => { if (!s.sv) return false; delete s.sv; }); }
+  function surrenderCancel() { surrenderDecline(); }
+  // when every seat has agreed, the PROPOSER writes the end (single writer avoids races)
+  function endSurrenderNow() {
+    if (ui.svEnding) return; ui.svEnding = true;
+    svUpdate((s) => { s.winner = leaderColor(s); s.phase = 'ended'; delete s.sv; });
+    setTimeout(() => { try { LOBBY.reset(); } catch (_) {} }, 6000);   // brief victory, then everyone returns to lobby
   }
-  function showSurrenderPrompt() {
-    if (!surrender) return;
-    const lead = state.players.find((p) => p.color === leaderColor(state));
-    showOverlay(`<h3>End the game?</h3>
-      <p class="muted" style="text-align:center;margin:6px 0 12px">${escapeHtml(surrender.byName)} wants to end the game now. The current leader${lead ? ' (' + escapeHtml(lead.name) + ')' : ''} would win.</p>
-      <button class="btn full" style="padding:15px" onclick="CATAN.surrenderAgree()">Agree to end</button>
-      <button class="btn ghost full" style="margin-top:9px" onclick="CATAN.surrenderDecline()">No, keep playing</button>`);
-  }
-  function showSurrenderWait() {
-    if (!surrender) return;
-    const seats = seatedColors(), have = seats.filter((c) => surrender.agreed[c]).length;
-    showOverlay(`<h3>Ending the game…</h3>
-      <p class="muted" style="text-align:center;margin:6px 0 12px">Waiting for everyone to agree — ${have} of ${seats.length} so far. The current leader wins.</p>
-      <button class="btn ghost full" onclick="CATAN.surrenderCancel()">Cancel</button>`);
+  // drive the surrender dialog off shared state — called from afterAction (like syncTradeUI)
+  function syncSurrenderUI() {
+    const el = $('svdlg'); if (!el) return;
+    const sv = state && state.sv;
+    if (!sv || !online || !myColor) { if (ui.svView) { ui.svView = null; el.classList.add('hidden'); el.innerHTML = ''; } return; }
+    const seats = seatedColors(), agreed = (sv.agreed || []).filter((c) => seats.indexOf(c) >= 0);
+    if (sv.by === myColor && seats.every((c) => agreed.indexOf(c) >= 0)) {   // unanimous -> proposer ends it
+      ui.svView = null; el.classList.add('hidden'); el.innerHTML = ''; endSurrenderNow(); return;
+    }
+    const iAgreed = agreed.indexOf(myColor) >= 0, lead = state.players.find((p) => p.color === leaderColor(state));
+    const view = (sv.by === myColor || iAgreed) ? 'wait' : 'prompt';
+    const sig = view + '|' + agreed.slice().sort().join(',');
+    if (sig === ui.svSig && ui.svView) return;   // nothing changed — don't re-render
+    ui.svSig = sig; ui.svView = view;
+    if (view === 'wait') {
+      el.innerHTML = `<div class="svcard"><h3>Ending the game…</h3>
+        <p class="muted">Waiting for everyone to agree — ${agreed.length} of ${seats.length}. The current leader wins.</p>
+        ${sv.by === myColor ? '<button class="btn ghost full" onclick="CATAN.surrenderCancel()">Cancel</button>' : ''}</div>`;
+    } else {
+      el.innerHTML = `<div class="svcard"><h3>End the game?</h3>
+        <p class="muted">${escapeHtml(sv.byName || 'A player')} wants to end the game now. The current leader${lead ? ' (' + escapeHtml(lead.name) + ')' : ''} would win.</p>
+        <button class="btn full" onclick="CATAN.surrenderAgree()">Agree to end</button>
+        <button class="btn ghost full" onclick="CATAN.surrenderDecline()">No, keep playing</button></div>`;
+    }
+    el.classList.remove('hidden');
   }
 
   let renderedBoardKey = null;
@@ -1757,6 +1750,7 @@
     // the "show game map" roll prompt only belongs in your own pre-roll phase
     if (!(state.phase === 'play' && tp === 'roll' && isMyTurn())) hideRollPrompt();
     syncTradeUI();      // show/refresh/close the pending-trade overlays off shared state
+    syncSurrenderUI();  // show/refresh/close the surrender vote off shared state
     startMusic();       // keep the playlist going in-game (no-op if off / already playing)
   }
 
@@ -2161,7 +2155,6 @@
   function enterGame(s) {
     state = s; ui = { mode: 'idle', pending: null }; resetZoom(); renderedBoardKey = null;
     broadcastsLeft = BROADCAST_MAX;   // fresh message budget per game entry
-    surrender = null;                 // clear any stale surrender vote
     const t = $('title'); if (t) t.classList.add('hidden');
     hideOverlay();
     document.body.style.background = GAME_BG;   // sea canvas behind the board
@@ -2266,6 +2259,7 @@
         if (error || !data || !data.state) return;
         const r = C.applyAction(data.state, action, actor);
         if (!r.ok) { applyRemoteState(data.state); return; }
+        if (data.state.sv && r.state.phase !== 'ended') r.state.sv = data.state.sv;   // keep a live surrender vote across moves
         const phase = r.state.phase === 'ended' ? 'ended' : 'playing';
         const { data: upd, error: uerr } = await c.from('games')
           .update({ state: r.state, version: data.version + 1, phase }).eq('code', 'TABLE').eq('version', data.version).select('version');
@@ -2288,12 +2282,10 @@
       this.channel = c.channel('lobby', { config: { presence: { key: AUTH.me.id } } });
       this.channel.on('presence', { event: 'sync' }, () => LOBBY.onPresence());
       this.channel.on('broadcast', { event: 'msg' }, (e) => { if (e && e.payload) showBroadcast(e.payload); });
-      this.channel.on('broadcast', { event: 'surrender' }, (e) => { if (e && e.payload) onSurrender(e.payload); });
       this.channel.subscribe((st) => { if (st === 'SUBSCRIBED') LOBBY.track(); });
     },
     track() { if (this.channel) this.channel.track({ id: AUTH.me.id, name: AUTH.me.name, avatar: AUTH.me.avatar || null, mode: this.mode, readyAt: this.readyAt }); },
     sendBroadcast(msg) { if (this.channel) { try { this.channel.send({ type: 'broadcast', event: 'msg', payload: msg }); } catch (_) { } } },
-    broadcastSurrender(p) { if (this.channel) { try { this.channel.send({ type: 'broadcast', event: 'surrender', payload: p }); } catch (_) { } } },
     onPresence() {
       const st = this.channel.presenceState(); this.presence = {};
       Object.values(st).forEach((arr) => { const m = arr[arr.length - 1]; if (m && m.id) this.presence[m.id] = m; });

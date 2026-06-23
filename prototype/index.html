@@ -368,6 +368,18 @@
   #bctoast.show{opacity:1; visibility:visible; transform:translateX(-50%) translateY(0);}
   #bctoast .bcname{font-weight:800; color:var(--gold); flex:0 0 auto;}
   #bctoast .bctext{overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0;}
+  /* ===== surrender vote dialog (shared-state driven) ===== */
+  #svdlg{position:fixed; inset:0; z-index:35; display:flex; align-items:center; justify-content:center; padding:18px;
+    background:rgba(8,5,2,0.55);}
+  #svdlg.hidden{display:none;}
+  .svcard{width:min(420px,92vw);
+    background:linear-gradient(rgba(70,40,16,0.6),rgba(35,20,8,0.78)), var(--wood-tex); background-size:cover;
+    border:2px solid var(--gold-edge); border-radius:16px; padding:18px;
+    box-shadow:0 14px 44px rgba(0,0,0,0.62), inset 0 1px 0 rgba(255,220,170,0.18); text-align:center;
+    animation:sheetup .2s ease both;}
+  .svcard h3{font-family:var(--serif); color:var(--gold); font-size:22px; margin:0 0 8px; text-shadow:0 1px 2px #000;}
+  .svcard .muted{margin:0 0 14px;}
+  .svcard .btn{margin-top:9px;}
   /* ===== Manage Profile ===== */
   .profhead{display:flex; flex-direction:column; align-items:center; gap:10px; margin:6px 0 14px;}
   .profpic{position:relative; border:none; background:none; padding:0; cursor:pointer; line-height:0;}
@@ -779,6 +791,7 @@
   </div>
   <div id="toast"></div>
   <div id="bctoast"></div>
+  <div id="svdlg" class="hidden"></div>
   <script>
     /* Optional custom art. Drop your own PNGs into the assets/ subfolders using
        the filenames below; anything not present yet falls back to drawn art.
