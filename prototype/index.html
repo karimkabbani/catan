@@ -340,6 +340,13 @@
   .loblist{margin:12px 0; display:flex; flex-direction:column; gap:6px;}
   .lobrow{display:flex; align-items:center; gap:9px; padding:9px 12px; font-weight:700; color:var(--ink);
     background:rgba(0,0,0,0.26); border:1px solid rgba(0,0,0,0.4); border-radius:9px;}
+  /* a joinable table in the table-list */
+  .tablerow{display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%; text-align:left; cursor:pointer;
+    padding:15px 16px; border-radius:10px; font-weight:700; font-family:var(--serif); font-size:16px; color:#3a2400;
+    background:linear-gradient(180deg,#e8cf86,#c79b3f); border:1px solid var(--gold-edge); box-shadow:0 2px 6px rgba(0,0,0,0.35);}
+  .tablerow:active{transform:scale(0.99);}
+  .tablerow .tnm2{overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; min-width:0;}
+  .tablerow .t-acc, .tablerow .t-pend{flex:0 0 auto; color:#5a3a10; font-weight:800; font-size:13px;}
   .lobrow .cdot{width:14px; height:14px; border-radius:50%; box-shadow:0 0 0 2px rgba(0,0,0,0.35);}
   /* identity / auth */
   /* landscape: 2-column player grid so names are big and the list stays short (no scroll, less down-scaling) */
