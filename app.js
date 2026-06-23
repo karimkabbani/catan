@@ -698,12 +698,13 @@
         `<div class="pstat${hot ? ' hot' : ''}${red ? ' over' : ''}" title="${title}">${src ? `<img src="${src}" alt="">` : emoji}<b>${val}</b></div>`;
       const avSrc = seatAvatarSrc(p, i);
       const av = avSrc ? `<img src="${avSrc}" alt="" onerror="this.outerHTML='${escapeHtml(p.name[0] || '?')}'">` : escapeHtml(p.name[0] || '?');
+      const flagged = !!(state.sv && state.sv.flags && state.sv.flags.indexOf(p.color) >= 0);   // raised the white flag
       // dice appear at the active player's corner once they've rolled this turn
       const di = (!ui.diceRevealing && p.color === activeColor() && state.dice && state.phase === 'play')
         ? `<div class="pdice">${diceFaces(state.dice)}</div>` : '';
       el.innerHTML = `${di}
         <div class="pcol">${stat(bdg.res, cards, '🃏', 'Resource cards', false, cards > 7)}${stat(bdg.card, dev, '🎴', 'Development cards')}${stat(bdg.vp, vp, '⭐', 'Victory points')}${stat(bdg.army, p.playedKnights, '⚔️', 'Knights played', p.hasLargestArmy)}${stat(bdg.road, road, '🛣️', 'Longest road', p.hasLongestRoad)}</div>
-        <div class="pport"><div class="pava" style="border-color:${PCOLOR[p.color]}">${av}</div><div class="pname">${escapeHtml(p.name)}</div></div>`;
+        <div class="pport"><div class="pava${flagged ? ' flagged' : ''}" style="border-color:${PCOLOR[p.color]}">${av}${flagged ? '<span class="pflag">🏳️</span>' : ''}</div><div class="pname">${escapeHtml(p.name)}</div></div>`;
     });
     for (let i = state.players.length; i < 4; i++) $('p-' + SEATS[i]).style.display = 'none';
   }
@@ -1644,17 +1645,18 @@
     clearTimeout(bctoastT); bctoastT = setTimeout(() => el.classList.remove('show'), 4200);
     playSound('click', 0.4);
   }
-  // ---- surrender vote — coordinated through the GAME ROW (version-guarded, exactly how
-  //      moves sync), so it's reliable. A seated player proposes ending; once every other
-  //      seat agrees, the game ends with the current points leader crowned. The live vote
-  //      lives in state.sv = { by, byName, agreed:[colors] }, replicated to all clients. ---
+  // ---- white flag (concede) — coordinated through the GAME ROW (version-guarded). Each
+  //      player raises their own flag whenever they like, and can lower it again while the
+  //      game is live. The moment everyone-but-one has a flag up, the lone player still
+  //      standing wins. Flags live in state.sv = { flags:[colors] }, replicated to all. ---
   function seatedColors() { return state ? state.players.map((p) => p.color) : []; }
   function leaderColor(s) {
     return s.players.map((p) => ({ c: p.color, vp: C.victoryPoints(s, p.color, true) }))
       .sort((a, b) => b.vp - a.vp)[0].c;
   }
-  // version-guarded read-modify-write on the game row (mirrors NET.syncAction). mutate
-  // returns false to abort. Retries if a concurrent write bumped the version.
+  function flagsOf(s) { return (s && s.sv && s.sv.flags) ? s.sv.flags : []; }
+  function iAmFlagged() { return online && myColor && flagsOf(state).indexOf(myColor) >= 0; }
+  // version-guarded read-modify-write on the game row (mirrors NET.syncAction).
   async function svUpdate(mutate) {
     const c = NET.init(); if (!c || !NET.code) return;
     for (let i = 0; i < 6; i++) {
@@ -1669,48 +1671,43 @@
       await new Promise((r) => setTimeout(r, 80));
     }
   }
-  function requestSurrender() {
-    if (!online || !myColor || !state || state.players.length < 2) return;
-    svUpdate((s) => { s.sv = { by: myColor, byName: AUTH.me.name, agreed: [myColor] }; });
+  function raiseFlag() {
+    if (!online || !myColor || !state || state.players.length < 2 || iAmFlagged()) return;
+    state.sv = state.sv || { flags: [] }; if (!state.sv.flags) state.sv.flags = [];
+    state.sv.flags.push(myColor); render();                                  // local echo (my own write comes back deduped)
+    svUpdate((s) => { s.sv = s.sv || { flags: [] }; if (!s.sv.flags) s.sv.flags = []; if (s.sv.flags.indexOf(myColor) < 0) s.sv.flags.push(myColor); });
   }
-  function proposeSurrender() { hideOverlay(); requestSurrender(); }
-  function surrenderAgree() { svUpdate((s) => { if (!s.sv) return false; if (s.sv.agreed.indexOf(myColor) < 0) s.sv.agreed.push(myColor); }); }
-  function surrenderDecline() { svUpdate((s) => { if (!s.sv) return false; delete s.sv; }); }
-  function surrenderCancel() { surrenderDecline(); }
-  // when every seat has agreed, the PROPOSER writes the end (single writer avoids races)
-  function endSurrenderNow() {
+  function lowerFlag() {
+    if (state && state.sv && state.sv.flags) { state.sv.flags = state.sv.flags.filter((c) => c !== myColor); if (!state.sv.flags.length) delete state.sv; render(); }
+    svUpdate((s) => { if (s.sv && s.sv.flags) { s.sv.flags = s.sv.flags.filter((c) => c !== myColor); if (!s.sv.flags.length) delete s.sv; } });
+  }
+  // everyone-but-one conceded -> the lone player still standing wins. Single writer = winner.
+  function endByFlags(winner) {
     if (ui.svEnding) return; ui.svEnding = true;
-    // Apply locally too: the proposer's own row write echoes back deduped (NET.version was
-    // bumped), so without this the proposer — who may BE the winner — never sees the victory.
-    if (state) { state.winner = leaderColor(state); state.phase = 'ended'; delete state.sv; render(); showVictory(); }
-    svUpdate((s) => { s.winner = leaderColor(s); s.phase = 'ended'; delete s.sv; });
-    setTimeout(() => { try { LOBBY.reset(); } catch (_) {} }, 6000);   // brief victory, then everyone returns to lobby
+    // apply locally too — the winner's own row write echoes back deduped, so otherwise the
+    // winner would never see their own victory.
+    if (state) { state.winner = winner; state.phase = 'ended'; delete state.sv; render(); showVictory(); }
+    svUpdate((s) => { s.winner = winner; s.phase = 'ended'; delete s.sv; });
+    setTimeout(() => { try { LOBBY.reset(); } catch (_) {} }, 6000);        // brief victory, then everyone returns to lobby
   }
-  // drive the surrender dialog off shared state — called from afterAction (like syncTradeUI)
+  // checked from afterAction on every state change: trigger the win when only one stands
   function syncSurrenderUI() {
-    const el = $('svdlg'); if (!el) return;
-    const sv = state && state.sv;
-    if (!sv || !online || !myColor) { if (ui.svView) { ui.svView = null; el.classList.add('hidden'); el.innerHTML = ''; } return; }
-    const seats = seatedColors(), agreed = (sv.agreed || []).filter((c) => seats.indexOf(c) >= 0);
-    if (sv.by === myColor && seats.every((c) => agreed.indexOf(c) >= 0)) {   // unanimous -> proposer ends it
-      ui.svView = null; el.classList.add('hidden'); el.innerHTML = ''; endSurrenderNow(); return;
-    }
-    const iAgreed = agreed.indexOf(myColor) >= 0, lead = state.players.find((p) => p.color === leaderColor(state));
-    const view = (sv.by === myColor || iAgreed) ? 'wait' : 'prompt';
-    const sig = view + '|' + agreed.slice().sort().join(',');
-    if (sig === ui.svSig && ui.svView) return;   // nothing changed — don't re-render
-    ui.svSig = sig; ui.svView = view;
-    if (view === 'wait') {
-      el.innerHTML = `<div class="svcard"><h3>Ending the game…</h3>
-        <p class="muted">Waiting for everyone to agree — ${agreed.length} of ${seats.length}. The current leader${lead ? ' (' + escapeHtml(lead.name) + ')' : ''} wins.</p>
-        ${sv.by === myColor ? '<button class="btn ghost full" onclick="CATAN.surrenderCancel()">Cancel</button>' : ''}</div>`;
-    } else {
-      el.innerHTML = `<div class="svcard"><h3>End the game?</h3>
-        <p class="muted">${escapeHtml(sv.byName || 'A player')} wants to end the game now. The current leader${lead ? ' (' + escapeHtml(lead.name) + ')' : ''} would win.</p>
-        <button class="btn full" onclick="CATAN.surrenderAgree()">Agree to end</button>
-        <button class="btn ghost full" onclick="CATAN.surrenderDecline()">No, keep playing</button></div>`;
-    }
-    el.classList.remove('hidden');
+    if (!online || !myColor || ui.svEnding || !state || !state.sv) return;
+    const seats = seatedColors(); if (seats.length < 2) return;
+    const flags = flagsOf(state).filter((c) => seats.indexOf(c) >= 0);
+    if (flags.length < seats.length - 1) return;                            // more than one still standing
+    const standing = seats.filter((c) => flags.indexOf(c) < 0);
+    const winner = standing.length ? standing[0] : leaderColor(state);      // all flagged (rare race) -> leader takes it
+    if (winner === myColor) endByFlags(winner);
+  }
+  // toast the table when a white flag goes up or down (diff old vs new shared state)
+  function flagToast(a, s) {
+    if (!a || !s) return;
+    const fa = flagsOf(a), fs = flagsOf(s);
+    const nm = (c) => { const p = (s.players || []).find((x) => x.color === c); return p ? p.name : 'A player'; };
+    const raised = fs.filter((c) => fa.indexOf(c) < 0), lowered = fa.filter((c) => fs.indexOf(c) < 0);
+    if (raised.length) toast('🏳️ ' + raised.map(nm).join(', ') + (raised.length > 1 ? ' raised white flags' : ' raised the white flag'));
+    else if (lowered.length) toast(lowered.map(nm).join(', ') + (lowered.length > 1 ? ' are back in' : ' is back in'));
   }
 
   let renderedBoardKey = null;
@@ -2186,6 +2183,7 @@
   // When a roll arrives from another player, show the big center dice on every screen.
   function applyRemoteState(s) {
     const a = state;
+    flagToast(a, s);   // someone raised/lowered a white flag -> tell the table
     const rolled = !!(a && a.turnPhase === 'roll' && s.turnPhase !== 'roll' && s.dice && s.hasRolledThisTurn);
     const trade = detectTrade(a, s);
     const disc = detectDiscard(a, s);
@@ -2437,13 +2435,10 @@
   window.CATAN.lobbySpectate = () => LOBBY.setSpectate();
   window.CATAN.lobbyWatch = () => LOBBY.watch();
   window.CATAN.lobbyStart = () => LOBBY.startTable();
-  // broadcast + surrender handlers (declared earlier as hoisted functions; registered here,
-  // after window.CATAN exists, so onclick="CATAN.x()" can reach them)
+  // hoisted helpers registered here, after window.CATAN exists, so onclick="CATAN.x()" works
   window.CATAN.sendBroadcast = sendBroadcastMsg;
-  window.CATAN.proposeSurrender = proposeSurrender;
-  window.CATAN.surrenderAgree = surrenderAgree;
-  window.CATAN.surrenderDecline = surrenderDecline;
-  window.CATAN.surrenderCancel = surrenderCancel;
+  window.CATAN.raiseFlag = () => { hideOverlay(); raiseFlag(); };
+  window.CATAN.lowerFlag = () => { hideOverlay(); lowerFlag(); };
   window.CATAN.exitGame = () => {
     // ensure no higher layer (radial root sits at z-31, above the overlay) eats taps
     const rr = $('radialroot'); if (rr) { rr.classList.remove('open'); rr.classList.add('hidden'); }
@@ -2454,9 +2449,11 @@
       : endsForAll ? 'This ends the game for everyone.' : 'You will leave this game.';
     const act = spectator ? 'Leave to lobby' : endsForAll ? 'End game for everyone' : 'Leave game';
     // big, full-width stacked targets — Cancel is the prominent safe action, leave is below
-    // seated online players can propose a graceful end (everyone votes, leader wins)
-    const canVote = endsForAll && state && state.players.length > 1;
-    const voteBtn = canVote ? `<button class="btn wood full" style="padding:14px;font-size:15px;margin-top:9px" onclick="CATAN.proposeSurrender()">Propose to end — leader wins</button>` : '';
+    // seated online players can raise/lower a white flag (concede). Last one standing wins.
+    const canFlag = endsForAll && state && state.players.length > 1;
+    const voteBtn = !canFlag ? '' : (iAmFlagged()
+      ? `<button class="btn wood full" style="padding:14px;font-size:15px;margin-top:9px" onclick="CATAN.lowerFlag()">⬇ Lower white flag — keep fighting</button>`
+      : `<button class="btn wood full" style="padding:14px;font-size:15px;margin-top:9px" onclick="CATAN.raiseFlag()">🏳️ Raise white flag — give up</button>`);
     showOverlay(`<h3>${ttl}</h3>
       <p class="muted" style="text-align:center;margin:6px 0 12px">${sub}</p>
       <button class="btn full" style="padding:16px;font-size:16px" onclick="CATAN.close()">${spectator ? 'Cancel — keep watching' : 'Cancel — keep playing'}</button>
