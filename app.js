@@ -1633,17 +1633,45 @@
     hideOverlay(); render();
     if (!text || broadcastsLeft <= 0) return;
     broadcastsLeft--;
-    const msg = { name: AUTH.me.name, avatar: AUTH.me.avatar || null, text, table: LOBBY.table || null };
+    const msg = { name: AUTH.me.name, avatar: AUTH.me.avatar || null, text, table: LOBBY.table || null, color: myColor || null };
     LOBBY.sendBroadcast(msg);
     showBroadcast(msg);   // local echo — broadcast doesn't deliver back to the sender
   }
   function showBroadcast(msg) {
     if (!msg || !msg.text) return;
+    playSound('click', 0.4);
+    // anchor a chat bubble to the speaker's corner when we're in the game view; else a banner
+    const inGameView = $('title') && $('title').classList.contains('hidden');
+    const seat = (inGameView && state && state.players && msg.color) ? state.players.findIndex((p) => p.color === msg.color) : -1;
+    const corner = seat >= 0 ? $('p-' + SEATS[seat]) : null;
+    if (corner && corner.style.display !== 'none') showBroadcastBubble(msg, corner);
+    else showBroadcastBanner(msg);
+  }
+  // a speech bubble pointing back at the speaker's corner avatar
+  function showBroadcastBubble(msg, corner) {
+    const r = corner.getBoundingClientRect();
+    const id = 'bcb-' + (msg.color || msg.name);
+    const old = document.getElementById(id); if (old) old.remove();   // one bubble per speaker
+    const top = r.top < window.innerHeight / 2, left = r.left < window.innerWidth / 2;
+    const b = document.createElement('div');
+    b.id = id;
+    b.className = 'bcbubble ' + (top ? 'b-top' : 'b-bot') + ' ' + (left ? 'b-left' : 'b-right');
+    b.innerHTML = `<button class="bcclose" aria-label="Close">×</button><span class="bctext">${escapeHtml(String(msg.text).slice(0, 50))}</span>`;
+    document.body.appendChild(b);
+    const gap = 9;
+    if (top) b.style.top = (r.bottom + gap) + 'px'; else b.style.bottom = (window.innerHeight - r.top + gap) + 'px';
+    if (left) b.style.left = Math.max(6, r.left) + 'px'; else b.style.right = Math.max(6, window.innerWidth - r.right) + 'px';
+    const kill = () => { b.classList.add('out'); setTimeout(() => b.remove(), 200); };
+    const t = setTimeout(kill, 7000);
+    b.querySelector('.bcclose').onclick = () => { clearTimeout(t); b.remove(); };
+    requestAnimationFrame(() => b.classList.add('in'));
+  }
+  // fallback when not in the game view (e.g. sitting in the table lobby): a top banner
+  function showBroadcastBanner(msg) {
     const el = $('bctoast'); if (!el) return;
     el.innerHTML = `${faceHTML(msg.name, msg.avatar, 'sm')}<span class="bcname">${escapeHtml(msg.name)}</span><span class="bctext">${escapeHtml(String(msg.text).slice(0, 50))}</span>`;
     el.classList.add('show');
-    clearTimeout(bctoastT); bctoastT = setTimeout(() => el.classList.remove('show'), 4200);
-    playSound('click', 0.4);
+    clearTimeout(bctoastT); bctoastT = setTimeout(() => el.classList.remove('show'), 5000);
   }
   // ---- white flag (concede) — coordinated through the GAME ROW (version-guarded). Each
   //      player raises their own flag whenever they like, and can lower it again while the

@@ -379,6 +379,29 @@
   #bctoast.show{opacity:1; visibility:visible; transform:translateX(-50%) translateY(0);}
   #bctoast .bcname{font-weight:800; color:var(--gold); flex:0 0 auto;}
   #bctoast .bctext{overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0;}
+  /* ===== broadcast chat bubble (anchored to the speaker's corner) ===== */
+  .bcbubble{position:fixed; z-index:33; max-width:min(220px,56vw); background:#f6ecd2; color:#2a1c0c;
+    border:1.5px solid var(--gold-edge); border-radius:13px; padding:8px 24px 8px 12px; font-size:13px; font-weight:600;
+    line-height:1.25; box-shadow:0 6px 18px rgba(0,0,0,0.5); opacity:0; transform:scale(0.7);
+    transition:opacity .16s ease, transform .16s cubic-bezier(.2,.9,.3,1.35);}
+  .bcbubble.in{opacity:1; transform:scale(1);}
+  .bcbubble.out{opacity:0; transform:scale(0.85);}
+  .bcbubble .bctext{word-break:break-word;}
+  .bcbubble.b-top{transform-origin:top;} .bcbubble.b-bot{transform-origin:bottom;}
+  .bcbubble.b-left.b-top{transform-origin:top left;} .bcbubble.b-right.b-top{transform-origin:top right;}
+  .bcbubble.b-left.b-bot{transform-origin:bottom left;} .bcbubble.b-right.b-bot{transform-origin:bottom right;}
+  .bcclose{position:absolute; top:0; right:3px; width:18px; height:18px; border:none; background:none; cursor:pointer;
+    color:#8a6a30; font-size:17px; line-height:18px; font-weight:800; padding:0;}
+  /* tail: ::before is the gold border triangle, ::after the fill on top */
+  .bcbubble::before, .bcbubble::after{content:''; position:absolute; width:0; height:0;}
+  .bcbubble::before{border:9px solid transparent;}
+  .bcbubble::after{border:7px solid transparent;}
+  .bcbubble.b-top::before{top:-18px; border-bottom-color:var(--gold-edge);}
+  .bcbubble.b-top::after{top:-14px; border-bottom-color:#f6ecd2;}
+  .bcbubble.b-bot::before{bottom:-18px; border-top-color:var(--gold-edge);}
+  .bcbubble.b-bot::after{bottom:-14px; border-top-color:#f6ecd2;}
+  .bcbubble.b-left::before{left:14px;}  .bcbubble.b-left::after{left:16px;}
+  .bcbubble.b-right::before{right:14px;} .bcbubble.b-right::after{right:16px;}
   /* ===== Manage Profile ===== */
   .profhead{display:flex; flex-direction:column; align-items:center; gap:10px; margin:6px 0 14px;}
   .profpic{position:relative; border:none; background:none; padding:0; cursor:pointer; line-height:0;}
@@ -2468,17 +2491,45 @@
     hideOverlay(); render();
     if (!text || broadcastsLeft <= 0) return;
     broadcastsLeft--;
-    const msg = { name: AUTH.me.name, avatar: AUTH.me.avatar || null, text, table: LOBBY.table || null };
+    const msg = { name: AUTH.me.name, avatar: AUTH.me.avatar || null, text, table: LOBBY.table || null, color: myColor || null };
     LOBBY.sendBroadcast(msg);
     showBroadcast(msg);   // local echo — broadcast doesn't deliver back to the sender
   }
   function showBroadcast(msg) {
     if (!msg || !msg.text) return;
+    playSound('click', 0.4);
+    // anchor a chat bubble to the speaker's corner when we're in the game view; else a banner
+    const inGameView = $('title') && $('title').classList.contains('hidden');
+    const seat = (inGameView && state && state.players && msg.color) ? state.players.findIndex((p) => p.color === msg.color) : -1;
+    const corner = seat >= 0 ? $('p-' + SEATS[seat]) : null;
+    if (corner && corner.style.display !== 'none') showBroadcastBubble(msg, corner);
+    else showBroadcastBanner(msg);
+  }
+  // a speech bubble pointing back at the speaker's corner avatar
+  function showBroadcastBubble(msg, corner) {
+    const r = corner.getBoundingClientRect();
+    const id = 'bcb-' + (msg.color || msg.name);
+    const old = document.getElementById(id); if (old) old.remove();   // one bubble per speaker
+    const top = r.top < window.innerHeight / 2, left = r.left < window.innerWidth / 2;
+    const b = document.createElement('div');
+    b.id = id;
+    b.className = 'bcbubble ' + (top ? 'b-top' : 'b-bot') + ' ' + (left ? 'b-left' : 'b-right');
+    b.innerHTML = `<button class="bcclose" aria-label="Close">×</button><span class="bctext">${escapeHtml(String(msg.text).slice(0, 50))}</span>`;
+    document.body.appendChild(b);
+    const gap = 9;
+    if (top) b.style.top = (r.bottom + gap) + 'px'; else b.style.bottom = (window.innerHeight - r.top + gap) + 'px';
+    if (left) b.style.left = Math.max(6, r.left) + 'px'; else b.style.right = Math.max(6, window.innerWidth - r.right) + 'px';
+    const kill = () => { b.classList.add('out'); setTimeout(() => b.remove(), 200); };
+    const t = setTimeout(kill, 7000);
+    b.querySelector('.bcclose').onclick = () => { clearTimeout(t); b.remove(); };
+    requestAnimationFrame(() => b.classList.add('in'));
+  }
+  // fallback when not in the game view (e.g. sitting in the table lobby): a top banner
+  function showBroadcastBanner(msg) {
     const el = $('bctoast'); if (!el) return;
     el.innerHTML = `${faceHTML(msg.name, msg.avatar, 'sm')}<span class="bcname">${escapeHtml(msg.name)}</span><span class="bctext">${escapeHtml(String(msg.text).slice(0, 50))}</span>`;
     el.classList.add('show');
-    clearTimeout(bctoastT); bctoastT = setTimeout(() => el.classList.remove('show'), 4200);
-    playSound('click', 0.4);
+    clearTimeout(bctoastT); bctoastT = setTimeout(() => el.classList.remove('show'), 5000);
   }
   // ---- white flag (concede) — coordinated through the GAME ROW (version-guarded). Each
   //      player raises their own flag whenever they like, and can lower it again while the

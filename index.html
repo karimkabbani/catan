@@ -379,6 +379,29 @@
   #bctoast.show{opacity:1; visibility:visible; transform:translateX(-50%) translateY(0);}
   #bctoast .bcname{font-weight:800; color:var(--gold); flex:0 0 auto;}
   #bctoast .bctext{overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0;}
+  /* ===== broadcast chat bubble (anchored to the speaker's corner) ===== */
+  .bcbubble{position:fixed; z-index:33; max-width:min(220px,56vw); background:#f6ecd2; color:#2a1c0c;
+    border:1.5px solid var(--gold-edge); border-radius:13px; padding:8px 24px 8px 12px; font-size:13px; font-weight:600;
+    line-height:1.25; box-shadow:0 6px 18px rgba(0,0,0,0.5); opacity:0; transform:scale(0.7);
+    transition:opacity .16s ease, transform .16s cubic-bezier(.2,.9,.3,1.35);}
+  .bcbubble.in{opacity:1; transform:scale(1);}
+  .bcbubble.out{opacity:0; transform:scale(0.85);}
+  .bcbubble .bctext{word-break:break-word;}
+  .bcbubble.b-top{transform-origin:top;} .bcbubble.b-bot{transform-origin:bottom;}
+  .bcbubble.b-left.b-top{transform-origin:top left;} .bcbubble.b-right.b-top{transform-origin:top right;}
+  .bcbubble.b-left.b-bot{transform-origin:bottom left;} .bcbubble.b-right.b-bot{transform-origin:bottom right;}
+  .bcclose{position:absolute; top:0; right:3px; width:18px; height:18px; border:none; background:none; cursor:pointer;
+    color:#8a6a30; font-size:17px; line-height:18px; font-weight:800; padding:0;}
+  /* tail: ::before is the gold border triangle, ::after the fill on top */
+  .bcbubble::before, .bcbubble::after{content:''; position:absolute; width:0; height:0;}
+  .bcbubble::before{border:9px solid transparent;}
+  .bcbubble::after{border:7px solid transparent;}
+  .bcbubble.b-top::before{top:-18px; border-bottom-color:var(--gold-edge);}
+  .bcbubble.b-top::after{top:-14px; border-bottom-color:#f6ecd2;}
+  .bcbubble.b-bot::before{bottom:-18px; border-top-color:var(--gold-edge);}
+  .bcbubble.b-bot::after{bottom:-14px; border-top-color:#f6ecd2;}
+  .bcbubble.b-left::before{left:14px;}  .bcbubble.b-left::after{left:16px;}
+  .bcbubble.b-right::before{right:14px;} .bcbubble.b-right::after{right:16px;}
   /* ===== Manage Profile ===== */
   .profhead{display:flex; flex-direction:column; align-items:center; gap:10px; margin:6px 0 14px;}
   .profpic{position:relative; border:none; background:none; padding:0; cursor:pointer; line-height:0;}
