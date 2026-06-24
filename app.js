@@ -199,8 +199,8 @@
     const r = C.applyAction(state, action, actor);
     if (!r.ok) { toast(r.error); return false; }
     soundForAction(action);
-    if (action.type === 'buildSettlement' || action.type === 'buildCity') { justPlaced = { kind: 'v', id: action.vertex }; cinematicPlace('v', action.vertex); }
-    else if (action.type === 'buildRoad') { justPlaced = { kind: 'e', id: action.edge }; cinematicPlace('e', action.edge); }
+    if (action.type === 'buildSettlement' || action.type === 'buildCity') { justPlaced = { kind: 'v', id: action.vertex }; cinematicPlace('v', action.vertex, true); }
+    else if (action.type === 'buildRoad') { justPlaced = { kind: 'e', id: action.edge }; cinematicPlace('e', action.edge, true); }
     // detect what was stolen (which of the victim's resources dropped) for the fly
     let steal = null;
     if (action.type === 'steal') {
@@ -2199,7 +2199,7 @@
 
   // ---- cinematic auto-zoom: pan the camera to where the action is, hold, ease back home ----
   // Gated per-device on SETTINGS.autozoom; any manual pan/pinch/wheel supersedes a running tour.
-  const CINE_Z_HEX = 2.2, CINE_Z_SPOT = 2.7, CINE_MS = 1100;   // slow, smooth glide
+  const CINE_Z_HEX = 2.2, CINE_Z_SPOT = 2.7, CINE_Z_PAN = 1.7, CINE_MS = 1100;   // slow, smooth glide
   let cineToken = 0, cineRunning = false;
   function cineSleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
   function cineApply(ms) {
@@ -2228,12 +2228,12 @@
   function cameraHome(ms) { zoom.s = 1; zoom.tx = 0; zoom.ty = 0; cineApply(ms); }
   function cancelCine() { if (cineRunning) { cineToken++; cineRunning = false; } }   // a manual gesture takes over
   // run an async camera sequence; a newer sequence or a manual gesture (both bump cineToken) supersedes it
-  async function runCine(seq) {
+  async function runCine(seq, opts) {
     if (!SETTINGS.autozoom || !zArea) return;
     const my = ++cineToken; cineRunning = true;
     const alive = () => my === cineToken;
     try { await seq(alive); } catch (_) { }
-    if (alive()) cineRunning = false;   // stay framed on the action — the next event or a manual pan moves the camera
+    if (alive()) { if (!(opts && opts.stay)) cameraHome(CINE_MS); cineRunning = false; }   // glide back out unless asked to hold the frame
   }
   // fly one producing hex's resources to the owners' panels (used as the roll tour lands on each hex)
   function flyHexProduction(group) {
@@ -2267,7 +2267,14 @@
     });
   }
   function cinematicHex(id) { runCine(async () => { cameraTo(hexContent(id), CINE_Z_HEX, CINE_MS); await cineSleep(aDur(CINE_MS + 80)); }); }
-  function cinematicPlace(kind, id) { runCine(async () => { cameraTo(kind === 'e' ? edgeContent(id) : vertContent(id), CINE_Z_SPOT, CINE_MS); await cineSleep(aDur(CINE_MS + 80)); }); }
+  function cinematicPlace(kind, id, mine) {
+    const setup = state && state.phase === 'setup';
+    // the placer's setup road went down inside the settlement's held frame -> just glide back out
+    if (mine && setup && kind === 'e') { cancelCine(); cameraHome(CINE_MS); return; }
+    const z = mine ? CINE_Z_SPOT : CINE_Z_PAN;     // the placer zooms in close; observers get a gentler pan
+    const stay = mine && setup && kind === 'v';     // hold the settlement frame so the road is easy to place next
+    runCine(async () => { cameraTo(kind === 'e' ? edgeContent(id) : vertContent(id), z, CINE_MS); await cineSleep(aDur(CINE_MS + 80)); }, { stay });
+  }
 
   function zMid() { const a = [...zPts.values()]; return { x: (a[0].x + a[1].x) / 2, y: (a[0].y + a[1].y) / 2 }; }
   function zDist() { const a = [...zPts.values()]; return Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y); }
@@ -2397,7 +2404,7 @@
     }
     if (devBuy) showDevBuyFly(devBuy.buyer);   // the buyer themselves already saw it face-up via their own dispatch
     if (bankTrade) showBankFly(bankTrade.color, bankTrade.give, bankTrade.want, true);   // covered: the trader saw it face-up
-    if (placed && !robberMoved && !rolled) cinematicPlace(placed.kind, placed.id);   // camera pans to the new piece
+    if (placed && !robberMoved && !rolled) cinematicPlace(placed.kind, placed.id, false);   // observer: gentle pan to the new piece
   }
   function genCode() { const a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s = ''; for (let i = 0; i < 4; i++) s += a[(Math.random() * a.length) | 0]; return s; }
 
