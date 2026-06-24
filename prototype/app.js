@@ -2430,6 +2430,7 @@
     if (sig === lobbySig) return;
     lobbySig = sig;
     dynEl.innerHTML = LOBBY.table ? atTableHTML(all) : tableListHTML(all);   // footer frame untouched
+    fitTitle();   // content height just changed (players joined/readied) -> rescale so the card never overflows
   }
   // browsing: a list of active tables to join, plus "New table"
   function tableListHTML(all) {
