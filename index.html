@@ -104,10 +104,12 @@
     background:#3a2410; box-shadow:0 2px 5px rgba(0,0,0,0.5); display:flex; align-items:flex-end; justify-content:center;
     font-weight:800; color:#fff; font-size:20px;}
   .pava img{width:100%; height:100%; object-fit:cover; object-position:center top;}
-  .pava.flagged{filter:grayscale(0.5) brightness(0.82);}   /* conceded -> dimmed, flag sits at the corner */
-  .pavawrap{position:relative; display:flex;}
-  .pflag{position:absolute; top:-6px; right:-7px; z-index:3; font-size:18px; line-height:1; pointer-events:none;
-    filter:drop-shadow(0 1px 2px #000);}
+  .pava.flagged{filter:grayscale(0.45) brightness(0.85);}   /* conceded -> dimmed; a waving flag sits beside the corner */
+  .pflag{position:absolute; top:calc(50% - 13px); z-index:6; font-size:25px; line-height:1; pointer-events:none;
+    filter:drop-shadow(0 1px 2px #000); transform-origin:bottom center; animation:flagwave 1.2s ease-in-out infinite;}
+  .corner.tl .pflag, .corner.bl .pflag{left:calc(100% + 1px);}   /* left corners -> flag to the right */
+  .corner.tr .pflag, .corner.br .pflag{right:calc(100% + 1px);}  /* right corners -> flag to the left */
+  @keyframes flagwave{0%,100%{transform:rotate(-10deg)} 50%{transform:rotate(10deg)}}
   .pname{font-size:11px; font-weight:700; color:var(--ink); max-width:62px; text-align:center;
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-shadow:0 1px 1px #000;}
   /* dice sit above the active player's corner (below for top corners) */
