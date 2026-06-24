@@ -704,7 +704,7 @@
         ? `<div class="pdice">${diceFaces(state.dice)}</div>` : '';
       el.innerHTML = `${di}
         <div class="pcol">${stat(bdg.res, cards, '🃏', 'Resource cards', false, cards > 7)}${stat(bdg.card, dev, '🎴', 'Development cards')}${stat(bdg.vp, vp, '⭐', 'Victory points')}${stat(bdg.army, p.playedKnights, '⚔️', 'Knights played', p.hasLargestArmy)}${stat(bdg.road, road, '🛣️', 'Longest road', p.hasLongestRoad)}</div>
-        <div class="pport"><div class="pavawrap"><div class="pava${flagged ? ' flagged' : ''}" style="border-color:${PCOLOR[p.color]}">${av}</div>${flagged ? '<span class="pflag">🏳️</span>' : ''}</div><div class="pname">${escapeHtml(p.name)}</div></div>`;
+        <div class="pport"><div class="pava${flagged ? ' flagged' : ''}" style="border-color:${PCOLOR[p.color]}">${av}</div><div class="pname">${escapeHtml(p.name)}</div></div>${flagged ? '<span class="pflag">🏳️</span>' : ''}`;
     });
     for (let i = state.players.length; i < 4; i++) $('p-' + SEATS[i]).style.display = 'none';
   }
