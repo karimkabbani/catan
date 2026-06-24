@@ -150,6 +150,7 @@
   #confirmbar{position:fixed; right:10px; top:50%; transform:translateY(-50%); z-index:9;
     display:flex; flex-direction:column; gap:12px;}
   #confirmbar.hidden{display:none;}
+  #confirmbar button.hidden{display:none;}   /* the ✓ is hidden while you're still choosing a spot (lone ✗ to cancel) */
   #confirmbar button{width:58px; height:58px; border:none; background:none; padding:0; cursor:pointer;}
   #confirmbar button img{width:100%; height:100%; filter:drop-shadow(0 2px 6px rgba(0,0,0,0.55));}
   #confirmbar button:active{transform:translateY(1px);}
@@ -803,7 +804,7 @@
   <div id="dicereveal" class="hidden"></div>
   <div id="countdown" class="hidden"></div>
   <div id="confirmbar" class="hidden">
-    <button onclick="CATAN.confirmPlace()"><img src="assets/hud/confirm.png" alt="Confirm"></button>
+    <button id="cfm-yes" onclick="CATAN.confirmPlace()"><img src="assets/hud/confirm.png" alt="Confirm"></button>
     <button onclick="CATAN.cancelPlace()"><img src="assets/hud/decline.png" alt="Cancel"></button>
   </div>
   <div id="radialtab" class="hidden" onclick="CATAN.openRadial()"></div>
@@ -1107,7 +1108,7 @@
     if (online) NET.syncAction(action, actor);
     afterAction(); render();
     if (robberMoved) showRobberFly(fromRobber, state.robberHex);
-    if (steal) showStealFly(steal.victim, steal.thief);   // res known only to detect a steal happened, not shown
+    if (steal) showStealFly(steal.victim, steal.thief, steal.res);   // I'm the thief -> see the card face-up
     if (trade) showTradeFly(trade.a, trade.b, trade.g, trade.w);   // bank fly fires once from tradeBank()
     if (mono) showMonopolyFly(mono.to, mono.res, mono.from);   // monopolised cards fly in, face-up
     if (yop) showYoPFly(yop.to, yop.n);                        // year-of-plenty cards fly in, face-down
@@ -1843,13 +1844,17 @@
       for (let i = 0; i < f.n; i++) { flyImage(resImg, fx, fy, tx, ty, d); d += 110; }
     }
   }
-  function showStealFly(victimColor, thiefColor) {
+  // The card flies victim -> thief. Pass `res` to show it FACE-UP (the thief and the victim
+  // know what changed hands); omit it and a face-down cardback flies (everyone else just sees
+  // "a card moved from player X"), mirroring real Catan where the steal is secret to the table.
+  function showStealFly(victimColor, thiefColor, res) {
     const vi = state.players.findIndex((p) => p.color === victimColor);
     const ti = state.players.findIndex((p) => p.color === thiefColor);
     const vp = $('p-' + SEATS[vi]), tp = $('p-' + SEATS[ti]);
     if (!vp || !tp) return;
     const vr = vp.getBoundingClientRect(), tr = tp.getBoundingClientRect();
-    flyImage('assets/hud/cardback.png', vr.left + vr.width / 2, vr.top + vr.height / 2,
+    const img = (res && ((HUD.res || {})[res] || (ASSETS.icons || {})[res])) || 'assets/hud/cardback.png';
+    flyImage(img, vr.left + vr.width / 2, vr.top + vr.height / 2,
       tr.left + tr.width / 2, tr.top + tr.height / 2, 0, { card: true, sound: 'whoosh', vol: 0.55 });
   }
   function sumObj(o) { return RES.reduce((n, r) => n + ((o && o[r]) || 0), 0); }
@@ -1914,6 +1919,24 @@
       if (any) return { color: ps.color, sel };
     }
     return null;
+  }
+  // a robber steal, inferred from a remote state change: the player on the move gained exactly
+  // one card (net) and a single opponent lost that same card. Trades net to zero, rolls/year-of-
+  // plenty draw from the bank (no loser), monopoly moves many — so this pattern is steal-specific.
+  function detectSteal(a, s) {
+    if (!a) return null;
+    const tot = (p) => RES.reduce((n, x) => n + (p.resources[x] || 0), 0);
+    const thief = s.order[s.currentPlayerIndex];
+    const ta = a.players.find((p) => p.color === thief), ts = s.players.find((p) => p.color === thief);
+    if (!ta || !ts || tot(ts) !== tot(ta) + 1) return null;
+    const res = RES.find((x) => (ts.resources[x] || 0) === (ta.resources[x] || 0) + 1);
+    if (!res) return null;
+    const v = a.players.find((pa) => {
+      if (pa.color === thief) return false;
+      const ps = s.players.find((p) => p.color === pa.color);
+      return ps && tot(ps) === tot(pa) - 1 && (ps.resources[res] || 0) === (pa.resources[res] || 0) - 1;
+    });
+    return v ? { victim: v.color, thief, res } : null;
   }
   function watchingTag() {   // "👁 N" shown to everyone in an online game when people are spectating
     if (!online) return '';
@@ -2648,12 +2671,18 @@
     $('radialwrap').innerHTML = radialButtons();
     // hide the radial tab during forced, uninterruptible steps (placing the robber, the
     // ✓/✗ confirm, picking a steal victim) and behind any open dialog/menu
-    const hideTab = !!ui.confirm || ui.mode === 'moveRobber' || ui.mode === 'steal' || !$('overlay').classList.contains('hidden');
+    // picking a spot for an OPTIONAL build (Build menu, turnPhase 'main') — not forced placements
+    // (setup, road-building card) where there's nothing to cancel. Drives the lone-✗ cancel affordance.
+    const placing = state.phase === 'play' && state.turnPhase === 'main'
+      && (ui.mode === 'placeSettlement' || ui.mode === 'placeCity' || ui.mode === 'placeRoad');
+    const hideTab = !!ui.confirm || placing || ui.mode === 'moveRobber' || ui.mode === 'steal' || !$('overlay').classList.contains('hidden');
     $('radialtab').classList.toggle('hidden', hideTab);
     // the settings gear only appears while the radial menu is open (and rides above it)
     $('settingstab').classList.toggle('hidden', hideTab || !$('radialroot').classList.contains('open'));
     $('radialtab').classList.toggle('pulse', radialPhase && !hideTab);
-    $('confirmbar').classList.toggle('hidden', !ui.confirm);
+    // ✓/✗ once a spot is chosen; a lone ✗ while still choosing (so you can back out of the build)
+    $('confirmbar').classList.toggle('hidden', !ui.confirm && !placing);
+    $('cfm-yes').classList.toggle('hidden', !ui.confirm);
     justPlaced = null;  // pop-in only plays on the render right after placement
     $('leavetab').classList.add('hidden');   // exit lives in the radial menu now
     // the "show game map" roll prompt only belongs in your own pre-roll phase
@@ -2711,7 +2740,10 @@
     playKnight: () => dispatch({ type: 'playKnight' }),
     build: (mode) => { hideOverlay(); ui.mode = mode; ui.confirm = null; render(); toast(mode === 'placeCity' ? 'Tap a settlement to upgrade' : 'Tap a highlighted spot'); },
     confirmPlace: () => { const c = ui.confirm; if (!c) return; ui.confirm = null; skipRobberFly = !!c.dragged; dispatch(c.action, c.color); skipRobberFly = false; },
-    cancelPlace: () => { ui.confirm = null; render(); },
+    cancelPlace: () => {
+      if (ui.confirm) { ui.confirm = null; render(); }   // a spot was chosen -> back to choosing
+      else { ui.mode = 'idle'; render(); }                // still choosing -> abort the build, back to the board
+    },
     openDev, openTrade, openMonopoly, openYoP,
     openSettings,
     setToggle: (key) => { SETTINGS[key] = !SETTINGS[key]; saveSettings(); openSettings(); if (key === 'music') { if (SETTINGS.music) startMusic(); else stopMusic(); } },
@@ -3097,6 +3129,7 @@
     const trade = detectTrade(a, s);
     const disc = detectDiscard(a, s);
     const robberMoved = !!(a && a.robberHex !== s.robberHex);   // thief moved -> fly it on every screen
+    const stolen = (!rolled && !trade && !disc) ? detectSteal(a, s) : null;   // card flies victim->thief on every screen
     if (!rolled && !trade && !disc && a) soundForRemote(a, s);   // roll/trade/discard/robber have their own sound+animation
     state = s;
     if (rolled) ui.diceRevealing = true;   // suppress the corner dice during the reveal
@@ -3107,6 +3140,12 @@
     if (disc) showDiscardFly(disc.color, disc.sel);   // everyone watches each player's discard; end -> afterAction
     if (robberMoved) showRobberFly(a.robberHex, s.robberHex);
     if (trade) showTradeFly(trade.a, trade.b, trade.g, trade.w);
+    if (stolen) {
+      // only the thief and the victim see WHICH card; everyone else sees a face-down card move
+      const reveal = myColor === stolen.victim || myColor === stolen.thief;
+      const fly = () => showStealFly(stolen.victim, stolen.thief, reveal ? stolen.res : null);
+      robberMoved ? setTimeout(fly, aDur(450)) : fly();   // let the robber land first if both happened at once
+    }
   }
   function genCode() { const a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s = ''; for (let i = 0; i < 4; i++) s += a[(Math.random() * a.length) | 0]; return s; }
 
