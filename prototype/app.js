@@ -2199,12 +2199,12 @@
 
   // ---- cinematic auto-zoom: pan the camera to where the action is, hold, ease back home ----
   // Gated per-device on SETTINGS.autozoom; any manual pan/pinch/wheel supersedes a running tour.
-  const CINE_Z_HEX = 2.2, CINE_Z_SPOT = 2.7;
+  const CINE_Z_HEX = 2.2, CINE_Z_SPOT = 2.7, CINE_MS = 1100;   // slow, smooth glide
   let cineToken = 0, cineRunning = false;
   function cineSleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
   function cineApply(ms) {
     if (!zArea) return;
-    zArea.style.transition = 'transform ' + ms + 'ms cubic-bezier(.4,0,.2,1)';
+    zArea.style.transition = 'transform ' + ms + 'ms cubic-bezier(.45,.05,.55,.95)';   // gentle ease-in-out
     zArea.style.transform = `translate(${zoom.tx.toFixed(2)}px,${zoom.ty.toFixed(2)}px) scale(${zoom.s.toFixed(4)})`;
   }
   // identity-space content coords (stage px at zoom=1) of any SVG point, robust to the current transform
@@ -2233,7 +2233,7 @@
     const my = ++cineToken; cineRunning = true;
     const alive = () => my === cineToken;
     try { await seq(alive); } catch (_) { }
-    if (alive()) { cameraHome(420); cineRunning = false; }
+    if (alive()) cineRunning = false;   // stay framed on the action — the next event or a manual pan moves the camera
   }
   // fly one producing hex's resources to the owners' panels (used as the roll tour lands on each hex)
   function flyHexProduction(group) {
@@ -2259,15 +2259,15 @@
     runCine(async (alive) => {
       for (const g of groups) {
         if (!alive()) return;
-        cameraTo(hexContent(g.hx.id), CINE_Z_HEX, 380);
-        await cineSleep(aDur(420)); if (!alive()) return;
+        cameraTo(hexContent(g.hx.id), CINE_Z_HEX, CINE_MS);
+        await cineSleep(aDur(CINE_MS + 80)); if (!alive()) return;   // let the glide settle before the cards fly
         flyHexProduction(g);
-        await cineSleep(aDur(780)); if (!alive()) return;
+        await cineSleep(aDur(950)); if (!alive()) return;            // linger while the cards land, then glide to the next
       }
     });
   }
-  function cinematicHex(id) { runCine(async () => { cameraTo(hexContent(id), CINE_Z_HEX, 380); await cineSleep(aDur(950)); }); }
-  function cinematicPlace(kind, id) { runCine(async () => { cameraTo(kind === 'e' ? edgeContent(id) : vertContent(id), CINE_Z_SPOT, 380); await cineSleep(aDur(780)); }); }
+  function cinematicHex(id) { runCine(async () => { cameraTo(hexContent(id), CINE_Z_HEX, CINE_MS); await cineSleep(aDur(CINE_MS + 80)); }); }
+  function cinematicPlace(kind, id) { runCine(async () => { cameraTo(kind === 'e' ? edgeContent(id) : vertContent(id), CINE_Z_SPOT, CINE_MS); await cineSleep(aDur(CINE_MS + 80)); }); }
 
   function zMid() { const a = [...zPts.values()]; return { x: (a[0].x + a[1].x) / 2, y: (a[0].y + a[1].y) / 2 }; }
   function zDist() { const a = [...zPts.values()]; return Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y); }
