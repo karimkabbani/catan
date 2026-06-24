@@ -2211,7 +2211,7 @@
 
   // ---- cinematic auto-zoom: pan the camera to where the action is, hold, ease back home ----
   // Gated per-device on SETTINGS.autozoom; any manual pan/pinch/wheel supersedes a running tour.
-  const CINE_Z_HEX = 2.2, CINE_Z_SPOT = 2.7, CINE_Z_PAN = 1.7, CINE_MS = 1100;   // slow, smooth glide
+  const CINE_Z_HEX = 2.2, CINE_Z_SPOT = 2.7, CINE_Z_PAN = 1.3, CINE_MS = 1100;   // slow, smooth glide (PAN = gentle observer peek, not a zoom)
   let cineToken = 0, cineRunning = false;
   function cineSleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
   function cineApply(ms) {
