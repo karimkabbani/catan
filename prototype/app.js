@@ -263,6 +263,9 @@
     // discard fly. Each animation's end re-runs afterAction to advance the sequence —
     // so the 7 reveal finishes before discards, and discards happen one at a time.
     if (ui.diceRevealing || ui.discardAnimating || ui.robberFlying) { render(); return; }
+    // discards are over -> drop the "X is discarding" status on every screen (roller + watchers),
+    // otherwise it covers the board and nobody can move the robber.
+    if (ui.discardWait && state.turnPhase !== 'discard') { ui.discardWait = false; hideOverlay(); }
     // discards happen sequentially in turn order; promptDiscards picks who's up
     if (state.turnPhase === 'discard') { promptDiscards(); return; }
     if (!isMyTurn()) { render(); return; }   // online: spectating another player's turn
@@ -1187,12 +1190,14 @@
   function currentDiscarder() { return discardOrder().find((p) => (state.pendingDiscards[p.color] || 0) > 0); }
   function promptDiscards() {
     const cur = currentDiscarder();
-    if (!cur) { render(); return; }   // everyone has discarded — afterAction moves on to the robber
+    if (!cur) { ui.discardWait = false; render(); return; }   // everyone has discarded — afterAction moves on to the robber
     if (!online || cur.color === myColor) {
+      ui.discardWait = false;
       ui.pending = { color: cur.color, need: state.pendingDiscards[cur.color], sel: { brick: 0, wood: 0, sheep: 0, wheat: 0, ore: 0 } };
       renderDiscard();
     } else {
       // online: only the current discarder is prompted; everyone else waits and watches
+      ui.discardWait = true;
       showOverlay(`<h3>Discarding</h3><p class="muted" style="text-align:center;margin:10px 0"><b style="color:var(--gold)">${escapeHtml(cur.name)}</b> is discarding…</p>`);
     }
   }
