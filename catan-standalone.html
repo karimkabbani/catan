@@ -3085,7 +3085,7 @@
 
   // ---- cinematic auto-zoom: pan the camera to where the action is, hold, ease back home ----
   // Gated per-device on SETTINGS.autozoom; any manual pan/pinch/wheel supersedes a running tour.
-  const CINE_Z_HEX = 2.2, CINE_Z_SPOT = 2.7, CINE_Z_PAN = 1.3, CINE_MS = 1100;   // slow, smooth glide (PAN = gentle observer peek, not a zoom)
+  const CINE_Z_HEX = 2.2, CINE_Z_SPOT = 2.7, CINE_MS = 1100;   // slow, smooth glide
   let cineToken = 0, cineRunning = false;
   function cineSleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
   function cineApply(ms) {
@@ -3112,6 +3112,8 @@
     zClamp(); cineApply(ms);
   }
   function cameraHome(ms) { zoom.s = 1; zoom.tx = 0; zoom.ty = 0; cineApply(ms); }
+  // translate only — keep the current zoom scale (a true pan). At full-board view this is a no-op.
+  function cameraPanTo(c, ms) { if (!c) return; const r = zRect(); zoom.tx = r.width / 2 - zoom.s * c.x; zoom.ty = r.height / 2 - zoom.s * c.y; zClamp(); cineApply(ms); }
   function cancelCine() { if (cineRunning) { cineToken++; cineRunning = false; } }   // a manual gesture takes over
   // run an async camera sequence; a newer sequence or a manual gesture (both bump cineToken) supersedes it
   async function runCine(seq, opts) {
@@ -3166,13 +3168,16 @@
     }
   }
   function cinematicPlace(kind, id, mine, grant) {
+    const c = kind === 'e' ? edgeContent(id) : vertContent(id);
+    // observers NEVER zoom on someone else's placement — they only pan (a no-op at full-board view,
+    // re-centring only if they're already zoomed in). Keeps B/C from zooming when A places in setup.
+    if (!mine) { cancelCine(); cameraPanTo(c, CINE_MS); return; }
     const setup = state && state.phase === 'setup';
     // the placer's setup road went down inside the settlement's held frame -> just glide back out
-    if (mine && setup && kind === 'e') { cancelCine(); cameraHome(CINE_MS); return; }
-    const z = mine ? CINE_Z_SPOT : CINE_Z_PAN;     // the placer zooms in close; observers get a gentler pan
-    const stay = mine && setup && kind === 'v';     // hold the settlement frame so the road is easy to place next
+    if (setup && kind === 'e') { cancelCine(); cameraHome(CINE_MS); return; }
+    const stay = setup && kind === 'v';     // hold the settlement frame so the road is easy to place next
     runCine(async (alive) => {
-      cameraTo(kind === 'e' ? edgeContent(id) : vertContent(id), z, CINE_MS);
+      cameraTo(c, CINE_Z_SPOT, CINE_MS);
       await cineSleep(aDur(CINE_MS + 80)); if (!alive()) return;
       if (grant && grant.items && grant.items.length) { flySettlementGrant(grant); await cineSleep(aDur(grant.items.length * 430 + 450)); }   // let the starting cards stream in
     }, { stay });
