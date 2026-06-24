@@ -2501,24 +2501,30 @@
     // anchor a chat bubble to the speaker's corner when we're in the game view; else a banner
     const inGameView = $('title') && $('title').classList.contains('hidden');
     const seat = (inGameView && state && state.players && msg.color) ? state.players.findIndex((p) => p.color === msg.color) : -1;
-    const corner = seat >= 0 ? $('p-' + SEATS[seat]) : null;
-    if (corner && corner.style.display !== 'none') showBroadcastBubble(msg, corner);
+    const pos = seat >= 0 ? SEATS[seat] : null;   // 'tl' | 'tr' | 'br' | 'bl'
+    const corner = pos ? $('p-' + pos) : null;
+    if (corner && corner.style.display !== 'none') showBroadcastBubble(msg, corner, pos);
     else showBroadcastBanner(msg);
   }
-  // a speech bubble pointing back at the speaker's corner avatar
-  function showBroadcastBubble(msg, corner) {
-    const r = corner.getBoundingClientRect();
+  // a speech bubble that hangs off the speaker's corner avatar, pointing back at it:
+  //   top corners -> below + tail up;  bottom corners -> above + tail down;
+  //   tail aligned under the avatar, bubble extending toward screen centre.
+  function showBroadcastBubble(msg, corner, pos) {
+    const top = pos[0] === 't', left = pos[1] === 'l';
+    const cr = corner.getBoundingClientRect();
+    const avEl = corner.querySelector('.pavawrap') || corner.querySelector('.pava') || corner;
+    const ar = avEl.getBoundingClientRect(), avCx = ar.left + ar.width / 2;
     const id = 'bcb-' + (msg.color || msg.name);
     const old = document.getElementById(id); if (old) old.remove();   // one bubble per speaker
-    const top = r.top < window.innerHeight / 2, left = r.left < window.innerWidth / 2;
     const b = document.createElement('div');
     b.id = id;
     b.className = 'bcbubble ' + (top ? 'b-top' : 'b-bot') + ' ' + (left ? 'b-left' : 'b-right');
     b.innerHTML = `<button class="bcclose" aria-label="Close">×</button><span class="bctext">${escapeHtml(String(msg.text).slice(0, 50))}</span>`;
     document.body.appendChild(b);
-    const gap = 9;
-    if (top) b.style.top = (r.bottom + gap) + 'px'; else b.style.bottom = (window.innerHeight - r.top + gap) + 'px';
-    if (left) b.style.left = Math.max(6, r.left) + 'px'; else b.style.right = Math.max(6, window.innerWidth - r.right) + 'px';
+    const gap = 8, tail = 20;   // tail sits ~20px from the bubble's near edge
+    if (top) b.style.top = (cr.bottom + gap) + 'px'; else b.style.bottom = (window.innerHeight - cr.top + gap) + 'px';
+    if (left) b.style.left = Math.max(6, avCx - tail) + 'px';
+    else b.style.right = Math.max(6, window.innerWidth - avCx - tail) + 'px';
     const kill = () => { b.classList.add('out'); setTimeout(() => b.remove(), 200); };
     const t = setTimeout(kill, 7000);
     b.querySelector('.bcclose').onclick = () => { clearTimeout(t); b.remove(); };
