@@ -1876,7 +1876,7 @@
   }
   // a bank/port trade: the given resources fly to the bank (board centre), then one
   // comes back. Face-up, since a bank trade is open (your own cards at a known ratio).
-  function showBankFly(color, giveObj, wantObj) {
+  function showBankFly(color, giveObj, wantObj, covered) {
     const pi = state.players.findIndex((p) => p.color === color);
     const panel = $('p-' + SEATS[pi]); if (!panel) return;
     const r = panel.getBoundingClientRect();
@@ -1885,12 +1885,15 @@
     const br = svg ? svg.getBoundingClientRect() : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
     const cx = br.left + br.width / 2, cy = br.top + br.height / 2;
     const res = HUD.res || {}, ic = ASSETS.icons || {};
+    // observers (covered) see face-down cards so the resource type stays secret; the trader sees them face-up
+    const img = (rr) => covered ? 'assets/hud/cardback.png' : (res[rr] || ic[rr]);
+    const opt = covered ? { card: true } : {};
     const STAG = 120;
     playSound('trade', 0.5);
     let d = 0;
-    RES.forEach((rr) => { for (let i = 0; i < (giveObj[rr] || 0); i++) { flyImage(res[rr] || ic[rr], px, py, cx, cy, d, {}); d += STAG; } });
+    RES.forEach((rr) => { for (let i = 0; i < (giveObj[rr] || 0); i++) { flyImage(img(rr), px, py, cx, cy, d, opt); d += STAG; } });
     d += 340;   // all the given cards reach the bank, then your received cards come back
-    RES.forEach((rr) => { for (let i = 0; i < (wantObj[rr] || 0); i++) { flyImage(res[rr] || ic[rr], cx, cy, px, py, d, {}); d += STAG; } });
+    RES.forEach((rr) => { for (let i = 0; i < (wantObj[rr] || 0); i++) { flyImage(img(rr), cx, cy, px, py, d, opt); d += STAG; } });
   }
   // detect a confirmed trade from a remote state change (proposer's pendingTrade
   // cleared + resources actually moved) so spectators see the swap animation too
@@ -1949,6 +1952,25 @@
       if (pa && n(ps) === n(pa) + 1) return { buyer: ps.color };
     }
     return null;
+  }
+  // a bank/port trade, inferred from a remote state change: exactly one player's resources
+  // changed AND they both gave some and got some (a build is pure loss; a roll/year-of-plenty
+  // pure gain; a steal/player-trade moves two players' cards). Reconstruct give/want from the diff.
+  function detectBankTrade(a, s) {
+    if (!a) return null;
+    let who = null;
+    for (const ps of s.players) {
+      const pa = a.players.find((p) => p.color === ps.color);
+      if (!pa) continue;
+      if (RES.some((r) => (pa.resources[r] || 0) !== (ps.resources[r] || 0))) { if (who) return null; who = { pa, ps }; }
+    }
+    if (!who) return null;
+    const give = {}, want = {}; let gaveAny = false, gotAny = false;
+    RES.forEach((r) => {
+      const d = (who.pa.resources[r] || 0) - (who.ps.resources[r] || 0);
+      if (d > 0) { give[r] = d; gaveAny = true; } else if (d < 0) { want[r] = -d; gotAny = true; }
+    });
+    return (gaveAny && gotAny) ? { color: who.ps.color, give, want } : null;
   }
   function watchingTag() {   // "👁 N" shown to everyone in an online game when people are spectating
     if (!online) return '';
@@ -3143,6 +3165,7 @@
     const robberMoved = !!(a && a.robberHex !== s.robberHex);   // thief moved -> fly it on every screen
     const stolen = (!rolled && !trade && !disc) ? detectSteal(a, s) : null;   // card flies victim->thief on every screen
     const devBuy = detectDevBuy(a, s);   // a face-down dev card flies to the buyer on every other screen
+    const bankTrade = (!rolled && !trade && !disc) ? detectBankTrade(a, s) : null;   // face-down cards fly to/from the bank
     if (!rolled && !trade && !disc && a) soundForRemote(a, s);   // roll/trade/discard/robber have their own sound+animation
     state = s;
     if (rolled) ui.diceRevealing = true;   // suppress the corner dice during the reveal
@@ -3160,6 +3183,7 @@
       robberMoved ? setTimeout(fly, aDur(450)) : fly();   // let the robber land first if both happened at once
     }
     if (devBuy) showDevBuyFly(devBuy.buyer);   // the buyer themselves already saw it face-up via their own dispatch
+    if (bankTrade) showBankFly(bankTrade.color, bankTrade.give, bankTrade.want, true);   // covered: the trader saw it face-up
   }
   function genCode() { const a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s = ''; for (let i = 0; i < 4; i++) s += a[(Math.random() * a.length) | 0]; return s; }
 
