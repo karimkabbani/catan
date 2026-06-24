@@ -1102,6 +1102,9 @@
     // fly the thief across — unless I dragged it there myself (the drag was the motion)
     const robberMoved = state.robberHex !== fromRobber && !skipRobberFly;
     if (robberMoved) ui.robberFlying = true;
+    // queue the server sync BEFORE afterAction — afterAction can chain a follow-up action
+    // (e.g. the auto-steal after the robber moves), and the syncs must persist in that order.
+    if (online) NET.syncAction(action, actor);
     afterAction(); render();
     if (robberMoved) showRobberFly(fromRobber, state.robberHex);
     if (steal) showStealFly(steal.victim, steal.thief);   // res known only to detect a steal happened, not shown
@@ -1109,7 +1112,6 @@
     if (mono) showMonopolyFly(mono.to, mono.res, mono.from);   // monopolised cards fly in, face-up
     if (yop) showYoPFly(yop.to, yop.n);                        // year-of-plenty cards fly in, face-down
     if (bought) { if (!online || actor === myColor) showDevBought(bought.card); else showDevBuyFly(bought.buyer); }
-    if (online) NET.syncAction(action, actor);   // push my move to the server as the correct actor
     return true;
   }
   // is it this device's turn to act? (always true in pass-and-play)
@@ -3167,7 +3169,14 @@
         if (!LOBBY.inProgress) { LOBBY.inProgress = true; renderLobby(); }
       }
     },
-    async syncAction(action, actor) {
+    // Serialize syncs: chained actions (e.g. moveRobber -> auto-steal) must hit the server
+    // in order, or the second reads a state where it's invalid, "reverts", and the move is lost.
+    _syncQ: Promise.resolve(),
+    syncAction(action, actor) {
+      this._syncQ = this._syncQ.then(() => this._doSync(action, actor)).catch(() => { });
+      return this._syncQ;
+    },
+    async _doSync(action, actor) {
       const c = this.init(); if (!c) return;
       for (let i = 0; i < 6; i++) {
         const { data, error } = await c.from('games').select('state,version').eq('code', this.code).maybeSingle();
