@@ -1073,7 +1073,19 @@
     const r = C.applyAction(state, action, actor);
     if (!r.ok) { toast(r.error); return false; }
     soundForAction(action);
-    if (action.type === 'buildSettlement' || action.type === 'buildCity') { justPlaced = { kind: 'v', id: action.vertex }; cinematicPlace('v', action.vertex, true); }
+    if (action.type === 'buildSettlement' || action.type === 'buildCity') {
+      justPlaced = { kind: 'v', id: action.vertex };
+      // the 2nd setup settlement grants one card per adjacent producing terrain — fly them in while zoomed
+      let grant = null;
+      if (state.phase === 'setup') {
+        const b = state.players.find((p) => p.color === actor).resources, af = r.state.players.find((p) => p.color === actor).resources;
+        if (RES.some((x) => (af[x] || 0) > (b[x] || 0))) {
+          const items = (state.board.vertices[action.vertex].hexes || []).map((hid) => state.board.hexes[hid]).filter((hx) => hx && RES.includes(hx.terrain)).map((hx) => ({ hx, resource: hx.terrain }));
+          grant = { color: actor, items };
+        }
+      }
+      cinematicPlace('v', action.vertex, true, grant);
+    }
     else if (action.type === 'buildRoad') { justPlaced = { kind: 'e', id: action.edge }; cinematicPlace('e', action.edge, true); }
     // detect what was stolen (which of the victim's resources dropped) for the fly
     let steal = null;
@@ -3141,13 +3153,29 @@
     });
   }
   function cinematicHex(id) { runCine(async () => { cameraTo(hexContent(id), CINE_Z_HEX, CINE_MS); await cineSleep(aDur(CINE_MS + 80)); }); }
-  function cinematicPlace(kind, id, mine) {
+  // 2nd setup settlement: one card flies in from each adjacent producing terrain, one at a time
+  function flySettlementGrant(grant) {
+    const svg = $('board'); if (!svg || !svg.getScreenCTM || !grant.items.length) return; const ctm = svg.getScreenCTM(); if (!ctm) return;
+    const pi = state.players.findIndex((p) => p.color === grant.color);
+    const panel = $('p-' + SEATS[pi]); if (!panel) return;
+    const r = panel.getBoundingClientRect(), tx = r.left + r.width / 2, ty = r.top + r.height / 2;
+    let delay = 0;
+    for (const it of grant.items) {
+      const pt = svg.createSVGPoint(); pt.x = it.hx.cx; pt.y = it.hx.cy;
+      const sc = pt.matrixTransform(ctm); flyResource(it.resource, sc.x, sc.y, tx, ty, delay); delay += aDur(430);   // sequence, one terrain at a time
+    }
+  }
+  function cinematicPlace(kind, id, mine, grant) {
     const setup = state && state.phase === 'setup';
     // the placer's setup road went down inside the settlement's held frame -> just glide back out
     if (mine && setup && kind === 'e') { cancelCine(); cameraHome(CINE_MS); return; }
     const z = mine ? CINE_Z_SPOT : CINE_Z_PAN;     // the placer zooms in close; observers get a gentler pan
     const stay = mine && setup && kind === 'v';     // hold the settlement frame so the road is easy to place next
-    runCine(async () => { cameraTo(kind === 'e' ? edgeContent(id) : vertContent(id), z, CINE_MS); await cineSleep(aDur(CINE_MS + 80)); }, { stay });
+    runCine(async (alive) => {
+      cameraTo(kind === 'e' ? edgeContent(id) : vertContent(id), z, CINE_MS);
+      await cineSleep(aDur(CINE_MS + 80)); if (!alive()) return;
+      if (grant && grant.items && grant.items.length) { flySettlementGrant(grant); await cineSleep(aDur(grant.items.length * 430 + 450)); }   // let the starting cards stream in
+    }, { stay });
   }
 
   function zMid() { const a = [...zPts.values()]; return { x: (a[0].x + a[1].x) / 2, y: (a[0].y + a[1].y) / 2 }; }
