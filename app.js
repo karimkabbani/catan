@@ -199,8 +199,8 @@
     const r = C.applyAction(state, action, actor);
     if (!r.ok) { toast(r.error); return false; }
     soundForAction(action);
-    if (action.type === 'buildSettlement' || action.type === 'buildCity') justPlaced = { kind: 'v', id: action.vertex };
-    else if (action.type === 'buildRoad') justPlaced = { kind: 'e', id: action.edge };
+    if (action.type === 'buildSettlement' || action.type === 'buildCity') { justPlaced = { kind: 'v', id: action.vertex }; cinematicPlace('v', action.vertex); }
+    else if (action.type === 'buildRoad') { justPlaced = { kind: 'e', id: action.edge }; cinematicPlace('e', action.edge); }
     // detect what was stolen (which of the victim's resources dropped) for the fly
     let steal = null;
     if (action.type === 'steal') {
@@ -806,7 +806,7 @@
       el.style.top = (r.top + r.height / 2) + 'px';
       el.style.transform = 'translate(-50%,-50%) scale(0.42)'; el.style.opacity = '0';
     }, aDur(700));
-    setTimeout(() => { el.classList.add('hidden'); ui.diceRevealing = false; renderPanels(); showResourceFly(); afterAction(); render(); }, aDur(1300));
+    setTimeout(() => { el.classList.add('hidden'); ui.diceRevealing = false; renderPanels(); cinematicRoll(); afterAction(); render(); }, aDur(1300));
   }
   // which producing hex sends which resource to which player on this roll
   function productionMap() {
@@ -858,8 +858,10 @@
   }
   // fly the robber piece from its old hex to the new one — runs on every screen
   function showRobberFly(fromHex, toHex) {
-    const a = hexScreenXY(fromHex, -0.08), b = hexScreenXY(toHex, -0.08);
     const finish = () => { ui.robberFlying = false; afterAction(); render(); };
+    // auto-zoom on: let the camera reveal the robber at its new hex instead of the cross-board fly
+    if (SETTINGS.autozoom && zArea) { finish(); cinematicHex(toHex); return; }
+    const a = hexScreenXY(fromHex, -0.08), b = hexScreenXY(toHex, -0.08);
     if (!ASSETS.robber || !a || !b) { finish(); return; }
     const w = 0.84 * a.scale, h = 0.95 * a.scale;   // match the on-board robber size
     flyImage(ASSETS.robber, a.x, a.y, b.x, b.y, 0, { w, h });   // robber sound already plays from the move
@@ -1097,6 +1099,15 @@
       if (d > 0) { give[r] = d; gaveAny = true; } else if (d < 0) { want[r] = -d; gotAny = true; }
     });
     return (gaveAny && gotAny) ? { color: who.ps.color, give, want } : null;
+  }
+  // a new/upgraded building or a new road, from a remote state change — for the pop-in + camera on observers
+  function detectPlacement(a, s) {
+    if (!a) return null;
+    for (const id in s.settlements) {
+      if (!a.settlements[id] || a.settlements[id].type !== s.settlements[id].type) return { kind: 'v', id: Number(id) };
+    }
+    for (const id in s.roads) { if (!a.roads[id]) return { kind: 'e', id: Number(id) }; }
+    return null;
   }
   function watchingTag() {   // "👁 N" shown to everyone in an online game when people are spectating
     if (!online) return '';
@@ -2185,11 +2196,85 @@
     zClamp(); zApply(false);
   }
   function resetZoom() { zoom.s = 1; zoom.tx = 0; zoom.ty = 0; zApply(true); if (ui.confirm) { ui.confirm = null; render(); } }
+
+  // ---- cinematic auto-zoom: pan the camera to where the action is, hold, ease back home ----
+  // Gated per-device on SETTINGS.autozoom; any manual pan/pinch/wheel supersedes a running tour.
+  const CINE_Z_HEX = 2.2, CINE_Z_SPOT = 2.7;
+  let cineToken = 0, cineRunning = false;
+  function cineSleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
+  function cineApply(ms) {
+    if (!zArea) return;
+    zArea.style.transition = 'transform ' + ms + 'ms cubic-bezier(.4,0,.2,1)';
+    zArea.style.transform = `translate(${zoom.tx.toFixed(2)}px,${zoom.ty.toFixed(2)}px) scale(${zoom.s.toFixed(4)})`;
+  }
+  // identity-space content coords (stage px at zoom=1) of any SVG point, robust to the current transform
+  function svgContentPoint(sx, sy) {
+    const svg = $('board'); if (!svg || !svg.getScreenCTM) return null;
+    const m = svg.getScreenCTM(); if (!m) return null;
+    const pt = svg.createSVGPoint(); pt.x = sx; pt.y = sy;
+    const s = pt.matrixTransform(m), r = zRect();
+    return { x: (s.x - r.left - zoom.tx) / zoom.s, y: (s.y - r.top - zoom.ty) / zoom.s };
+  }
+  function hexContent(id) { const h = state.board.hexes[id]; return h ? svgContentPoint(h.cx, h.cy) : null; }
+  function vertContent(id) { return svgContentPoint(vX(id), vY(id)); }
+  function edgeContent(id) { const e = state.board.edges[id]; if (!e) return null; const v = e.v; return svgContentPoint((vX(v[0]) + vX(v[1])) / 2, (vY(v[0]) + vY(v[1])) / 2); }
+  function cameraTo(c, scale, ms) {
+    if (!c) return;
+    const r = zRect();
+    zoom.s = Math.min(MAXZ, Math.max(1, scale));
+    zoom.tx = r.width / 2 - zoom.s * c.x; zoom.ty = r.height / 2 - zoom.s * c.y;
+    zClamp(); cineApply(ms);
+  }
+  function cameraHome(ms) { zoom.s = 1; zoom.tx = 0; zoom.ty = 0; cineApply(ms); }
+  function cancelCine() { if (cineRunning) { cineToken++; cineRunning = false; } }   // a manual gesture takes over
+  // run an async camera sequence; a newer sequence or a manual gesture (both bump cineToken) supersedes it
+  async function runCine(seq) {
+    if (!SETTINGS.autozoom || !zArea) return;
+    const my = ++cineToken; cineRunning = true;
+    const alive = () => my === cineToken;
+    try { await seq(alive); } catch (_) { }
+    if (alive()) { cameraHome(420); cineRunning = false; }
+  }
+  // fly one producing hex's resources to the owners' panels (used as the roll tour lands on each hex)
+  function flyHexProduction(group) {
+    const svg = $('board'); if (!svg || !svg.getScreenCTM) return; const ctm = svg.getScreenCTM(); if (!ctm) return;
+    let delay = 0;
+    for (const e of group.entries) {
+      const pi = state.players.findIndex((p) => p.color === e.color);
+      const panel = $('p-' + SEATS[pi]); if (!panel) continue;
+      const r = panel.getBoundingClientRect(), tx = r.left + r.width / 2, ty = r.top + r.height / 2;
+      for (let k = 0; k < e.count; k++) {
+        const pt = svg.createSVGPoint(); pt.x = group.hx.cx + (k ? 0.18 : -0.18); pt.y = group.hx.cy;
+        const sc = pt.matrixTransform(ctm); flyResource(e.resource, sc.x, sc.y, tx, ty, delay); delay += 230;
+      }
+    }
+  }
+  // roll: tour each producing hex in turn, flying its cards as the camera lands; else fly everything at once
+  function cinematicRoll() {
+    const map = productionMap();
+    if (!SETTINGS.autozoom || !zArea || !map.length) { showResourceFly(); return; }
+    const byHex = new Map();
+    for (const e of map) { const g = byHex.get(e.hx.id) || { hx: e.hx, entries: [] }; g.entries.push(e); byHex.set(e.hx.id, g); }
+    const groups = [...byHex.values()];
+    runCine(async (alive) => {
+      for (const g of groups) {
+        if (!alive()) return;
+        cameraTo(hexContent(g.hx.id), CINE_Z_HEX, 380);
+        await cineSleep(aDur(420)); if (!alive()) return;
+        flyHexProduction(g);
+        await cineSleep(aDur(780)); if (!alive()) return;
+      }
+    });
+  }
+  function cinematicHex(id) { runCine(async () => { cameraTo(hexContent(id), CINE_Z_HEX, 380); await cineSleep(aDur(950)); }); }
+  function cinematicPlace(kind, id) { runCine(async () => { cameraTo(kind === 'e' ? edgeContent(id) : vertContent(id), CINE_Z_SPOT, 380); await cineSleep(aDur(780)); }); }
+
   function zMid() { const a = [...zPts.values()]; return { x: (a[0].x + a[1].x) / 2, y: (a[0].y + a[1].y) / 2 }; }
   function zDist() { const a = [...zPts.values()]; return Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y); }
   function initBoardZoom() {
     zArea = $('board-area'); if (!zArea || zArea._zoomInit) return; zArea._zoomInit = true;
     zArea.addEventListener('pointerdown', (e) => {
+      cancelCine();   // a touch on the board means the player wants control — drop any running auto-zoom
       if (zPts.size === 0) zoom.swallowClick = false;   // fresh gesture, clear stale flag
       zPts.set(e.pointerId, { x: e.clientX, y: e.clientY });
       // NB: do NOT capture the pointer on a plain press. Capturing redirects the
@@ -2240,7 +2325,7 @@
     zArea.addEventListener('pointerup', up);
     zArea.addEventListener('pointercancel', up);
     // desktop: wheel to zoom at the cursor, double-click to reset
-    zArea.addEventListener('wheel', (e) => { e.preventDefault(); zoomTo(zoom.s * Math.exp(-e.deltaY * 0.0015), e.clientX, e.clientY); }, { passive: false });
+    zArea.addEventListener('wheel', (e) => { e.preventDefault(); cancelCine(); zoomTo(zoom.s * Math.exp(-e.deltaY * 0.0015), e.clientX, e.clientY); }, { passive: false });
     zArea.addEventListener('dblclick', (e) => { if (zoom.s > 1.02) { resetZoom(); zoom.swallowClick = true; e.preventDefault(); } });
     // kill iOS Safari's legacy page-zoom gesture even where touch-action misses
     ['gesturestart', 'gesturechange', 'gestureend'].forEach((g) =>
@@ -2292,11 +2377,13 @@
     const stolen = (!rolled && !trade && !disc) ? detectSteal(a, s) : null;   // card flies victim->thief on every screen
     const devBuy = detectDevBuy(a, s);   // a face-down dev card flies to the buyer on every other screen
     const bankTrade = (!rolled && !trade && !disc) ? detectBankTrade(a, s) : null;   // face-down cards fly to/from the bank
+    const placed = detectPlacement(a, s);   // a building/road went down -> pop-in + camera on observers too
     if (!rolled && !trade && !disc && a) soundForRemote(a, s);   // roll/trade/discard/robber have their own sound+animation
     state = s;
     if (rolled) ui.diceRevealing = true;   // suppress the corner dice during the reveal
     if (disc) ui.discardAnimating = true;  // defer the next discard prompt until this one's cards land
     if (robberMoved) ui.robberFlying = true;
+    if (placed) justPlaced = placed;       // observers get the pop-in too
     afterAction(); render();
     if (rolled) showDiceReveal(s.dice);
     if (disc) showDiscardFly(disc.color, disc.sel);   // everyone watches each player's discard; end -> afterAction
@@ -2310,6 +2397,7 @@
     }
     if (devBuy) showDevBuyFly(devBuy.buyer);   // the buyer themselves already saw it face-up via their own dispatch
     if (bankTrade) showBankFly(bankTrade.color, bankTrade.give, bankTrade.want, true);   // covered: the trader saw it face-up
+    if (placed && !robberMoved && !rolled) cinematicPlace(placed.kind, placed.id);   // camera pans to the new piece
   }
   function genCode() { const a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s = ''; for (let i = 0; i < 4; i++) s += a[(Math.random() * a.length) | 0]; return s; }
 
