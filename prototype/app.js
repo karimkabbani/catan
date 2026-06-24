@@ -895,7 +895,7 @@
       for (const e of map) {
         if (e.color !== color) continue;
         for (let k = 0; k < e.count; k++) {
-          const pt = svg.createSVGPoint(); pt.x = e.hx.cx + (k ? 0.18 : -0.18); pt.y = e.hx.cy;
+          const pt = svg.createSVGPoint(); pt.x = e.hx.cx; pt.y = e.hx.cy;   // start dead-centre of the terrain
           const s = pt.matrixTransform(ctm);
           flyResource(e.resource, s.x, s.y, tx, ty, delay);
           delay += STAGGER;
@@ -2256,7 +2256,7 @@
       const panel = $('p-' + SEATS[pi]); if (!panel) continue;
       const r = panel.getBoundingClientRect(), tx = r.left + r.width / 2, ty = r.top + r.height / 2;
       for (let k = 0; k < e.count; k++) {
-        const pt = svg.createSVGPoint(); pt.x = group.hx.cx + (k ? 0.18 : -0.18); pt.y = group.hx.cy;
+        const pt = svg.createSVGPoint(); pt.x = group.hx.cx; pt.y = group.hx.cy;   // start dead-centre of the terrain
         const sc = pt.matrixTransform(ctm); flyResource(e.resource, sc.x, sc.y, tx, ty, delay); delay += 230;
       }
     }
