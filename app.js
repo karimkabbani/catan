@@ -1064,6 +1064,18 @@
     });
     return v ? { victim: v.color, thief, res } : null;
   }
+  // a dev-card purchase, inferred from a remote state change: a player's dev-card count grew by
+  // one (you only ever gain dev cards by buying; playing one removes it, end-of-turn just moves
+  // new->playable with no net change). Everyone but the buyer sees a face-down card fly in.
+  function detectDevBuy(a, s) {
+    if (!a) return null;
+    const n = (p) => p.devCards.length + p.newDevCards.length;
+    for (const ps of s.players) {
+      const pa = a.players.find((p) => p.color === ps.color);
+      if (pa && n(ps) === n(pa) + 1) return { buyer: ps.color };
+    }
+    return null;
+  }
   function watchingTag() {   // "👁 N" shown to everyone in an online game when people are spectating
     if (!online) return '';
     const n = LOBBY.spectators().length;
@@ -2256,6 +2268,7 @@
     const disc = detectDiscard(a, s);
     const robberMoved = !!(a && a.robberHex !== s.robberHex);   // thief moved -> fly it on every screen
     const stolen = (!rolled && !trade && !disc) ? detectSteal(a, s) : null;   // card flies victim->thief on every screen
+    const devBuy = detectDevBuy(a, s);   // a face-down dev card flies to the buyer on every other screen
     if (!rolled && !trade && !disc && a) soundForRemote(a, s);   // roll/trade/discard/robber have their own sound+animation
     state = s;
     if (rolled) ui.diceRevealing = true;   // suppress the corner dice during the reveal
@@ -2272,6 +2285,7 @@
       const fly = () => showStealFly(stolen.victim, stolen.thief, reveal ? stolen.res : null);
       robberMoved ? setTimeout(fly, aDur(450)) : fly();   // let the robber land first if both happened at once
     }
+    if (devBuy) showDevBuyFly(devBuy.buyer);   // the buyer themselves already saw it face-up via their own dispatch
   }
   function genCode() { const a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s = ''; for (let i = 0; i < 4; i++) s += a[(Math.random() * a.length) | 0]; return s; }
 
