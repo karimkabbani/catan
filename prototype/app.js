@@ -701,7 +701,9 @@
       const pc = PCOLOR[p.color];
       el.style.background = `linear-gradient(${hexA(pc, 0.92)}, ${hexA(pc, 0.62)}), var(--wood-tex)`;
       el.style.backgroundSize = 'cover';
-      const vp = C.victoryPoints(state, p.color, false);
+      // you see your OWN victory-point cards in your star total; opponents stay public (VP cards are secret).
+      // online -> your seat; offline pass-and-play -> whoever's turn it is sees their own.
+      const vp = C.victoryPoints(state, p.color, online ? p.color === myColor : p.color === activeColor());
       const cards = RES.reduce((n, r) => n + p.resources[r], 0);
       const dev = p.devCards.length + p.newDevCards.length;
       const road = C.longestRoadLength(state, p.color);
