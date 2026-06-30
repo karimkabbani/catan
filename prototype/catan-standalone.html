@@ -890,7 +890,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v28';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v29';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -1603,7 +1603,7 @@
       // you see your OWN victory-point cards in your star total; opponents stay public (VP cards are secret).
       // online -> your seat; offline pass-and-play -> whoever's turn it is sees their own.
       const vp = C.victoryPoints(state, p.color, online ? p.color === myColor : p.color === activeColor());
-      const cards = RES.reduce((n, r) => n + p.resources[r], 0);
+      const cards = RES.reduce((n, r) => n + p.resources[r], 0) - ((ui.cardLag && ui.cardLag[p.color]) || 0);   // hold count behind in-flight cards
       const dev = p.devCards.length + p.newDevCards.length;
       const road = C.longestRoadLength(state, p.color);
       const bdg = (HUD.badge) || {};
@@ -1719,7 +1719,13 @@
       el.style.top = (r.top + r.height / 2) + 'px';
       el.style.transform = 'translate(-50%,-50%) scale(0.42)'; el.style.opacity = '0';
     }, aDur(700));
-    setTimeout(() => { el.classList.add('hidden'); ui.diceRevealing = false; renderPanels(); cinematicRoll(); afterAction(); render(); }, aDur(1300));
+    setTimeout(() => {
+      el.classList.add('hidden'); ui.diceRevealing = false;
+      // hold each player's card count at the OLD value; every incoming card ticks it up as it lands
+      const pm = productionMap(); ui.cardLag = {};
+      for (const e of pm) ui.cardLag[e.color] = (ui.cardLag[e.color] || 0) + e.count;
+      renderPanels(); cinematicRoll(); afterAction(); render();
+    }, aDur(1300));
   }
   // which producing hex sends which resource to which player on this roll
   function productionMap() {
@@ -1755,11 +1761,15 @@
     img.style.animation = `${opts.arc ? 'robberfly' : 'flyto'} ${(0.95 * sc).toFixed(2)}s ${Math.round(d)}ms ${opts.arc ? 'cubic-bezier(.45,.05,.55,.95)' : 'ease'} both`;
     document.body.appendChild(img);
     if (opts.sound) setTimeout(() => playSound(opts.sound, opts.vol), d);
+    if (opts.onland) setTimeout(opts.onland, d + Math.round(880 * sc));   // ~when the card reaches the panel
     setTimeout(() => img.remove(), d + 1050 * sc);
   }
-  function flyResource(res, sx, sy, tx, ty, delay) {
-    flyImage((HUD.res && HUD.res[res]) || (ASSETS.icons && ASSETS.icons[res]), sx, sy, tx, ty, delay, { sound: 'res_' + res, vol: 0.45 });
+  function flyResource(res, sx, sy, tx, ty, delay, onland) {
+    flyImage((HUD.res && HUD.res[res]) || (ASSETS.icons && ASSETS.icons[res]), sx, sy, tx, ty, delay, { sound: 'res_' + res, vol: 0.45, onland });
   }
+  // each landed card ticks the owner's displayed count up by one; clearCardLag snaps it to the true total
+  function bumpCardLag(color) { if (ui.cardLag && ui.cardLag[color] > 0) { ui.cardLag[color]--; renderPanels(); } }
+  function clearCardLag() { if (ui.cardLag && Object.keys(ui.cardLag).length) { ui.cardLag = {}; renderPanels(); } }
   // screen-pixel position of a hex centre (accounts for viewBox + pan/zoom via the SVG CTM)
   function hexScreenXY(hexId, dyAdj) {
     const svg = $('board');
@@ -1798,7 +1808,7 @@
         for (let k = 0; k < e.count; k++) {
           const pt = svg.createSVGPoint(); pt.x = e.hx.cx; pt.y = e.hx.cy;   // start dead-centre of the terrain
           const s = pt.matrixTransform(ctm);
-          flyResource(e.resource, s.x, s.y, tx, ty, delay);
+          flyResource(e.resource, s.x, s.y, tx, ty, delay, () => bumpCardLag(color));
           delay += STAGGER;
         }
       }
@@ -3143,7 +3153,7 @@
   function cameraHome(ms) { zoom.s = 1; zoom.tx = 0; zoom.ty = 0; cineApply(aDur(ms)); }
   // translate only — keep the current zoom scale (a true pan). At full-board view this is a no-op.
   function cameraPanTo(c, ms) { if (!c) return; const r = zRect(); zoom.tx = r.width / 2 - zoom.s * c.x; zoom.ty = r.height / 2 - zoom.s * c.y; zClamp(); cineApply(aDur(ms)); }
-  function cancelCine() { if (cineRunning) { cineToken++; cineRunning = false; } }   // a manual gesture takes over
+  function cancelCine() { if (cineRunning) { cineToken++; cineRunning = false; clearCardLag(); } }   // a manual gesture takes over; snap counts to true totals
   // run an async camera sequence; a newer sequence or a manual gesture (both bump cineToken) supersedes it
   async function runCine(seq, opts) {
     if (!SETTINGS.autozoom || !zArea) return;
@@ -3165,7 +3175,7 @@
       const pi = state.players.findIndex((p) => p.color === e.color);
       const panel = $('p-' + SEATS[pi]); if (!panel) continue;
       const pr = panel.getBoundingClientRect(), tx = pr.left + pr.width / 2, ty = pr.top + pr.height / 2;
-      for (let k = 0; k < e.count; k++) { flyResource(e.resource, sx, sy, tx, ty, delay); delay += 230; }
+      for (let k = 0; k < e.count; k++) { flyResource(e.resource, sx, sy, tx, ty, delay, () => bumpCardLag(e.color)); delay += 230; }
     }
   }
   // roll: tour each producing hex in turn, flying its cards as the camera lands; else fly everything at once
