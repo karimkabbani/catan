@@ -548,29 +548,6 @@
       }
     }
 
-    // buildings — use the ripped art; the SVG shapes below are only a fallback
-    // for when no ripped piece asset exists (never both, or the drawn shape would
-    // show through behind the real sprite).
-    // when stealing from a hex with several opponents, the victims' buildings blink and
-    // you pick by tapping one (the map stays visible instead of a covering prompt)
-    const stealMode = state.turnPhase === 'steal' && (state.stealCandidates || []).length > 1;
-    const robberVerts = stealMode ? new Set(state.board.hexes[state.robberHex].vertices) : null;
-    for (const [id, b] of Object.entries(state.settlements)) {
-      const x = vX(Number(id)), y = vY(Number(id)), c = PCOLOR[b.owner], s = PSTROKE[b.owner];
-      const art = ASSETS.pieces && ASSETS.pieces[b.type] && ASSETS.pieces[b.type][b.owner];
-      const bpop = (justPlaced && justPlaced.kind === 'v' && justPlaced.id === Number(id)) ? ' popin' : '';
-      const target = stealMode && robberVerts.has(Number(id)) && state.stealCandidates.includes(b.owner);
-      const cls = bpop + (target ? ' blink' : '');
-      if (art) {
-        P.push(`<image class="piece${cls}" href="${art}" x="${x - 0.32}" y="${y - 0.42}" width="0.64" height="0.72" preserveAspectRatio="xMidYMid meet"/>`);
-      } else if (b.type === 'city') {
-        P.push(`<g class="${target ? 'blink' : ''}" filter="url(#soft)"><rect x="${x - 0.28}" y="${y - 0.16}" width="0.56" height="0.4" rx="0.05" fill="${c}" stroke="${s}" stroke-width="0.05"/><polygon points="${x - 0.28},${y - 0.16} ${x},${y - 0.34} ${x + 0.06},${y - 0.34} ${x + 0.06},${y - 0.05} ${x + 0.28},${y - 0.05} ${x + 0.28},${y - 0.16}" fill="${c}" stroke="${s}" stroke-width="0.04"/><rect x="${x - 0.18}" y="${y + 0.02}" width="0.12" height="0.14" fill="${s}"/></g>`);
-      } else {
-        P.push(`<g class="${target ? 'blink' : ''}" filter="url(#soft)"><polygon points="${x},${y - 0.3} ${x + 0.22},${y - 0.08} ${x + 0.22},${y + 0.22} ${x - 0.22},${y + 0.22} ${x - 0.22},${y - 0.08}" fill="${c}" stroke="${s}" stroke-width="0.05"/></g>`);
-      }
-      if (target) P.push(`<circle class="hit" data-kind="steal" data-id="${b.owner}" cx="${x}" cy="${y}" r="0.4" fill="#fff" fill-opacity="0"/>`);
-    }
-
     // interactive targets — translucent ghost markers (like the original game),
     // each paired with an invisible hit target so transparent pixels still click.
     const color = activeColor();
@@ -600,6 +577,29 @@
         if (hx.id === state.robberHex) continue;
         P.push(`<circle class="hit" data-kind="hex" data-id="${hx.id}" cx="${hx.cx}" cy="${hx.cy}" r="0.5" fill="#000" fill-opacity="0.22" stroke="#000" stroke-opacity="0.45" stroke-width="0.05"/>`);
       }
+    }
+
+    // buildings — drawn LAST (on top of the placement ghosts) so a settlement is never hidden by
+    // the road ghosts, which in setup fan out from the settlement you just placed. Uses the ripped
+    // art; the SVG shapes are a fallback when no piece asset exists.
+    // when stealing from a hex with several opponents, the victims' buildings blink and
+    // you pick by tapping one (the map stays visible instead of a covering prompt)
+    const stealMode = state.turnPhase === 'steal' && (state.stealCandidates || []).length > 1;
+    const robberVerts = stealMode ? new Set(state.board.hexes[state.robberHex].vertices) : null;
+    for (const [id, b] of Object.entries(state.settlements)) {
+      const x = vX(Number(id)), y = vY(Number(id)), c = PCOLOR[b.owner], s = PSTROKE[b.owner];
+      const art = ASSETS.pieces && ASSETS.pieces[b.type] && ASSETS.pieces[b.type][b.owner];
+      const bpop = (justPlaced && justPlaced.kind === 'v' && justPlaced.id === Number(id)) ? ' popin' : '';
+      const target = stealMode && robberVerts.has(Number(id)) && state.stealCandidates.includes(b.owner);
+      const cls = bpop + (target ? ' blink' : '');
+      if (art) {
+        P.push(`<image class="piece${cls}" href="${art}" x="${x - 0.32}" y="${y - 0.42}" width="0.64" height="0.72" preserveAspectRatio="xMidYMid meet"/>`);
+      } else if (b.type === 'city') {
+        P.push(`<g class="${target ? 'blink' : ''}" filter="url(#soft)"><rect x="${x - 0.28}" y="${y - 0.16}" width="0.56" height="0.4" rx="0.05" fill="${c}" stroke="${s}" stroke-width="0.05"/><polygon points="${x - 0.28},${y - 0.16} ${x},${y - 0.34} ${x + 0.06},${y - 0.34} ${x + 0.06},${y - 0.05} ${x + 0.28},${y - 0.05} ${x + 0.28},${y - 0.16}" fill="${c}" stroke="${s}" stroke-width="0.04"/><rect x="${x - 0.18}" y="${y + 0.02}" width="0.12" height="0.14" fill="${s}"/></g>`);
+      } else {
+        P.push(`<g class="${target ? 'blink' : ''}" filter="url(#soft)"><polygon points="${x},${y - 0.3} ${x + 0.22},${y - 0.08} ${x + 0.22},${y + 0.22} ${x - 0.22},${y + 0.22} ${x - 0.22},${y - 0.08}" fill="${c}" stroke="${s}" stroke-width="0.05"/></g>`);
+      }
+      if (target) P.push(`<circle class="hit" data-kind="steal" data-id="${b.owner}" cx="${x}" cy="${y}" r="0.4" fill="#fff" fill-opacity="0"/>`);
     }
 
     // tentative placement awaiting confirmation — real piece + pulsing glow
