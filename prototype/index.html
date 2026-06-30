@@ -150,6 +150,10 @@
   #confirmbar{position:fixed; right:10px; top:50%; transform:translateY(-50%); z-index:9;
     display:flex; flex-direction:column; gap:12px;}
   #confirmbar.hidden{display:none;}
+  /* tiny build stamp so you can confirm the live version at a glance (cache checks) */
+  #ver{position:fixed; left:5px; bottom:calc(3px + env(safe-area-inset-bottom,0)); z-index:99999;
+    font:10px/1 monospace; color:rgba(255,255,255,0.5); text-shadow:0 1px 2px rgba(0,0,0,0.7);
+    pointer-events:none; letter-spacing:0.5px;}
   #confirmbar button.hidden{display:none;}   /* the ✓ is hidden while you're still choosing a spot (lone ✗ to cancel) */
   #confirmbar button{width:58px; height:58px; border:none; background:none; padding:0; cursor:pointer;}
   #confirmbar button img{width:100%; height:100%; filter:drop-shadow(0 2px 6px rgba(0,0,0,0.55));}
@@ -829,6 +833,7 @@
   </div>
   <div id="toast"></div>
   <div id="bctoast"></div>
+  <div id="ver"></div>
   <script>
     /* Optional custom art. Drop your own PNGs into the assets/ subfolders using
        the filenames below; anything not present yet falls back to drawn art.
