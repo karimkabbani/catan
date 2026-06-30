@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v25';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v26';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -574,9 +574,12 @@
       }
     }
     if (ui.mode === 'moveRobber') {
+      // a gentle gold "pick me up" pulse on the robber instead of the old dark targets over every hex
+      const rb = state.board.hexes[state.robberHex];
+      P.push(`<circle cx="${rb.cx}" cy="${rb.cy - 0.08}" r="0.46" fill="none" stroke="#f5d57a" stroke-width="0.06" opacity="0.8"><animate attributeName="r" values="0.42;0.6;0.42" dur="1.5s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.3;0.9;0.3" dur="1.5s" repeatCount="indefinite"/></circle>`);
       for (const hx of state.board.hexes) {
         if (hx.id === state.robberHex) continue;
-        P.push(`<circle class="hit" data-kind="hex" data-id="${hx.id}" cx="${hx.cx}" cy="${hx.cy}" r="0.5" fill="#000" fill-opacity="0.22" stroke="#000" stroke-opacity="0.45" stroke-width="0.05"/>`);
+        P.push(`<circle class="hit" data-kind="hex" data-id="${hx.id}" cx="${hx.cx}" cy="${hx.cy}" r="0.5" fill="#fff" fill-opacity="0"/>`);   // invisible tap target — no dark overlay
       }
     }
 
@@ -1889,7 +1892,7 @@
 
   // the radial cluster: five actions arranged around a centre close button
   function radialButtons() {
-    const R = 90;
+    const R = 72;   // tighter orbit (~20% smaller menu)
     // build/trade/end/dev only on your turn (dice roll automatically); Leave is always here.
     const canAct = state.phase === 'play' && state.turnPhase === 'main' && isMyTurn();
     const exit = { k: 'exit', label: (online && !myColor) ? 'Stop' : 'Leave', emoji: '🚪' };
@@ -1911,7 +1914,7 @@
       const y = Math.round(-R * Math.sin(a * Math.PI / 180));
       const inner = it.emoji ? `<span class="rico">${it.emoji}</span>` : `<img src="assets/hud/radial/${it.k}.png" alt="${it.label}">`;
       const click = it.k === 'exit' ? 'CATAN.exitGame()' : `CATAN.radial('${it.k}')`;
-      html += `<button class="radbtn${it.k === 'exit' ? ' exit' : ''}" style="--x:${x}px;--y:${y}px" onclick="${click}">${inner}<span class="rlbl">${it.label}</span></button>`;
+      html += `<button class="radbtn${it.k === 'exit' ? ' exit' : ''}" style="--x:${x}px;--y:${y}px" onclick="${click}">${inner}</button>`;
     });
     return html;
   }
@@ -1933,7 +1936,7 @@
     endTurn: () => dispatch({ type: 'endTurn' }),
     buyDev: () => dispatch({ type: 'buyDevCard' }),
     playKnight: () => dispatch({ type: 'playKnight' }),
-    build: (mode) => { hideOverlay(); ui.mode = mode; ui.confirm = null; render(); toast(mode === 'placeCity' ? 'Tap a settlement to upgrade' : 'Tap a highlighted spot'); },
+    build: (mode) => { hideOverlay(); ui.mode = mode; ui.confirm = null; render(); if (mode === 'placeCity') toast('Tap a settlement to upgrade'); else if (mode === 'placeSettlement') toast('Tap a highlighted spot'); },
     confirmPlace: () => { const c = ui.confirm; if (!c) return; ui.confirm = null; skipRobberFly = !!c.dragged; dispatch(c.action, c.color); skipRobberFly = false; },
     cancelPlace: () => {
       if (ui.confirm) { ui.confirm = null; render(); }   // a spot was chosen -> back to choosing
@@ -2247,11 +2250,11 @@
     const r = zRect();
     zoom.s = Math.min(MAXZ, Math.max(1, scale));
     zoom.tx = r.width / 2 - zoom.s * c.x; zoom.ty = r.height / 2 - zoom.s * c.y;
-    zClamp(); cineApply(ms);
+    zClamp(); cineApply(aDur(ms));   // aDur so the glide scales with anim-speed, matching the fly delays
   }
-  function cameraHome(ms) { zoom.s = 1; zoom.tx = 0; zoom.ty = 0; cineApply(ms); }
+  function cameraHome(ms) { zoom.s = 1; zoom.tx = 0; zoom.ty = 0; cineApply(aDur(ms)); }
   // translate only — keep the current zoom scale (a true pan). At full-board view this is a no-op.
-  function cameraPanTo(c, ms) { if (!c) return; const r = zRect(); zoom.tx = r.width / 2 - zoom.s * c.x; zoom.ty = r.height / 2 - zoom.s * c.y; zClamp(); cineApply(ms); }
+  function cameraPanTo(c, ms) { if (!c) return; const r = zRect(); zoom.tx = r.width / 2 - zoom.s * c.x; zoom.ty = r.height / 2 - zoom.s * c.y; zClamp(); cineApply(aDur(ms)); }
   function cancelCine() { if (cineRunning) { cineToken++; cineRunning = false; } }   // a manual gesture takes over
   // run an async camera sequence; a newer sequence or a manual gesture (both bump cineToken) supersedes it
   async function runCine(seq, opts) {
