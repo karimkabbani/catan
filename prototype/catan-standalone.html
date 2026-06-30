@@ -232,8 +232,9 @@
   .radbtn.off{filter:grayscale(0.85) brightness(0.5); pointer-events:none;}
   .radbtn.off .rlbl{color:var(--muted);}
   /* Leave/Exit radial button: charcoal sphere + gold ring (matches the action buttons) + door */
-  .radbtn.exit{border-radius:50%; background:radial-gradient(circle at 38% 30%, #5a554e, #272320 56%, #15120f);
-    border:2px solid #1c160f; box-shadow:0 0 0 3px #c79a3e, 0 0 0 5px #7a5c24, 0 3px 7px rgba(0,0,0,0.5);}
+  /* emoji buttons (chat + leave) get the same glossy blue sphere + gold ring as the image-icon buttons */
+  .radbtn.framed{border-radius:50%; background:radial-gradient(circle at 38% 32%, #5a86c8, #2f5694 52%, #1c386c);
+    border:2px solid #16294a; box-shadow:0 0 0 3px #c79a3e, 0 0 0 5px #7a5c24, 0 3px 7px rgba(0,0,0,0.5);}
   .radbtn .rico{display:flex; align-items:center; justify-content:center; width:100%; height:100%;
     font-size:26px; line-height:1; filter:drop-shadow(0 2px 3px rgba(0,0,0,0.6));}
   .radbtn.center{width:50px; height:50px; left:-25px; top:-25px; transform:none; opacity:1; transition:opacity .16s;}
@@ -884,7 +885,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v26';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v27';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -1431,16 +1432,6 @@
     // interactive targets — translucent ghost markers (like the original game),
     // each paired with an invisible hit target so transparent pixels still click.
     const color = activeColor();
-    if (ui.mode === 'placeSettlement' || ui.mode === 'placeCity') {
-      const isCity = ui.mode === 'placeCity';
-      const src = isCity ? GHOST.city : GHOST.settlement;
-      const list = isCity ? legalCityVertices(color) : legalSettlementVertices(color);
-      for (const id of list) {
-        const x = vX(id), y = vY(id);
-        P.push(`<image class="ghost" href="${src}" x="${x - 0.27}" y="${y - 0.4}" width="0.54" height="0.58" preserveAspectRatio="xMidYMid meet"/>`);
-        P.push(`<circle class="hit" data-kind="vertex" data-id="${id}" cx="${x}" cy="${y}" r="0.33" fill="#fff" fill-opacity="0"/>`);
-      }
-    }
     if (ui.mode === 'placeRoad') {
       for (const eid of legalRoadEdges(color)) {
         const [a, b] = state.board.edges[eid].v;
@@ -1494,6 +1485,19 @@
         P.push(`<g class="${target ? 'blink' : ''}" filter="url(#soft)"><polygon points="${x},${y - 0.3} ${x + 0.22},${y - 0.08} ${x + 0.22},${y + 0.22} ${x - 0.22},${y + 0.22} ${x - 0.22},${y - 0.08}" fill="${c}" stroke="${s}" stroke-width="0.05"/></g>`);
       }
       if (target) P.push(`<circle class="hit" data-kind="steal" data-id="${b.owner}" cx="${x}" cy="${y}" r="0.4" fill="#fff" fill-opacity="0"/>`);
+    }
+
+    // settlement/city placement ghosts on TOP of the buildings, so a city-upgrade marker over an
+    // existing settlement is visible + tappable; the city highlight pulses to draw the eye.
+    if (ui.mode === 'placeSettlement' || ui.mode === 'placeCity') {
+      const isCity = ui.mode === 'placeCity';
+      const src = isCity ? GHOST.city : GHOST.settlement;
+      const list = isCity ? legalCityVertices(color) : legalSettlementVertices(color);
+      for (const id of list) {
+        const x = vX(id), y = vY(id);
+        P.push(`<image class="ghost${isCity ? ' blink' : ''}" href="${src}" x="${x - 0.27}" y="${y - 0.4}" width="0.54" height="0.58" preserveAspectRatio="xMidYMid meet"/>`);
+        P.push(`<circle class="hit" data-kind="vertex" data-id="${id}" cx="${x}" cy="${y}" r="0.36" fill="#fff" fill-opacity="0"/>`);
+      }
     }
 
     // tentative settlement/city/robber awaiting confirmation — on top (the road preview is above, under the buildings)
@@ -2793,7 +2797,7 @@
       const y = Math.round(-R * Math.sin(a * Math.PI / 180));
       const inner = it.emoji ? `<span class="rico">${it.emoji}</span>` : `<img src="assets/hud/radial/${it.k}.png" alt="${it.label}">`;
       const click = it.k === 'exit' ? 'CATAN.exitGame()' : `CATAN.radial('${it.k}')`;
-      html += `<button class="radbtn${it.k === 'exit' ? ' exit' : ''}" style="--x:${x}px;--y:${y}px" onclick="${click}">${inner}</button>`;
+      html += `<button class="radbtn${it.emoji ? ' framed' : ''}" style="--x:${x}px;--y:${y}px" onclick="${click}">${inner}</button>`;
     });
     return html;
   }
@@ -3144,17 +3148,19 @@
     if (alive()) { if (!(opts && opts.stay)) cameraHome(CINE_MS); cineRunning = false; }   // glide back out unless asked to hold the frame
   }
   // fly one producing hex's resources to the owners' panels (used as the roll tour lands on each hex)
-  function flyHexProduction(group) {
-    const svg = $('board'); if (!svg || !svg.getScreenCTM) return; const ctm = svg.getScreenCTM(); if (!ctm) return;
+  // base[hexId] = the hex's identity-space centre (captured before the tour zoomed). We derive the
+  // on-screen start from the zoom TARGET (zoom.s/tx/ty) rather than the live transform, so the cards
+  // always launch from the terrain's settled centre even if read mid-glide.
+  function flyHexProduction(group, base) {
+    const c = base[group.hx.id]; if (!c) return;
+    const r = zRect();
+    const sx = r.left + zoom.tx + zoom.s * c.x, sy = r.top + zoom.ty + zoom.s * c.y;
     let delay = 0;
     for (const e of group.entries) {
       const pi = state.players.findIndex((p) => p.color === e.color);
       const panel = $('p-' + SEATS[pi]); if (!panel) continue;
-      const r = panel.getBoundingClientRect(), tx = r.left + r.width / 2, ty = r.top + r.height / 2;
-      for (let k = 0; k < e.count; k++) {
-        const pt = svg.createSVGPoint(); pt.x = group.hx.cx; pt.y = group.hx.cy;   // start dead-centre of the terrain
-        const sc = pt.matrixTransform(ctm); flyResource(e.resource, sc.x, sc.y, tx, ty, delay); delay += 230;
-      }
+      const pr = panel.getBoundingClientRect(), tx = pr.left + pr.width / 2, ty = pr.top + pr.height / 2;
+      for (let k = 0; k < e.count; k++) { flyResource(e.resource, sx, sy, tx, ty, delay); delay += 230; }
     }
   }
   // roll: tour each producing hex in turn, flying its cards as the camera lands; else fly everything at once
@@ -3164,12 +3170,14 @@
     const byHex = new Map();
     for (const e of map) { const g = byHex.get(e.hx.id) || { hx: e.hx, entries: [] }; g.entries.push(e); byHex.set(e.hx.id, g); }
     const groups = [...byHex.values()];
+    const base = {};   // capture each producing hex's identity-space centre BEFORE the tour moves the camera
+    for (const g of groups) base[g.hx.id] = hexContent(g.hx.id);
     runCine(async (alive) => {
       for (const g of groups) {
         if (!alive()) return;
         cameraTo(hexContent(g.hx.id), CINE_Z_HEX, CINE_MS);
         await cineSleep(aDur(CINE_MS + 80)); if (!alive()) return;   // let the glide settle before the cards fly
-        flyHexProduction(g);
+        flyHexProduction(g, base);
         await cineSleep(aDur(950)); if (!alive()) return;            // linger while the cards land, then glide to the next
       }
     });
