@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v30';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v31';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -2662,12 +2662,17 @@
     else if (a === 'lobby') CATAN.showLobby();
     else if (a === 'profile') CATAN.manageProfile();
     else if (a === 'profback') CATAN.manageProfile();
+    else if (a === 'stats') CATAN.openStats();
   }, true);
   // Build the static lobby frame (title + dyn slot + footer) ONCE per entry. Only an
   // explicit showLobby() ever calls this; background ticks never rebuild the frame.
   function lobbyShell() {
-    const foot = `<div class="lobby-foot"><button class="btn ghost" data-nav="logout">← Switch player</button><button class="btn ghost" data-nav="profile">Manage Profile</button></div>`;
-    titleCard(`<h3>Lobby</h3><div id="lobby-dyn"></div>${foot}`);
+    // subtle header tools (your avatar -> profile, leaderboard, switch-player) replace the full footer buttons
+    const tools = `<div class="lobtools">` +
+      `<button class="lobtool lobav" data-nav="profile" title="Manage profile">${faceHTML(AUTH.me.name, AUTH.me.avatar, 'sm')}</button>` +
+      `<button class="lobtool" data-nav="stats" title="Stats & leaderboard">🏆</button>` +
+      `<button class="lobtool" data-nav="logout" title="Switch player">🚪</button></div>`;
+    titleCard(`<div class="lobhead"><h3 id="lob-title">Lobby</h3>${tools}</div><div id="lobby-dyn"></div>`);
     lobbySig = null;
   }
   function renderLobby() {
@@ -2682,6 +2687,7 @@
     if (sig === lobbySig) return;
     lobbySig = sig;
     dynEl.innerHTML = LOBBY.table ? atTableHTML(all) : tableListHTML(all);   // footer frame untouched
+    const tt = $('lob-title'); if (tt) tt.textContent = LOBBY.table ? 'Lobby — ' + LOBBY.table : 'Lobby';   // show the game code at a table
     scheduleFit();   // content height just changed (players joined/readied) -> rescale now + across font-load/frames so the card never overflows
   }
   // browsing: a list of active tables to join, plus "New table"
@@ -2705,7 +2711,7 @@
   function atTableHTML(all) {
     const members = all.filter((p) => (p.table || null) === LOBBY.table);
     const ready = LOBBY.readyList(), rows = lobbyRows(members, ready);
-    const leave = `<button class="btn ghost full" onclick="CATAN.leaveTable()">← Back to games</button>`;
+    const leave = `<button class="loblink" onclick="CATAN.leaveTable()">← Back to games</button>`;
     if (LOBBY.inProgress) {
       return `<p class="muted small" style="text-align:center">Game · ${members.length} here</p>
         <div class="loblist">${rows}</div>
@@ -2724,6 +2730,7 @@
       </div>
       ${startBtn}${leave}`;
   }
+  window.CATAN.openStats = () => toast('🏆 Stats & leaderboard — coming soon');
   window.CATAN.newTable = () => LOBBY.enterTable(genCode());
   window.CATAN.joinTable = (code) => LOBBY.enterTable(code);
   window.CATAN.leaveTable = () => LOBBY.leaveTable();
