@@ -169,7 +169,34 @@ function hasAdjacentRedTokens(board: Board, nb: Map<number, number[]>): boolean 
   return false;
 }
 
-function assignPorts(board: Board): void {
+// Balanced-board house rules (beyond the official 6/8 rule) so high-odds numbers don't cluster.
+const HIGH_NUMBERS = new Set([5, 6, 8, 9]); // 4–5 pips: the high-production numbers
+
+/** True if two adjacent hexes share the same number token. */
+function hasAdjacentSameNumber(board: Board, nb: Map<number, number[]>): boolean {
+  for (const h of board.hexes) {
+    if (h.token === null) continue;
+    for (const n of nb.get(h.id)!) {
+      if (board.hexes[n].token === h.token) return true;
+    }
+  }
+  return false;
+}
+
+/** True if any settlement spot (vertex) touches 3 high-production hexes — an over-strong spot. */
+function hasOverloadedVertex(board: Board): boolean {
+  for (const v of board.vertices) {
+    let high = 0;
+    for (const hid of v.hexes) {
+      const t = board.hexes[hid].token;
+      if (t !== null && HIGH_NUMBERS.has(t)) high++;
+    }
+    if (high >= 3) return true;
+  }
+  return false;
+}
+
+function assignPorts(board: Board, types: PortType[]): void {
   const center = { x: 0, y: 0 };
   const coastal = board.edges.filter((e) => e.hexes.length === 1);
   // Order coastal edges by the angle of their midpoint around the board center.
@@ -184,7 +211,7 @@ function assignPorts(board: Board): void {
 
   PORT_EDGE_SLOTS.forEach((slot, i) => {
     const e = withAngle[slot % withAngle.length].edge;
-    const type = PORT_TYPES[i];
+    const type = types[i];
     board.vertices[e.v[0]].port = type;
     board.vertices[e.v[1]].port = type;
   });
@@ -215,9 +242,12 @@ export function generateBoard(seed: number): { board: Board; rngState: number } 
       h.token = h.terrain === 'desert' ? null : tokens[ti++];
     });
 
-    if (hasAdjacentRedTokens(board, nb)) continue; // reshuffle for a fair board
+    if (hasAdjacentRedTokens(board, nb)) continue;   // official: no two red (6/8) adjacent
+    if (hasAdjacentSameNumber(board, nb)) continue;  // balance: no duplicate numbers touching
+    if (hasOverloadedVertex(board)) continue;        // balance: no spot fed by 3 high-odds hexes
 
-    assignPorts(board);
+    const ps = shuffle(PORT_TYPES, rng); rng = ps.state;   // randomise the harbours
+    assignPorts(board, ps.result);
     return { board, rngState: rng };
   }
 
@@ -232,7 +262,8 @@ export function generateBoard(seed: number): { board: Board; rngState: number } 
     h.terrain = st.result[i];
     h.token = h.terrain === 'desert' ? null : tk.result[ti++];
   });
-  assignPorts(board);
+  const ps = shuffle(PORT_TYPES, rng); rng = ps.state;
+  assignPorts(board, ps.result);
   return { board, rngState: rng };
 }
 
