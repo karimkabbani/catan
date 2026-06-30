@@ -1453,6 +1453,17 @@
       }
     }
 
+    // tentative ROAD preview renders UNDER the buildings — a road never covers a settlement, even
+    // mid-placement. (The tentative settlement/city + robber stay on top, in the confirm block below.)
+    if (ui.confirm && ui.confirm.action.type === 'buildRoad') {
+      const col = ui.confirm.color, [a, b] = state.board.edges[ui.confirm.action.edge].v;
+      const ax = vX(a), ay = vY(a), bx = vX(b), by = vY(b);
+      const mx = (ax + bx) / 2, my = (ay + by) / 2;
+      const len = Math.hypot(bx - ax, by - ay), ang = Math.atan2(by - ay, bx - ax) * 180 / Math.PI;
+      P.push(`<line x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}" stroke="${PCOLOR[col]}" stroke-width="0.34" stroke-linecap="round"><animate attributeName="opacity" values="0.35;0.85;0.35" dur="1s" repeatCount="indefinite"/></line>`);
+      if (ASSETS.roads && ASSETS.roads[col]) { const rw = len * 1.06, rh = len * 0.42; P.push(`<g transform="rotate(${ang} ${mx} ${my})"><image href="${ASSETS.roads[col]}" x="${mx - rw / 2}" y="${my - rh / 2}" width="${rw}" height="${rh}" preserveAspectRatio="xMidYMid meet" filter="url(#soft)"/></g>`); }
+    }
+
     // buildings — drawn LAST (on top of the placement ghosts) so a settlement is never hidden by
     // the road ghosts, which in setup fan out from the settlement you just placed. Uses the ripped
     // art; the SVG shapes are a fallback when no piece asset exists.
@@ -1476,17 +1487,10 @@
       if (target) P.push(`<circle class="hit" data-kind="steal" data-id="${b.owner}" cx="${x}" cy="${y}" r="0.4" fill="#fff" fill-opacity="0"/>`);
     }
 
-    // tentative placement awaiting confirmation — real piece + pulsing glow
-    if (ui.confirm) {
+    // tentative settlement/city/robber awaiting confirmation — on top (the road preview is above, under the buildings)
+    if (ui.confirm && ui.confirm.action.type !== 'buildRoad') {
       const act = ui.confirm.action, col = ui.confirm.color;
-      if (act.type === 'buildRoad') {
-        const [a, b] = state.board.edges[act.edge].v;
-        const ax = vX(a), ay = vY(a), bx = vX(b), by = vY(b);
-        const mx = (ax + bx) / 2, my = (ay + by) / 2;
-        const len = Math.hypot(bx - ax, by - ay), ang = Math.atan2(by - ay, bx - ax) * 180 / Math.PI;
-        P.push(`<line x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}" stroke="${PCOLOR[col]}" stroke-width="0.34" stroke-linecap="round"><animate attributeName="opacity" values="0.35;0.85;0.35" dur="1s" repeatCount="indefinite"/></line>`);
-        if (ASSETS.roads && ASSETS.roads[col]) { const rw = len * 1.06, rh = len * 0.42; P.push(`<g transform="rotate(${ang} ${mx} ${my})"><image href="${ASSETS.roads[col]}" x="${mx - rw / 2}" y="${my - rh / 2}" width="${rw}" height="${rh}" preserveAspectRatio="xMidYMid meet" filter="url(#soft)"/></g>`); }
-      } else if (act.type === 'moveRobber') {
+      if (act.type === 'moveRobber') {
         const hx = state.board.hexes[act.hex];
         P.push(`<circle cx="${hx.cx}" cy="${hx.cy}" r="0.5" fill="none" stroke="#fff" stroke-width="0.07"><animate attributeName="r" values="0.44;0.56;0.44" dur="1s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.5;1;0.5" dur="1s" repeatCount="indefinite"/></circle>`);
         if (ASSETS.robber) P.push(`<image href="${ASSETS.robber}" x="${hx.cx - 0.42}" y="${hx.cy - 0.55}" width="0.84" height="0.95" preserveAspectRatio="xMidYMid meet" filter="url(#soft)"/>`);
