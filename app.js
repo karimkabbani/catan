@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v27';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v28';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -866,7 +866,8 @@
     img.style.setProperty('--dx', (tx - sx).toFixed(1) + 'px');
     img.style.setProperty('--dy', (ty - sy).toFixed(1) + 'px');
     const sc = aScale(), d = delay * sc;
-    img.style.animation = `flyto ${(0.95 * sc).toFixed(2)}s ${Math.round(d)}ms ease both`;
+    // arc (the robber) lifts + lands and stays full-size; flyto (resources) pops in then shrinks away
+    img.style.animation = `${opts.arc ? 'robberfly' : 'flyto'} ${(0.95 * sc).toFixed(2)}s ${Math.round(d)}ms ${opts.arc ? 'cubic-bezier(.45,.05,.55,.95)' : 'ease'} both`;
     document.body.appendChild(img);
     if (opts.sound) setTimeout(() => playSound(opts.sound, opts.vol), d);
     setTimeout(() => img.remove(), d + 1050 * sc);
@@ -887,13 +888,12 @@
   // fly the robber piece from its old hex to the new one — runs on every screen
   function showRobberFly(fromHex, toHex) {
     const finish = () => { ui.robberFlying = false; afterAction(); render(); };
-    // auto-zoom on: let the camera reveal the robber at its new hex instead of the cross-board fly
-    if (SETTINGS.autozoom && zArea) { finish(); cinematicHex(toHex); return; }
     const a = hexScreenXY(fromHex, -0.08), b = hexScreenXY(toHex, -0.08);
     if (!ASSETS.robber || !a || !b) { finish(); return; }
     const w = 0.84 * a.scale, h = 0.95 * a.scale;   // match the on-board robber size
-    flyImage(ASSETS.robber, a.x, a.y, b.x, b.y, 0, { w, h });   // robber sound already plays from the move
-    setTimeout(finish, aDur(1000));   // the fly animates ~0.95s, then the piece settles at the new hex
+    // everyone sees the robber lift off its hex, arc across the board, and land on the new one
+    flyImage(ASSETS.robber, a.x, a.y, b.x, b.y, 0, { w, h, arc: true });
+    setTimeout(finish, aDur(1000));   // the arc animates ~0.95s, then the real piece settles at the new hex
   }
   function showResourceFly() {
     const map = productionMap();
