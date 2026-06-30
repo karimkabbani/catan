@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v32';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v33';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -2668,19 +2668,19 @@
   // ---- Stats (DUMMY data for now — swap for a real results store written at each game's end) ----
   const STATS = {
     games: [
-      { date: 'Jun 29', players: ['Karim', 'Dany', 'Georges', 'Rami'], winner: 'Karim', pts: 10 },
+      { date: 'Jun 29', players: ['Karim', 'Dany', 'Georges', 'Ramzi'], winner: 'Karim', pts: 10 },
       { date: 'Jun 28', players: ['Dany', 'Karim', 'Georges'], winner: 'Dany', pts: 10 },
-      { date: 'Jun 27', players: ['Karim', 'Rami'], winner: 'Rami', pts: 15 },
-      { date: 'Jun 26', players: ['Georges', 'Karim', 'Dany', 'Rami'], winner: 'Georges', pts: 11 },
+      { date: 'Jun 27', players: ['Karim', 'Ramzi'], winner: 'Ramzi', pts: 15 },
+      { date: 'Jun 26', players: ['Georges', 'Karim', 'Dany', 'Ramzi'], winner: 'Georges', pts: 11 },
       { date: 'Jun 25', players: ['Karim', 'Dany'], winner: 'Karim', pts: 15 },
-      { date: 'Jun 24', players: ['Rami', 'Dany', 'Karim'], winner: 'Dany', pts: 10 },
-      { date: 'Jun 22', players: ['Karim', 'Georges', 'Rami', 'Dany'], winner: 'Karim', pts: 12 },
+      { date: 'Jun 24', players: ['Ramzi', 'Dany', 'Karim'], winner: 'Dany', pts: 10 },
+      { date: 'Jun 22', players: ['Karim', 'Georges', 'Ramzi', 'Dany'], winner: 'Karim', pts: 12 },
       { date: 'Jun 21', players: ['Dany', 'Georges'], winner: 'Georges', pts: 15 },
-      { date: 'Jun 20', players: ['Karim', 'Dany', 'Rami'], winner: 'Karim', pts: 10 },
-      { date: 'Jun 18', players: ['Rami', 'Georges', 'Karim', 'Dany'], winner: 'Rami', pts: 11 },
+      { date: 'Jun 20', players: ['Karim', 'Dany', 'Ramzi'], winner: 'Karim', pts: 10 },
+      { date: 'Jun 18', players: ['Ramzi', 'Georges', 'Karim', 'Dany'], winner: 'Ramzi', pts: 11 },
     ],
     // dummy tendency tallies: times each player held longest road / largest army at game end
-    tendency: { Karim: { lr: 5, la: 3 }, Dany: { lr: 3, la: 4 }, Georges: { lr: 2, la: 2 }, Rami: { lr: 4, la: 5 } },
+    tendency: { Karim: { lr: 5, la: 3 }, Dany: { lr: 3, la: 4 }, Georges: { lr: 2, la: 2 }, Ramzi: { lr: 4, la: 5 } },
     leaderboard() {
       const m = {};
       STATS.games.forEach((g) => {
