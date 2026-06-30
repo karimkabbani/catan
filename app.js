@@ -5,6 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
+  const APP_VERSION = 'v22';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -2960,6 +2961,7 @@
   };
 
   function boot() {
+    const v = document.getElementById('ver'); if (v) v.textContent = APP_VERSION;   // version stamp for cache checks
     initBoardZoom();
     const m = location.href.match(/[?#&]rig(?:=(\d))?\b/);   // ?rig -> 4 players, ?rig=2 -> 2, etc.
     if (m) { rigNearWin(m[1] ? parseInt(m[1], 10) : 4); return; }
