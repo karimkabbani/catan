@@ -169,8 +169,13 @@ function hasAdjacentRedTokens(board: Board, nb: Map<number, number[]>): boolean 
   return false;
 }
 
-// Balanced-board house rules (beyond the official 6/8 rule) so high-odds numbers don't cluster.
-const HIGH_NUMBERS = new Set([5, 6, 8, 9]); // 4–5 pips: the high-production numbers
+// Balanced-board house rules (beyond the official 6/8 rule) so production doesn't concentrate.
+// Pips = probability dots on each number token; a settlement spot's strength is the pip sum of
+// its adjacent hexes. We cap that so no single opening spot is over-powered.
+const PIPS: Record<number, number> = { 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 8: 5, 9: 4, 10: 3, 11: 2, 12: 1 };
+// A vertex needs 3 high hexes to exceed 12, and 3-high always sums to ≥13 — so cap 12 == "no
+// 3-high super-spot" and reliably generates. ≤11 is ~150x rarer and impractical with retry.
+const MAX_VERTEX_PIPS = 12;
 
 /** True if two adjacent hexes share the same number token. */
 function hasAdjacentSameNumber(board: Board, nb: Map<number, number[]>): boolean {
@@ -183,15 +188,15 @@ function hasAdjacentSameNumber(board: Board, nb: Map<number, number[]>): boolean
   return false;
 }
 
-/** True if any settlement spot (vertex) touches 3 high-production hexes — an over-strong spot. */
-function hasOverloadedVertex(board: Board): boolean {
+/** True if any settlement spot (vertex) collects more than MAX_VERTEX_PIPS — an over-strong spot. */
+function hasOverproductiveVertex(board: Board): boolean {
   for (const v of board.vertices) {
-    let high = 0;
+    let pips = 0;
     for (const hid of v.hexes) {
       const t = board.hexes[hid].token;
-      if (t !== null && HIGH_NUMBERS.has(t)) high++;
+      if (t !== null) pips += PIPS[t] || 0;
     }
-    if (high >= 3) return true;
+    if (pips > MAX_VERTEX_PIPS) return true;
   }
   return false;
 }
@@ -242,9 +247,9 @@ export function generateBoard(seed: number): { board: Board; rngState: number } 
       h.token = h.terrain === 'desert' ? null : tokens[ti++];
     });
 
-    if (hasAdjacentRedTokens(board, nb)) continue;   // official: no two red (6/8) adjacent
-    if (hasAdjacentSameNumber(board, nb)) continue;  // balance: no duplicate numbers touching
-    if (hasOverloadedVertex(board)) continue;        // balance: no spot fed by 3 high-odds hexes
+    if (hasAdjacentRedTokens(board, nb)) continue;    // official: no two red (6/8) adjacent
+    if (hasAdjacentSameNumber(board, nb)) continue;   // balance: no duplicate numbers touching
+    if (hasOverproductiveVertex(board)) continue;     // balance: cap the pip total at any settlement spot
 
     const ps = shuffle(PORT_TYPES, rng); rng = ps.state;   // randomise the harbours
     assignPorts(board, ps.result);
