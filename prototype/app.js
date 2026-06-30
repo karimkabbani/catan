@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v31';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v32';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -2663,16 +2663,65 @@
     else if (a === 'profile') CATAN.manageProfile();
     else if (a === 'profback') CATAN.manageProfile();
     else if (a === 'stats') CATAN.openStats();
+    else if (a === 'back') CATAN.lobbyBack();
   }, true);
+  // ---- Stats (DUMMY data for now — swap for a real results store written at each game's end) ----
+  const STATS = {
+    games: [
+      { date: 'Jun 29', players: ['Karim', 'Dany', 'Georges', 'Rami'], winner: 'Karim', pts: 10 },
+      { date: 'Jun 28', players: ['Dany', 'Karim', 'Georges'], winner: 'Dany', pts: 10 },
+      { date: 'Jun 27', players: ['Karim', 'Rami'], winner: 'Rami', pts: 15 },
+      { date: 'Jun 26', players: ['Georges', 'Karim', 'Dany', 'Rami'], winner: 'Georges', pts: 11 },
+      { date: 'Jun 25', players: ['Karim', 'Dany'], winner: 'Karim', pts: 15 },
+      { date: 'Jun 24', players: ['Rami', 'Dany', 'Karim'], winner: 'Dany', pts: 10 },
+      { date: 'Jun 22', players: ['Karim', 'Georges', 'Rami', 'Dany'], winner: 'Karim', pts: 12 },
+      { date: 'Jun 21', players: ['Dany', 'Georges'], winner: 'Georges', pts: 15 },
+      { date: 'Jun 20', players: ['Karim', 'Dany', 'Rami'], winner: 'Karim', pts: 10 },
+      { date: 'Jun 18', players: ['Rami', 'Georges', 'Karim', 'Dany'], winner: 'Rami', pts: 11 },
+    ],
+    // dummy tendency tallies: times each player held longest road / largest army at game end
+    tendency: { Karim: { lr: 5, la: 3 }, Dany: { lr: 3, la: 4 }, Georges: { lr: 2, la: 2 }, Rami: { lr: 4, la: 5 } },
+    leaderboard() {
+      const m = {};
+      STATS.games.forEach((g) => {
+        g.players.forEach((p) => { (m[p] = m[p] || { name: p, games: 0, wins: 0 }).games++; });
+        m[g.winner].wins++;
+      });
+      return Object.values(m).map((p) => {
+        const t = STATS.tendency[p.name] || { lr: 0, la: 0 };
+        return { name: p.name, games: p.games, wins: p.wins, winpct: Math.round((100 * p.wins) / p.games), lr: t.lr, la: t.la };
+      }).sort((a, b) => b.wins - a.wins || b.winpct - a.winpct || b.games - a.games);
+    },
+  };
+  function recentRowsHTML(limit) {
+    const games = limit ? STATS.games.slice(0, limit) : STATS.games;
+    return games.map((g) => {
+      const others = g.players.filter((p) => p !== g.winner).map(escapeHtml).join(', ');
+      return `<div class="rgrow"><span class="rgwin">🏆 ${escapeHtml(g.winner)}</span>` +
+        `<span class="rgfield">${others}</span><span class="rgdate">${g.players.length}p · ${g.date}</span></div>`;
+    }).join('');
+  }
+  function statsScreen() {
+    const rows = STATS.leaderboard().map((p, i) => `<tr><td class="str">${i + 1}</td>` +
+      `<td class="stn">${escapeHtml(p.name)}</td><td>${p.games}</td><td class="stw">${p.wins}</td>` +
+      `<td>${p.winpct}%</td><td>${p.lr}</td><td>${p.la}</td></tr>`).join('');
+    titleCard(`<div class="lobhead"><button class="lobback" onclick="CATAN.showLobby()" title="Back to lobby">←</button><h3>🏆 Stats</h3></div>
+      <div class="sttbl-wrap"><table class="sttbl">
+        <thead><tr><th>#</th><th>Player</th><th title="Games played">P</th><th title="Wins">W</th><th title="Win rate">Win%</th><th title="Longest road — times held at game end">🛣</th><th title="Largest army — times held at game end">⚔</th></tr></thead>
+        <tbody>${rows}</tbody></table></div>
+      <div class="stnote">Dummy data — a real results store gets written at each game's end.</div>
+      <h4 class="stsub">Recent games</h4>
+      <div class="rglist tall">${recentRowsHTML()}</div>`);
+  }
   // Build the static lobby frame (title + dyn slot + footer) ONCE per entry. Only an
   // explicit showLobby() ever calls this; background ticks never rebuild the frame.
   function lobbyShell() {
-    // subtle header tools (your avatar -> profile, leaderboard, switch-player) replace the full footer buttons
+    // back arrow (top-left, goes back one level) + subtle right-hand tools (avatar -> profile, stats)
+    const back = `<button class="lobback" id="lobback" data-nav="back" title="Back">←</button>`;
     const tools = `<div class="lobtools">` +
       `<button class="lobtool lobav" data-nav="profile" title="Manage profile">${faceHTML(AUTH.me.name, AUTH.me.avatar, 'sm')}</button>` +
-      `<button class="lobtool" data-nav="stats" title="Stats & leaderboard">🏆</button>` +
-      `<button class="lobtool" data-nav="logout" title="Switch player">🚪</button></div>`;
-    titleCard(`<div class="lobhead"><h3 id="lob-title">Lobby</h3>${tools}</div><div id="lobby-dyn"></div>`);
+      `<button class="lobtool" data-nav="stats" title="Stats & leaderboard">🏆</button></div>`;
+    titleCard(`<div class="lobhead">${back}<h3 id="lob-title">Lobby</h3>${tools}</div><div id="lobby-dyn"></div>`);
     lobbySig = null;
   }
   function renderLobby() {
@@ -2688,6 +2737,7 @@
     lobbySig = sig;
     dynEl.innerHTML = LOBBY.table ? atTableHTML(all) : tableListHTML(all);   // footer frame untouched
     const tt = $('lob-title'); if (tt) tt.textContent = LOBBY.table ? 'Lobby — ' + LOBBY.table : 'Lobby';   // show the game code at a table
+    const bk = $('lobback'); if (bk) bk.title = LOBBY.table ? 'Back to games' : 'Switch player';   // back arrow goes back one level
     scheduleFit();   // content height just changed (players joined/readied) -> rescale now + across font-load/frames so the card never overflows
   }
   // browsing: a list of active tables to join, plus "New table"
@@ -2705,17 +2755,21 @@
     }).join('') : `<p class="muted" style="text-align:center;margin:12px 0">No games yet — start one.</p>`;
     return `<p class="muted small" style="text-align:center">${me} · ${all.length} online${browsing ? ' · ' + browsing + ' browsing' : ''}</p>
       <div class="loblist">${rows}</div>
-      <button class="btn wood full" onclick="CATAN.newTable()">+ New game</button>`;
+      <button class="btn wood full" onclick="CATAN.newTable()">+ New game</button>
+      <div class="rgsec">
+        <div class="rghead"><span>Recent games</span><button class="rglink" data-nav="stats">Full stats →</button></div>
+        <div class="rglist">${recentRowsHTML(8)}</div>
+      </div>`;
   }
   // sitting at a table: the ready/spectate/start lobby, scoped to this table's members
   function atTableHTML(all) {
     const members = all.filter((p) => (p.table || null) === LOBBY.table);
     const ready = LOBBY.readyList(), rows = lobbyRows(members, ready);
-    const leave = `<button class="loblink" onclick="CATAN.leaveTable()">← Back to games</button>`;
+    // no in-card "back to games" button — the top-left ← in the header handles leaving
     if (LOBBY.inProgress) {
       return `<p class="muted small" style="text-align:center">Game · ${members.length} here</p>
         <div class="loblist">${rows}</div>
-        <button class="btn wood full" onclick="CATAN.lobbyWatch()">🔴 Game in progress · Watch</button>${leave}`;
+        <button class="btn wood full" onclick="CATAN.lobbyWatch()">🔴 Game in progress · Watch</button>`;
     }
     const canStart = ready.length >= 2, host = ready[0], iAmHost = host && host.id === AUTH.me.id;
     const seatN = Math.min(4, ready.length), tgt = targetForN(seatN);
@@ -2728,9 +2782,10 @@
         <button class="btn ${LOBBY.mode === 'ready' ? '' : 'wood'}" onclick="CATAN.lobbyReady()">${LOBBY.mode === 'ready' ? '✓ Ready' : "I'm ready"}</button>
         <button class="btn ${LOBBY.mode === 'spectate' ? '' : 'wood'}" onclick="CATAN.lobbySpectate()">${LOBBY.mode === 'spectate' ? '✓ Spectating' : '👁 Spectate'}</button>
       </div>
-      ${startBtn}${leave}`;
+      ${startBtn}`;
   }
-  window.CATAN.openStats = () => toast('🏆 Stats & leaderboard — coming soon');
+  window.CATAN.openStats = () => statsScreen();
+  window.CATAN.lobbyBack = () => { if (LOBBY.table) CATAN.leaveTable(); else CATAN.lobbyLogout(); };
   window.CATAN.newTable = () => LOBBY.enterTable(genCode());
   window.CATAN.joinTable = (code) => LOBBY.enterTable(code);
   window.CATAN.leaveTable = () => LOBBY.leaveTable();
@@ -2846,7 +2901,8 @@
       const list = names.length
         ? names.map((n) => `<button class="btn full authrow" onclick="CATAN.authPick('${encodeURIComponent(n.name)}')">${faceHTML(n.name, n.avatar)}<span class="anm">${escapeHtml(n.name)}</span></button>`).join('')
         : `<p class="muted" style="text-align:center;margin:8px 0">No players yet — create one.</p>`;
-      titleCard(`<h3>Who are you?</h3><div class="authlist">${list}</div>
+      titleCard(`<div class="lobhead"><h3>Who are you?</h3><div class="lobtools"><button class="lobtool" data-nav="stats" title="Stats & leaderboard">🏆</button></div></div>
+        <div class="authlist">${list}</div>
         <button class="btn wood full" onclick="CATAN.authNew()">+ New player</button>
         <button class="offline-link" onclick="CATAN.playOffline()">Pass &amp; play offline</button>`);
     } else if (mode === 'new') {
