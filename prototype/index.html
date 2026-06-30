@@ -877,7 +877,16 @@
   <script>
     /* PWA: cache the app + art so repeat launches are instant and offline-capable */
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () { }); });
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('sw.js').then(function (reg) { try { reg.update(); } catch (e) { } }).catch(function () { });
+      });
+      // when a new build's worker takes over, refresh so you get the latest code — but never
+      // yank someone out of an active game (they'll pick it up on the next menu screen).
+      var swReloaded = false;
+      navigator.serviceWorker.addEventListener('controllerchange', function () {
+        if (swReloaded || document.body.classList.contains('ingame')) return;
+        swReloaded = true; location.reload();
+      });
     }
   </script>
 </body>
