@@ -30,12 +30,14 @@ real-time multiplayer. Deploy via Lovable publish or Netlify.
 | Authentic HUD pass | **Done (2026-06-17)** — Fertigo Pro font, wood-textured panels/dock/overlays/buttons, real resource-orb bar, red dice faces, framed build-menu buttons, dev-card faces, stat badges (longest road / largest army / VP). HUD sprites in `assets/hud/`, ripped via `tools/slice_hud.py`. iOS CgBI-format loose buttons can't be read by PIL (skipped; styled with wood texture instead). |
 | Full visual pass (A-to-Z) | **Done (2026-06-17)** — Title scene (cloth banner + wood table + character medallions, `#title` layer); board reworked to float on open sea with coastline glow + island shadow + dock-style ports + subtle CSS-3D tilt (`#board rotateX(13deg)`); roads now rotated wooden sprites (`road-eastwest-<color>`); all overlays themed with real resource icons + slide-in; victory screen (crown + winner avatar + standings); motion — dice tumble, piece pop-in, active-panel pulse, board/overlay entrance, water shimmer. Ceiling: true 3D piece models + physics animation would need a WebGL rebuild (not done by design). |
 | Asset cropping tool | **Done** (`prototype/tile-cropper.html`) |
-| Multiplayer (own-phone, room codes) | **Not started** — designed below (Phase 3) |
-| Player-to-player trade UI | Engine supports it; **UI not built** (bank trade only) |
-| PWA packaging + deploy | **Not started** (Phase 5) |
-| Sound | **Not started** |
+| Multiplayer (own-phone, online) | **Done (2026-06)** — Supabase realtime; persistent PIN identities; lobby of concurrent games; spectators; surrender; broadcast chat. Live at karimkabbani.github.io/catan |
+| Player-to-player trade UI | **Done** — propose (`offerTrade`) → others respond/accept (`confirmTrade`); bank/port trades too |
+| PWA packaging + deploy | **Done** — service worker (cache-first art, network-first code), installable, deployed via `./deploy.sh` to GitHub Pages |
+| Sound | **Done** — SFX (gated by a setting) + a 3-track looping music playlist |
+| Auto-zoom / cinematic camera | **Done (2026-06-30)** — camera follows the action; card counts tick with the animations |
+| Board generation | **Done** — official Variable setup (random + 6/8 rule) + balanced house rules (pip-cap, no duplicate-number adjacency) + randomized harbours |
 
-The thing standing between this and real multi-device play is Phase 3.
+Phase 3 (multiplayer) is shipped and live; current work is gameplay/animation polish.
 
 ---
 
@@ -358,7 +360,7 @@ untouched core. Have Lovable build the lobby, board, and Supabase wiring around
 
 ### Feature ideas — requested by Karim (2026-06-22)
 
-Status as of 2026-06-24. ✅ shipped · ◐ partial · ☐ pending.
+Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
 
 1. ✅ **Surrender — SHIPPED as a white-flag concede model** (replaced the original vote idea).
    Each player raises/lowers their own white flag any time (🏳️ waving beside their corner +
@@ -370,9 +372,9 @@ Status as of 2026-06-24. ✅ shipped · ◐ partial · ☐ pending.
    3 per player per game. Renders as a chat bubble anchored to the speaker's corner avatar
    (close ×, ~7s). Realtime broadcast, table-scoped. Delivery reliable in practice so far.
 
-3. ◐ **In-game settings — sfx + animation speed SHIPPED; auto-zoom still pending.** SFX gates
-   `playSound`; animation speed scales the JS-timed animations via `aScale()`. Auto-zoom is
-   still a no-op toggle — there's no auto-zoom *behaviour* to gate yet; building it is the work.
+3. ✅ **In-game settings — sfx + animation speed + auto-zoom ALL SHIPPED.** SFX gates `playSound`;
+   animation speed scales JS-timed animations via `aScale()`; **auto-zoom** now drives the cinematic
+   camera (see "Shipped 2026-06-30" below).
 
 4. ☐ **Leaderboard — wins split by player count.** Not started. Needs a persistent results store
    keyed by identity + player-count, written at game end. Karim to share specifics.
@@ -404,11 +406,46 @@ Status as of 2026-06-24. ✅ shipped · ◐ partial · ☐ pending.
   bare `.ghost{pointer-events:none}` in the board SVG silently disabled every `.btn.ghost`. Scope
   SVG `<style>` rules.
 
+### Shipped (2026-06-30 session)
+
+- **Auto-zoom / cinematic camera** (behind the existing Auto-zoom setting, per-device, off-able): on
+  every screen the camera glides to the action and back — the **dice-roll tours each producing terrain**
+  in turn (cards fly from the terrain centre), **robber** placement, and **settlement/city/road** builds.
+  The placer zooms in close (and in setup holds the frame through their road); observers get a gentle
+  pan, or nothing at full-board view. Built on a `zoom {s,tx,ty}` CSS transform on `#board-area`; any
+  manual pan/pinch cancels it. **Note:** that transform doesn't render in headless screenshots — verify on device.
+- **Robber arc** — the robber lifts off its hex, arcs across the board (raised + enlarged), and lands
+  full-size, for everyone (was a teleport for observers). Own `robberfly` keyframe.
+- **Card counts sync to the animation** — a player's resource count holds at the old value and ticks
+  up/down as each card lands/leaves: roll production, steal (victim down, thief up), player + bank/port
+  trades (both sides), and the 2nd-settlement grant. Two-sided lag (`ui.cardLag` in, `ui.cardOut` out),
+  set at detection so the new value never flashes first; `onlift`/`onland` on `flyImage` tick it.
+- **Balanced boards + randomized harbours** — official Variable setup (random terrain/numbers, 6/8 never
+  adjacent) PLUS house rules: no two equal numbers adjacent, and a pip-cap of 12 at any settlement spot
+  (mathematically == no spot fed by 3 high-odds {5,6,8,9} hexes). Harbour *types* now shuffled each game.
+  All in `engine/src/board.ts`.
+- **City-build fix** — placement ghosts now render ON TOP of the buildings (a z-order regression had
+  hidden the city-upgrade marker behind the settlement, blocking the tap); the upgrade marker blinks.
+- **Resource flies launch from the terrain centre** (was offset), robust to mid-glide timing.
+- **Radial menu** — labels removed, ~20% smaller, and the emoji buttons (chat + leave) reframed to match
+  the icon buttons' blue/gold glossy circle.
+- **Roll-7 robber prompt** — dropped the dark overlay on every hex (now invisible tap targets); the
+  robber gets a gentle gold pulse instead.
+- **Cache reliability** — a `v##` build stamp in the bottom-left corner (`APP_VERSION`, bumped with the
+  SW `VERSION`); the SW fetches code with `cache:'reload'` (bypass the HTTP cache); the page auto-reloads
+  when a new worker takes over (unless mid-game). **Caveat:** GitHub Pages still takes a few minutes to
+  publish each push, so the live site lags a deploy by a few minutes.
+- **Smaller fixes:** stuck "X is discarding" overlay after a 7 now cleared on every screen; your own VP
+  dev cards count in your own star total (opponents stay hidden); robber-move/auto-steal sync race fixed
+  (serialized + ordered the row writes); a lone ✗ to cancel a build mid-placement; observer-side
+  animations for steal (face-down to non-parties), dev-card buy, and bank trade; portrait-lock for the
+  pre-game screens on phones (touch only); the lobby card re-fits when players join.
+
 ### Older notes (some now done — left for history)
 
 - ~~3–4 players only~~ → **2–4 players** now (2p = 15 pts). 5–6 still needs a 5th+ colour's piece
   art (and 6 would also need the larger board / special build phase).
-- Player-to-player trade: engine yes, UI no.
+- ~~Player-to-player trade: engine yes, UI no~~ → **trade UI shipped** (propose → respond/accept).
 - Roads aren't image-swappable; dice/cards are drawn/text.
 - ~~No sound yet~~ → **SFX + music shipped.**
 - Board port positions are deterministic but not matched to any specific art.
