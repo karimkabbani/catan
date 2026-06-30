@@ -232,8 +232,9 @@
   .radbtn.off{filter:grayscale(0.85) brightness(0.5); pointer-events:none;}
   .radbtn.off .rlbl{color:var(--muted);}
   /* Leave/Exit radial button: charcoal sphere + gold ring (matches the action buttons) + door */
-  .radbtn.exit{border-radius:50%; background:radial-gradient(circle at 38% 30%, #5a554e, #272320 56%, #15120f);
-    border:2px solid #1c160f; box-shadow:0 0 0 3px #c79a3e, 0 0 0 5px #7a5c24, 0 3px 7px rgba(0,0,0,0.5);}
+  /* emoji buttons (chat + leave) get the same glossy blue sphere + gold ring as the image-icon buttons */
+  .radbtn.framed{border-radius:50%; background:radial-gradient(circle at 38% 32%, #5a86c8, #2f5694 52%, #1c386c);
+    border:2px solid #16294a; box-shadow:0 0 0 3px #c79a3e, 0 0 0 5px #7a5c24, 0 3px 7px rgba(0,0,0,0.5);}
   .radbtn .rico{display:flex; align-items:center; justify-content:center; width:100%; height:100%;
     font-size:26px; line-height:1; filter:drop-shadow(0 2px 3px rgba(0,0,0,0.6));}
   .radbtn.center{width:50px; height:50px; left:-25px; top:-25px; transform:none; opacity:1; transition:opacity .16s;}
