@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v33';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v34';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -2665,53 +2665,94 @@
     else if (a === 'stats') CATAN.openStats();
     else if (a === 'back') CATAN.lobbyBack();
   }, true);
-  // ---- Stats (DUMMY data for now — swap for a real results store written at each game's end) ----
+  // ---- Stats (DUMMY data — mirrors the real model: full final standings per game) ----
+  // standings[] are ordered by finish (index 0 = winner); pts = final score; lr/la = held longest road / largest army.
+  const MONTH_FULL = { Jan: 'January', Feb: 'February', Mar: 'March', Apr: 'April', May: 'May', Jun: 'June', Jul: 'July', Aug: 'August', Sep: 'September', Oct: 'October', Nov: 'November', Dec: 'December' };
+  const MONTH_ORDER = Object.keys(MONTH_FULL);
   const STATS = {
     games: [
-      { date: 'Jun 29', players: ['Karim', 'Dany', 'Georges', 'Ramzi'], winner: 'Karim', pts: 10 },
-      { date: 'Jun 28', players: ['Dany', 'Karim', 'Georges'], winner: 'Dany', pts: 10 },
-      { date: 'Jun 27', players: ['Karim', 'Ramzi'], winner: 'Ramzi', pts: 15 },
-      { date: 'Jun 26', players: ['Georges', 'Karim', 'Dany', 'Ramzi'], winner: 'Georges', pts: 11 },
-      { date: 'Jun 25', players: ['Karim', 'Dany'], winner: 'Karim', pts: 15 },
-      { date: 'Jun 24', players: ['Ramzi', 'Dany', 'Karim'], winner: 'Dany', pts: 10 },
-      { date: 'Jun 22', players: ['Karim', 'Georges', 'Ramzi', 'Dany'], winner: 'Karim', pts: 12 },
-      { date: 'Jun 21', players: ['Dany', 'Georges'], winner: 'Georges', pts: 15 },
-      { date: 'Jun 20', players: ['Karim', 'Dany', 'Ramzi'], winner: 'Karim', pts: 10 },
-      { date: 'Jun 18', players: ['Ramzi', 'Georges', 'Karim', 'Dany'], winner: 'Ramzi', pts: 11 },
+      { date: 'Jun 29', month: 'Jun', standings: [{ n: 'Karim', pts: 10, lr: 1 }, { n: 'Dany', pts: 8 }, { n: 'Georges', pts: 6 }, { n: 'Ramzi', pts: 5, la: 1 }] },
+      { date: 'Jun 28', month: 'Jun', standings: [{ n: 'Dany', pts: 10, la: 1 }, { n: 'Karim', pts: 9 }, { n: 'Georges', pts: 7, lr: 1 }] },
+      { date: 'Jun 27', month: 'Jun', standings: [{ n: 'Ramzi', pts: 15, lr: 1 }, { n: 'Karim', pts: 12 }] },
+      { date: 'Jun 26', month: 'Jun', standings: [{ n: 'Georges', pts: 11, la: 1 }, { n: 'Karim', pts: 9, lr: 1 }, { n: 'Dany', pts: 7 }, { n: 'Ramzi', pts: 6 }] },
+      { date: 'Jun 25', month: 'Jun', standings: [{ n: 'Karim', pts: 15, lr: 1, la: 1 }, { n: 'Dany', pts: 11 }] },
+      { date: 'Jun 22', month: 'Jun', standings: [{ n: 'Karim', pts: 12, lr: 1 }, { n: 'Georges', pts: 9 }, { n: 'Ramzi', pts: 8, la: 1 }, { n: 'Dany', pts: 7 }] },
+      { date: 'Jun 20', month: 'Jun', standings: [{ n: 'Karim', pts: 10 }, { n: 'Dany', pts: 9, la: 1 }, { n: 'Ramzi', pts: 8, lr: 1 }] },
+      { date: 'May 30', month: 'May', standings: [{ n: 'Dany', pts: 10, lr: 1 }, { n: 'Ramzi', pts: 9, la: 1 }, { n: 'Karim', pts: 7 }] },
+      { date: 'May 28', month: 'May', standings: [{ n: 'Georges', pts: 15, la: 1 }, { n: 'Dany', pts: 13, lr: 1 }] },
+      { date: 'May 25', month: 'May', standings: [{ n: 'Ramzi', pts: 11, lr: 1 }, { n: 'Karim', pts: 10 }, { n: 'Georges', pts: 8 }, { n: 'Dany', pts: 7, la: 1 }] },
+      { date: 'May 22', month: 'May', standings: [{ n: 'Karim', pts: 10, la: 1 }, { n: 'Ramzi', pts: 9 }, { n: 'Dany', pts: 8, lr: 1 }, { n: 'Georges', pts: 6 }] },
+      { date: 'May 18', month: 'May', standings: [{ n: 'Dany', pts: 10 }, { n: 'Georges', pts: 9, la: 1 }, { n: 'Karim', pts: 8, lr: 1 }] },
     ],
-    // dummy tendency tallies: times each player held longest road / largest army at game end
-    tendency: { Karim: { lr: 5, la: 3 }, Dany: { lr: 3, la: 4 }, Georges: { lr: 2, la: 2 }, Ramzi: { lr: 4, la: 5 } },
-    leaderboard() {
-      const m = {};
-      STATS.games.forEach((g) => {
-        g.players.forEach((p) => { (m[p] = m[p] || { name: p, games: 0, wins: 0 }).games++; });
-        m[g.winner].wins++;
+    seasons() { const u = [...new Set(STATS.games.map((g) => g.month))]; u.sort((a, b) => MONTH_ORDER.indexOf(a) - MONTH_ORDER.indexOf(b)); return u; },
+    curSeason() { const s = STATS.seasons(); return s[s.length - 1]; },
+    filter(season) { return season === 'all' ? STATS.games : STATS.games.filter((g) => g.month === season); },
+    board(games) {
+      const m = {}, get = (n) => (m[n] = m[n] || { name: n, gp: 0, w: 0, exp: 0, ps: 0, lr: 0, la: 0 });
+      games.forEach((g) => {
+        const N = g.standings.length;
+        g.standings.forEach((s, i) => { const p = get(s.n); p.gp++; p.exp += 1 / N; p.ps += i + 1; if (i === 0) p.w++; if (s.lr) p.lr++; if (s.la) p.la++; });
       });
-      return Object.values(m).map((p) => {
-        const t = STATS.tendency[p.name] || { lr: 0, la: 0 };
-        return { name: p.name, games: p.games, wins: p.wins, winpct: Math.round((100 * p.wins) / p.games), lr: t.lr, la: t.la };
-      }).sort((a, b) => b.wins - a.wins || b.winpct - a.winpct || b.games - a.games);
+      return Object.values(m).map((p) => ({ name: p.name, gp: p.gp, w: p.w, lr: p.lr, la: p.la, winpct: Math.round((100 * p.w) / p.gp), wae: p.w - p.exp, avg: p.ps / p.gp }))
+        .sort((a, b) => b.wae - a.wae || b.w - a.w || a.avg - b.avg);
     },
+    crowns() { const c = {}; STATS.seasons().forEach((mo) => { if (mo === STATS.curSeason()) return; const b = STATS.board(STATS.filter(mo)); if (b.length) c[b[0].name] = (c[b[0].name] || 0) + 1; }); return c; },
+    streak(name) {
+      const gs = STATS.games.filter((g) => g.standings.some((s) => s.n === name)).slice().reverse();   // oldest -> newest
+      let best = 0, run = 0; gs.forEach((g) => { if (g.standings[0].n === name) { run++; if (run > best) best = run; } else run = 0; });
+      return { cur: run, best };
+    },
+    h2h(name) {
+      const h = {};
+      STATS.games.forEach((g) => { const me = g.standings.findIndex((s) => s.n === name); if (me < 0) return;
+        g.standings.forEach((s, i) => { if (s.n === name) return; const o = (h[s.n] = h[s.n] || { w: 0, l: 0 }); if (me < i) o.w++; else o.l++; }); });
+      return h;
+    },
+    detail(name) { const a = STATS.board(STATS.games).find((p) => p.name === name); return a ? { ...a, ...STATS.streak(name), h2h: STATS.h2h(name) } : null; },
   };
-  function recentRowsHTML(limit) {
-    const games = limit ? STATS.games.slice(0, limit) : STATS.games;
-    return games.map((g) => {
-      const others = g.players.filter((p) => p !== g.winner).map(escapeHtml).join(', ');
-      return `<div class="rgrow"><span class="rgwin">🏆 ${escapeHtml(g.winner)}</span>` +
-        `<span class="rgfield">${others}</span><span class="rgdate">${g.players.length}p · ${g.date}</span></div>`;
+  const ROAD_ICO = (ASSETS.pieces && ASSETS.pieces['road-eastwest'] && (ASSETS.pieces['road-eastwest'].yellow || ASSETS.pieces['road-eastwest'].red)) || '';
+  let statsSeason = null;   // null = current season, 'all' = all-time
+  function recentRowsHTML(games, limit) {
+    const gs = limit ? games.slice(0, limit) : games;
+    return gs.map((g) => {
+      const others = g.standings.slice(1).map((s) => escapeHtml(s.n)).join(', ');
+      return `<div class="rgrow"><span class="rgwin">🏆 ${escapeHtml(g.standings[0].n)}</span>` +
+        `<span class="rgfield">${others}</span><span class="rgdate">${g.standings.length}p · ${g.date}</span></div>`;
     }).join('');
   }
   function statsScreen() {
-    const rows = STATS.leaderboard().map((p, i) => `<tr><td class="str">${i + 1}</td>` +
-      `<td class="stn">${escapeHtml(p.name)}</td><td>${p.games}</td><td class="stw">${p.wins}</td>` +
-      `<td>${p.winpct}%</td><td>${p.lr}</td><td>${p.la}</td></tr>`).join('');
+    const isAll = statsSeason === 'all', season = isAll ? 'all' : STATS.curSeason();
+    const games = STATS.filter(season), board = STATS.board(games), crowns = isAll ? STATS.crowns() : null;
+    const curLbl = MONTH_FULL[STATS.curSeason()];
+    const head = `<tr><th>#</th><th>Player</th><th title="Games played">GP</th><th title="Wins">W</th><th title="Win rate">Win%</th><th title="Wins above expected — accounts for table size">WAE</th>${isAll ? '<th title="Season crowns">👑</th>' : ''}</tr>`;
+    const rows = board.map((p, i) => {
+      const wae = (p.wae >= 0 ? '+' : '') + p.wae.toFixed(1);
+      return `<tr onclick="CATAN.statsPlayer('${encodeURIComponent(p.name)}')"><td class="str">${i + 1}</td>` +
+        `<td class="stn">${escapeHtml(p.name)}</td><td>${p.gp}</td><td class="stw">${p.w}</td><td>${p.winpct}%</td>` +
+        `<td class="${p.wae >= 0 ? 'stpos' : 'stneg'}">${wae}</td>${isAll ? `<td>${'👑'.repeat(crowns[p.name] || 0) || '·'}</td>` : ''}</tr>`;
+    }).join('');
     titleCard(`<div class="lobhead"><button class="lobback" onclick="CATAN.showLobby()" title="Back to lobby">←</button><h3>🏆 Stats</h3></div>
-      <div class="sttbl-wrap"><table class="sttbl">
-        <thead><tr><th>#</th><th>Player</th><th title="Games played">P</th><th title="Wins">W</th><th title="Win rate">Win%</th><th title="Longest road — times held at game end">🛣</th><th title="Largest army — times held at game end">⚔</th></tr></thead>
-        <tbody>${rows}</tbody></table></div>
-      <div class="stnote">Dummy data — a real results store gets written at each game's end.</div>
-      <h4 class="stsub">Recent games</h4>
-      <div class="rglist tall">${recentRowsHTML()}</div>`);
+      <div class="seg stseg"><button class="${!isAll ? 'on' : ''}" onclick="CATAN.statsSeason(null)">${curLbl}</button><button class="${isAll ? 'on' : ''}" onclick="CATAN.statsSeason('all')">All-time</button></div>
+      <div class="sttbl-wrap"><table class="sttbl"><thead>${head}</thead><tbody>${rows}</tbody></table></div>
+      <div class="stnote">WAE = wins above expected: your wins minus what pure luck gives at each table size. Tap a player for detail. Dummy data.</div>
+      <h4 class="stsub">Recent games${isAll ? '' : ' · ' + curLbl}</h4>
+      <div class="rglist tall">${recentRowsHTML(games)}</div>`);
+  }
+  function statsPlayerScreen(name) {
+    const d = STATS.detail(name);
+    if (!d) { statsScreen(); return; }
+    const wae = (d.wae >= 0 ? '+' : '') + d.wae.toFixed(1);
+    const chips = [['Games', d.gp], ['Wins', d.w], ['Win%', d.winpct + '%'], ['WAE', wae], ['Avg place', d.avg.toFixed(1)], ['Streak', d.cur + ' · best ' + d.best]];
+    const chipHTML = chips.map((c) => `<div class="stchip"><span class="stcv">${c[1]}</span><span class="stcl">${c[0]}</span></div>`).join('');
+    const h2hHTML = Object.keys(d.h2h).map((o) => { const r = d.h2h[o], lead = r.w > r.l ? 'stpos' : (r.w < r.l ? 'stneg' : '');
+      return `<div class="h2hrow"><span class="h2hn">vs ${escapeHtml(o)}</span><span class="h2hr ${lead}">${r.w}–${r.l}</span></div>`; }).join('');
+    const roadIco = ROAD_ICO ? `<img src="${ROAD_ICO}" class="stbonico" alt="">` : '🛤';
+    titleCard(`<div class="lobhead"><button class="lobback" onclick="CATAN.openStats()" title="Back to stats">←</button><h3>${escapeHtml(name)}</h3></div>
+      <div class="stchips">${chipHTML}</div>
+      <h4 class="stsub">Head to head</h4>
+      <div class="h2hlist">${h2hHTML}</div>
+      <h4 class="stsub">Bonuses held</h4>
+      <div class="stbon"><span>${roadIco} Longest Road ×${d.lr}</span><span><span class="stbonemo">⚔</span> Largest Army ×${d.la}</span></div>`);
   }
   // Build the static lobby frame (title + dyn slot + footer) ONCE per entry. Only an
   // explicit showLobby() ever calls this; background ticks never rebuild the frame.
@@ -2758,7 +2799,7 @@
       <button class="btn wood full" onclick="CATAN.newTable()">+ New game</button>
       <div class="rgsec">
         <div class="rghead"><span>Recent games</span><button class="rglink" data-nav="stats">Full stats →</button></div>
-        <div class="rglist">${recentRowsHTML(8)}</div>
+        <div class="rglist">${recentRowsHTML(STATS.games, 8)}</div>
       </div>`;
   }
   // sitting at a table: the ready/spectate/start lobby, scoped to this table's members
@@ -2785,6 +2826,8 @@
       ${startBtn}`;
   }
   window.CATAN.openStats = () => statsScreen();
+  window.CATAN.statsSeason = (s) => { statsSeason = s; statsScreen(); };
+  window.CATAN.statsPlayer = (n) => statsPlayerScreen(decodeURIComponent(n));
   window.CATAN.lobbyBack = () => { if (LOBBY.table) CATAN.leaveTable(); else CATAN.lobbyLogout(); };
   window.CATAN.newTable = () => LOBBY.enterTable(genCode());
   window.CATAN.joinTable = (code) => LOBBY.enterTable(code);
