@@ -441,6 +441,19 @@
   .cropbtns .btn{flex:1;}
   .lobby-foot{display:flex; gap:8px; margin-top:10px;}
   .lobby-foot .btn{flex:1; font-size:14px; padding:14px 9px;}
+  /* lobby header: title left, subtle tool icons (profile/stats/switch-player) right */
+  .lobhead{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px;}
+  .t-card .lobhead h3{margin:0; text-align:left;}
+  .lobtools{display:flex; align-items:center; gap:7px; flex-shrink:0;}
+  .lobtool{width:32px; height:32px; border-radius:50%; border:1px solid rgba(0,0,0,0.3); background:rgba(28,15,6,0.42);
+    display:flex; align-items:center; justify-content:center; font-size:15px; line-height:1; padding:0; cursor:pointer; opacity:0.85;}
+  .lobtool:active{transform:translateY(1px);}
+  .lobtool.lobav{border:none; background:none; opacity:1;}
+  .lobtool.lobav .face{width:32px; height:32px;}
+  /* subtle "back to games" link (not a full button) */
+  .loblink{display:block; width:fit-content; margin:10px auto 0; padding:5px 10px; background:none; border:none;
+    color:var(--muted); font-size:13px; cursor:pointer;}
+  .loblink:active{opacity:0.7;}
   /* Ready / Spectate side-by-side in the lobby */
   .lobrow2{display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-top:4px;}
   /* "👁 N" watching badge in the in-game banner */
