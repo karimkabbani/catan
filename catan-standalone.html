@@ -949,7 +949,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v34';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v35';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -1153,7 +1153,7 @@
         if (RES.some((x) => (af[x] || 0) > (b[x] || 0))) {
           const items = (state.board.vertices[action.vertex].hexes || []).map((hid) => state.board.hexes[hid]).filter((hx) => hx && RES.includes(hx.terrain)).map((hx) => ({ hx, resource: hx.terrain }));
           grant = { color: actor, items };
-          lagIn(actor, items.length);   // hold the count; the grant cards tick it up as they land
+          items.forEach((it) => lagIn(actor, it.resource, 1));   // hold each resource; the grant cards tick them up as they land
         }
       }
       cinematicPlace('v', action.vertex, true, grant);
@@ -1170,7 +1170,7 @@
     let trade = null;
     if (action.type === 'confirmTrade' && state.pendingTrade) {
       const pt = state.pendingTrade;
-      trade = { a: pt.from, b: action.with, g: sumObj(pt.give), w: sumObj(pt.want) };
+      trade = { a: pt.from, b: action.with, give: pt.give, want: pt.want };
     }
     let mono = null;
     if (action.type === 'playMonopoly') {   // capture who's losing how many BEFORE the swap
@@ -1178,7 +1178,7 @@
         .map((p) => ({ color: p.color, n: p.resources[action.resource] })).filter((x) => x.n > 0);
       if (from.length) mono = { res: action.resource, to: actor, from };
     }
-    const yop = action.type === 'playYearOfPlenty' ? { to: actor, n: (action.resources || []).length || 2 } : null;
+    const yop = action.type === 'playYearOfPlenty' ? { to: actor, resources: (action.resources || []) } : null;
     const fromRobber = state.robberHex;
     state = r.state;
     // a bought dev card: the buyer is told WHAT they drew; everyone else just sees it fly in face-down
@@ -1191,14 +1191,16 @@
     // (e.g. the auto-steal after the robber moves), and the syncs must persist in that order.
     if (online) NET.syncAction(action, actor);
     // hold card counts behind the transfer flies so the numbers tick with the animation, not before it
-    if (steal) { lagOut(steal.victim, 1); lagIn(steal.thief, 1); }
-    if (trade) { lagOut(trade.a, trade.g); lagIn(trade.a, trade.w); lagOut(trade.b, trade.w); lagIn(trade.b, trade.g); }
+    if (steal) { lagOut(steal.victim, steal.res, 1); lagIn(steal.thief, steal.res, 1); }
+    if (trade) lagTrade(trade.a, trade.b, trade.give, trade.want);
+    if (mono) { const tot = mono.from.reduce((a, f) => a + f.n, 0); mono.from.forEach((f) => lagOut(f.color, mono.res, f.n)); lagIn(mono.to, mono.res, tot); }
+    if (yop) yop.resources.forEach((r) => lagIn(yop.to, r, 1));
     afterAction(); render();
     if (robberMoved) showRobberFly(fromRobber, state.robberHex);
-    if (steal) showStealFly(steal.victim, steal.thief, steal.res);   // I'm the thief -> see the card face-up
-    if (trade) showTradeFly(trade.a, trade.b, trade.g, trade.w);   // bank fly fires once from tradeBank()
+    if (steal) showStealFly(steal.victim, steal.thief, steal.res, true);   // I'm the thief -> see the card face-up
+    if (trade) showTradeFly(trade.a, trade.b, trade.give, trade.want);   // bank fly fires once from tradeBank()
     if (mono) showMonopolyFly(mono.to, mono.res, mono.from);   // monopolised cards fly in, face-up
-    if (yop) showYoPFly(yop.to, yop.n);                        // year-of-plenty cards fly in, face-down
+    if (yop) showYoPFly(yop.to, yop.resources);                // year-of-plenty cards fly in, face-down
     if (bought) { if (!online || actor === myColor) showDevBought(bought.card); else showDevBuyFly(bought.buyer); }
     return true;
   }
@@ -1666,7 +1668,7 @@
       // you see your OWN victory-point cards in your star total; opponents stay public (VP cards are secret).
       // online -> your seat; offline pass-and-play -> whoever's turn it is sees their own.
       const vp = C.victoryPoints(state, p.color, online ? p.color === myColor : p.color === activeColor());
-      const cards = RES.reduce((n, r) => n + p.resources[r], 0) - ((ui.cardLag && ui.cardLag[p.color]) || 0) + ((ui.cardOut && ui.cardOut[p.color]) || 0);   // count walks with the card animation
+      const cards = RES.reduce((n, r) => n + p.resources[r], 0) - lagTot(p.color) + outTot(p.color);   // total walks with the card animation
       const dev = p.devCards.length + p.newDevCards.length;
       const road = C.longestRoadLength(state, p.color);
       const bdg = (HUD.badge) || {};
@@ -1700,8 +1702,9 @@
     // online: always show MY hand; pass-and-play: show the active player's
     const p = (online && myColor) ? state.players.find((x) => x.color === myColor) : activePlayer();
     if (!p) return '';
-    // slim, original-style: five resource orbs + counts, attached to the bottom
-    return HAND_ORDER.map((r) => resOrb(r, p.resources[r])).join('');
+    // slim, original-style: five resource orbs + counts. Each orb honours the per-resource lag so it
+    // ticks up/down exactly as that resource's card animates, instead of jumping ahead of the fly.
+    return HAND_ORDER.map((r) => resOrb(r, Math.max(0, p.resources[r] - lagRes(p.color, r) + outRes(p.color, r)))).join('');
   }
 
   // the two dice faces shown at the active player's corner
@@ -1785,9 +1788,9 @@
     setTimeout(() => {
       el.classList.add('hidden'); ui.diceRevealing = false;
       // hold each player's card count at the OLD value; every incoming card ticks it up as it lands
-      const pm = productionMap(); ui.cardLag = {}; ui.cardOut = {};
-      for (const e of pm) ui.cardLag[e.color] = (ui.cardLag[e.color] || 0) + e.count;
-      renderPanels(); cinematicRoll(); afterAction(); render();
+      const pm = productionMap(); ui.lag = {}; ui.out = {};
+      for (const e of pm) lagIn(e.color, e.resource, e.count);
+      renderCounts(); cinematicRoll(); afterAction(); render();
     }, aDur(1300));
   }
   // which producing hex sends which resource to which player on this roll
@@ -1828,17 +1831,27 @@
     if (opts.onland) setTimeout(opts.onland, d + Math.round(880 * sc));   // ~when the card reaches the panel
     setTimeout(() => img.remove(), d + 1050 * sc);
   }
-  function flyResource(res, sx, sy, tx, ty, delay, onland) {
-    flyImage((HUD.res && HUD.res[res]) || (ASSETS.icons && ASSETS.icons[res]), sx, sy, tx, ty, delay, { sound: 'res_' + res, vol: 0.45, onland });
+  function flyResource(res, sx, sy, tx, ty, delay, onland, onlift) {
+    flyImage((HUD.res && HUD.res[res]) || (ASSETS.icons && ASSETS.icons[res]), sx, sy, tx, ty, delay, { sound: 'res_' + res, vol: 0.45, onland, onlift });
   }
-  // Displayed count = true total − cards still flying IN + cards still flying OUT, so the number walks
-  // with the animation (arriving card ticks the receiver up, departing card ticks the giver down).
-  // Set the lag at detection (before the render) so the count never flashes the new value first.
-  function lagIn(color, n) { if (n > 0) { ui.cardLag = ui.cardLag || {}; ui.cardLag[color] = (ui.cardLag[color] || 0) + n; } }
-  function lagOut(color, n) { if (n > 0) { ui.cardOut = ui.cardOut || {}; ui.cardOut[color] = (ui.cardOut[color] || 0) + n; } }
-  function bumpCardLag(color) { if (ui.cardLag && ui.cardLag[color] > 0) { ui.cardLag[color]--; renderPanels(); } }
-  function bumpCardOut(color) { if (ui.cardOut && ui.cardOut[color] > 0) { ui.cardOut[color]--; renderPanels(); } }
-  function clearCardLag() { let ch = false; if (ui.cardLag && Object.keys(ui.cardLag).length) { ui.cardLag = {}; ch = true; } if (ui.cardOut && Object.keys(ui.cardOut).length) { ui.cardOut = {}; ch = true; } if (ch) renderPanels(); }
+  // Per-resource card lag. Displayed count = true − cards still flying IN + cards still flying OUT, so the
+  // number walks with the animation: an arriving card ticks the receiver up as it LANDS, a departing card
+  // ticks the giver down as it LIFTS. Tracked per (colour,resource) so your OWN hand orbs move one at a
+  // time in step with each fly — not just the opponents' total. Set at detection (before the render) so
+  // the count never flashes the new value first.
+  function lagIn(color, res, n) { if (n > 0) { ui.lag = ui.lag || {}; (ui.lag[color] = ui.lag[color] || {})[res] = (ui.lag[color][res] || 0) + n; } }
+  function lagOut(color, res, n) { if (n > 0) { ui.out = ui.out || {}; (ui.out[color] = ui.out[color] || {})[res] = (ui.out[color][res] || 0) + n; } }
+  function landCard(color, res) { const m = ui.lag && ui.lag[color]; if (m && m[res] > 0) { m[res]--; renderCounts(); } }
+  function liftCard(color, res) { const m = ui.out && ui.out[color]; if (m && m[res] > 0) { m[res]--; renderCounts(); } }
+  function clearLag() { const had = (ui.lag && Object.keys(ui.lag).length) || (ui.out && Object.keys(ui.out).length); ui.lag = {}; ui.out = {}; if (had) renderCounts(); }
+  function lagTrade(a, b, give, want) { RES.forEach((r) => { lagOut(a, r, give[r] || 0); lagIn(b, r, give[r] || 0); lagIn(a, r, want[r] || 0); lagOut(b, r, want[r] || 0); }); }
+  function lagRes(color, res) { return (ui.lag && ui.lag[color] && ui.lag[color][res]) || 0; }
+  function outRes(color, res) { return (ui.out && ui.out[color] && ui.out[color][res]) || 0; }
+  function sumMap(m) { let t = 0; if (m) for (const k in m) t += m[k]; return t; }
+  function lagTot(color) { return sumMap(ui.lag && ui.lag[color]); }
+  function outTot(color) { return sumMap(ui.out && ui.out[color]); }
+  // repaint both the corner totals AND your own per-resource hand orbs (a card just landed/lifted)
+  function renderCounts() { renderPanels(); const h = $('hand'); if (h) h.innerHTML = handBar(); }
   // screen-pixel position of a hex centre (accounts for viewBox + pan/zoom via the SVG CTM)
   function hexScreenXY(hexId, dyAdj) {
     const svg = $('board');
@@ -1877,7 +1890,7 @@
         for (let k = 0; k < e.count; k++) {
           const pt = svg.createSVGPoint(); pt.x = e.hx.cx; pt.y = e.hx.cy;   // start dead-centre of the terrain
           const s = pt.matrixTransform(ctm);
-          flyResource(e.resource, s.x, s.y, tx, ty, delay, () => bumpCardLag(color));
+          flyResource(e.resource, s.x, s.y, tx, ty, delay, () => landCard(color, e.resource));
           delay += STAGGER;
         }
       }
@@ -1901,7 +1914,7 @@
       const tx = br.left + br.width / 2, ty = br.top + br.height / 2;
       const STAGGER = 260;
       for (const res of RES) {
-        for (let k = 0; k < (sel[res] || 0); k++) { flyResource(res, sx, sy, tx, ty, delay); delay += STAGGER; }
+        for (let k = 0; k < (sel[res] || 0); k++) { flyResource(res, sx, sy, tx, ty, delay, null, () => liftCard(color, res)); delay += STAGGER; }
       }
     }
     setTimeout(() => { ui.discardAnimating = false; afterAction(); render(); }, aDur(delay + 1050));
@@ -1935,7 +1948,7 @@
     flyImage('assets/hud/dev-back.png', cx, cy, px, py, 0, { card: true, w: 42, h: 58 });
   }
   // year of plenty: the 2 taken cards fly FACE-DOWN from the island centre into your panel
-  function showYoPFly(color, count) {
+  function showYoPFly(color, resources) {
     const pi = state.players.findIndex((p) => p.color === color);
     const panel = $('p-' + SEATS[pi]); if (!panel) return;
     const r = panel.getBoundingClientRect();
@@ -1945,7 +1958,7 @@
     const cx = br.left + br.width / 2, cy = br.top + br.height / 2;
     playSound('trade', 0.5);
     let d = 0;
-    for (let i = 0; i < (count || 2); i++) { flyImage('assets/hud/cardback.png', cx, cy, px, py, d, { card: true }); d += 170; }
+    (resources || []).forEach((r2) => { flyImage('assets/hud/cardback.png', cx, cy, px, py, d, { card: true, onland: () => landCard(color, r2) }); d += 170; });
   }
   // monopoly: the taken cards fly FACE-UP from every other player's panel into yours
   function showMonopolyFly(toColor, res, from) {
@@ -1961,25 +1974,27 @@
       const fp = $('p-' + SEATS[fi]); if (!fp) continue;
       const fr = fp.getBoundingClientRect();
       const fx = fr.left + fr.width / 2, fy = fr.top + fr.height / 2;
-      for (let i = 0; i < f.n; i++) { flyImage(resImg, fx, fy, tx, ty, d); d += 110; }
+      for (let i = 0; i < f.n; i++) { flyImage(resImg, fx, fy, tx, ty, d, { onlift: () => liftCard(f.color, res), onland: () => landCard(toColor, res) }); d += 110; }
     }
   }
   // The card flies victim -> thief. Pass `res` to show it FACE-UP (the thief and the victim
   // know what changed hands); omit it and a face-down cardback flies (everyone else just sees
   // "a card moved from player X"), mirroring real Catan where the steal is secret to the table.
-  function showStealFly(victimColor, thiefColor, res) {
+  function showStealFly(victimColor, thiefColor, res, reveal) {
     const vi = state.players.findIndex((p) => p.color === victimColor);
     const ti = state.players.findIndex((p) => p.color === thiefColor);
     const vp = $('p-' + SEATS[vi]), tp = $('p-' + SEATS[ti]);
     if (!vp || !tp) return;
     const vr = vp.getBoundingClientRect(), tr = tp.getBoundingClientRect();
-    const img = (res && ((HUD.res || {})[res] || (ASSETS.icons || {})[res])) || 'assets/hud/cardback.png';
+    // reveal (thief/victim) shows the card face-up; everyone else sees a face-down cardback. The count
+    // callbacks always use the real `res` (state is shared) so both corners + the hand tick correctly.
+    const img = (reveal && res && ((HUD.res || {})[res] || (ASSETS.icons || {})[res])) || 'assets/hud/cardback.png';
     flyImage(img, vr.left + vr.width / 2, vr.top + vr.height / 2,
-      tr.left + tr.width / 2, tr.top + tr.height / 2, 0, { card: true, sound: 'whoosh', vol: 0.55, onlift: () => bumpCardOut(victimColor), onland: () => bumpCardLag(thiefColor) });
+      tr.left + tr.width / 2, tr.top + tr.height / 2, 0, { card: true, sound: 'whoosh', vol: 0.55, onlift: () => liftCard(victimColor, res), onland: () => landCard(thiefColor, res) });
   }
   function sumObj(o) { return RES.reduce((n, r) => n + ((o && o[r]) || 0), 0); }
   // a completed trade: face-down cards fly BOTH ways between the two traders at once
-  function showTradeFly(aColor, bColor, nGive, nWant) {
+  function showTradeFly(aColor, bColor, giveObj, wantObj) {
     const ia = state.players.findIndex((p) => p.color === aColor);
     const ib = state.players.findIndex((p) => p.color === bColor);
     if (ia < 0 || ib < 0) return;
@@ -1989,10 +2004,12 @@
     const ax = ra.left + ra.width / 2, ay = ra.top + ra.height / 2, bx = rb.left + rb.width / 2, by = rb.top + rb.height / 2;
     const STAG = 210;
     playSound('trade', 0.5);
+    // face-down cardbacks (the swap is secret to the table) but each carries its real resource in the
+    // count callbacks, so a -> b cards tick a down / b up per-resource, then b -> a comes back.
     let d = 0;
-    for (let i = 0; i < (nGive || 0); i++) { flyImage('assets/hud/cardback.png', ax, ay, bx, by, d, { card: true, onlift: () => bumpCardOut(aColor), onland: () => bumpCardLag(bColor) }); d += STAG; }
+    RES.forEach((r) => { for (let i = 0; i < ((giveObj && giveObj[r]) || 0); i++) { flyImage('assets/hud/cardback.png', ax, ay, bx, by, d, { card: true, onlift: () => liftCard(aColor, r), onland: () => landCard(bColor, r) }); d += STAG; } });
     d += 340;   // brief pause, THEN the return cards come back (sequential, not simultaneous)
-    for (let i = 0; i < (nWant || 0); i++) { flyImage('assets/hud/cardback.png', bx, by, ax, ay, d, { card: true, onlift: () => bumpCardOut(bColor), onland: () => bumpCardLag(aColor) }); d += STAG; }
+    RES.forEach((r) => { for (let i = 0; i < ((wantObj && wantObj[r]) || 0); i++) { flyImage('assets/hud/cardback.png', bx, by, ax, ay, d, { card: true, onlift: () => liftCard(bColor, r), onland: () => landCard(aColor, r) }); d += STAG; } });
   }
   // a bank/port trade: the given resources fly to the bank (board centre), then one
   // comes back. Face-up, since a bank trade is open (your own cards at a known ratio).
@@ -2011,9 +2028,9 @@
     const STAG = 120;
     playSound('trade', 0.5);
     let d = 0;
-    RES.forEach((rr) => { for (let i = 0; i < (giveObj[rr] || 0); i++) { flyImage(img(rr), px, py, cx, cy, d, Object.assign({}, opt, { onlift: () => bumpCardOut(color) })); d += STAG; } });
+    RES.forEach((rr) => { for (let i = 0; i < (giveObj[rr] || 0); i++) { flyImage(img(rr), px, py, cx, cy, d, Object.assign({}, opt, { onlift: () => liftCard(color, rr) })); d += STAG; } });
     d += 340;   // all the given cards reach the bank, then your received cards come back
-    RES.forEach((rr) => { for (let i = 0; i < (wantObj[rr] || 0); i++) { flyImage(img(rr), cx, cy, px, py, d, Object.assign({}, opt, { onland: () => bumpCardLag(color) })); d += STAG; } });
+    RES.forEach((rr) => { for (let i = 0; i < (wantObj[rr] || 0); i++) { flyImage(img(rr), cx, cy, px, py, d, Object.assign({}, opt, { onland: () => landCard(color, rr) })); d += STAG; } });
   }
   // detect a confirmed trade from a remote state change (proposer's pendingTrade
   // cleared + resources actually moved) so spectators see the swap animation too
@@ -2028,7 +2045,7 @@
       const o = a.players.find((x) => x.color === p.color);
       if (o && RES.some((r) => o.resources[r] !== p.resources[r])) { acc = p.color; break; }
     }
-    return acc ? { a: pt.from, b: acc, g: sumObj(pt.give), w: sumObj(pt.want) } : null;
+    return acc ? { a: pt.from, b: acc, give: pt.give, want: pt.want } : null;
   }
   // a remote discard: a player's pending-discard count dropped + their cards shrank
   function detectDiscard(a, s) {
@@ -2959,7 +2976,7 @@
       // the engine does one ratio-for-one swap per call; run one per received card. Apply FIRST (same
       // synchronous tick, so the new count never paints), THEN hold the count and fly so it ticks down/up.
       for (let i = 0; i < wantCards.length; i++) dispatch({ type: 'bankTrade', give: giveUnits[i], want: wantCards[i] });
-      lagOut(color, sumObj(t.give)); lagIn(color, sumObj(t.want)); renderPanels();
+      RES.forEach((r) => { lagOut(color, r, t.give[r] || 0); lagIn(color, r, t.want[r] || 0); }); renderCounts();
       showBankFly(color, t.give, t.want);
     },
     tradeClose: () => { ui.tradeView = null; hideOverlay(); render(); },
@@ -2970,7 +2987,7 @@
     tradeCancel: () => dispatch({ type: 'cancelTrade' }),
     steal: (c) => { hideOverlay(); dispatch({ type: 'steal', victim: c }, activeColor()); },
     disc: (r, d) => { const s = ui.pending, p = state.players.find((x) => x.color === s.color), next = s.sel[r] + d, total = RES.reduce((n, x) => n + s.sel[x], 0); if (next < 0 || next > p.resources[r]) return; if (d > 0 && total >= s.need) return; s.sel[r] = next; renderDiscard(); },
-    discSubmit: () => { const s = ui.pending; hideOverlay(); showDiscardFly(s.color, s.sel); dispatch({ type: 'discard', resources: s.sel }, s.color); },
+    discSubmit: () => { const s = ui.pending; hideOverlay(); RES.forEach((r) => lagOut(s.color, r, s.sel[r] || 0)); showDiscardFly(s.color, s.sel); dispatch({ type: 'discard', resources: s.sel }, s.color); },
     _boardSVG: () => boardSVG(),
   };
 
@@ -3224,7 +3241,7 @@
   function cameraHome(ms) { zoom.s = 1; zoom.tx = 0; zoom.ty = 0; cineApply(aDur(ms)); }
   // translate only — keep the current zoom scale (a true pan). At full-board view this is a no-op.
   function cameraPanTo(c, ms) { if (!c) return; const r = zRect(); zoom.tx = r.width / 2 - zoom.s * c.x; zoom.ty = r.height / 2 - zoom.s * c.y; zClamp(); cineApply(aDur(ms)); }
-  function cancelCine() { if (cineRunning) { cineToken++; cineRunning = false; clearCardLag(); } }   // a manual gesture takes over; snap counts to true totals
+  function cancelCine() { if (cineRunning) { cineToken++; cineRunning = false; clearLag(); } }   // a manual gesture takes over; snap counts to true totals
   // run an async camera sequence; a newer sequence or a manual gesture (both bump cineToken) supersedes it
   async function runCine(seq, opts) {
     if (!SETTINGS.autozoom || !zArea) return;
@@ -3246,7 +3263,7 @@
       const pi = state.players.findIndex((p) => p.color === e.color);
       const panel = $('p-' + SEATS[pi]); if (!panel) continue;
       const pr = panel.getBoundingClientRect(), tx = pr.left + pr.width / 2, ty = pr.top + pr.height / 2;
-      for (let k = 0; k < e.count; k++) { flyResource(e.resource, sx, sy, tx, ty, delay, () => bumpCardLag(e.color)); delay += 230; }
+      for (let k = 0; k < e.count; k++) { flyResource(e.resource, sx, sy, tx, ty, delay, () => landCard(e.color, e.resource)); delay += 230; }
     }
   }
   // roll: tour each producing hex in turn, flying its cards as the camera lands; else fly everything at once
@@ -3278,7 +3295,7 @@
     let delay = 0;
     for (const it of grant.items) {
       const pt = svg.createSVGPoint(); pt.x = it.hx.cx; pt.y = it.hx.cy;
-      const sc = pt.matrixTransform(ctm); flyResource(it.resource, sc.x, sc.y, tx, ty, delay, () => bumpCardLag(grant.color)); delay += aDur(430);   // sequence, one terrain at a time
+      const sc = pt.matrixTransform(ctm); flyResource(it.resource, sc.x, sc.y, tx, ty, delay, () => landCard(grant.color, it.resource)); delay += aDur(430);   // sequence, one terrain at a time
     }
   }
   function cinematicPlace(kind, id, mine, grant) {
@@ -3413,14 +3430,15 @@
     if (robberMoved) ui.robberFlying = true;
     if (placed) justPlaced = placed;       // observers get the pop-in too
     // hold card counts behind the transfer flies so the numbers tick with the animation
-    if (stolen) { lagOut(stolen.victim, 1); lagIn(stolen.thief, 1); }
-    if (trade) { lagOut(trade.a, trade.g); lagIn(trade.a, trade.w); lagOut(trade.b, trade.w); lagIn(trade.b, trade.g); }
-    if (bankTrade) { lagOut(bankTrade.color, sumObj(bankTrade.give)); lagIn(bankTrade.color, sumObj(bankTrade.want)); }
+    if (stolen) { lagOut(stolen.victim, stolen.res, 1); lagIn(stolen.thief, stolen.res, 1); }
+    if (trade) lagTrade(trade.a, trade.b, trade.give, trade.want);
+    if (bankTrade) RES.forEach((r) => { lagOut(bankTrade.color, r, (bankTrade.give && bankTrade.give[r]) || 0); lagIn(bankTrade.color, r, (bankTrade.want && bankTrade.want[r]) || 0); });
+    if (disc) RES.forEach((r) => lagOut(disc.color, r, (disc.sel && disc.sel[r]) || 0));
     afterAction(); render();
     if (rolled) showDiceReveal(s.dice);
     if (disc) showDiscardFly(disc.color, disc.sel);   // everyone watches each player's discard; end -> afterAction
     if (robberMoved) showRobberFly(a.robberHex, s.robberHex);
-    if (trade) showTradeFly(trade.a, trade.b, trade.g, trade.w);
+    if (trade) showTradeFly(trade.a, trade.b, trade.give, trade.want);
     if (stolen) {
       // only the thief and the victim see WHICH card; everyone else sees a face-down card move
       const reveal = myColor === stolen.victim || myColor === stolen.thief;
