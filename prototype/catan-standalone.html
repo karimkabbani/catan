@@ -363,6 +363,9 @@
     background:linear-gradient(180deg,#e8cf86,#c79b3f); border:1px solid var(--gold-edge); box-shadow:0 2px 6px rgba(0,0,0,0.35);}
   .tablerow:active{transform:scale(0.99);}
   .tablerow .tnm2{overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; min-width:0;}
+  .tablerow .trow-main{display:flex; flex-direction:column; gap:2px; flex:1; min-width:0;}
+  .tablerow .tgname{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .tablerow .tgwho{font-family:var(--sans,sans-serif); font-weight:600; font-size:12px; color:#6b4a1e; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .tablerow .t-acc, .tablerow .t-pend{flex:0 0 auto; color:#5a3a10; font-weight:800; font-size:13px;}
   .lobrow .cdot{width:14px; height:14px; border-radius:50%; box-shadow:0 0 0 2px rgba(0,0,0,0.35);}
   /* identity / auth */
@@ -949,7 +952,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v36';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v37';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -3539,7 +3542,7 @@
   // read a presence entry's lobby mode (back-compat with the old {ready} payload)
   function pmode(p) { return p.mode || (p.ready ? 'ready' : 'idle'); }
   const LOBBY = {
-    channel: null, presence: {}, mode: 'idle', readyAt: 0, inProgress: false, lastRow: null, table: null,
+    channel: null, presence: {}, mode: 'idle', readyAt: 0, inProgress: false, lastRow: null, table: null, created: null,
     join() {
       const c = NET.init(); if (!c || !AUTH.me) return;
       if (this.table) { NET.code = this.table; NET.subscribe(); }   // re-watch our table's game if we're sitting at one
@@ -3550,7 +3553,10 @@
       this.channel.on('broadcast', { event: 'msg' }, (e) => { if (e && e.payload && (e.payload.table || null) === LOBBY.table) showBroadcast(e.payload); });
       this.channel.subscribe((st) => { if (st === 'SUBSCRIBED') LOBBY.track(); });
     },
-    track() { if (this.channel) this.channel.track({ id: AUTH.me.id, name: AUTH.me.name, avatar: AUTH.me.avatar || null, mode: this.mode, readyAt: this.readyAt, table: this.table || null }); },
+    // `created` = the code I created via "New game", so everyone can see who owns/hosts each table
+    track() { if (this.channel) this.channel.track({ id: AUTH.me.id, name: AUTH.me.name, avatar: AUTH.me.avatar || null, mode: this.mode, readyAt: this.readyAt, table: this.table || null, created: this.created || null }); },
+    creatorOf(code) { return this.online().find((p) => (p.table || null) === code && p.created === code) || null; },
+    gameName(code) { const c = this.creatorOf(code); return c ? c.name + "'s Game" : 'Game'; },
     // enter / switch tables (a table is a presence grouping keyed by a game code)
     enterTable(code) { this.table = code; NET.code = code; this.mode = 'idle'; this.readyAt = 0; this.inProgress = false; NET.subscribe(); this.track(); lobbySig = null; renderLobby(); },
     leaveTable() { this.table = null; NET.code = null; this.mode = 'idle'; this.readyAt = 0; this.inProgress = false; NET.unsubscribeGame(); this.track(); lobbySig = null; renderLobby(); },
@@ -3573,7 +3579,9 @@
     async startTable() {
       const ready = this.readyList();
       if (ready.length < 2) { toast('Need at least 2 players ready'); return; }
-      if (ready[0].id !== AUTH.me.id) { toast('Only the first player to ready up can start'); return; }
+      const host = this.creatorOf(this.table) || ready[0];   // the game's creator starts it (fallback: first ready, if creator left)
+      if (!host || host.id !== AUTH.me.id) { toast('Only the game creator can start'); return; }
+      if (!ready.some((r) => r.id === host.id)) { toast('Ready up before starting'); return; }
       const seated = ready.slice(0, 4), n = seated.length;
       const players = seated.map((p, i) => ({ seat: i, color: SEAT_COLORS[i], name: p.name, playerId: p.id, avatar: p.avatar || null }));
       const target = targetForN(n);
@@ -3597,15 +3605,15 @@
     },
   };
   function rankMode(p) { const m = pmode(p); return m === 'ready' ? 3 : m === 'playing' ? 2 : m === 'spectate' ? 1 : 0; }
-  function lobbyRows(list, ready) {
+  function lobbyRows(list, ready, creatorId) {
     if (!list.length) return `<p class="muted" style="text-align:center;margin:8px 0">Nobody online yet.</p>`;
     return list.slice().sort((a, b) => (rankMode(b) - rankMode(a)) || String(a.name).localeCompare(b.name)).map((p) => {
-      const m = pmode(p), ri = ready.findIndex((r) => r.id === p.id);
+      const m = pmode(p), ri = ready.findIndex((r) => r.id === p.id), isHost = creatorId && p.id === creatorId;
       let tag;
       if (m === 'spectate') tag = `<span class="t-pend">spectating</span>`;
       else if (m === 'playing') tag = `<span class="t-pend">in game</span>`;
-      else if (m === 'ready') tag = ri === 0 ? `<span class="t-acc">Host · 1st to be ready</span>` : (ri < 4 ? `<span class="t-acc">ready</span>` : `<span class="t-pend">ready · spectating (full)</span>`);
-      else tag = `<span class="muted">not ready</span>`;
+      else if (m === 'ready') tag = ri >= 4 ? `<span class="t-pend">ready · spectating (full)</span>` : `<span class="t-acc">${isHost ? 'Host · ready' : 'ready'}</span>`;
+      else tag = isHost ? `<span class="t-acc">Host · not ready</span>` : `<span class="muted">not ready</span>`;
       return `<div class="lobrow"><span class="tnm">${faceHTML(p.name, p.avatar, 'sm')}<span>${escapeHtml(p.name)}${p.id === AUTH.me.id ? ' (you)' : ''}</span></span>${tag}</div>`;
     }).join('');
   }
@@ -3764,7 +3772,7 @@
     if (sig === lobbySig) return;
     lobbySig = sig;
     dynEl.innerHTML = LOBBY.table ? atTableHTML(all) : tableListHTML(all);   // footer frame untouched
-    const tt = $('lob-title'); if (tt) tt.textContent = LOBBY.table ? 'Lobby — ' + LOBBY.table : 'Lobby';   // show the game code at a table
+    const tt = $('lob-title'); if (tt) tt.textContent = LOBBY.table ? LOBBY.gameName(LOBBY.table) : 'Lobby';   // "<creator>'s Game" at a table
     const bk = $('lobback'); if (bk) bk.title = LOBBY.table ? 'Back to games' : 'Switch player';   // back arrow goes back one level
     scheduleFit();   // content height just changed (players joined/readied) -> rescale now + across font-load/frames so the card never overflows
   }
@@ -3777,8 +3785,10 @@
     const browsing = all.filter((p) => !p.table).length;
     const rows = codes.length ? codes.map((code) => {
       const m = tables[code], inGame = m.some((p) => pmode(p) === 'playing');
+      const creator = m.find((p) => p.created === code);
+      const gname = creator ? escapeHtml(creator.name) + "'s Game" : 'Game';
       const names = m.map((p) => escapeHtml(p.name)).join(', ');
-      return `<button class="tablerow" onclick="CATAN.joinTable('${code}')"><span class="tnm2">${names || 'Empty'}</span>` +
+      return `<button class="tablerow" onclick="CATAN.joinTable('${code}')"><span class="trow-main"><span class="tgname">${gname}</span><span class="tgwho">${names || 'Empty'}</span></span>` +
         `<span class="${inGame ? 't-pend' : 't-acc'}">${inGame ? '🔴 watch' : m.length + ' here'}</span></button>`;
     }).join('') : `<p class="muted" style="text-align:center;margin:12px 0">No games yet — start one.</p>`;
     return `<p class="muted small" style="text-align:center">${me} · ${all.length} online${browsing ? ' · ' + browsing + ' browsing' : ''}</p>
@@ -3792,19 +3802,26 @@
   // sitting at a table: the ready/spectate/start lobby, scoped to this table's members
   function atTableHTML(all) {
     const members = all.filter((p) => (p.table || null) === LOBBY.table);
-    const ready = LOBBY.readyList(), rows = lobbyRows(members, ready);
+    const ready = LOBBY.readyList();
+    const creator = members.find((p) => p.created === LOBBY.table);
+    const rows = lobbyRows(members, ready, creator ? creator.id : null);
     // no in-card "back to games" button — the top-left ← in the header handles leaving
     if (LOBBY.inProgress) {
-      return `<p class="muted small" style="text-align:center">Game · ${members.length} here</p>
+      return `<p class="muted small" style="text-align:center">${members.length} here</p>
         <div class="loblist">${rows}</div>
         <button class="btn wood full" onclick="CATAN.lobbyWatch()">🔴 Game in progress · Watch</button>`;
     }
-    const canStart = ready.length >= 2, host = ready[0], iAmHost = host && host.id === AUTH.me.id;
+    // the game's CREATOR starts it (fallback: first-ready, if the creator has left the table)
+    const host = creator || ready[0], iAmHost = host && host.id === AUTH.me.id;
+    const hostReady = host && ready.some((r) => r.id === host.id);
     const seatN = Math.min(4, ready.length), tgt = targetForN(seatN);
-    const startBtn = !canStart ? `<button class="btn full" disabled>Start (need 2 ready)</button>`
-      : iAmHost ? `<button class="btn full" onclick="CATAN.lobbyStart()">Start · ${seatN}p (${tgt} pts)</button>`
-        : `<button class="btn full" disabled>Waiting for ${escapeHtml(host.name)} to start…</button>`;
-    return `<p class="muted small" style="text-align:center">Game · ${members.length} here · ${ready.length} ready</p>
+    const hostName = escapeHtml((host && host.name) || 'the host');
+    const startBtn = iAmHost
+      ? (ready.length < 2 ? `<button class="btn full" disabled>Start · need 2 ready</button>`
+        : !hostReady ? `<button class="btn full" disabled>Ready up to start</button>`
+          : `<button class="btn full" onclick="CATAN.lobbyStart()">Start · ${seatN}p (${tgt} pts)</button>`)
+      : `<button class="btn full" disabled>${ready.length < 2 ? 'Waiting for players…' : 'Waiting for ' + hostName + ' to start…'}</button>`;
+    return `<p class="muted small" style="text-align:center">${members.length} here · ${ready.length} ready</p>
       <div class="loblist">${rows}</div>
       <div class="lobrow2">
         <button class="btn ${LOBBY.mode === 'ready' ? '' : 'wood'}" onclick="CATAN.lobbyReady()">${LOBBY.mode === 'ready' ? '✓ Ready' : "I'm ready"}</button>
@@ -3816,7 +3833,7 @@
   window.CATAN.statsSeason = (s) => { statsSeason = s; statsScreen(); };
   window.CATAN.statsPlayer = (n) => statsPlayerScreen(decodeURIComponent(n));
   window.CATAN.lobbyBack = () => { if (LOBBY.table) CATAN.leaveTable(); else CATAN.lobbyLogout(); };
-  window.CATAN.newTable = () => LOBBY.enterTable(genCode());
+  window.CATAN.newTable = () => { const code = genCode(); LOBBY.created = code; LOBBY.enterTable(code); };
   window.CATAN.joinTable = (code) => LOBBY.enterTable(code);
   window.CATAN.leaveTable = () => LOBBY.leaveTable();
   window.CATAN.lobbyReady = () => LOBBY.setReady();
@@ -3931,10 +3948,14 @@
       const list = names.length
         ? names.map((n) => `<button class="btn full authrow" onclick="CATAN.authPick('${encodeURIComponent(n.name)}')">${faceHTML(n.name, n.avatar)}<span class="anm">${escapeHtml(n.name)}</span></button>`).join('')
         : `<p class="muted" style="text-align:center;margin:8px 0">No players yet — create one.</p>`;
-      titleCard(`<div class="lobhead"><h3>Who are you?</h3><div class="lobtools"><button class="lobtool" data-nav="stats" title="Stats & leaderboard">🏆</button></div></div>
+      const recent = STATS.games.length ? recentRowsHTML(STATS.games, 8) : `<p class="muted small" style="text-align:center;padding:8px 0">${STATS.loaded ? 'No games recorded yet.' : 'Loading…'}</p>`;
+      titleCard(`<div class="lobhead"><h3>Login</h3><div class="lobtools"><button class="lobtool" data-nav="stats" title="Stats & leaderboard">🏆</button></div></div>
         <div class="authlist">${list}</div>
         <button class="btn wood full" onclick="CATAN.authNew()">+ New player</button>
-        <button class="offline-link" onclick="CATAN.playOffline()">Pass &amp; play offline</button>`);
+        <button class="offline-link" onclick="CATAN.playOffline()">Pass &amp; play offline</button>
+        <div class="rgsec"><div class="rghead"><span>Recent games</span><button class="rglink" data-nav="stats">Full stats →</button></div>
+          <div class="rglist" id="login-recent">${recent}</div></div>`);
+      STATS.load().then(() => { const el = $('login-recent'); if (el) el.innerHTML = STATS.games.length ? recentRowsHTML(STATS.games, 8) : `<p class="muted small" style="text-align:center;padding:8px 0">No games recorded yet.</p>`; });
     } else if (mode === 'new') {
       titleCard(`<h3>New player</h3>
         <input id="auName" class="authin" placeholder="Your name" maxlength="20" autocomplete="off"/>
