@@ -952,7 +952,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v37';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v38';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -3639,8 +3639,9 @@
   // In-memory game shape: { date:'Jun 29', ym:'2026-06', standings:[{n,pts,lr,la}] } (index 0 = winner).
   const MONTH_FULL = { Jan: 'January', Feb: 'February', Mar: 'March', Apr: 'April', May: 'May', Jun: 'June', Jul: 'July', Aug: 'August', Sep: 'September', Oct: 'October', Nov: 'November', Dec: 'December' };
   const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  function pkey(s) { return s.id || s.n; }   // player identity key: persistent id if present, else the name
   const STATS = {
-    games: [], loaded: false, loading: null,
+    games: [], loaded: false, loading: null, nameMap: {},
     // fetch finished games from the DB (cached; a new result clears `loaded` to force a refetch)
     load(force) {
       if (STATS.loading) return STATS.loading;
@@ -3653,46 +3654,54 @@
           STATS.games = ((!error && data) ? data : []).filter((r) => Array.isArray(r.standings) && r.standings.length).map((r) => {
             const d = new Date(r.finished_at), mo = d.getMonth();
             return { date: MONTH_ABBR[mo] + ' ' + d.getDate(), ym: d.getFullYear() + '-' + String(mo + 1).padStart(2, '0'),
-              standings: r.standings.map((s) => ({ n: s.name, pts: s.pts, lr: s.lr ? 1 : 0, la: s.la ? 1 : 0 })) };
+              standings: r.standings.map((s) => ({ id: s.id || null, n: s.name, pts: s.pts, lr: s.lr ? 1 : 0, la: s.la ? 1 : 0 })) };
           });
+          // Resolve the LATEST display name per identity key (games are newest-first, so the first
+          // name seen for a key wins). Keying on the persistent player id means a rename never
+          // splits a player's history — their old games and new games stay one row.
+          STATS.nameMap = {};
+          STATS.games.forEach((g) => g.standings.forEach((s) => { const k = pkey(s); if (!STATS.nameMap[k]) STATS.nameMap[k] = s.n; }));
         },
         () => { STATS.loading = null; STATS.loaded = true; STATS.games = []; });
       return STATS.loading;
     },
+    nameFor(k) { return (STATS.nameMap && STATS.nameMap[k]) || k; },
     seasonLabel(ym) { if (!ym) return ''; const p = ym.split('-'); const lbl = MONTH_FULL[MONTH_ABBR[(+p[1]) - 1]]; return (+p[0] === new Date().getFullYear()) ? lbl : lbl + ' ' + p[0]; },
     seasons() { const u = [...new Set(STATS.games.map((g) => g.ym))]; u.sort(); return u; },
     curSeason() { const s = STATS.seasons(); return s[s.length - 1]; },
     filter(season) { return season === 'all' ? STATS.games : STATS.games.filter((g) => g.ym === season); },
     board(games) {
-      const m = {}, get = (n) => (m[n] = m[n] || { name: n, gp: 0, w: 0, exp: 0, ps: 0, lr: 0, la: 0 });
+      const m = {}, get = (k) => (m[k] = m[k] || { key: k, gp: 0, w: 0, exp: 0, ps: 0, lr: 0, la: 0 });
       games.forEach((g) => {
         const N = g.standings.length;
-        g.standings.forEach((s, i) => { const p = get(s.n); p.gp++; p.exp += 1 / N; p.ps += i + 1; if (i === 0) p.w++; if (s.lr) p.lr++; if (s.la) p.la++; });
+        g.standings.forEach((s, i) => { const p = get(pkey(s)); p.gp++; p.exp += 1 / N; p.ps += i + 1; if (i === 0) p.w++; if (s.lr) p.lr++; if (s.la) p.la++; });
       });
-      return Object.values(m).map((p) => ({ name: p.name, gp: p.gp, w: p.w, lr: p.lr, la: p.la, winpct: Math.round((100 * p.w) / p.gp), wae: p.w - p.exp, avg: p.ps / p.gp }))
+      return Object.values(m).map((p) => ({ key: p.key, name: STATS.nameFor(p.key), gp: p.gp, w: p.w, lr: p.lr, la: p.la, winpct: Math.round((100 * p.w) / p.gp), wae: p.w - p.exp, avg: p.ps / p.gp }))
         .sort((a, b) => b.wae - a.wae || b.w - a.w || a.avg - b.avg);
     },
-    crowns() { const c = {}; STATS.seasons().forEach((ym) => { if (ym === STATS.curSeason()) return; const b = STATS.board(STATS.filter(ym)); if (b.length) c[b[0].name] = (c[b[0].name] || 0) + 1; }); return c; },
-    streak(name) {
-      const gs = STATS.games.filter((g) => g.standings.some((s) => s.n === name)).slice().reverse();   // oldest -> newest
-      let best = 0, run = 0; gs.forEach((g) => { if (g.standings[0].n === name) { run++; if (run > best) best = run; } else run = 0; });
+    crowns() { const c = {}; STATS.seasons().forEach((ym) => { if (ym === STATS.curSeason()) return; const b = STATS.board(STATS.filter(ym)); if (b.length) c[b[0].key] = (c[b[0].key] || 0) + 1; }); return c; },
+    streak(key) {
+      const gs = STATS.games.filter((g) => g.standings.some((s) => pkey(s) === key)).slice().reverse();   // oldest -> newest
+      let best = 0, run = 0; gs.forEach((g) => { if (pkey(g.standings[0]) === key) { run++; if (run > best) best = run; } else run = 0; });
       return { cur: run, best };
     },
-    h2h(name) {
+    h2h(key) {
       const h = {};
-      STATS.games.forEach((g) => { const me = g.standings.findIndex((s) => s.n === name); if (me < 0) return;
-        g.standings.forEach((s, i) => { if (s.n === name) return; const o = (h[s.n] = h[s.n] || { w: 0, l: 0 }); if (me < i) o.w++; else o.l++; }); });
+      STATS.games.forEach((g) => { const me = g.standings.findIndex((s) => pkey(s) === key); if (me < 0) return;
+        g.standings.forEach((s, i) => { const ok = pkey(s); if (ok === key) return; const o = (h[ok] = h[ok] || { w: 0, l: 0, name: STATS.nameFor(ok) }); if (me < i) o.w++; else o.l++; }); });
       return h;
     },
-    detail(name) { const a = STATS.board(STATS.games).find((p) => p.name === name); return a ? { ...a, ...STATS.streak(name), h2h: STATS.h2h(name) } : null; },
+    detail(key) { const a = STATS.board(STATS.games).find((p) => p.key === key); return a ? { ...a, ...STATS.streak(key), h2h: STATS.h2h(key) } : null; },
   };
   // Write one row when a game ends. Every seated client attempts it; a board-fingerprint game_id
   // (identical on every device, stable across reconnects) dedups so exactly one row lands.
   let lastRecorded = null;
   function recordResult() {
     if (!online || !NET.code || !NET.client || !state || state.phase !== 'ended' || !state.winner) return;
+    const seatId = {};   // color -> persistent player id, from the game's seat map (rename-proof stats key)
+    (gameSeats || []).forEach((s) => { if (s && s.color) seatId[s.color] = s.playerId || null; });
     const rows = state.players.map((p) => ({ p, vp: C.victoryPoints(state, p.color, true) })).sort((a, b) => b.vp - a.vp);
-    const standings = rows.map(({ p, vp }, i) => ({ name: p.name, color: p.color, pts: vp, place: i + 1, lr: p.hasLongestRoad ? 1 : 0, la: p.hasLargestArmy ? 1 : 0 }));
+    const standings = rows.map(({ p, vp }, i) => ({ id: seatId[p.color] || null, name: p.name, color: p.color, pts: vp, place: i + 1, lr: p.hasLongestRoad ? 1 : 0, la: p.hasLargestArmy ? 1 : 0 }));
     const fp = ((state.board && state.board.hexes) || []).map((h) => ((h.terrain || '?')[0]) + (h.token || '')).join('');
     const gameId = (NET.code || '?') + ':' + fp;
     if (lastRecorded === gameId) return;
@@ -3722,9 +3731,9 @@
     const head = `<tr><th>#</th><th>Player</th><th title="Games played">GP</th><th title="Wins">W</th><th title="Win rate">Win%</th><th title="Wins above expected — accounts for table size">WAE</th>${isAll ? '<th title="Season crowns">👑</th>' : ''}</tr>`;
     const rows = board.map((p, i) => {
       const wae = (p.wae >= 0 ? '+' : '') + p.wae.toFixed(1);
-      return `<tr onclick="CATAN.statsPlayer('${encodeURIComponent(p.name)}')"><td class="str">${i + 1}</td>` +
+      return `<tr onclick="CATAN.statsPlayer('${encodeURIComponent(p.key)}')"><td class="str">${i + 1}</td>` +
         `<td class="stn">${escapeHtml(p.name)}</td><td>${p.gp}</td><td class="stw">${p.w}</td><td>${p.winpct}%</td>` +
-        `<td class="${p.wae >= 0 ? 'stpos' : 'stneg'}">${wae}</td>${isAll ? `<td>${'👑'.repeat(crowns[p.name] || 0) || '·'}</td>` : ''}</tr>`;
+        `<td class="${p.wae >= 0 ? 'stpos' : 'stneg'}">${wae}</td>${isAll ? `<td>${'👑'.repeat(crowns[p.key] || 0) || '·'}</td>` : ''}</tr>`;
     }).join('');
     titleCard(`${back}
       <div class="seg stseg"><button class="${!isAll ? 'on' : ''}" onclick="CATAN.statsSeason(null)">${curLbl}</button><button class="${isAll ? 'on' : ''}" onclick="CATAN.statsSeason('all')">All-time</button></div>
@@ -3733,16 +3742,16 @@
       <h4 class="stsub">Recent games${isAll ? '' : ' · ' + curLbl}</h4>
       <div class="rglist tall">${recentRowsHTML(games)}</div>`);
   }
-  function statsPlayerScreen(name) {
-    const d = STATS.detail(name);
+  function statsPlayerScreen(key) {
+    const d = STATS.detail(key);
     if (!d) { statsScreen(); return; }
     const wae = (d.wae >= 0 ? '+' : '') + d.wae.toFixed(1);
     const chips = [['Games', d.gp], ['Wins', d.w], ['Win%', d.winpct + '%'], ['WAE', wae], ['Avg place', d.avg.toFixed(1)], ['Streak', d.cur + ' · best ' + d.best]];
     const chipHTML = chips.map((c) => `<div class="stchip"><span class="stcv">${c[1]}</span><span class="stcl">${c[0]}</span></div>`).join('');
-    const h2hHTML = Object.keys(d.h2h).map((o) => { const r = d.h2h[o], lead = r.w > r.l ? 'stpos' : (r.w < r.l ? 'stneg' : '');
-      return `<div class="h2hrow"><span class="h2hn">vs ${escapeHtml(o)}</span><span class="h2hr ${lead}">${r.w}–${r.l}</span></div>`; }).join('');
+    const h2hHTML = Object.keys(d.h2h).map((ok) => { const r = d.h2h[ok], lead = r.w > r.l ? 'stpos' : (r.w < r.l ? 'stneg' : '');
+      return `<div class="h2hrow"><span class="h2hn">vs ${escapeHtml(r.name)}</span><span class="h2hr ${lead}">${r.w}–${r.l}</span></div>`; }).join('');
     const roadIco = ROAD_ICO ? `<img src="${ROAD_ICO}" class="stbonico" alt="">` : '🛤';
-    titleCard(`<div class="lobhead"><button class="lobback" onclick="CATAN.openStats()" title="Back to stats">←</button><h3>${escapeHtml(name)}</h3></div>
+    titleCard(`<div class="lobhead"><button class="lobback" onclick="CATAN.openStats()" title="Back to stats">←</button><h3>${escapeHtml(d.name)}</h3></div>
       <div class="stchips">${chipHTML}</div>
       <h4 class="stsub">Head to head</h4>
       <div class="h2hlist">${h2hHTML}</div>
@@ -3991,7 +4000,17 @@
     LOBBY.join();
     renderLobby();     // fill the dynamic half
     STATS.load().then(() => { if (!NET.started && !LOBBY.table && $('lobby-dyn')) { lobbySig = null; renderLobby(); } });   // fill the recent-games strip once results load
+    purgeStaleGames();   // auto-clean abandoned/idle games whenever someone opens the lobby
     lastRecorded = null;   // a fresh lobby visit re-arms the one-shot result writer for the next game
+  }
+  // throttled housekeeping: ask the server to drop idle/abandoned games (see server/cleanup.sql)
+  let lastPurge = 0;
+  function purgeStaleGames() {
+    const now = Date.now();
+    if (now - lastPurge < 300000) return;   // at most once per 5 min per device
+    lastPurge = now;
+    const c = NET.client; if (!c) return;
+    c.rpc('purge_stale_games').then(({ error }) => { if (error) console.warn('purge failed:', error.message); }, () => {});
   }
   window.CATAN.authPick = (n) => showIdentity('login:' + n);
   window.CATAN.authNew = () => showIdentity('new');
