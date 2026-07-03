@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v44';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v45';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -1544,27 +1544,33 @@
   function openTrade() {
     if (state.pendingTrade) { syncTradeUI(); return; }
     if (online && !isMyTurn()) { toast('Not your turn'); return; }
-    ui.trade = { mode: 'players', give: zeroRes(), want: zeroRes() };
+    ui.trade = { mode: 'players', actor: activeColor(), give: zeroRes(), want: zeroRes() };
     ui.tradeView = 'builder';
     renderTradeBuilder();
   }
   function zeroRes() { return { brick: 0, wood: 0, sheep: 0, wheat: 0, ore: 0 }; }
+  // the player driving the swipe sheet: the offerer in the builder, or the responder in the counter sheet
+  function tActorColor() { return (ui.trade && ui.trade.actor) || activeColor(); }
+  function tActorPlayer() { return state.players.find((p) => p.color === tActorColor()) || activePlayer(); }
   function tBankMode() { return ui.trade && ui.trade.mode === 'bank'; }
   // a single signed "net" per resource: >0 = you give (bank: in ratio bundles), <0 = you want
-  function tNetOf(r) { const t = ui.trade; if (t.give[r]) return tBankMode() ? Math.round(t.give[r] / bankRatio(activeColor(), r)) : t.give[r]; if (t.want[r]) return -t.want[r]; return 0; }
+  function tNetOf(r) { const t = ui.trade; if (t.give[r]) return tBankMode() ? Math.round(t.give[r] / bankRatio(tActorColor(), r)) : t.give[r]; if (t.want[r]) return -t.want[r]; return 0; }
   function tSetNet(r, net) {
-    const t = ui.trade, hold = activePlayer().resources[r], cap = state.bank[r];
+    const t = ui.trade, hold = tActorPlayer().resources[r];
     if (tBankMode()) {
-      const ratio = bankRatio(activeColor(), r), maxGive = Math.floor(hold / ratio);
+      const ratio = bankRatio(tActorColor(), r), maxGive = Math.floor(hold / ratio), cap = state.bank[r];
       net = Math.max(-cap, Math.min(maxGive, net));
       t.give[r] = net > 0 ? net * ratio : 0; t.want[r] = net < 0 ? -net : 0;
     } else {
-      net = Math.max(-cap, Math.min(hold, net));
+      // give capped by the actor's hand; receive capped by the counterparty (the offerer in a counter, else the bank)
+      let recvCap = state.bank[r];
+      if (t.mode === 'respond') { const from = state.players.find((p) => p.color === t.offerFrom); recvCap = from ? (from.resources[r] || 0) : 0; }
+      net = Math.max(-recvCap, Math.min(hold, net));
       t.give[r] = Math.max(0, net); t.want[r] = Math.max(0, -net);
     }
   }
   function tradeValid() {
-    const t = ui.trade, color = activeColor();
+    const t = ui.trade, color = tActorColor();
     if (tBankMode()) {
       const credits = RES.reduce((n, r) => n + t.give[r] / bankRatio(color, r), 0);
       const wantTot = RES.reduce((n, r) => n + t.want[r], 0);
@@ -1572,6 +1578,11 @@
     }
     const gt = RES.reduce((n, r) => n + t.give[r], 0), wt = RES.reduce((n, r) => n + t.want[r], 0);
     return gt > 0 && wt > 0;
+  }
+  function tradeRespondMode() { return !!(ui.trade && ui.trade.mode === 'respond'); }
+  function tradeRespValid() {   // the responder must give and receive something, and be able to pay what they give
+    const me = tActorPlayer(), t = ui.trade;
+    return RES.some((r) => t.give[r]) && RES.some((r) => t.want[r]) && RES.every((r) => (me.resources[r] || 0) >= (t.give[r] || 0));
   }
   // one give/want placeholder slot. BOTH the arrow hint and the resource icon are always
   // in the DOM; the `filled` class shows/hides them via CSS. So a swipe never creates or
@@ -1597,8 +1608,8 @@
     setSlot('.tslot.give', g);
     setSlot('.tslot.want', w);
     // middle count = what you'd hold if this trade goes through (gave some, received some)
-    const mid = col.querySelector('.tmid .tcount'); if (mid) mid.textContent = activePlayer().resources[r] - g + w;
-    const cf = document.querySelector('.tconfirm'); if (cf) cf.classList.toggle('hidden', !tradeValid());
+    const mid = col.querySelector('.tmid .tcount'); if (mid) mid.textContent = tActorPlayer().resources[r] - g + w;
+    const cf = document.querySelector('.tconfirm'); if (cf) cf.classList.toggle('hidden', !tradeRespondMode() ? !tradeValid() : !tradeRespValid());
   }
   // switch Players <-> Bank IN PLACE (don't rebuild the sheet, which would replay the
   // slide-up animation): just retitle, move the highlight, show/hide ratios, clear the offer.
@@ -1672,10 +1683,12 @@
   function renderTradeWait(pt) {
     const others = state.players.filter((p) => p.color !== pt.from);
     const rows = others.map((p) => {
-      const acc = pt.acceptedBy.includes(p.color), dec = pt.declinedBy.includes(p.color);
+      const acc = pt.acceptedBy.includes(p.color), dec = pt.declinedBy.includes(p.color), ctr = pt.counters && pt.counters[p.color];
       const canPay = RES.every((r) => (p.resources[r] || 0) >= (pt.want[r] || 0));
       let ctrl;
-      if (acc) {
+      if (ctr) {   // they countered: confirm on THEIR terms (offerer's frame: give ctr.give, get ctr.want)
+        ctrl = `<span class="t-cnt">${offerStr(ctr.give)}<span class="for">→</span>${offerStr(ctr.want)}</span><button class="btn" onclick="CATAN.tradeConfirm('${p.color}')">Trade</button>`;
+      } else if (acc) {
         ctrl = `<span class="t-acc">accepted</span><button class="btn" onclick="CATAN.tradeConfirm('${p.color}')">Trade</button>`;
       } else if (online) {
         // online: each player responds on their own device — proposer just watches
@@ -1694,30 +1707,59 @@
       <div class="toffer"><span>You give ${offerStr(pt.give)}</span><span class="for">for</span><span>${offerStr(pt.want)}</span></div>
       <div class="tresp">${rows}</div>
       ${allDeclined ? '<p class="muted" style="text-align:center">Everyone declined.</p>' : ''}
-      <button class="btn ghost full" onclick="CATAN.tradeCancel()">Cancel offer</button>
+      <div class="trow2 tfoot"><button class="btn ghost" onclick="CATAN.tradeReoffer()">New offer</button><button class="btn ghost" onclick="CATAN.tradeCancel()">Cancel</button></div>
     </div>`);
   }
-  // responder's view (non-proposer) — accept / decline
+  // responder's view (non-proposer): the offer under the offerer's face + your resources on the same
+  // swipe sheet as the builder. Leave it as-is -> Accept; drag any resource -> it becomes a counter.
   function renderTradeRespond(pt, meColor) {
-    const from = state.players.find((p) => p.color === pt.from);
-    const me = state.players.find((p) => p.color === meColor);
-    const iAcc = pt.acceptedBy.includes(meColor), iDec = pt.declinedBy.includes(meColor);
-    const canPay = RES.every((r) => (me.resources[r] || 0) >= (pt.want[r] || 0));  // I must give what they want
-    let buttons;
-    if (iAcc) buttons = `<p class="muted" style="text-align:center">You accepted — waiting for ${escapeHtml(from.name)} to confirm.</p><button class="btn ghost full" onclick="CATAN.tradeDecline()">Withdraw</button>`;
-    else if (iDec) buttons = `<p class="muted" style="text-align:center">You declined.</p>${canPay ? `<button class="btn full" onclick="CATAN.tradeAccept()">Accept after all</button>` : ''}`;
-    else buttons = `<div class="trow2"><button class="btn ghost" onclick="CATAN.tradeDecline()">Decline</button><button class="btn full" ${canPay ? '' : 'disabled'} onclick="CATAN.tradeAccept()">Accept</button></div>`;
-    paintMenu('trade-respond', `<div class="menuscreen trade">
-      <div class="menutitle">Trade offer</div>
-      <div class="toffer"><span>${escapeHtml(from.name)} gives you ${offerStr(pt.give)}</span><span class="for">for your</span><span>${offerStr(pt.want)}</span></div>
-      ${canPay ? '' : '<p class="muted" style="text-align:center">You can’t cover this.</p>'}
-      <div class="tresp">${buttons}</div>
+    // "auto-decline this turn": silently decline every offer while it's still the offerer's turn
+    if (ui.autoDeclineIdx === state.currentPlayerIndex) {
+      if (!pt.declinedBy.includes(meColor)) { dispatch({ type: 'declineTrade' }, meColor); return; }
+      hideOverlay(); return;
+    }
+    const from = state.players.find((p) => p.color === pt.from), me = state.players.find((p) => p.color === meColor);
+    const iAcc = pt.acceptedBy.includes(meColor), myCounter = pt.counters && pt.counters[meColor];
+    // pre-fill the swipe sheet from the responder's frame: they GIVE the offerer's `want`, RECEIVE the `give`
+    const key = pt.from + ':' + JSON.stringify(pt.give) + '|' + JSON.stringify(pt.want);
+    if (!ui.trade || ui.trade.mode !== 'respond' || ui.trade.offerKey !== key) {
+      ui.trade = { mode: 'respond', actor: meColor, offerFrom: pt.from, offerKey: key,
+        give: { ...zeroRes(), ...pt.want }, want: { ...zeroRes(), ...pt.give } };
+    }
+    ui.tradeView = 'respond';
+    const renderKey = key + '|' + (iAcc ? 'a' : (myCounter ? 'c' : 'n'));
+    if (ui.respondKey === renderKey && $('overlay').querySelector('.traderoot.respond')) { setTimeout(attachTradeSwipe, 0); return; }
+    ui.respondKey = renderKey;
+    const res = HUD.res || {};
+    const cols = HAND_ORDER.map((r) => {
+      const hold = me.resources[r], g = ui.trade.give[r], w = ui.trade.want[r];
+      return `<div class="tcol" data-r="${r}">${tradeSlotHTML(r, g, 'give')}<div class="tmid"><img src="${res[r] || ''}" alt=""><span class="tcount">${hold - g + w}</span></div>${tradeSlotHTML(r, w, 'want')}</div>`;
+    }).join('');
+    const valid = tradeRespValid();
+    const avatar = seatAvatarSrc(from, state.players.indexOf(from));
+    const note = iAcc ? `You accepted — waiting for ${escapeHtml(from.name)}.` : (myCounter ? `Counter sent — waiting for ${escapeHtml(from.name)}.` : '');
+    showFullMenu(`<div class="traderoot respond">
+      <div class="tofferhead">
+        <div class="tav" style="border-color:${PCOLOR[pt.from]}"><img src="${avatar}" alt="" onerror="this.style.display='none'"></div>
+        <div class="tofferline"><b>${escapeHtml(from.name)}</b> gives ${offerStr(pt.give)} <span class="for">for</span> ${offerStr(pt.want)}</div>
+      </div>
+      <div class="tradesheet"><div class="tgrid">${cols}</div></div>
+      ${note ? `<div class="tnote">${note}</div>` : ''}
+      <button class="tclose" onclick="CATAN.tradeRespDecline()"><img src="assets/hud/decline.png" alt="Decline"></button>
+      <button class="tconfirm${valid ? '' : ' hidden'}" onclick="CATAN.tradeRespSend()"><img src="assets/hud/confirm.png" alt="Send"></button>
+      <button class="tautodecline" onclick="CATAN.tradeAutoDecline()" title="Auto-decline trades this turn"><img class="tadg" src="${(HUD.trade || {}).get || ''}" alt=""><img class="tadv" src="${(HUD.trade || {}).give || ''}" alt=""></button>
     </div>`);
+    $('overlay').classList.add('trademode');
+    document.body.classList.add('trading');
+    setTimeout(attachTradeSwipe, 0);
   }
   // drive the pending-trade overlays off the shared state, on every render
   function syncTradeUI() {
+    // "auto-decline this turn" only lasts the offerer's turn — drop it once the turn advances
+    if (state && ui.autoDeclineIdx != null && ui.autoDeclineIdx !== state.currentPlayerIndex) ui.autoDeclineIdx = null;
     const pt = state && state.pendingTrade;
     if (!pt) {
+      ui.respondKey = null;
       if (ui.tradeView === 'wait' || ui.tradeView === 'respond') { ui.tradeView = null; hideOverlay(); }
       return;
     }
@@ -2073,6 +2115,18 @@
     tradeAs: (kind, color) => dispatch({ type: kind === 'accept' ? 'acceptTrade' : 'declineTrade' }, color),  // hotseat: respond as a player
     tradeConfirm: (c) => dispatch({ type: 'confirmTrade', with: c }, online ? myColor : activeColor()),
     tradeCancel: () => dispatch({ type: 'cancelTrade' }),
+    // responder ✓: unchanged from the offer -> accept; adjusted -> counter (offerer's frame: give = my
+    // receive = ui.trade.want; want = my give = ui.trade.give)
+    tradeRespSend: () => {
+      const t = ui.trade, pt = state.pendingTrade; if (!t || !pt) return;
+      const give = {}, want = {};
+      RES.forEach((r) => { if (t.want[r]) give[r] = t.want[r]; if (t.give[r]) want[r] = t.give[r]; });
+      const unchanged = RES.every((r) => (give[r] || 0) === (pt.give[r] || 0) && (want[r] || 0) === (pt.want[r] || 0));
+      dispatch(unchanged ? { type: 'acceptTrade' } : { type: 'counterTrade', give, want }, online ? myColor : activeColor());
+    },
+    tradeRespDecline: () => dispatch({ type: 'declineTrade' }, online ? myColor : activeColor()),
+    tradeAutoDecline: () => { ui.autoDeclineIdx = state.currentPlayerIndex; dispatch({ type: 'declineTrade' }, online ? myColor : activeColor()); },
+    tradeReoffer: () => { dispatch({ type: 'cancelTrade' }); openTrade(); },   // drop the offer + reopen the builder
     steal: (c) => { hideOverlay(); dispatch({ type: 'steal', victim: c }, activeColor()); },
     disc: (r, d) => { const s = ui.pending, p = state.players.find((x) => x.color === s.color), next = s.sel[r] + d, total = RES.reduce((n, x) => n + s.sel[x], 0); if (next < 0 || next > p.resources[r]) return; if (d > 0 && total >= s.need) return; s.sel[r] = next; renderDiscard(); },
     discSubmit: () => { const s = ui.pending; hideOverlay(); RES.forEach((r) => lagOut(s.color, r, s.sel[r] || 0)); showDiscardFly(s.color, s.sel); dispatch({ type: 'discard', resources: s.sel }, s.color); },
