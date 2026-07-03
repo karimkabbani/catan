@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v53';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v54';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -1809,6 +1809,7 @@
 
   function showVictory() {
     playSound('win', 0.8);
+    STATS.loaded = false;   // a game just ended -> every client refetches stats on the next lobby visit
     const winner = state.players.find((p) => p.color === state.winner);
     const wi = state.players.indexOf(winner);
     const wavSrc = seatAvatarSrc(winner, wi);
@@ -1965,7 +1966,7 @@
     if (ui.svEnding) return; ui.svEnding = true;
     // apply locally too — the winner's own row write echoes back deduped, so otherwise the
     // winner would never see their own victory.
-    if (state) { state.winner = winner; state.phase = 'ended'; delete state.sv; render(); showVictory(); }
+    if (state) { state.winner = winner; state.phase = 'ended'; delete state.sv; recordResult(); render(); showVictory(); }
     svUpdate((s) => { s.winner = winner; s.phase = 'ended'; delete s.sv; });
     setTimeout(() => { try { LOBBY.reset(); } catch (_) {} }, 6000);        // brief victory, then everyone returns to lobby
   }
@@ -2887,7 +2888,10 @@
     if (!online || !NET.code || !NET.client || !state || state.phase !== 'ended' || !state.winner) return;
     const seatId = {};   // color -> persistent player id, from the game's seat map (rename-proof stats key)
     (gameSeats || []).forEach((s) => { if (s && s.color) seatId[s.color] = s.playerId || null; });
-    const rows = state.players.map((p) => ({ p, vp: C.victoryPoints(state, p.color, true) })).sort((a, b) => b.vp - a.vp);
+    // the actual winner is ALWAYS place 1 — a surrender winner may not be the VP leader; the rest rank by VP
+    const win = state.winner;
+    const rows = state.players.map((p) => ({ p, vp: C.victoryPoints(state, p.color, true) }))
+      .sort((a, b) => ((b.p.color === win) - (a.p.color === win)) || (b.vp - a.vp));
     const standings = rows.map(({ p, vp }, i) => ({ id: seatId[p.color] || null, name: p.name, color: p.color, pts: vp, place: i + 1, lr: p.hasLongestRoad ? 1 : 0, la: p.hasLargestArmy ? 1 : 0 }));
     const fp = ((state.board && state.board.hexes) || []).map((h) => ((h.terrain || '?')[0]) + (h.token || '')).join('');
     const gameId = (NET.code || '?') + ':' + fp;
