@@ -38,6 +38,7 @@ export type Action =
   | { type: 'offerTrade'; give: Partial<Record<Resource, number>>; want: Partial<Record<Resource, number>> }
   | { type: 'acceptTrade' }
   | { type: 'declineTrade' }
+  | { type: 'counterTrade'; give: Partial<Record<Resource, number>>; want: Partial<Record<Resource, number>> }
   | { type: 'confirmTrade'; with: PlayerColor }
   | { type: 'cancelTrade' }
   | { type: 'endTurn' };
@@ -308,6 +309,9 @@ export function applyAction(state: GameState, action: Action, byColor: PlayerCol
   if (action.type === 'declineTrade') {
     return declineTrade(s, byColor);
   }
+  if (action.type === 'counterTrade') {
+    return counterTrade(s, byColor, action.give, action.want);
+  }
 
   // Everything below is restricted to the player whose turn it is.
   if (byColor !== cur) return err(`It's not your turn.`);
@@ -513,7 +517,7 @@ export function applyAction(state: GameState, action: Action, byColor: PlayerCol
     case 'offerTrade': {
       if (s.turnPhase !== 'main') return err('Roll first.');
       if (!canPay(player, action.give)) return err('You do not have what you are offering.');
-      s.pendingTrade = { from: cur, give: action.give, want: action.want, acceptedBy: [], declinedBy: [] };
+      s.pendingTrade = { from: cur, give: action.give, want: action.want, acceptedBy: [], declinedBy: [], counters: {} };
       return { ok: true, state: s };
     }
 
@@ -525,13 +529,16 @@ export function applyAction(state: GameState, action: Action, byColor: PlayerCol
     case 'confirmTrade': {
       const t = s.pendingTrade;
       if (!t || t.from !== cur) return err('No trade of yours to confirm.');
-      if (!t.acceptedBy.includes(action.with)) return err('That player has not accepted.');
+      const counter = t.counters?.[action.with];
+      if (!counter && !t.acceptedBy.includes(action.with)) return err('That player has not accepted.');
+      // a counter-offer trades on the responder's terms; a plain accept uses the original offer
+      const terms = counter ?? { give: t.give, want: t.want };
       const other = getPlayer(s, action.with);
-      if (!canPay(player, t.give)) return err('You can no longer cover this trade.');
-      if (!canPay(other, t.want)) return err('They can no longer cover this trade.');
+      if (!canPay(player, terms.give)) return err('You can no longer cover this trade.');
+      if (!canPay(other, terms.want)) return err('They can no longer cover this trade.');
       for (const r of RESOURCES) {
-        const g = t.give[r] ?? 0;
-        const w = t.want[r] ?? 0;
+        const g = terms.give[r] ?? 0;
+        const w = terms.want[r] ?? 0;
         player.resources[r] += w - g;
         other.resources[r] += g - w;
       }
@@ -571,7 +578,29 @@ export function acceptTrade(state: GameState, byColor: PlayerColor): ApplyResult
   const s = clone(state);
   const t = s.pendingTrade!;
   t.declinedBy = t.declinedBy.filter((c) => c !== byColor);
+  if (t.counters) delete t.counters[byColor];
   if (!t.acceptedBy.includes(byColor)) t.acceptedBy.push(byColor);
+  return { ok: true, state: s };
+}
+
+/** A non-current player proposes different terms (a counter-offer). Stored in the offerer's frame
+ *  (give = what the offerer would give, want = what the offerer would want / this responder gives). */
+export function counterTrade(
+  state: GameState,
+  byColor: PlayerColor,
+  give: Partial<Record<Resource, number>>,
+  want: Partial<Record<Resource, number>>,
+): ApplyResult {
+  if (!state.pendingTrade) return err('There is no trade to counter.');
+  if (state.pendingTrade.from === byColor) return err('You cannot counter your own offer.');
+  const me = getPlayer(state, byColor);
+  if (!canPay(me, want)) return err('You cannot cover your counter-offer.');
+  const s = clone(state);
+  const t = s.pendingTrade!;
+  t.acceptedBy = t.acceptedBy.filter((c) => c !== byColor);
+  t.declinedBy = t.declinedBy.filter((c) => c !== byColor);
+  t.counters = t.counters ?? {};
+  t.counters[byColor] = { give, want };
   return { ok: true, state: s };
 }
 
@@ -582,6 +611,7 @@ export function declineTrade(state: GameState, byColor: PlayerColor): ApplyResul
   const s = clone(state);
   const t = s.pendingTrade!;
   t.acceptedBy = t.acceptedBy.filter((c) => c !== byColor);
+  if (t.counters) delete t.counters[byColor];
   if (!t.declinedBy.includes(byColor)) t.declinedBy.push(byColor);
   return { ok: true, state: s };
 }

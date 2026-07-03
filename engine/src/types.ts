@@ -109,6 +109,9 @@ export interface PendingTrade {
   acceptedBy: PlayerColor[];
   /** Players who have explicitly declined (so the proposer sees the rejection). */
   declinedBy: PlayerColor[];
+  /** Per-responder counter-offers, in the OFFERER's frame (give = what `from` gives, want = what
+   *  `from` wants). The offerer can confirm any counter, trading on those terms instead. */
+  counters?: Partial<Record<PlayerColor, { give: Partial<Record<Resource, number>>; want: Partial<Record<Resource, number>> }>>;
 }
 
 export interface GameState {
