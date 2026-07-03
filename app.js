@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v41';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v42';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -2384,26 +2384,27 @@
   }
   function cinematicPlace(kind, id, mine, grant) {
     const c = kind === 'e' ? edgeContent(id) : vertContent(id);
-    // observers get the SAME zoom-in on the placement as the placer (then glide back out), so the
-    // camera moment is shared by everyone with auto-zoom on. runCine is gated on SETTINGS.autozoom,
-    // so a player with auto-zoom off still stays put.
-    if (!mine) {
-      cancelCine();
+    const setup = state && state.phase === 'setup';
+    // SETUP: a settlement and its road share ONE zoom-in — for the placer AND observers with auto-zoom
+    // on. Zoom in on the settlement and HOLD (no zoom-out); glide back out only once the road lands.
+    if (setup) {
+      if (kind === 'e') { cancelCine(); cameraHome(CINE_MS); return; }   // road down -> now glide home
+      // settlement: hold. Don't cancelCine on the placer — that would wipe the grant-card lag set in
+      // dispatch; a fresh runCine already supersedes any prior tour via its token.
       runCine(async (alive) => {
         cameraTo(c, CINE_Z_SPOT, CINE_MS);
-        await cineSleep(aDur(CINE_MS + 650)); if (!alive()) return;   // linger on the new piece, then glide home
-      });
+        await cineSleep(aDur(CINE_MS + 80)); if (!alive()) return;
+        if (mine && grant && grant.items && grant.items.length) { flySettlementGrant(grant); await cineSleep(aDur(grant.items.length * 430 + 450)); }   // starting cards stream in during the hold
+      }, { stay: true });
       return;
     }
-    const setup = state && state.phase === 'setup';
-    // the placer's setup road went down inside the settlement's held frame -> just glide back out
-    if (setup && kind === 'e') { cancelCine(); cameraHome(CINE_MS); return; }
-    const stay = setup && kind === 'v';     // hold the settlement frame so the road is easy to place next
+    // MAIN GAME: zoom in on the new piece, linger, then glide out — placer (brief) and observers (longer),
+    // gated on SETTINGS.autozoom via runCine so anyone with auto-zoom off stays put.
+    cancelCine();
     runCine(async (alive) => {
       cameraTo(c, CINE_Z_SPOT, CINE_MS);
-      await cineSleep(aDur(CINE_MS + 80)); if (!alive()) return;
-      if (grant && grant.items && grant.items.length) { flySettlementGrant(grant); await cineSleep(aDur(grant.items.length * 430 + 450)); }   // let the starting cards stream in
-    }, { stay });
+      await cineSleep(aDur(CINE_MS + (mine ? 80 : 650))); if (!alive()) return;
+    });
   }
 
   function zMid() { const a = [...zPts.values()]; return { x: (a[0].x + a[1].x) / 2, y: (a[0].y + a[1].y) / 2 }; }
