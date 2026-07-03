@@ -959,7 +959,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v42';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v43';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -2889,6 +2889,11 @@
     // turn to act, and the build/trade/end/dev actions only appear then.
     const radialPhase = state.phase === 'play' && tp === 'main' && isMyTurn();
     $('radialwrap').innerHTML = radialButtons();
+    // Resolve the trade / surrender overlays FIRST: hideTab (below) keys off whether an overlay is
+    // open, so a just-completed trade must close its overlay before we decide the radial tab's
+    // visibility — otherwise the radial entry point stays hidden after every trade.
+    syncTradeUI();      // show/refresh/close the pending-trade overlays off shared state
+    syncSurrenderUI();  // show/refresh/close the surrender vote off shared state
     // hide the radial tab during forced, uninterruptible steps (placing the robber, the
     // ✓/✗ confirm, picking a steal victim) and behind any open dialog/menu
     // picking a spot for an OPTIONAL build (Build menu, turnPhase 'main') — not forced placements
@@ -2907,8 +2912,6 @@
     $('leavetab').classList.add('hidden');   // exit lives in the radial menu now
     // the "show game map" roll prompt only belongs in your own pre-roll phase
     if (!(state.phase === 'play' && tp === 'roll' && isMyTurn())) hideRollPrompt();
-    syncTradeUI();      // show/refresh/close the pending-trade overlays off shared state
-    syncSurrenderUI();  // show/refresh/close the surrender vote off shared state
     startMusic();       // keep the playlist going in-game (no-op if off / already playing)
   }
 
