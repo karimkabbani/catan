@@ -585,13 +585,16 @@
   .tofferline .ri, .t-cnt .ri{width:clamp(15px,2.3vh,21px); height:auto; vertical-align:middle;}
   .tnote{position:absolute; left:0; right:0; bottom:calc(76px + env(safe-area-inset-bottom,0px)); text-align:center; color:#f1e3c2; font-size:13px; text-shadow:0 1px 2px #000; z-index:4;}
   /* auto-decline-this-turn: down/up arrows with a slash, bottom-centre */
-  .tautodecline{position:absolute; bottom:calc(15px + env(safe-area-inset-bottom,0px)); left:50%; transform:translateX(-50%);
-    width:clamp(42px,7vh,56px); height:clamp(42px,7vh,56px); padding:0; border:none; border-radius:50%; cursor:pointer; z-index:4;
+  /* responder buttons: auto-decline stacked ABOVE the X, bottom-left, clear of the resources */
+  .trespbtns{position:absolute; left:16px; bottom:calc(13px + env(safe-area-inset-bottom,0px)); z-index:5;
+    display:flex; flex-direction:column; align-items:center; gap:9px;}
+  .trespbtns .tclose{position:static; left:auto; bottom:auto;}
+  .tautodecline{position:relative; width:clamp(44px,7.2vh,58px); height:clamp(44px,7.2vh,58px); padding:0; border:none; border-radius:50%; cursor:pointer;
     background:radial-gradient(circle at 50% 40%, #6a4a22, #2c1c0c); box-shadow:0 3px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.15);
     display:flex; align-items:center; justify-content:center;}
   .tautodecline img{width:32%; height:auto; filter:drop-shadow(0 1px 1px #000a);}
   .tautodecline .tadg{margin-right:-3px;}
-  .tautodecline::after{content:""; position:absolute; left:14%; right:14%; top:47%; height:3px; background:#d64b3f;
+  .tautodecline::after{content:""; position:absolute; left:16%; right:16%; top:47%; height:3px; background:#d64b3f;
     transform:rotate(-34deg); border-radius:2px; box-shadow:0 0 0 1px #0007;}
   /* offerer wait list: counter chip + footer row */
   .t-cnt{color:#e6c66a; font-weight:700; font-size:12px; display:inline-flex; align-items:center; gap:3px; flex-wrap:wrap;}
@@ -961,7 +964,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v46';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v47';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -2669,23 +2672,25 @@
   // responder's view (non-proposer): the offer under the offerer's face + your resources on the same
   // swipe sheet as the builder. Leave it as-is -> Accept; drag any resource -> it becomes a counter.
   function renderTradeRespond(pt, meColor) {
-    // "auto-decline this turn": silently decline every offer while it's still the offerer's turn
-    if (ui.autoDeclineIdx === state.currentPlayerIndex) {
-      if (!pt.declinedBy.includes(meColor)) { dispatch({ type: 'declineTrade' }, meColor); return; }
+    const from = state.players.find((p) => p.color === pt.from), me = state.players.find((p) => p.color === meColor);
+    const iAcc = pt.acceptedBy.includes(meColor), iDec = pt.declinedBy.includes(meColor), myCounter = pt.counters && pt.counters[meColor];
+    const canCover = RES.every((r) => (me.resources[r] || 0) >= (pt.want[r] || 0));   // you must be able to give what's asked
+    // No sheet when: auto-declining this turn, you can't cover the ask, or you already responded. In the
+    // first two cases auto-decline so the offerer isn't left waiting; otherwise just step aside and wait.
+    if (ui.autoDeclineIdx === state.currentPlayerIndex || !canCover) {
+      if (!iDec && !iAcc && !myCounter) dispatch({ type: 'declineTrade' }, meColor);
       hideOverlay(); return;
     }
-    const from = state.players.find((p) => p.color === pt.from), me = state.players.find((p) => p.color === meColor);
-    const iAcc = pt.acceptedBy.includes(meColor), myCounter = pt.counters && pt.counters[meColor];
+    if (iAcc || iDec || myCounter) { hideOverlay(); return; }   // you've responded -> wait for the offerer
+    ui.tradeView = 'respond';
     // pre-fill the swipe sheet from the responder's frame: they GIVE the offerer's `want`, RECEIVE the `give`
     const key = pt.from + ':' + JSON.stringify(pt.give) + '|' + JSON.stringify(pt.want);
     if (!ui.trade || ui.trade.mode !== 'respond' || ui.trade.offerKey !== key) {
       ui.trade = { mode: 'respond', actor: meColor, offerFrom: pt.from, offerKey: key,
         give: { ...zeroRes(), ...pt.want }, want: { ...zeroRes(), ...pt.give } };
     }
-    ui.tradeView = 'respond';
-    const renderKey = key + '|' + (iAcc ? 'a' : (myCounter ? 'c' : 'n'));
-    if (ui.respondKey === renderKey && $('overlay').querySelector('.traderoot.respond')) { setTimeout(attachTradeSwipe, 0); return; }
-    ui.respondKey = renderKey;
+    if (ui.respondKey === key && $('overlay').querySelector('.traderoot.respond')) { setTimeout(attachTradeSwipe, 0); return; }
+    ui.respondKey = key;
     const res = HUD.res || {};
     const cols = HAND_ORDER.map((r) => {
       const hold = me.resources[r], g = ui.trade.give[r], w = ui.trade.want[r];
@@ -2693,17 +2698,17 @@
     }).join('');
     const valid = tradeRespValid();
     const avatar = seatAvatarSrc(from, state.players.indexOf(from));
-    const note = iAcc ? `You accepted — waiting for ${escapeHtml(from.name)}.` : (myCounter ? `Counter sent — waiting for ${escapeHtml(from.name)}.` : '');
     showFullMenu(`<div class="traderoot respond">
       <div class="tofferhead">
         <div class="tav" style="border-color:${PCOLOR[pt.from]}"><img src="${avatar}" alt="" onerror="this.style.display='none'"></div>
         <div class="tofferline"><b>${escapeHtml(from.name)}</b> gives ${offerStr(pt.give)} <span class="for">for</span> ${offerStr(pt.want)}</div>
       </div>
       <div class="tradesheet"><div class="tgrid">${cols}</div></div>
-      ${note ? `<div class="tnote">${note}</div>` : ''}
-      <button class="tclose" onclick="CATAN.tradeRespDecline()"><img src="assets/hud/decline.png" alt="Decline"></button>
+      <div class="trespbtns">
+        <button class="tautodecline" onclick="CATAN.tradeAutoDecline()" title="Auto-decline every trade this turn"><img class="tadg" src="${(HUD.trade || {}).get || ''}" alt=""><img class="tadv" src="${(HUD.trade || {}).give || ''}" alt=""></button>
+        <button class="tclose" onclick="CATAN.tradeRespDecline()"><img src="assets/hud/decline.png" alt="Decline"></button>
+      </div>
       <button class="tconfirm${valid ? '' : ' hidden'}" onclick="CATAN.tradeRespSend()"><img src="assets/hud/confirm.png" alt="Send"></button>
-      <button class="tautodecline" onclick="CATAN.tradeAutoDecline()" title="Auto-decline trades this turn"><img class="tadg" src="${(HUD.trade || {}).get || ''}" alt=""><img class="tadv" src="${(HUD.trade || {}).give || ''}" alt=""></button>
     </div>`);
     $('overlay').classList.add('trademode');
     document.body.classList.add('trading');
