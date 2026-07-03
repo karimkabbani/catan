@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v43';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v44';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -1911,8 +1911,9 @@
   let renderedBoardKey = null;
   function render() {
     const tt = $('title');
-    if (tt && !tt.classList.contains('hidden')) return;   // a menu/lobby is up -> never paint the board (or re-arm the rotate gate) under it
-    document.body.classList.add('ingame');   // board is showing -> portrait now forces the rotate gate
+    if (tt && !tt.classList.contains('hidden')) return;   // a menu/lobby is up -> never paint the board under it
+    document.body.classList.add('ingame');   // board is showing -> wants landscape
+    applyOrientation();                       // rotate the app to landscape if the phone is held portrait
     renderPanels();
     $('banner').innerHTML = banner();
     // Static terrain is built once per game; only the dynamic layer (pieces, roads,
@@ -2104,17 +2105,40 @@
   // frame we'd sometimes catch a too-small card / too-tall viewport and over-scale to the
   // 1.7x cap (the "launches zoomed-in, needs a refresh" bug). Re-measuring on fonts-ready,
   // window load, and a couple of short delays self-corrects without a manual refresh.
+  // No blocking rotate gate: rotate #app 90° when the phone is held the wrong way, so every screen
+  // still renders in its intended orientation (menus portrait, board landscape). The user sees the
+  // correct layout lying sideways and turns the phone; that resolves the mismatch and drops the
+  // transform. Touch phones only — a desktop window fits both orientations, so it never rotates.
+  function isTouchPhone() { return !!(window.matchMedia && window.matchMedia('(pointer:coarse)').matches) && Math.min(window.innerWidth, window.innerHeight) <= 900; }
+  function applyOrientation() {
+    const app = $('app'); if (!app) return;
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const wantLandscape = document.body.classList.contains('ingame'), physLandscape = vw > vh;
+    let rot = 0;
+    if (isTouchPhone()) {
+      if (wantLandscape && !physLandscape) rot = 90;        // board held portrait -> lay it out landscape
+      else if (!wantLandscape && physLandscape) rot = -90;  // menu held sideways -> lay it out portrait
+    }
+    if (rot === 0) { app.classList.remove('rotated'); app.style.transform = ''; app.style.width = ''; app.style.height = ''; }
+    else {
+      app.style.width = vh + 'px'; app.style.height = vw + 'px';
+      app.style.transform = rot === 90 ? `translate(${vw}px,0) rotate(90deg)` : `translate(0,${vh}px) rotate(-90deg)`;
+      app.classList.add('rotated');
+    }
+  }
   function scheduleFit() {
-    requestAnimationFrame(fitTitle);
-    setTimeout(fitTitle, 120);
+    applyOrientation();
+    requestAnimationFrame(() => { applyOrientation(); fitTitle(); });
+    setTimeout(() => { applyOrientation(); fitTitle(); }, 120);
     setTimeout(fitTitle, 400);
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitTitle).catch(() => {});
   }
-  window.addEventListener('resize', fitTitle);
+  const onViewport = () => { applyOrientation(); fitTitle(); };
+  window.addEventListener('resize', onViewport);
   window.addEventListener('load', scheduleFit);
   window.addEventListener('pageshow', scheduleFit);            // PWA resume / bfcache restore
-  window.addEventListener('orientationchange', () => setTimeout(fitTitle, 80));
-  if (window.visualViewport) window.visualViewport.addEventListener('resize', fitTitle);
+  window.addEventListener('orientationchange', () => setTimeout(onViewport, 80));
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', onViewport);
   // A direct landscape launch fires no resize/orientationchange, so the early fits run
   // against an unsettled viewport (card scaled too small -> wood shows below it). Watch
   // the title box and re-fit the moment iOS settles it to the real viewport size.
