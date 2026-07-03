@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v47';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v48';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -747,7 +747,18 @@
       // dice appear at the active player's corner once they've rolled this turn
       const di = (!ui.diceRevealing && p.color === activeColor() && state.dice && state.phase === 'play')
         ? `<div class="pdice">${diceFaces(state.dice)}</div>` : '';
-      el.innerHTML = `${di}
+      // offerer's view: each responder's trade answer rides on their portrait (✓ / ✗ / ? counter / …).
+      // Tap an accepted or countered one to review terms + confirm; a declined one isn't tappable.
+      let tbadge = '';
+      const ptr = state.pendingTrade;
+      if (online && myColor && ptr && ptr.from === myColor && p.color !== myColor) {
+        const acc = ptr.acceptedBy.includes(p.color), dec = ptr.declinedBy.includes(p.color), ctr = ptr.counters && ptr.counters[p.color];
+        const cls = ctr ? 'counter' : (acc ? 'acc' : (dec ? 'dec' : 'wait'));
+        const ico = ctr ? '?' : (acc ? '✓' : (dec ? '✗' : '…'));
+        const tap = (acc || ctr) ? ` onclick="CATAN.tradeViewResponse('${p.color}')"` : '';
+        tbadge = `<div class="tbadge ${cls}"${tap}>${ico}</div>`;
+      }
+      el.innerHTML = `${di}${tbadge}
         <div class="pcol">${stat(bdg.res, cards, '🃏', 'Resource cards', false, cards > 7)}${stat(bdg.card, dev, '🎴', 'Development cards')}${stat(bdg.vp, vp, '⭐', 'Victory points')}${stat(bdg.army, p.playedKnights, '⚔️', 'Knights played', p.hasLargestArmy)}${stat(bdg.road, road, '🛣️', 'Longest road', p.hasLongestRoad)}</div>
         <div class="pport"><div class="pava${flagged ? ' flagged' : ''}" style="border-color:${PCOLOR[p.color]}">${av}</div><div class="pname">${escapeHtml(p.name)}</div></div>${flagged ? '<span class="pflag">🏳️</span>' : ''}`;
     });
@@ -1681,6 +1692,10 @@
   }
   // proposer's view after sending — live reactions + confirm/cancel
   function renderTradeWait(pt) {
+    // online: the board stays visible, each responder's answer rides on their corner portrait, and a slim
+    // bar carries the offer + New offer / Cancel. Tapping an accepted/countered corner selects it here.
+    if (online) { hideOverlay(); ui.tradeView = 'wait'; showTradePrompt(pt); return; }
+    // offline hotseat: one device answers as each player -> keep the list
     const others = state.players.filter((p) => p.color !== pt.from);
     const rows = others.map((p) => {
       const acc = pt.acceptedBy.includes(p.color), dec = pt.declinedBy.includes(p.color), ctr = pt.counters && pt.counters[p.color];
@@ -1710,6 +1725,27 @@
       <div class="trow2 tfoot"><button class="btn ghost" onclick="CATAN.tradeReoffer()">New offer</button><button class="btn ghost" onclick="CATAN.tradeCancel()">Cancel</button></div>
     </div>`);
   }
+  // slim offerer bar (online). Default: the offer + New offer / Cancel. When a responder's corner is
+  // tapped (ui.tradeSel), it shows THAT player's terms + a Trade (confirm) button.
+  function showTradePrompt(pt) {
+    let bar = $('tradeprompt');
+    if (!bar) { bar = document.createElement('div'); bar.id = 'tradeprompt'; ($('app') || document.body).appendChild(bar); }
+    const sel = ui.tradeSel, ctrSel = sel && pt.counters && pt.counters[sel], accSel = sel && pt.acceptedBy.includes(sel);
+    if (sel && !ctrSel && !accSel) ui.tradeSel = null;   // that response is gone (withdrawn) -> back to default
+    if (ui.tradeSel && (ctrSel || accSel)) {
+      const p = state.players.find((x) => x.color === ui.tradeSel), terms = ctrSel || { give: pt.give, want: pt.want };
+      bar.innerHTML = `<div class="tpoffer"><b>${escapeHtml(p.name)}</b> ${ctrSel ? 'counters' : 'accepts'} — you give ${offerStr(terms.give)} <span class="for">for</span> ${offerStr(terms.want)}</div>
+        <div class="tpbtns"><button class="btn ghost" onclick="CATAN.tradeViewResponse(null)">Back</button><button class="btn" onclick="CATAN.tradeConfirm('${ui.tradeSel}')">Trade</button></div>`;
+    } else {
+      const others = state.players.filter((p) => p.color !== pt.from);
+      const allDec = others.length > 0 && others.every((p) => pt.declinedBy.includes(p.color));
+      bar.innerHTML = `<div class="tpoffer">You give ${offerStr(pt.give)} <span class="for">for</span> ${offerStr(pt.want)}</div>
+        <div class="tpmsg">${allDec ? 'Everyone declined.' : 'Tap a ✓ or ? on a corner to trade.'}</div>
+        <div class="tpbtns"><button class="btn ghost" onclick="CATAN.tradeReoffer()">New offer</button><button class="btn ghost" onclick="CATAN.tradeCancel()">Cancel</button></div>`;
+    }
+    bar.style.display = 'flex';
+  }
+  function hideTradePrompt() { const bar = $('tradeprompt'); if (bar) bar.style.display = 'none'; }
   // responder's view (non-proposer): the offer under the offerer's face + your resources on the same
   // swipe sheet as the builder. Leave it as-is -> Accept; drag any resource -> it becomes a counter.
   function renderTradeRespond(pt, meColor) {
@@ -1761,7 +1797,7 @@
     if (state && ui.autoDeclineIdx != null && ui.autoDeclineIdx !== state.currentPlayerIndex) ui.autoDeclineIdx = null;
     const pt = state && state.pendingTrade;
     if (!pt) {
-      ui.respondKey = null;
+      ui.respondKey = null; ui.tradeSel = null; hideTradePrompt();
       if (ui.tradeView === 'wait' || ui.tradeView === 'respond') { ui.tradeView = null; hideOverlay(); }
       return;
     }
@@ -2115,7 +2151,8 @@
     tradeAccept: () => dispatch({ type: 'acceptTrade' }, online ? myColor : activeColor()),
     tradeDecline: () => dispatch({ type: 'declineTrade' }, online ? myColor : activeColor()),
     tradeAs: (kind, color) => dispatch({ type: kind === 'accept' ? 'acceptTrade' : 'declineTrade' }, color),  // hotseat: respond as a player
-    tradeConfirm: (c) => dispatch({ type: 'confirmTrade', with: c }, online ? myColor : activeColor()),
+    tradeConfirm: (c) => { ui.tradeSel = null; dispatch({ type: 'confirmTrade', with: c }, online ? myColor : activeColor()); },
+    tradeViewResponse: (c) => { ui.tradeSel = c; render(); },   // offerer taps a corner to review/confirm that response
     tradeCancel: () => dispatch({ type: 'cancelTrade' }),
     // responder ✓: unchanged from the offer -> accept; adjusted -> counter (offerer's frame: give = my
     // receive = ui.trade.want; want = my give = ui.trade.give)
