@@ -797,13 +797,28 @@
   /* Orientation locks (touch devices only — desktop is unaffected): every pre-game screen
      is locked to PORTRAIT, and only the board (body.ingame) forces LANDSCAPE. Held the
      wrong way, a full-screen rotate gate appears. */
-  /* Orientation: instead of a blocking "rotate your phone" gate, we ROTATE the whole app 90° (via
-     #app.rotated — the transform is set from the live viewport size in JS) so every screen renders
-     in its intended orientation (menus portrait, board landscape). Held the wrong way you see the
-     correct layout lying sideways and naturally turn the phone; rotating drops the transform.
-     Desktop never rotates (a resizable window fits both). */
-  #app{transform-origin:0 0;}
-  #app.rotated{right:auto; bottom:auto; overflow:hidden;}
+  /* Orientation gate: pre-game screens want PORTRAIT, the board (body.ingame) wants LANDSCAPE.
+     Held the wrong way on a phone, a full-screen "rotate your device" gate covers everything. */
+  #rotate{display:none;}
+  #rotate .ico{font-size:60px; animation:spin 2.4s ease-in-out infinite;}
+  #rotate h2{color:var(--gold); font-size:24px;}
+  #rotate p{color:#e8d9bf; max-width:300px;}
+  #rotate .r-land, #rotate .r-port{display:none;}
+  @media (orientation:portrait) and (pointer:coarse){   /* in a game + portrait -> rotate to landscape */
+    body.ingame #stage, body.ingame #overlay, body.ingame #confirmbar, body.ingame #radialroot,
+    body.ingame #radialtab, body.ingame #settingstab, body.ingame #dicereveal, body.ingame #toast, body.ingame #tradeprompt{display:none !important;}
+    body.ingame #rotate{display:flex !important; position:fixed; inset:0; z-index:200; flex-direction:column; align-items:center; justify-content:center;
+      gap:16px; background:radial-gradient(120% 120% at 50% 40%, #1f4f74, #0a2336); text-align:center; padding:24px;}
+    body.ingame #rotate .r-land{display:block;}
+  }
+  /* phones only: touch-primary (no hovering pointer) + phone-sized. Laptops/2-in-1s never match. */
+  @media (orientation:landscape) and (hover:none) and (pointer:coarse) and (max-width:1000px){   /* menu held sideways -> rotate to portrait */
+    body:not(.ingame) #title, body:not(.ingame) #overlay, body:not(.ingame) #cropper,
+    body:not(.ingame) #toast, body:not(.ingame) #bctoast{display:none !important;}
+    body:not(.ingame) #rotate{display:flex !important; position:fixed; inset:0; z-index:200; flex-direction:column; align-items:center; justify-content:center;
+      gap:16px; background:radial-gradient(120% 120% at 50% 40%, #5a3a18, #221206); text-align:center; padding:24px;}
+    body:not(.ingame) #rotate .r-port{display:block;}
+  }
   @keyframes spin{0%,40%{transform:rotate(0)} 60%,100%{transform:rotate(90deg)}}
 
   /* ---- motion / animation ---- */
@@ -904,6 +919,12 @@
         <div id="hand"></div>
       </div>
     </div><!-- /#stage -->
+    <div id="rotate">
+      <div class="ico">📱</div>
+      <h2>Rotate your device</h2>
+      <p class="r-land">The game plays in landscape — turn your phone sideways.</p>
+      <p class="r-port">Turn your phone upright to continue.</p>
+    </div>
     <div id="dicereveal" class="hidden"></div>
   <div id="countdown" class="hidden"></div>
   <div id="confirmbar" class="hidden">
