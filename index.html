@@ -601,6 +601,26 @@
   .t-cnt .for{opacity:0.7;}
   .trow2.tfoot{justify-content:center; gap:10px; margin-top:6px;}
   .trow2.tfoot .btn{flex:0 0 auto; padding:8px 16px;}
+  /* offerer corner badges: ✓ accepted / ✗ declined / ? counter / … deciding — on the board-facing edge */
+  .tbadge{position:absolute; top:-9px; left:50%; transform:translateX(-50%); z-index:9; width:26px; height:26px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center; font-weight:900; font-size:15px; line-height:1; color:#fff;
+    border:2px solid #fff; box-shadow:0 2px 6px rgba(0,0,0,0.6);}
+  .corner.tl .tbadge, .corner.tr .tbadge{top:auto; bottom:-9px;}
+  .tbadge.acc{background:#3da34d; cursor:pointer;}
+  .tbadge.dec{background:#cf3b34;}
+  .tbadge.counter{background:#e0a72a; cursor:pointer;}
+  .tbadge.wait{background:#6b6b6b; font-size:12px;}
+  /* offerer prompt bar (online): the offer + New offer / Cancel, or a tapped response + Trade */
+  #tradeprompt{position:fixed; left:50%; bottom:calc(12px + env(safe-area-inset-bottom,0px)); transform:translateX(-50%); z-index:30;
+    display:none; flex-direction:column; align-items:center; gap:7px; max-width:94vw;
+    background:linear-gradient(rgba(60,34,12,0.95),rgba(34,19,7,0.97)), var(--wood-tex); background-size:cover;
+    border:1.5px solid var(--gold-edge); border-radius:12px; padding:10px 16px; box-shadow:0 6px 20px rgba(0,0,0,0.55);}
+  #tradeprompt .tpoffer{color:#fff; font-family:var(--serif); font-size:15px; display:flex; align-items:center; gap:5px; flex-wrap:wrap; justify-content:center; text-align:center;}
+  #tradeprompt .tpoffer .for{opacity:0.7;}
+  #tradeprompt .tpoffer .ri{width:18px; height:auto; vertical-align:middle;}
+  #tradeprompt .tpmsg{color:var(--muted); font-size:12px;}
+  #tradeprompt .tpbtns{display:flex; gap:10px;}
+  #tradeprompt .tpbtns .btn{padding:8px 18px; margin:0; width:auto;}
 
   /* ===== start-of-turn "Question" dialog (play knight before rolling?) ===== */
   #overlay.qmode{background:rgba(0,0,0,0.3);}
