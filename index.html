@@ -123,16 +123,23 @@
   .flyres{position:fixed; width:44px; height:44px; z-index:26; pointer-events:none; opacity:0;
     filter:drop-shadow(0 3px 6px rgba(0,0,0,0.6)); will-change:transform,opacity;}
   .flyres.fcard{width:40px; height:56px;}
+  /* robber: the WRAPPER travels point-to-point as one eased motion; the inner img adds the arc lift + size hop */
+  .flywrap{position:fixed; z-index:26; pointer-events:none; will-change:transform; filter:drop-shadow(0 3px 6px rgba(0,0,0,0.6));}
+  .flywrap img{position:absolute; left:0; top:0; opacity:1; will-change:transform;}
   @keyframes flyto{
     0%{transform:scale(0.3);opacity:0;}
     16%{transform:scale(1.08);opacity:1;}
     26%{transform:scale(1);opacity:1;}
     100%{transform:translate(var(--dx,0px),var(--dy,0px)) scale(0.55);opacity:0;}}
-  /* robber move: lifts off its hex, arcs across the board (raised + slightly enlarged), and lands full-size */
-  @keyframes robberfly{
-    0%{transform:translate(0,0) scale(1);opacity:1;}
-    50%{transform:translate(calc(var(--dx,0px)*0.5), calc(var(--dy,0px)*0.5 - 26px)) scale(1.16);opacity:1;}
-    100%{transform:translate(var(--dx,0px),var(--dy,0px)) scale(1);opacity:1;}}
+  /* robber move: one continuous eased travel (wrapper) + a symmetric lift/scale hop (inner img),
+     so it's a single smooth motion from start to destination — no mid-path stall + re-acceleration */
+  @keyframes robbertravel{
+    from{transform:translate(0,0);}
+    to{transform:translate(var(--dx,0px),var(--dy,0px));}}
+  @keyframes robberhop{
+    0%{transform:translateY(0) scale(1);}
+    50%{transform:translateY(-26px) scale(1.16);}
+    100%{transform:translateY(0) scale(1);}}
 
   /* ---- big dice reveal at turn start, flies to the active corner ---- */
   /* the robber while it's being dragged onto a hex (follows the finger, lifted above it) */

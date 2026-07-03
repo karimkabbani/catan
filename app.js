@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v38';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v39';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -873,18 +873,36 @@
     opts = opts || {};
     const hw = opts.w ? opts.w / 2 : (opts.card ? 20 : 22), hh = opts.h ? opts.h / 2 : (opts.card ? 28 : 22);
     const img = document.createElement('img');
-    img.src = src; img.className = 'flyres' + (opts.card ? ' fcard' : '');
+    img.src = src;
     if (opts.w) img.style.width = opts.w + 'px'; if (opts.h) img.style.height = opts.h + 'px';
+    const sc = aScale(), d = delay * sc, dur = (0.95 * sc).toFixed(2);
+    const hits = () => {
+      if (opts.sound) setTimeout(() => playSound(opts.sound, opts.vol), d);
+      if (opts.onlift) setTimeout(opts.onlift, d + 60);                     // card leaves its source
+      if (opts.onland) setTimeout(opts.onland, d + Math.round(880 * sc));   // ~when it reaches the panel
+    };
+    if (opts.arc) {
+      // robber: a wrapper carries the point-to-point travel as ONE eased motion (accelerate once,
+      // decelerate once — no midpoint stall), while the inner img adds the lift + size hop on top.
+      const wrap = document.createElement('div');
+      wrap.className = 'flywrap';
+      wrap.style.left = (sx - hw) + 'px'; wrap.style.top = (sy - hh) + 'px';
+      wrap.style.setProperty('--dx', (tx - sx).toFixed(1) + 'px');
+      wrap.style.setProperty('--dy', (ty - sy).toFixed(1) + 'px');
+      wrap.style.animation = `robbertravel ${dur}s ${Math.round(d)}ms cubic-bezier(.4,.1,.3,1) both`;
+      img.style.animation = `robberhop ${dur}s ${Math.round(d)}ms ease-in-out both`;
+      wrap.appendChild(img); document.body.appendChild(wrap);
+      hits();
+      setTimeout(() => wrap.remove(), d + 1050 * sc);
+      return;
+    }
+    img.className = 'flyres' + (opts.card ? ' fcard' : '');
     img.style.left = (sx - hw) + 'px'; img.style.top = (sy - hh) + 'px';
     img.style.setProperty('--dx', (tx - sx).toFixed(1) + 'px');
     img.style.setProperty('--dy', (ty - sy).toFixed(1) + 'px');
-    const sc = aScale(), d = delay * sc;
-    // arc (the robber) lifts + lands and stays full-size; flyto (resources) pops in then shrinks away
-    img.style.animation = `${opts.arc ? 'robberfly' : 'flyto'} ${(0.95 * sc).toFixed(2)}s ${Math.round(d)}ms ${opts.arc ? 'cubic-bezier(.45,.05,.55,.95)' : 'ease'} both`;
+    img.style.animation = `flyto ${dur}s ${Math.round(d)}ms ease both`;
     document.body.appendChild(img);
-    if (opts.sound) setTimeout(() => playSound(opts.sound, opts.vol), d);
-    if (opts.onlift) setTimeout(opts.onlift, d + 60);                     // card leaves its source
-    if (opts.onland) setTimeout(opts.onland, d + Math.round(880 * sc));   // ~when the card reaches the panel
+    hits();
     setTimeout(() => img.remove(), d + 1050 * sc);
   }
   function flyResource(res, sx, sy, tx, ty, delay, onland, onlift) {
