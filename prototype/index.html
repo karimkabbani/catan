@@ -585,13 +585,16 @@
   .tofferline .ri, .t-cnt .ri{width:clamp(15px,2.3vh,21px); height:auto; vertical-align:middle;}
   .tnote{position:absolute; left:0; right:0; bottom:calc(76px + env(safe-area-inset-bottom,0px)); text-align:center; color:#f1e3c2; font-size:13px; text-shadow:0 1px 2px #000; z-index:4;}
   /* auto-decline-this-turn: down/up arrows with a slash, bottom-centre */
-  .tautodecline{position:absolute; bottom:calc(15px + env(safe-area-inset-bottom,0px)); left:50%; transform:translateX(-50%);
-    width:clamp(42px,7vh,56px); height:clamp(42px,7vh,56px); padding:0; border:none; border-radius:50%; cursor:pointer; z-index:4;
+  /* responder buttons: auto-decline stacked ABOVE the X, bottom-left, clear of the resources */
+  .trespbtns{position:absolute; left:16px; bottom:calc(13px + env(safe-area-inset-bottom,0px)); z-index:5;
+    display:flex; flex-direction:column; align-items:center; gap:9px;}
+  .trespbtns .tclose{position:static; left:auto; bottom:auto;}
+  .tautodecline{position:relative; width:clamp(44px,7.2vh,58px); height:clamp(44px,7.2vh,58px); padding:0; border:none; border-radius:50%; cursor:pointer;
     background:radial-gradient(circle at 50% 40%, #6a4a22, #2c1c0c); box-shadow:0 3px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.15);
     display:flex; align-items:center; justify-content:center;}
   .tautodecline img{width:32%; height:auto; filter:drop-shadow(0 1px 1px #000a);}
   .tautodecline .tadg{margin-right:-3px;}
-  .tautodecline::after{content:""; position:absolute; left:14%; right:14%; top:47%; height:3px; background:#d64b3f;
+  .tautodecline::after{content:""; position:absolute; left:16%; right:16%; top:47%; height:3px; background:#d64b3f;
     transform:rotate(-34deg); border-radius:2px; box-shadow:0 0 0 1px #0007;}
   /* offerer wait list: counter chip + footer row */
   .t-cnt{color:#e6c66a; font-weight:700; font-size:12px; display:inline-flex; align-items:center; gap:3px; flex-wrap:wrap;}
