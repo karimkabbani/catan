@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v40';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v41';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -712,11 +712,20 @@
   // ---- panels --------------------------------------------------------------
   // seats in clockwise screen order so turns visibly progress clockwise
   const SEATS = ['tl', 'tr', 'br', 'bl'];
+  // Egocentric seating (like physical Catan): each device sees ITS OWN player bottom-left, and the
+  // rest in turn order around the table. Relative position (0 = me) -> corner, per player count.
+  const ROT_ORDER = { 2: ['bl', 'tr'], 3: ['bl', 'tl', 'tr'], 4: ['bl', 'tl', 'tr', 'br'] };
+  function seatKey(i) {
+    const n = (state && state.players) ? state.players.length : 0;
+    const myIdx = (online && myColor && state && state.players) ? state.players.findIndex((p) => p.color === myColor) : -1;
+    if (myIdx >= 0 && ROT_ORDER[n]) return ROT_ORDER[n][(i - myIdx + n) % n];
+    return SEATS[i];   // offline pass-and-play / spectator: original fixed layout
+  }
   function renderPanels() {
     state.players.forEach((p, i) => {
-      const el = $('p-' + SEATS[i]); el.style.display = 'flex';
+      const el = $('p-' + seatKey(i)); el.style.display = 'flex';
       // during the who-goes-first spinner, no corner shows .active (it would pre-reveal the result)
-      el.className = 'corner ' + SEATS[i] + (!ui.spinning && p.color === activeColor() ? ' active' : '');
+      el.className = 'corner ' + seatKey(i) + (!ui.spinning && p.color === activeColor() ? ' active' : '');
       // tint the panel with the player's colour
       const pc = PCOLOR[p.color];
       el.style.background = `linear-gradient(${hexA(pc, 0.92)}, ${hexA(pc, 0.62)}), var(--wood-tex)`;
@@ -742,7 +751,8 @@
         <div class="pcol">${stat(bdg.res, cards, '🃏', 'Resource cards', false, cards > 7)}${stat(bdg.card, dev, '🎴', 'Development cards')}${stat(bdg.vp, vp, '⭐', 'Victory points')}${stat(bdg.army, p.playedKnights, '⚔️', 'Knights played', p.hasLargestArmy)}${stat(bdg.road, road, '🛣️', 'Longest road', p.hasLongestRoad)}</div>
         <div class="pport"><div class="pava${flagged ? ' flagged' : ''}" style="border-color:${PCOLOR[p.color]}">${av}</div><div class="pname">${escapeHtml(p.name)}</div></div>${flagged ? '<span class="pflag">🏳️</span>' : ''}`;
     });
-    for (let i = state.players.length; i < 4; i++) $('p-' + SEATS[i]).style.display = 'none';
+    const usedSeats = {}; state.players.forEach((_, i) => { usedSeats[seatKey(i)] = 1; });
+    ['tl', 'tr', 'br', 'bl'].forEach((k) => { if (!usedSeats[k]) { const el = $('p-' + k); if (el) el.style.display = 'none'; } });
   }
 
   const HUD = ASSETS.hud || {};
@@ -803,12 +813,12 @@
     const loops = 2 + Math.floor(Math.random() * 2);   // visual flourish only; the winner is already fixed
     const steps = loops * n + ti + 1;                  // the final highlight lands on ti
     let step = 0;
-    const hi = (idx) => { for (let k = 0; k < n; k++) { const el = $('p-' + SEATS[k]); if (el) el.classList.toggle('spin-on', k === idx); } };
-    const clear = () => { for (let k = 0; k < n; k++) { const el = $('p-' + SEATS[k]); if (el) el.classList.remove('spin-on', 'spin-win'); } };
+    const hi = (idx) => { for (let k = 0; k < n; k++) { const el = $('p-' + seatKey(k)); if (el) el.classList.toggle('spin-on', k === idx); } };
+    const clear = () => { for (let k = 0; k < n; k++) { const el = $('p-' + seatKey(k)); if (el) el.classList.remove('spin-on', 'spin-win'); } };
     function tick() {
       hi(step % n); playSound('click', 0.35); step++;
       if (step >= steps) {
-        const el = $('p-' + SEATS[ti]); if (el) { el.classList.remove('spin-on'); el.classList.add('spin-win'); }
+        const el = $('p-' + seatKey(ti)); if (el) { el.classList.remove('spin-on'); el.classList.add('spin-win'); }
         playSound('win', 0.7); toast(state.players[ti].name + ' goes first!');   // fanfare on landing
         setTimeout(() => { clear(); ui.spinning = false; if (done) done(); }, aDur(1500));
         return;
@@ -831,7 +841,7 @@
     el.style.left = '50%'; el.style.top = '44%';
     el.style.transform = 'translate(-50%,-50%) scale(1)'; el.style.opacity = '1';
     const pi = state.players.findIndex((p) => p.color === activeColor());
-    const seatEl = $('p-' + SEATS[pi]);
+    const seatEl = $('p-' + seatKey(pi));
     void el.offsetWidth;  // reflow so the next transition animates
     const ts = (0.55 * aScale()).toFixed(2), os = (0.4 * aScale()).toFixed(2), od = (0.2 * aScale()).toFixed(2);
     setTimeout(() => {
@@ -956,7 +966,7 @@
     // grouped by player, so each player's resources stream in as a clear sequence
     for (let pi = 0; pi < state.players.length; pi++) {
       const color = state.players[pi].color;
-      const panel = $('p-' + SEATS[pi]); if (!panel) continue;
+      const panel = $('p-' + seatKey(pi)); if (!panel) continue;
       const r = panel.getBoundingClientRect();
       const tx = r.left + r.width / 2, ty = r.top + r.height / 2;
       for (const e of map) {
@@ -977,7 +987,7 @@
   function showDiscardFly(color, sel) {
     ui.discardAnimating = true;
     const pi = state.players.findIndex((p) => p.color === color);
-    const panel = $('p-' + SEATS[pi]);
+    const panel = $('p-' + seatKey(pi));
     let delay = 0;
     if (panel) {
       const r = panel.getBoundingClientRect();
@@ -1012,7 +1022,7 @@
   // everyone else: a face-down dev card flies from the deck (island centre) to the buyer
   function showDevBuyFly(buyerColor) {
     const pi = state.players.findIndex((p) => p.color === buyerColor);
-    const panel = $('p-' + SEATS[pi]); if (!panel) return;
+    const panel = $('p-' + seatKey(pi)); if (!panel) return;
     const r = panel.getBoundingClientRect();
     const px = r.left + r.width / 2, py = r.top + r.height / 2;
     const svg = $('board');
@@ -1024,7 +1034,7 @@
   // year of plenty: the 2 taken cards fly FACE-DOWN from the island centre into your panel
   function showYoPFly(color, resources) {
     const pi = state.players.findIndex((p) => p.color === color);
-    const panel = $('p-' + SEATS[pi]); if (!panel) return;
+    const panel = $('p-' + seatKey(pi)); if (!panel) return;
     const r = panel.getBoundingClientRect();
     const px = r.left + r.width / 2, py = r.top + r.height / 2;
     const svg = $('board');
@@ -1037,7 +1047,7 @@
   // monopoly: the taken cards fly FACE-UP from every other player's panel into yours
   function showMonopolyFly(toColor, res, from) {
     const ti = state.players.findIndex((p) => p.color === toColor);
-    const tp = $('p-' + SEATS[ti]); if (!tp) return;
+    const tp = $('p-' + seatKey(ti)); if (!tp) return;
     const tr = tp.getBoundingClientRect();
     const tx = tr.left + tr.width / 2, ty = tr.top + tr.height / 2;
     const resImg = (HUD.res && HUD.res[res]) || (ASSETS.icons && ASSETS.icons[res]);
@@ -1045,7 +1055,7 @@
     let d = 0;
     for (const f of from) {
       const fi = state.players.findIndex((p) => p.color === f.color);
-      const fp = $('p-' + SEATS[fi]); if (!fp) continue;
+      const fp = $('p-' + seatKey(fi)); if (!fp) continue;
       const fr = fp.getBoundingClientRect();
       const fx = fr.left + fr.width / 2, fy = fr.top + fr.height / 2;
       for (let i = 0; i < f.n; i++) { flyImage(resImg, fx, fy, tx, ty, d, { onlift: () => liftCard(f.color, res), onland: () => landCard(toColor, res) }); d += 110; }
@@ -1057,7 +1067,7 @@
   function showStealFly(victimColor, thiefColor, res, reveal) {
     const vi = state.players.findIndex((p) => p.color === victimColor);
     const ti = state.players.findIndex((p) => p.color === thiefColor);
-    const vp = $('p-' + SEATS[vi]), tp = $('p-' + SEATS[ti]);
+    const vp = $('p-' + seatKey(vi)), tp = $('p-' + seatKey(ti));
     if (!vp || !tp) return;
     const vr = vp.getBoundingClientRect(), tr = tp.getBoundingClientRect();
     // reveal (thief/victim) shows the card face-up; everyone else sees a face-down cardback. The count
@@ -1072,7 +1082,7 @@
     const ia = state.players.findIndex((p) => p.color === aColor);
     const ib = state.players.findIndex((p) => p.color === bColor);
     if (ia < 0 || ib < 0) return;
-    const ea = $('p-' + SEATS[ia]), eb = $('p-' + SEATS[ib]);
+    const ea = $('p-' + seatKey(ia)), eb = $('p-' + seatKey(ib));
     if (!ea || !eb) return;
     const ra = ea.getBoundingClientRect(), rb = eb.getBoundingClientRect();
     const ax = ra.left + ra.width / 2, ay = ra.top + ra.height / 2, bx = rb.left + rb.width / 2, by = rb.top + rb.height / 2;
@@ -1089,7 +1099,7 @@
   // comes back. Face-up, since a bank trade is open (your own cards at a known ratio).
   function showBankFly(color, giveObj, wantObj, covered) {
     const pi = state.players.findIndex((p) => p.color === color);
-    const panel = $('p-' + SEATS[pi]); if (!panel) return;
+    const panel = $('p-' + seatKey(pi)); if (!panel) return;
     const r = panel.getBoundingClientRect();
     const px = r.left + r.width / 2, py = r.top + r.height / 2;
     const svg = $('board');
@@ -1797,7 +1807,7 @@
     // anchor a chat bubble to the speaker's corner when we're in the game view; else a banner
     const inGameView = $('title') && $('title').classList.contains('hidden');
     const seat = (inGameView && state && state.players && msg.color) ? state.players.findIndex((p) => p.color === msg.color) : -1;
-    const pos = seat >= 0 ? SEATS[seat] : null;   // 'tl' | 'tr' | 'br' | 'bl'
+    const pos = seat >= 0 ? seatKey(seat) : null;   // 'tl' | 'tr' | 'br' | 'bl'
     const corner = pos ? $('p-' + pos) : null;
     if (corner && corner.style.display !== 'none') showBroadcastBubble(msg, corner, pos);
     else showBroadcastBanner(msg);
@@ -2335,7 +2345,7 @@
     let delay = 0;
     for (const e of group.entries) {
       const pi = state.players.findIndex((p) => p.color === e.color);
-      const panel = $('p-' + SEATS[pi]); if (!panel) continue;
+      const panel = $('p-' + seatKey(pi)); if (!panel) continue;
       const pr = panel.getBoundingClientRect(), tx = pr.left + pr.width / 2, ty = pr.top + pr.height / 2;
       for (let k = 0; k < e.count; k++) { flyResource(e.resource, sx, sy, tx, ty, delay, () => landCard(e.color, e.resource)); delay += 230; }
     }
@@ -2364,7 +2374,7 @@
   function flySettlementGrant(grant) {
     const svg = $('board'); if (!svg || !svg.getScreenCTM || !grant.items.length) return; const ctm = svg.getScreenCTM(); if (!ctm) return;
     const pi = state.players.findIndex((p) => p.color === grant.color);
-    const panel = $('p-' + SEATS[pi]); if (!panel) return;
+    const panel = $('p-' + seatKey(pi)); if (!panel) return;
     const r = panel.getBoundingClientRect(), tx = r.left + r.width / 2, ty = r.top + r.height / 2;
     let delay = 0;
     for (const it of grant.items) {
