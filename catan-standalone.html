@@ -959,7 +959,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v39';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v40';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -3328,9 +3328,17 @@
   }
   function cinematicPlace(kind, id, mine, grant) {
     const c = kind === 'e' ? edgeContent(id) : vertContent(id);
-    // observers NEVER zoom on someone else's placement — they only pan (a no-op at full-board view,
-    // re-centring only if they're already zoomed in). Keeps B/C from zooming when A places in setup.
-    if (!mine) { cancelCine(); cameraPanTo(c, CINE_MS); return; }
+    // observers get the SAME zoom-in on the placement as the placer (then glide back out), so the
+    // camera moment is shared by everyone with auto-zoom on. runCine is gated on SETTINGS.autozoom,
+    // so a player with auto-zoom off still stays put.
+    if (!mine) {
+      cancelCine();
+      runCine(async (alive) => {
+        cameraTo(c, CINE_Z_SPOT, CINE_MS);
+        await cineSleep(aDur(CINE_MS + 650)); if (!alive()) return;   // linger on the new piece, then glide home
+      });
+      return;
+    }
     const setup = state && state.phase === 'setup';
     // the placer's setup road went down inside the settlement's held frame -> just glide back out
     if (setup && kind === 'e') { cancelCine(); cameraHome(CINE_MS); return; }
