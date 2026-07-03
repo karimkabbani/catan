@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v52';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v53';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -1677,6 +1677,7 @@
   // each swipe up = give +1, swipe down = want +1 (single increment); slots are tappable too
   function attachTradeSwipe() {
     document.querySelectorAll('.traderoot .tcol').forEach((col) => {
+      if (col._swipeOn) return; col._swipeOn = true;   // attach once per element — never stack listeners (each stacked one = an extra +1)
       const r = col.dataset.r; let sy = 0, drag = false;
       col.addEventListener('pointerdown', (e) => { drag = true; sy = e.clientY; try { col.setPointerCapture(e.pointerId); } catch (_) {} });
       col.addEventListener('pointerup', (e) => {
@@ -1766,7 +1767,7 @@
       ui.trade = { mode: 'respond', actor: meColor, offerFrom: pt.from, offerKey: key,
         give: { ...zeroRes(), ...pt.want }, want: { ...zeroRes(), ...pt.give } };
     }
-    if (ui.respondKey === key && $('overlay').querySelector('.traderoot.respond')) { setTimeout(attachTradeSwipe, 0); return; }
+    if (ui.respondKey === key && $('overlay').querySelector('.traderoot.respond')) { return; }   // sheet already up (same offer) — leave its listeners alone
     ui.respondKey = key;
     const res = HUD.res || {};
     const cols = HAND_ORDER.map((r) => {
