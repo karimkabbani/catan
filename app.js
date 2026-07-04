@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v57';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v58';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -2772,7 +2772,8 @@
       if (!ready.some((r) => r.id === host.id)) { toast('Ready up before starting'); return; }
       const seated = ready.slice(0, 4), n = seated.length;
       const players = seated.map((p, i) => ({ seat: i, color: SEAT_COLORS[i], name: p.name, playerId: p.id, avatar: p.avatar || null }));
-      const target = (this.targetPoints != null ? this.targetPoints : targetForN(n));   // host's chosen win target, else the count default
+      const playerN = Math.min(4, this.tableMembers().filter((m) => pmode(m) !== 'spectate').length) || n;
+      const target = (this.targetPoints != null ? this.targetPoints : targetForN(playerN));   // host's chosen win target, else the count default
       let gstate;
       try { gstate = C.createGame({ id: 'table', players: players.map((p) => ({ color: p.color, name: p.name })), seed: (Math.random() * 1e9) | 0, targetPoints: target, randomFirst: true }); }
       catch (e) { toast('Start failed: ' + e.message); return; }
@@ -2967,8 +2968,8 @@
     if (!dynEl || !t || t.classList.contains('hidden')) return;   // not the visible screen -> never clobber it
     const all = LOBBY.online();
     // sig over the whole presence (table memberships + modes) so any change re-renders
-    const sig = JSON.stringify([LOBBY.table, LOBBY.inProgress, LOBBY.mode,
-      all.map((p) => p.id + ':' + (p.table || '') + ':' + pmode(p) + ':' + p.name + ':' + (p.readyAt || 0)).sort()]);
+    const sig = JSON.stringify([LOBBY.table, LOBBY.inProgress, LOBBY.mode, LOBBY.targetPoints,
+      all.map((p) => p.id + ':' + (p.table || '') + ':' + pmode(p) + ':' + p.name + ':' + (p.readyAt || 0) + ':' + (p.target || '') + ':' + (p.created || '')).sort()]);
     if (sig === lobbySig) return;
     lobbySig = sig;
     dynEl.innerHTML = LOBBY.table ? atTableHTML(all) : tableListHTML(all);   // footer frame untouched
@@ -3015,9 +3016,11 @@
     const host = creator || ready[0], iAmHost = host && host.id === AUTH.me.id;
     const hostReady = host && ready.some((r) => r.id === host.id);
     const seatN = Math.min(4, ready.length);
+    // the win target follows PLAYERS AT THE TABLE (spectators excluded), so it updates as people join — not only once they ready up
+    const playerN = Math.min(4, members.filter((m) => pmode(m) !== 'spectate').length) || seatN;
     const chosen = iAmHost ? LOBBY.targetPoints : (creator ? creator.target : null);
-    // host's pick if set; else the count default once >=2 are ready (2p15 · 3p13 · 4p11); else the general 13
-    const tgt = (chosen != null ? chosen : (seatN >= 2 ? targetForN(seatN) : 13));
+    // host's pick if set; else the count default for 2+ players (2p15 · 3p13 · 4p11); else the general 13
+    const tgt = (chosen != null ? chosen : (playerN >= 2 ? targetForN(playerN) : 13));
     const hostName = escapeHtml((host && host.name) || 'the host');
     const startBtn = iAmHost
       ? (ready.length < 2 ? `<button class="btn full" disabled>Start · need 2 ready</button>`
