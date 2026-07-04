@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v54';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v55';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -2730,7 +2730,7 @@
   // read a presence entry's lobby mode (back-compat with the old {ready} payload)
   function pmode(p) { return p.mode || (p.ready ? 'ready' : 'idle'); }
   const LOBBY = {
-    channel: null, presence: {}, mode: 'idle', readyAt: 0, inProgress: false, lastRow: null, table: null, created: null,
+    channel: null, presence: {}, mode: 'idle', readyAt: 0, inProgress: false, lastRow: null, table: null, created: null, targetPoints: null,
     join() {
       const c = NET.init(); if (!c || !AUTH.me) return;
       if (this.table) { NET.code = this.table; NET.subscribe(); }   // re-watch our table's game if we're sitting at one
@@ -2742,12 +2742,12 @@
       this.channel.subscribe((st) => { if (st === 'SUBSCRIBED') LOBBY.track(); });
     },
     // `created` = the code I created via "New game", so everyone can see who owns/hosts each table
-    track() { if (this.channel) this.channel.track({ id: AUTH.me.id, name: AUTH.me.name, avatar: AUTH.me.avatar || null, mode: this.mode, readyAt: this.readyAt, table: this.table || null, created: this.created || null }); },
+    track() { if (this.channel) this.channel.track({ id: AUTH.me.id, name: AUTH.me.name, avatar: AUTH.me.avatar || null, mode: this.mode, readyAt: this.readyAt, table: this.table || null, created: this.created || null, target: this.targetPoints || null }); },
     creatorOf(code) { return this.online().find((p) => (p.table || null) === code && p.created === code) || null; },
     gameName(code) { const c = this.creatorOf(code); return c ? c.name + "'s Game" : 'Game'; },
     // enter / switch tables (a table is a presence grouping keyed by a game code)
-    enterTable(code) { this.table = code; NET.code = code; this.mode = 'idle'; this.readyAt = 0; this.inProgress = false; NET.subscribe(); this.track(); lobbySig = null; renderLobby(); },
-    leaveTable() { this.table = null; NET.code = null; this.mode = 'idle'; this.readyAt = 0; this.inProgress = false; NET.unsubscribeGame(); this.track(); lobbySig = null; renderLobby(); },
+    enterTable(code) { this.table = code; NET.code = code; this.mode = 'idle'; this.readyAt = 0; this.inProgress = false; this.targetPoints = null; NET.subscribe(); this.track(); lobbySig = null; renderLobby(); },
+    leaveTable() { this.table = null; NET.code = null; this.mode = 'idle'; this.readyAt = 0; this.inProgress = false; this.targetPoints = null; NET.unsubscribeGame(); this.track(); lobbySig = null; renderLobby(); },
     sendBroadcast(msg) { if (this.channel) { try { this.channel.send({ type: 'broadcast', event: 'msg', payload: msg }); } catch (_) { } } },
     onPresence() {
       const st = this.channel.presenceState(); this.presence = {};
@@ -2772,7 +2772,7 @@
       if (!ready.some((r) => r.id === host.id)) { toast('Ready up before starting'); return; }
       const seated = ready.slice(0, 4), n = seated.length;
       const players = seated.map((p, i) => ({ seat: i, color: SEAT_COLORS[i], name: p.name, playerId: p.id, avatar: p.avatar || null }));
-      const target = targetForN(n);
+      const target = (this.targetPoints != null ? this.targetPoints : targetForN(n));   // host's chosen win target, else the count default
       let gstate;
       try { gstate = C.createGame({ id: 'table', players: players.map((p) => ({ color: p.color, name: p.name })), seed: (Math.random() * 1e9) | 0, targetPoints: target, randomFirst: true }); }
       catch (e) { toast('Start failed: ' + e.message); return; }
@@ -3014,15 +3014,21 @@
     // the game's CREATOR starts it (fallback: first-ready, if the creator has left the table)
     const host = creator || ready[0], iAmHost = host && host.id === AUTH.me.id;
     const hostReady = host && ready.some((r) => r.id === host.id);
-    const seatN = Math.min(4, ready.length), tgt = targetForN(seatN);
+    const seatN = Math.min(4, ready.length);
+    const chosen = iAmHost ? LOBBY.targetPoints : (creator ? creator.target : null);
+    const tgt = (chosen != null ? chosen : targetForN(seatN));   // host's picked win target, else the count default
     const hostName = escapeHtml((host && host.name) || 'the host');
     const startBtn = iAmHost
       ? (ready.length < 2 ? `<button class="btn full" disabled>Start · need 2 ready</button>`
         : !hostReady ? `<button class="btn full" disabled>Ready up to start</button>`
           : `<button class="btn full" onclick="CATAN.lobbyStart()">Start · ${seatN}p (${tgt} pts)</button>`)
       : `<button class="btn full" disabled>${ready.length < 2 ? 'Waiting for players…' : 'Waiting for ' + hostName + ' to start…'}</button>`;
+    const targetRow = iAmHost
+      ? `<div class="lobtgt"><span class="lobtgt-lbl">Win at <b id="tgt-val">${tgt}</b> pts</span><input class="lobtgt-slider" type="range" min="9" max="15" step="1" value="${tgt}" oninput="var e=document.getElementById('tgt-val');if(e)e.textContent=this.value" onchange="CATAN.lobbyTarget(this.value)"></div>`
+      : `<div class="lobtgt muted">Win at ${tgt} pts</div>`;
     return `<p class="muted small" style="text-align:center">${members.length} here · ${ready.length} ready</p>
       <div class="loblist">${rows}</div>
+      ${targetRow}
       <div class="lobrow2">
         <button class="btn ${LOBBY.mode === 'ready' ? '' : 'wood'}" onclick="CATAN.lobbyReady()">${LOBBY.mode === 'ready' ? '✓ Ready' : "I'm ready"}</button>
         <button class="btn ${LOBBY.mode === 'spectate' ? '' : 'wood'}" onclick="CATAN.lobbySpectate()">${LOBBY.mode === 'spectate' ? '✓ Spectating' : '👁 Spectate'}</button>
@@ -3034,6 +3040,7 @@
   window.CATAN.statsPlayer = (n) => statsPlayerScreen(decodeURIComponent(n));
   window.CATAN.lobbyBack = () => { if (LOBBY.table) CATAN.leaveTable(); else CATAN.lobbyLogout(); };
   window.CATAN.newTable = () => { const code = genCode(); LOBBY.created = code; LOBBY.enterTable(code); };
+  window.CATAN.lobbyTarget = (v) => { LOBBY.targetPoints = Math.max(9, Math.min(15, parseInt(v, 10) || 13)); LOBBY.track(); lobbySig = null; renderLobby(); };
   window.CATAN.joinTable = (code) => LOBBY.enterTable(code);
   window.CATAN.leaveTable = () => LOBBY.leaveTable();
   window.CATAN.lobbyReady = () => LOBBY.setReady();
