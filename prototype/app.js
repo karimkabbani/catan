@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v56';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v57';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -3016,7 +3016,8 @@
     const hostReady = host && ready.some((r) => r.id === host.id);
     const seatN = Math.min(4, ready.length);
     const chosen = iAmHost ? LOBBY.targetPoints : (creator ? creator.target : null);
-    const tgt = (chosen != null ? chosen : targetForN(seatN));   // host's picked win target, else the count default
+    // host's pick if set; else the count default once >=2 are ready (2p15 · 3p13 · 4p11); else the general 13
+    const tgt = (chosen != null ? chosen : (seatN >= 2 ? targetForN(seatN) : 13));
     const hostName = escapeHtml((host && host.name) || 'the host');
     const startBtn = iAmHost
       ? (ready.length < 2 ? `<button class="btn full" disabled>Start · need 2 ready</button>`
