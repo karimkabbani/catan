@@ -511,6 +511,16 @@
   .stbonico{height:15px; vertical-align:middle; margin-right:5px;}
   .stbonemo{margin-right:3px;}
   /* Ready / Spectate side-by-side in the lobby */
+  /* host's win-target slider — subtle row above the ready/spectate buttons */
+  .lobtgt{display:flex; align-items:center; gap:10px; margin:8px 2px 6px; font-size:13px;}
+  .lobtgt-lbl{color:var(--muted); white-space:nowrap;}
+  .lobtgt-lbl b{color:var(--gold); font-weight:800;}
+  .lobtgt.muted{color:var(--muted); justify-content:center;}
+  .lobtgt-slider{flex:1; min-width:0; height:22px; -webkit-appearance:none; appearance:none; background:transparent; cursor:pointer;}
+  .lobtgt-slider::-webkit-slider-runnable-track{height:4px; border-radius:3px; background:linear-gradient(90deg,var(--gold-edge),var(--gold)); box-shadow:inset 0 1px 2px rgba(0,0,0,0.5);}
+  .lobtgt-slider::-moz-range-track{height:4px; border-radius:3px; background:linear-gradient(90deg,var(--gold-edge),var(--gold));}
+  .lobtgt-slider::-webkit-slider-thumb{-webkit-appearance:none; appearance:none; width:18px; height:18px; margin-top:-7px; border-radius:50%; background:radial-gradient(circle at 38% 32%,#ffe9ab,#c79a3e); border:1.5px solid #7a5c24; box-shadow:0 2px 5px rgba(0,0,0,0.5);}
+  .lobtgt-slider::-moz-range-thumb{width:18px; height:18px; border-radius:50%; background:radial-gradient(circle at 38% 32%,#ffe9ab,#c79a3e); border:1.5px solid #7a5c24;}
   .lobrow2{display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-top:4px;}
   /* "👁 N" watching badge in the in-game banner */
   .watchtag{margin-left:8px; font-size:0.85em; opacity:0.85; padding:1px 7px; border-radius:10px; background:rgba(0,0,0,0.3);}
