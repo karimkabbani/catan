@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v66';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v67';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -2957,7 +2957,6 @@
       return Object.values(m).map((p) => ({ key: p.key, name: STATS.nameFor(p.key), gp: p.gp, w: p.w, lr: p.lr, la: p.la, winpct: Math.round((100 * p.w) / p.gp), wae: p.w - p.exp, avg: p.ps / p.gp }))
         .sort((a, b) => b.wae - a.wae || b.w - a.w || a.avg - b.avg);
     },
-    crowns() { const c = {}; STATS.seasons().forEach((ym) => { if (ym === STATS.curSeason()) return; const b = STATS.board(STATS.filter(ym)); if (b.length) c[b[0].key] = (c[b[0].key] || 0) + 1; }); return c; },
     streak(key) {
       const gs = STATS.games.filter((g) => g.standings.some((s) => pkey(s) === key)).slice().reverse();   // oldest -> newest
       let best = 0, run = 0; gs.forEach((g) => { if (pkey(g.standings[0]) === key) { run++; if (run > best) best = run; } else run = 0; });
@@ -3017,8 +3016,6 @@
     if (statsCount && !sizes.includes(statsCount)) statsCount = null;   // size vanished (e.g. all deleted) -> reset
     const games = statsCount ? seasonGames.filter((g) => g.standings.length === statsCount) : seasonGames;
     const board = STATS.board(games);
-    const showCrowns = isAll && !statsCount;   // crowns are all-size season titles; hide them under a size filter
-    const crowns = showCrowns ? STATS.crowns() : null;
     const selLbl = isAll ? '' : STATS.seasonLabel(season);   // label for the currently-selected month
     // Season selector — scales to many months/years, pills run chronologically LEFT→RIGHT
     // (oldest first, newest last); the strip auto-scrolls to keep the active (newest) pill in view.
@@ -3041,12 +3038,12 @@
     const countSeg = sizes.length > 1
       ? `<div class="seg stseg stcountseg"><button class="${!statsCount ? 'on' : ''}" onclick="CATAN.statsCount(null)">All sizes</button>${sizes.map((n) => `<button class="${statsCount === n ? 'on' : ''}" onclick="CATAN.statsCount(${n})">${n}p</button>`).join('')}</div>`
       : '';
-    const head = `<tr><th>#</th><th>Player</th><th title="Games played">GP</th><th title="Wins">W</th><th title="Win rate">Win%</th><th title="Wins above expected — accounts for table size">WAE</th>${showCrowns ? '<th title="Season crowns">👑</th>' : ''}</tr>`;
+    const head = `<tr><th>#</th><th>Player</th><th title="Games played">GP</th><th title="Wins">W</th><th title="Win rate">Win%</th><th title="Wins above expected — accounts for table size">WAE</th></tr>`;
     const rows = board.map((p, i) => {
       const wae = (p.wae >= 0 ? '+' : '') + p.wae.toFixed(1);
       return `<tr onclick="CATAN.statsPlayer('${encodeURIComponent(p.key)}')"><td class="str">${i + 1}</td>` +
         `<td class="stn">${escapeHtml(p.name)}</td><td>${p.gp}</td><td class="stw">${p.w}</td><td>${p.winpct}%</td>` +
-        `<td class="${p.wae >= 0 ? 'stpos' : 'stneg'}">${wae}</td>${showCrowns ? `<td>${'👑'.repeat(crowns[p.key] || 0) || '·'}</td>` : ''}</tr>`;
+        `<td class="${p.wae >= 0 ? 'stpos' : 'stneg'}">${wae}</td></tr>`;
     }).join('');
     const sizeLbl = statsCount ? ' · ' + statsCount + 'p' : '';
     const body = games.length
