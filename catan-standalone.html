@@ -1030,7 +1030,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v63';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v64';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -4045,22 +4045,22 @@
     const showCrowns = isAll && !statsCount;   // crowns are all-size season titles; hide them under a size filter
     const crowns = showCrowns ? STATS.crowns() : null;
     const selLbl = isAll ? '' : STATS.seasonLabel(season);   // label for the currently-selected month
-    // Season selector — scales to many months/years:
-    //   • one year of data  -> a single row: All-time + a pill per month (newest first)
-    //   • multiple years     -> a YEAR row (All-time + a pill per year) plus, unless All-time,
-    //                           a MONTH row for the selected year (≤12 pills). Years grow slowly,
-    //                           months are capped at 12, so neither row ever gets unwieldy.
-    const years = STATS.years();
+    // Season selector — scales to many months/years, pills run chronologically LEFT→RIGHT
+    // (oldest first, newest last); the strip auto-scrolls to keep the active (newest) pill in view.
+    //   • one year of data -> a single row: All-time + a pill per month
+    //   • multiple years   -> a YEAR row (All-time + a pill per year) plus, unless All-time,
+    //                         a MONTH row for the selected year (≤12 pills).
+    const years = STATS.years().slice().reverse();   // ascending (oldest -> newest)
     let seasonSeg;
     if (years.length <= 1) {
       seasonSeg = `<div class="seg stseg stseasonseg"><button class="${isAll ? 'on' : ''}" onclick="CATAN.statsSeason('all')">All-time</button>` +
-        STATS.seasons().slice().reverse().map((ym) => `<button class="${!isAll && season === ym ? 'on' : ''}" onclick="CATAN.statsSeason('${ym}')">${STATS.seasonPill(ym)}</button>`).join('') + `</div>`;
+        STATS.seasons().map((ym) => `<button class="${!isAll && season === ym ? 'on' : ''}" onclick="CATAN.statsSeason('${ym}')">${STATS.seasonPill(ym)}</button>`).join('') + `</div>`;
     } else {
-      const selYear = isAll ? years[0] : +season.split('-')[0];
+      const selYear = isAll ? years[years.length - 1] : +season.split('-')[0];
       const yearRow = `<div class="seg stseg stseasonseg"><button class="${isAll ? 'on' : ''}" onclick="CATAN.statsSeason('all')">All-time</button>` +
         years.map((y) => `<button class="${!isAll && selYear === y ? 'on' : ''}" onclick="CATAN.statsYear(${y})">${y}</button>`).join('') + `</div>`;
       const monthRow = isAll ? '' : `<div class="seg stseg stseasonseg stmonthrow">` +
-        STATS.monthsIn(selYear).map((ym) => `<button class="${season === ym ? 'on' : ''}" onclick="CATAN.statsSeason('${ym}')">${STATS.monthShort(ym)}</button>`).join('') + `</div>`;
+        STATS.monthsIn(selYear).slice().reverse().map((ym) => `<button class="${season === ym ? 'on' : ''}" onclick="CATAN.statsSeason('${ym}')">${STATS.monthShort(ym)}</button>`).join('') + `</div>`;
       seasonSeg = yearRow + monthRow;
     }
     const countSeg = sizes.length > 1
@@ -4084,6 +4084,11 @@
       ${seasonSeg}
       ${countSeg}
       ${body}`);
+    // pills go oldest→newest, so the active (newest) one sits toward the right — scroll each strip to it
+    requestAnimationFrame(() => document.querySelectorAll('.stseasonseg').forEach((seg) => {
+      const on = seg.querySelector('button.on');
+      if (on) seg.scrollLeft += on.getBoundingClientRect().right - seg.getBoundingClientRect().right + 12;
+    }));
   }
   function statsPlayerScreen(key) {
     const d = STATS.detail(key);
