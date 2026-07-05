@@ -127,6 +127,25 @@
   .qcchip{padding:10px 16px; border-radius:20px; border:1px solid var(--gold-edge); background:rgba(0,0,0,0.3);
     color:var(--ink); font-weight:700; font-size:15px; font-family:inherit; cursor:pointer;}
   .qcchip:active{transform:scale(0.95); background:rgba(255,220,170,0.12);}
+  /* hold-to-talk mic button in the picker */
+  .qcmic{display:flex; align-items:center; justify-content:center; gap:8px; width:100%; margin:2px 0 12px; padding:14px;
+    border-radius:14px; border:1px solid var(--gold-edge); background:linear-gradient(180deg, rgba(61,127,214,0.32), rgba(31,79,143,0.32));
+    color:#eaf2ff; font-weight:800; font-size:16px; font-family:inherit; cursor:pointer;
+    touch-action:none; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;}
+  .qcmic:active{transform:scale(0.98); background:linear-gradient(180deg, rgba(61,127,214,0.5), rgba(31,79,143,0.5));}
+  /* recording panel (replaces the picker while holding) */
+  .vrec{display:flex; flex-direction:column; align-items:center; gap:12px; padding:18px 6px;}
+  .vrecdot{width:20px; height:20px; border-radius:50%; background:#e0453a; box-shadow:0 0 0 0 rgba(224,69,58,0.6); animation:vrecpulse 1.1s ease-out infinite;}
+  @keyframes vrecpulse{0%{box-shadow:0 0 0 0 rgba(224,69,58,0.55);} 100%{box-shadow:0 0 0 18px rgba(224,69,58,0);}}
+  .vrectime{font-family:var(--serif); font-size:30px; color:var(--gold); font-weight:800;}
+  .vrechint{color:var(--muted); font-size:13px; text-align:center;}
+  .vrec.cancel .vrecdot{background:#888;} .vrec.cancel .vrectime{color:#e3a3a3;} .vrec.cancel .vrechint{color:#e3a3a3; font-weight:800;}
+  /* voice play button, in a corner bubble or the top banner */
+  .bcplay{flex:0 0 auto; width:30px; height:30px; border-radius:50%; border:1px solid var(--gold-edge); cursor:pointer;
+    background:radial-gradient(circle at 38% 32%, #3d7fd6, #1f4f8f); color:#fff; font-size:13px; line-height:1; padding:0;
+    display:inline-flex; align-items:center; justify-content:center;}
+  .bcbubble.bcvoice{display:flex; align-items:center; gap:8px;}
+  #bctoast .bcplay{margin:0 2px;}
   /* quick-chat management (overlay): editable list + add row */
   .qmlist{display:flex; flex-direction:column; gap:7px; margin-bottom:10px; max-height:42vh; overflow-y:auto;}
   .qmrow{display:flex; align-items:center; gap:8px;}
