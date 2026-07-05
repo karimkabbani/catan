@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v75';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v76';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -2391,7 +2391,30 @@
       });
       // the first-to-play player gets 2 of every dev card so all the flows are testable
       const first = s.players.find((p) => p.color === s.order[0]);
-      if (first) first.devCards = ['knight', 'knight', 'year_of_plenty', 'year_of_plenty', 'road_building', 'road_building', 'monopoly', 'monopoly', 'victory_point', 'victory_point'];
+      if (first) {
+        first.devCards = ['knight', 'knight', 'year_of_plenty', 'year_of_plenty', 'road_building', 'road_building', 'monopoly', 'monopoly', 'victory_point', 'victory_point'];
+        // set the first player up to trigger EVERY announcement quickly:
+        first.resources = { brick: 6, wood: 6, sheep: 5, wheat: 5, ore: 5 };   // plenty to buy dev cards + build roads
+        first.playedKnights = 2;                                                // one more Knight -> Largest Army 🎉
+        // give them a clean length-4 road chain so building one more road wins the Longest Road
+        const firstC = first.color;
+        Object.keys(s.roads).forEach((e) => { if (s.roads[e] === firstC) delete s.roads[e]; });   // clear their scattered demo roads
+        const fv = +Object.keys(s.settlements).find((v) => s.settlements[v].owner === firstC);
+        if (fv >= 0) {
+          let v = fv, made = 0, guard = 0; const seen = new Set([fv]);
+          while (made < 4 && guard++ < 40) {
+            let picked = -1, nextV = -1;
+            for (const e of s.board.vertices[v].edges) {
+              if (s.roads[e] != null) continue;
+              const vs = s.board.edges[e].v, other = vs[0] === v ? vs[1] : vs[0];
+              if (seen.has(other) || s.settlements[other]) continue;   // simple path, don't route through a building
+              picked = e; nextV = other; break;
+            }
+            if (picked < 0) break;
+            s.roads[picked] = firstC; seen.add(nextV); v = nextV; made++;
+          }
+        }
+      }
       // recompute supply from what's on the board so builds stay valid
       s.players.forEach((p) => {
         const mine = Object.values(s.settlements).filter((x) => x.owner === p.color);
@@ -2406,7 +2429,7 @@
       title.classList.add('hidden'); hideOverlay(); document.body.style.background = GAME_BG;
       afterAction(); render();
       const bd = $('board'); if (bd) bd.classList.add('enter');
-      toast('Demo — you hold a Knight: play it or roll');
+      toast('Demo: roll, then buy/play dev cards, play a Knight for Largest Army, or build 1 road for Longest Road — watch the top banner');
     };
     render2();
   }
