@@ -1030,7 +1030,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v64';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v65';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -3950,7 +3950,7 @@
           STATS.loading = null; STATS.loaded = true;
           STATS.games = ((!error && data) ? data : []).filter((r) => Array.isArray(r.standings) && r.standings.length).map((r) => {
             const d = new Date(r.finished_at), mo = d.getMonth();
-            return { date: MONTH_ABBR[mo] + ' ' + d.getDate(), ym: d.getFullYear() + '-' + String(mo + 1).padStart(2, '0'),
+            return { date: MONTH_ABBR[mo] + ' ' + d.getDate() + ', ' + d.getFullYear(), ym: d.getFullYear() + '-' + String(mo + 1).padStart(2, '0'),
               standings: r.standings.map((s) => ({ id: s.id || null, n: s.name, pts: s.pts, lr: s.lr ? 1 : 0, la: s.la ? 1 : 0 })) };
           });
           // Resolve the LATEST display name per identity key (games are newest-first, so the first
@@ -4084,10 +4084,14 @@
       ${seasonSeg}
       ${countSeg}
       ${body}`);
-    // pills go oldest→newest, so the active (newest) one sits toward the right — scroll each strip to it
+    // Keep the active pill visible: scroll each strip horizontally ONLY if the selected pill sits
+    // off (or under) an edge, and only just enough to bring it in — no jarring jump for a pill
+    // that's already on screen. (Runs on open and after every selection, since we re-render.)
     requestAnimationFrame(() => document.querySelectorAll('.stseasonseg').forEach((seg) => {
-      const on = seg.querySelector('button.on');
-      if (on) seg.scrollLeft += on.getBoundingClientRect().right - seg.getBoundingClientRect().right + 12;
+      const on = seg.querySelector('button.on'); if (!on) return;
+      const sr = seg.getBoundingClientRect(), br = on.getBoundingClientRect(), pad = 12;
+      if (br.right > sr.right - pad) seg.scrollLeft += br.right - sr.right + pad;        // off the right edge -> reveal
+      else if (br.left < sr.left + pad) seg.scrollLeft -= sr.left + pad - br.left;       // off the left edge -> reveal
     }));
   }
   function statsPlayerScreen(key) {
