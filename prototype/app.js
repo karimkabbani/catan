@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v85';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v86';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -1990,7 +1990,7 @@
     if (!text || !online || !myColor) return;
     if (Date.now() - lastBcAt < BC_COOLDOWN) { toast('Easy — one sec'); return; }
     lastBcAt = Date.now();
-    const msg = { name: AUTH.me.name, avatar: AUTH.me.avatar || null, text, table: LOBBY.table || null, color: myColor || null };
+    const msg = { name: AUTH.me.name, avatar: AUTH.me.avatar || null, text, table: LOBBY.table || null, code: NET.code || LOBBY.table || null, color: myColor || null };
     LOBBY.sendBroadcast(msg);
     showBroadcast(msg);   // local echo — broadcast doesn't deliver back to the sender
   }
@@ -2071,7 +2071,7 @@
     const up = await c.storage.from('voice').upload(path, rec.blob, { contentType: 'audio/wav', upsert: false });
     if (up.error) { toast('Voice failed'); return; }
     const url = c.storage.from('voice').getPublicUrl(path).data.publicUrl;
-    const msg = { type: 'voice', url, dur: rec.dur, name: AUTH.me.name, avatar: AUTH.me.avatar || null, table: LOBBY.table || null, color: myColor || null };
+    const msg = { type: 'voice', url, dur: rec.dur, name: AUTH.me.name, avatar: AUTH.me.avatar || null, table: LOBBY.table || null, code: code || null, color: myColor || null };
     LOBBY.sendBroadcast(msg);
     showBroadcast(msg);   // local echo — sender sees their own note bubble
   }
@@ -3033,7 +3033,14 @@
       if (this.channel) { try { c.removeChannel(this.channel); } catch (_) { } }
       this.channel = c.channel('lobby', { config: { presence: { key: AUTH.me.id } } });
       this.channel.on('presence', { event: 'sync' }, () => LOBBY.onPresence());
-      this.channel.on('broadcast', { event: 'msg' }, (e) => { if (e && e.payload && (e.payload.table || null) === LOBBY.table) showBroadcast(e.payload); });
+      this.channel.on('broadcast', { event: 'msg' }, (e) => {
+        const p = e && e.payload; if (!p) return;
+        // match on the GAME CODE (robust: LOBBY.table can be null in-game, but NET.code is set),
+        // falling back to the old table field for older senders.
+        const pc = p.code || p.table || null, mine = NET.code || LOBBY.table || null;
+        try { console.log('[bcast rx]', { kind: p.type || 'text', from: p.name, pc, mine, match: !!(pc && mine && pc === mine) }); } catch (_) { }
+        if (pc && mine && pc === mine) showBroadcast(p);
+      });
       this.channel.subscribe((st) => { if (st === 'SUBSCRIBED') LOBBY.track(); });
       startHeartbeat();
       sweepOldVoice();   // best-effort cleanup of orphaned voice clips (throttled hourly)
@@ -3045,7 +3052,10 @@
     // enter / switch tables (a table is a presence grouping keyed by a game code)
     enterTable(code) { this.table = code; NET.code = code; this.mode = 'idle'; this.readyAt = 0; this.inProgress = false; this.targetPoints = null; NET.subscribe(); this.track(); lobbySig = null; renderLobby(); },
     leaveTable() { this.table = null; NET.code = null; this.mode = 'idle'; this.readyAt = 0; this.inProgress = false; this.targetPoints = null; NET.unsubscribeGame(); this.track(); lobbySig = null; renderLobby(); },
-    sendBroadcast(msg) { if (this.channel) { try { this.channel.send({ type: 'broadcast', event: 'msg', payload: msg }); } catch (_) { } } },
+    sendBroadcast(msg) {
+      try { console.log('[bcast tx]', { kind: msg.type || 'text', code: msg.code, table: msg.table, hasChannel: !!this.channel }); } catch (_) { }
+      if (this.channel) { try { this.channel.send({ type: 'broadcast', event: 'msg', payload: msg }); } catch (e) { try { console.log('[bcast tx err]', e && e.message); } catch (_) { } } }
+    },
     onPresence() {
       const st = this.channel.presenceState();
       const now = Date.now();
