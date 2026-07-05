@@ -122,6 +122,21 @@
     border:1.5px solid var(--gold-edge); background:radial-gradient(circle at 38% 32%, #3d7fd6, #1f4f8f); color:#fff;
     font-size:15px; line-height:1; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(0,0,0,0.5); cursor:pointer;}
   .pchat:active{transform:scale(0.92);}
+  /* unread-message dot on another player's corner (tap their portrait to review) */
+  .pmsgdot{position:absolute; top:-6px; left:-6px; z-index:9; width:14px; height:14px; border-radius:50%;
+    background:#e0453a; border:2px solid #2a1608; box-shadow:0 1px 3px rgba(0,0,0,0.5); animation:msgpulse 1.5s ease-out infinite; pointer-events:none;}
+  @keyframes msgpulse{0%{box-shadow:0 0 0 0 rgba(224,69,58,0.5);} 100%{box-shadow:0 0 0 9px rgba(224,69,58,0);}}
+  body.spectating .pmsgdot{display:none;}
+  /* recent-messages popover, anchored to a corner */
+  #msghist{position:fixed; z-index:34; max-width:min(240px,60vw); background:#f6ecd2; color:#2a1c0c;
+    border-radius:12px; padding:9px 12px 7px; box-shadow:0 5px 18px rgba(0,0,0,0.55); border:1px solid var(--gold-edge);}
+  #msghist .bcclose{color:#7a5316;}
+  .mhhead{font-weight:800; color:#7a5316; font-size:12px; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:5px; padding-right:14px;}
+  .mhrow{display:flex; align-items:center; gap:8px; padding:5px 0; border-top:1px solid rgba(0,0,0,0.09); font-size:14px; font-weight:600;}
+  .mhrow:first-of-type{border-top:none;}
+  .mhtxt{word-break:break-word; min-width:0;}
+  .mhrow.muted{color:#8a7a5c; font-style:italic; font-weight:400;}
+  #msghist .bcplay{width:26px; height:26px; font-size:11px;}
   /* quick-chat picker (overlay): preset chips */
   .qcgrid{display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin:8px 0 12px;}
   .qcchip{padding:10px 16px; border-radius:20px; border:1px solid var(--gold-edge); background:rgba(0,0,0,0.3);
