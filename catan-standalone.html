@@ -1039,7 +1039,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v69';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v70';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -1270,9 +1270,10 @@
     }
     const yop = action.type === 'playYearOfPlenty' ? { to: actor, resources: (action.resources || []) } : null;
     const fromRobber = state.robberHex;
-    const preLog = state.log;
+    const preState = state;
     state = r.state;
-    announceFromLog(preLog, state.log);   // dev-card buys/plays -> top announcement (also runs for observers below)
+    announceFromLog(preState.log, state.log);   // dev-card buys/plays -> top announcement (also runs for observers below)
+    announceMilestones(preState, state);        // longest road / largest army changing hands
     // a bought dev card: the buyer is told WHAT they drew; everyone else just sees it fly in face-down
     const bought = action.type === 'buyDevCard'
       ? { buyer: actor, card: (state.players.find((p) => p.color === actor).newDevCards.slice(-1)[0]) } : null;
@@ -2902,12 +2903,25 @@
   let toastT = null;
   function toast(msg) { const el = $('toast'); el.textContent = msg; el.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 2200); }
   // ---- game-event announcements (top pill, shown on every player's screen) --------------------
-  // Driven off the engine's own state.log so it fires identically for the actor and all observers.
-  let announceT = null;
-  function announce(msg) {
-    const el = $('announce'); if (!el || !msg) return;
-    el.textContent = msg; el.classList.remove('hidden'); el.classList.add('show');
-    clearTimeout(announceT); announceT = setTimeout(() => el.classList.remove('show'), 3600);
+  // Driven off the engine's own state.log (dev cards) + owner diffs (longest road / largest army),
+  // so it fires identically for the actor and all observers. Queued so two events from one action
+  // (e.g. a Knight that also grabs Largest Army) show in sequence instead of clobbering each other.
+  let announceT = null, announceQ = [], announceBusy = false;
+  function announce(msg) { if (!msg) return; announceQ.push(msg); if (!announceBusy) nextAnnounce(); }
+  function nextAnnounce() {
+    const el = $('announce'); if (!el) { announceQ = []; announceBusy = false; return; }
+    if (!announceQ.length) { announceBusy = false; return; }
+    announceBusy = true;
+    el.textContent = announceQ.shift(); el.classList.remove('hidden'); el.classList.add('show');
+    clearTimeout(announceT);
+    announceT = setTimeout(() => { el.classList.remove('show'); setTimeout(nextAnnounce, 220); }, 2800);
+  }
+  // longest road / largest army aren't in the engine log -> announce them off an owner diff
+  function announceMilestones(a, s) {
+    if (!a || !s) return;
+    const nm = (c) => { const p = (s.players || []).find((x) => x.color === c); return p ? p.name : null; };
+    if (s.longestRoadOwner && s.longestRoadOwner !== a.longestRoadOwner) { const n = nm(s.longestRoadOwner); if (n) announce(`${n} now holds the Longest Road 🛣️`); }
+    if (s.largestArmyOwner && s.largestArmyOwner !== a.largestArmyOwner) { const n = nm(s.largestArmyOwner); if (n) announce(`${n} now holds the Largest Army ⚔️`); }
   }
   // Map a raw engine log line to a nice announcement, or null to stay silent (rolls, builds, trades,
   // steals, wins — those already have their own on-screen feedback).
@@ -3681,6 +3695,7 @@
     const a = state;
     flagToast(a, s);   // someone raised/lowered a white flag -> tell the table
     announceFromLog(a && a.log, s.log);   // dev-card buys/plays -> top announcement on observers' screens
+    announceMilestones(a, s);             // longest road / largest army changing hands
     const rolled = !!(a && a.turnPhase === 'roll' && s.turnPhase !== 'roll' && s.dice && s.hasRolledThisTurn);
     const trade = detectTrade(a, s);
     const disc = detectDiscard(a, s);
