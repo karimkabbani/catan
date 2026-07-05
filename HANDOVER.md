@@ -354,11 +354,14 @@ untouched core. Have Lovable build the lobby, board, and Supabase wiring around
   competitive, someone would actually peek, or it opens beyond the friend circle.
 - ~~Spectator experience is bare~~ → **fixed (v60)**: a spectator dock strip ("👁 Spectating — X's
   turn" + Leave), a `body.spectating` class driving the chrome, and the existing banner. No hidden-info leak.
-- ~~A player who vanishes on their turn stalls the table~~ → **fixed (v60): AFK escape hatch.** Engine
-  `forceSkip` action (bypasses the turn guard; skips the current player's whole turn, or auto-discards for
-  named gone players stuck on a 7). A "Skip turn / Discard for them" bar arms for the other seated players
-  once nobody's moved — ~18s if the blocker has dropped from presence, 90s if merely idle. Detection in
-  `updateStallBar()` off a `lastProgress` clock + `LOBBY.liveIds`. 3 engine tests cover it.
+- **A player who vanishes on their turn — policy, not a skip (v61).** Decision (Karim): a stalled game is
+  NOT force-skippable. A game only counts in stats when it ends **properly** — a points win or a
+  surrender/last-man-standing. If a player drops and the others can't continue, someone hits Leave and the
+  game is **abandoned**: it ends for everyone and is **never recorded**. (The v60 `forceSkip` engine action +
+  AFK "Skip turn" bar were removed in v61.) Mechanics: a seated player's Leave idles the games row (no
+  winner → `recordResult` never fires); the Leave dialog says "counts as abandoned — not recorded in stats";
+  remaining players get a "Game abandoned — not recorded" toast (onRow idle branch, when local state wasn't
+  `ended`). A fully-abandoned row (everyone gone) is cleaned by the existing `purge_stale_games()` RPC.
 - ~~Post-game flow is minimal~~ → **fixed (v60): Rematch button** on the victory screen restarts the same
   seated players + win target with one tap (`LOBBY.rematch()`, version-guarded; onRow replays the 3·2·1
   intro for everyone). "Back to lobby" still there.

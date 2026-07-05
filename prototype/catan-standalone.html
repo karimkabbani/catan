@@ -498,6 +498,10 @@
   .stsub{color:var(--gold); font-family:var(--serif); font-size:15px; margin:6px 0 7px; text-align:left;}
   .stseg{margin-bottom:12px;}
   .stcountseg{margin-top:-4px;}
+  /* season strip: horizontally scrollable pills (All-time + one per month) */
+  .stseasonseg{overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; gap:7px;}
+  .stseasonseg::-webkit-scrollbar{display:none;}
+  .stseasonseg button{flex:0 0 auto; padding:9px 16px;}
   /* per-player detail */
   .stchips{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:6px;}
   .stchip{background:rgba(0,0,0,0.25); border-radius:9px; padding:9px 5px; text-align:center;}
@@ -1025,7 +1029,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v61';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v62';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -3959,6 +3963,8 @@
     },
     nameFor(k) { return (STATS.nameMap && STATS.nameMap[k]) || k; },
     seasonLabel(ym) { if (!ym) return ''; const p = ym.split('-'); const lbl = MONTH_FULL[MONTH_ABBR[(+p[1]) - 1]]; return (+p[0] === new Date().getFullYear()) ? lbl : lbl + ' ' + p[0]; },
+    // compact label for the season strip: "Jul" in the current year, "Jul '25" otherwise
+    seasonPill(ym) { const p = ym.split('-'); const mo = MONTH_ABBR[(+p[1]) - 1]; return (+p[0] === new Date().getFullYear()) ? mo : mo + " '" + String(p[0]).slice(2); },
     seasons() { const u = [...new Set(STATS.games.map((g) => g.ym))]; u.sort(); return u; },
     curSeason() { const s = STATS.seasons(); return s[s.length - 1]; },
     filter(season) { return season === 'all' ? STATS.games : STATS.games.filter((g) => g.ym === season); },
@@ -4021,7 +4027,10 @@
     const back = `<div class="lobhead"><button class="lobback" onclick="CATAN.showLobby()" title="Back to lobby">←</button><h3>🏆 Stats</h3></div>`;
     if (!STATS.loaded) { titleCard(`${back}<p class="muted" style="text-align:center;padding:26px 0">Loading…</p>`); STATS.load().then(() => statsScreen()); return; }
     if (!STATS.games.length) { titleCard(`${back}<p class="muted" style="text-align:center;padding:22px 8px;line-height:1.5">No games recorded yet.<br>Finish an online game and it'll show up here.</p>`); return; }
-    const isAll = statsSeason === 'all', season = isAll ? 'all' : STATS.curSeason();
+    // statsSeason: 'all' = all-time · null = default (latest month) · else a specific 'YYYY-MM'
+    const isAll = statsSeason === 'all';
+    let season = isAll ? 'all' : (statsSeason || STATS.curSeason());
+    if (!isAll && !STATS.seasons().includes(season)) season = STATS.curSeason();   // selected month emptied out -> fall back
     const seasonGames = STATS.filter(season);
     // secondary filter: only games with this many players. Only offer sizes that actually occur.
     const sizes = [...new Set(STATS.games.map((g) => g.standings.length))].sort();
@@ -4030,7 +4039,10 @@
     const board = STATS.board(games);
     const showCrowns = isAll && !statsCount;   // crowns are all-size season titles; hide them under a size filter
     const crowns = showCrowns ? STATS.crowns() : null;
-    const curLbl = STATS.seasonLabel(STATS.curSeason());
+    const selLbl = isAll ? '' : STATS.seasonLabel(season);   // label for the currently-selected month
+    // season strip: All-time + one pill per month with games (newest first), horizontally scrollable
+    const seasonSeg = `<div class="seg stseg stseasonseg"><button class="${isAll ? 'on' : ''}" onclick="CATAN.statsSeason('all')">All-time</button>` +
+      STATS.seasons().slice().reverse().map((ym) => `<button class="${!isAll && season === ym ? 'on' : ''}" onclick="CATAN.statsSeason('${ym}')">${STATS.seasonPill(ym)}</button>`).join('') + `</div>`;
     const countSeg = sizes.length > 1
       ? `<div class="seg stseg stcountseg"><button class="${!statsCount ? 'on' : ''}" onclick="CATAN.statsCount(null)">All sizes</button>${sizes.map((n) => `<button class="${statsCount === n ? 'on' : ''}" onclick="CATAN.statsCount(${n})">${n}p</button>`).join('')}</div>`
       : '';
@@ -4045,11 +4057,11 @@
     const body = games.length
       ? `<div class="sttbl-wrap"><table class="sttbl"><thead>${head}</thead><tbody>${rows}</tbody></table></div>
          <div class="stnote">WAE = wins above expected: your wins minus what pure luck gives at each table size. Tap a player for detail.</div>
-         <h4 class="stsub">Recent games${isAll ? '' : ' · ' + curLbl}${sizeLbl}</h4>
+         <h4 class="stsub">Recent games${selLbl ? ' · ' + selLbl : ''}${sizeLbl}</h4>
          <div class="rglist tall">${recentRowsHTML(games)}</div>`
-      : `<p class="muted" style="text-align:center;padding:22px 8px">No ${statsCount ? statsCount + '-player ' : ''}games ${isAll ? 'recorded' : 'this season'} yet.</p>`;
+      : `<p class="muted" style="text-align:center;padding:22px 8px">No ${statsCount ? statsCount + '-player ' : ''}games ${isAll ? 'recorded' : 'in ' + selLbl} yet.</p>`;
     titleCard(`${back}
-      <div class="seg stseg"><button class="${!isAll ? 'on' : ''}" onclick="CATAN.statsSeason(null)">${curLbl}</button><button class="${isAll ? 'on' : ''}" onclick="CATAN.statsSeason('all')">All-time</button></div>
+      ${seasonSeg}
       ${countSeg}
       ${body}`);
   }
