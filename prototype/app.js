@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v62';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v63';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -2943,6 +2943,10 @@
     seasonPill(ym) { const p = ym.split('-'); const mo = MONTH_ABBR[(+p[1]) - 1]; return (+p[0] === new Date().getFullYear()) ? mo : mo + " '" + String(p[0]).slice(2); },
     seasons() { const u = [...new Set(STATS.games.map((g) => g.ym))]; u.sort(); return u; },
     curSeason() { const s = STATS.seasons(); return s[s.length - 1]; },
+    years() { return [...new Set(STATS.games.map((g) => +g.ym.split('-')[0]))].sort((a, b) => b - a); },   // desc
+    monthsIn(year) { return STATS.seasons().filter((ym) => +ym.split('-')[0] === year).sort().reverse(); },   // yms in a year, newest first
+    latestMonthIn(year) { return STATS.monthsIn(year)[0]; },
+    monthShort(ym) { return MONTH_ABBR[(+ym.split('-')[1]) - 1]; },   // "Jul" (the year is shown separately in the year row)
     filter(season) { return season === 'all' ? STATS.games : STATS.games.filter((g) => g.ym === season); },
     board(games) {
       const m = {}, get = (k) => (m[k] = m[k] || { key: k, gp: 0, w: 0, exp: 0, ps: 0, lr: 0, la: 0 });
@@ -3016,9 +3020,24 @@
     const showCrowns = isAll && !statsCount;   // crowns are all-size season titles; hide them under a size filter
     const crowns = showCrowns ? STATS.crowns() : null;
     const selLbl = isAll ? '' : STATS.seasonLabel(season);   // label for the currently-selected month
-    // season strip: All-time + one pill per month with games (newest first), horizontally scrollable
-    const seasonSeg = `<div class="seg stseg stseasonseg"><button class="${isAll ? 'on' : ''}" onclick="CATAN.statsSeason('all')">All-time</button>` +
-      STATS.seasons().slice().reverse().map((ym) => `<button class="${!isAll && season === ym ? 'on' : ''}" onclick="CATAN.statsSeason('${ym}')">${STATS.seasonPill(ym)}</button>`).join('') + `</div>`;
+    // Season selector — scales to many months/years:
+    //   • one year of data  -> a single row: All-time + a pill per month (newest first)
+    //   • multiple years     -> a YEAR row (All-time + a pill per year) plus, unless All-time,
+    //                           a MONTH row for the selected year (≤12 pills). Years grow slowly,
+    //                           months are capped at 12, so neither row ever gets unwieldy.
+    const years = STATS.years();
+    let seasonSeg;
+    if (years.length <= 1) {
+      seasonSeg = `<div class="seg stseg stseasonseg"><button class="${isAll ? 'on' : ''}" onclick="CATAN.statsSeason('all')">All-time</button>` +
+        STATS.seasons().slice().reverse().map((ym) => `<button class="${!isAll && season === ym ? 'on' : ''}" onclick="CATAN.statsSeason('${ym}')">${STATS.seasonPill(ym)}</button>`).join('') + `</div>`;
+    } else {
+      const selYear = isAll ? years[0] : +season.split('-')[0];
+      const yearRow = `<div class="seg stseg stseasonseg"><button class="${isAll ? 'on' : ''}" onclick="CATAN.statsSeason('all')">All-time</button>` +
+        years.map((y) => `<button class="${!isAll && selYear === y ? 'on' : ''}" onclick="CATAN.statsYear(${y})">${y}</button>`).join('') + `</div>`;
+      const monthRow = isAll ? '' : `<div class="seg stseg stseasonseg stmonthrow">` +
+        STATS.monthsIn(selYear).map((ym) => `<button class="${season === ym ? 'on' : ''}" onclick="CATAN.statsSeason('${ym}')">${STATS.monthShort(ym)}</button>`).join('') + `</div>`;
+      seasonSeg = yearRow + monthRow;
+    }
     const countSeg = sizes.length > 1
       ? `<div class="seg stseg stcountseg"><button class="${!statsCount ? 'on' : ''}" onclick="CATAN.statsCount(null)">All sizes</button>${sizes.map((n) => `<button class="${statsCount === n ? 'on' : ''}" onclick="CATAN.statsCount(${n})">${n}p</button>`).join('')}</div>`
       : '';
@@ -3148,6 +3167,7 @@
   }
   window.CATAN.openStats = () => statsScreen();
   window.CATAN.statsSeason = (s) => { statsSeason = s; statsScreen(); };
+  window.CATAN.statsYear = (y) => { statsSeason = STATS.latestMonthIn(y) || 'all'; statsScreen(); };   // pick a year -> its most recent month
   window.CATAN.statsCount = (n) => { statsCount = n; statsScreen(); };
   window.CATAN.statsPlayer = (n) => statsPlayerScreen(decodeURIComponent(n));
   window.CATAN.lobbyBack = () => { if (LOBBY.table) CATAN.leaveTable(); else CATAN.lobbyLogout(); };
