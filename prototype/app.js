@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v88';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v89';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -2106,6 +2106,15 @@
     if (arr.length > MSG_KEEP) arr.splice(0, arr.length - MSG_KEEP);
     if (online && state && msg.color !== myColor) { UNREAD[msg.color] = true; renderPanels(); }   // dot for others' new messages
   }
+  // relative "sent time" for the history rows (snapshot when the popover opens)
+  function relTime(ts) {
+    if (!ts) return '';
+    const s = Math.floor((Date.now() - ts) / 1000);
+    if (s < 45) return 'just now';
+    const m = Math.round(s / 60);
+    if (m < 60) return m + ' min ago';
+    return Math.round(m / 60) + ' hr ago';
+  }
   // open a small popover of a player's recent messages, anchored to their corner
   function showMsgHistory(color) {
     const old = document.getElementById('msghist'); if (old) old.remove();
@@ -2115,9 +2124,9 @@
     const pos = seat >= 0 ? seatKey(seat) : null;
     const corner = pos ? $('p-' + pos) : null;
     const pl = state && state.players.find((p) => p.color === color);
-    const rows = log.length ? log.map((m) => m.type === 'voice'
-      ? `<div class="mhrow"><button class="bcplay mhplay" data-url="${escapeHtml(m.url)}">▶</button><span class="mhtxt">🎤 0:${String(m.dur || 1).padStart(2, '0')}</span></div>`
-      : `<div class="mhrow"><span class="mhtxt">${escapeHtml(String(m.text).slice(0, 50))}</span></div>`).join('')
+    const rows = log.length ? log.map((m) => { const t = `<span class="mhtime">${relTime(m.ts)}</span>`; return m.type === 'voice'
+      ? `<div class="mhrow"><button class="bcplay mhplay" data-url="${escapeHtml(m.url)}">▶</button><span class="mhtxt">🎤 0:${String(m.dur || 1).padStart(2, '0')}</span>${t}</div>`
+      : `<div class="mhrow"><span class="mhtxt">${escapeHtml(String(m.text).slice(0, 50))}</span>${t}</div>`; }).join('')
       : `<div class="mhrow muted">No messages yet</div>`;
     const b = document.createElement('div');
     b.id = 'msghist';
