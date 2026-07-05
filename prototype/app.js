@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v76';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v77';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -761,7 +761,9 @@
         const tap = (acc || ctr) ? ` onclick="CATAN.tradeViewResponse('${p.color}')"` : '';
         tbadge = `<div class="tbadge ${cls}"${tap}>${ico}</div>`;
       }
-      el.innerHTML = `${di}${tbadge}
+      // your OWN corner gets a 💬 bubble to open quick chat (online seated players only)
+      const chatBtn = (online && myColor && p.color === myColor) ? `<button class="pchat" onclick="CATAN.openQuickChat()" aria-label="Quick chat">💬</button>` : '';
+      el.innerHTML = `${di}${tbadge}${chatBtn}
         <div class="pcol">${stat(bdg.res, cards, '🃏', 'Resource cards', false, cards > 7)}${stat(bdg.card, dev, '🎴', 'Development cards')}${stat(bdg.vp, vp, '⭐', 'Victory points')}${stat(bdg.army, p.playedKnights, '⚔️', 'Knights played', p.hasLargestArmy)}${stat(bdg.road, road, '🛣️', 'Longest road', p.hasLongestRoad)}</div>
         <div class="pport"><div class="pava${flagged ? ' flagged' : ''}" style="border-color:${PCOLOR[p.color]}">${av}</div><div class="pname">${escapeHtml(p.name)}</div></div>${flagged ? '<span class="pflag">🏳️</span>' : ''}`;
     });
@@ -1913,23 +1915,43 @@
     if (dataUrl) return `<span class="${cls}"><img src="${dataUrl}" alt=""></span>`;
     return `<span class="${cls} init">${escapeHtml((String(name || '?').trim()[0] || '?')).toUpperCase()}</span>`;
   }
-  // ---- broadcast messages: a quick limited note every online player sees -------
-  const BROADCAST_MAX = 3;
-  let broadcastsLeft = BROADCAST_MAX, bctoastT = null;
+  // ---- broadcast messages: quick chat every online player sees -------
+  // Default quick-chat presets, used until a player saves their own (managed in-game or from profile).
+  const DEFAULT_QUICK_MSGS = ['yalla', 'nice move', 'wtf', 'hek sarit?', 'GG', 'haha'];
+  const BC_COOLDOWN = 1500;   // min gap between messages (anti-spam) — replaces the old 3-per-game cap
+  let lastBcAt = 0, bctoastT = null;
+  function bcReady() { return online && myColor && (Date.now() - lastBcAt >= BC_COOLDOWN); }
+  // the quick-chat picker: your presets as one-tap chips + a custom typed message + edit
+  function openQuickChat() {
+    if (!online || !myColor) return;
+    const chips = AUTH.quickList().map((m, i) => `<button class="qcchip" onclick="CATAN.quickSendIdx(${i})">${escapeHtml(m)}</button>`).join('');
+    showOverlay(`<h3>Quick chat</h3>
+      <div class="qcgrid">${chips}</div>
+      <div class="trow2"><button class="btn wood" onclick="CATAN.openCustomMsg()">✏️ Type…</button><button class="btn ghost" onclick="CATAN.manageQuick('game')">⚙️ Edit</button></div>`);
+    const o = $('overlay'); if (o) o.onclick = (e) => { if (e.target === o) CATAN.close(); };
+  }
   function openBroadcast() {
     if (!online || !myColor) return;
-    if (broadcastsLeft <= 0) { toast('No messages left this game'); return; }
     showOverlay(`<h3>Quick message</h3>
       <input id="bcInput" class="authin" maxlength="50" placeholder="Say something…" autocomplete="off">
-      <p class="muted small" style="text-align:center;margin:2px 0 10px">${broadcastsLeft} of ${BROADCAST_MAX} left this game</p>
       <div class="trow2"><button class="btn ghost" onclick="CATAN.close()">Cancel</button><button class="btn" onclick="CATAN.sendBroadcast()">Send</button></div>`);
     const el = $('bcInput'); if (el) el.focus();   // synchronous -> iOS keyboard opens within the tap
+  }
+  // send a preset chip straight away
+  function quickSend(text) {
+    hideOverlay(); render();
+    sendBroadcastText(text);
   }
   function sendBroadcastMsg() {
     const el = $('bcInput'); const text = (el && el.value || '').trim().slice(0, 50);
     hideOverlay(); render();
-    if (!text || broadcastsLeft <= 0) return;
-    broadcastsLeft--;
+    sendBroadcastText(text);
+  }
+  function sendBroadcastText(text) {
+    text = (text || '').trim().slice(0, 50);
+    if (!text || !online || !myColor) return;
+    if (Date.now() - lastBcAt < BC_COOLDOWN) { toast('Easy — one sec'); return; }
+    lastBcAt = Date.now();
     const msg = { name: AUTH.me.name, avatar: AUTH.me.avatar || null, text, table: LOBBY.table || null, color: myColor || null };
     LOBBY.sendBroadcast(msg);
     showBroadcast(msg);   // local echo — broadcast doesn't deliver back to the sender
@@ -1976,6 +1998,24 @@
     el.classList.add('show');
     clearTimeout(bctoastT); bctoastT = setTimeout(() => el.classList.remove('show'), 5000);
   }
+  // ---- manage quick-chat presets (add / edit / delete) — reachable in-game or from Manage Profile.
+  //      `qmReturn` remembers where to go on Done; `qmDraft` is the working list (saved on each change).
+  let qmReturn = 'game', qmDraft = null;
+  function manageQuickMsgs(from) {
+    if (!AUTH.me) { showLobby(); return; }
+    qmReturn = from || qmReturn;
+    if (!qmDraft) qmDraft = AUTH.quickList().slice();
+    const rows = qmDraft.length
+      ? qmDraft.map((m, i) => `<div class="qmrow"><input class="qmedit authin" maxlength="50" value="${escapeHtml(m)}" oninput="CATAN.quickEdit(${i}, this.value)"><button class="qmdel" onclick="CATAN.quickDel(${i})" aria-label="Delete">✕</button></div>`).join('')
+      : `<p class="muted small" style="text-align:center;padding:6px 0">No messages yet — add a few.</p>`;
+    const done = qmReturn === 'profile' ? 'CATAN.quickDone(\'profile\')' : 'CATAN.quickDone(\'game\')';
+    showOverlay(`<h3>Quick messages</h3>
+      <p class="muted small" style="text-align:center;margin:0 0 8px">Tap to edit. These are your one-tap chat presets.</p>
+      <div class="qmlist">${rows}</div>
+      <div class="qmadd"><input id="qmNew" class="authin" maxlength="50" placeholder="Add a message…" autocomplete="off"><button class="btn wood" onclick="CATAN.quickAdd()">Add</button></div>
+      <button class="btn full" style="margin-top:10px" onclick="${done}">Done</button>`);
+  }
+  function persistQuick() { AUTH.setQuickMsgs(qmDraft).then((r) => { if (r && !r.ok) toast(r.error || 'Save failed'); }); }
   // ---- white flag (concede) — coordinated through the GAME ROW (version-guarded). Each
   //      player raises their own flag whenever they like, and can lower it again while the
   //      game is live. The moment everyone-but-one has a flag up, the lone player still
@@ -2110,8 +2150,7 @@
       exit,
       { k: 'dev', label: 'Cards' },
     ] : [exit]).slice();
-    // online seated players can fire a quick broadcast message any time (on- or off-turn)
-    if (online && myColor) items.push({ k: 'say', label: 'Say', emoji: '💬' });
+    // (quick chat moved out of the radial -> the 💬 bubble on your own corner portrait)
     // spread the items evenly around the circle, first one at the top
     const n = items.length;
     let html = `<button class="radbtn center" onclick="CATAN.closeRadial()"><img src="assets/hud/radial/close.png" alt="close"></button>`;
@@ -2169,7 +2208,6 @@
       else if (k === 'trade') openTrade();
       else if (k === 'dev') openDev();
       else if (k === 'end') window.CATAN.endTurn();
-      else if (k === 'say') openBroadcast();
     },
     close: () => { hideOverlay(); render(); },
     restart: () => startScreen(),
@@ -2653,7 +2691,7 @@
   let online = false, myColor = null;
   function enterGame(s) {
     state = s; ui = { mode: 'idle', pending: null }; resetZoom(); renderedBoardKey = null;
-    broadcastsLeft = BROADCAST_MAX;   // fresh message budget per game entry
+    lastBcAt = 0;   // reset the chat cooldown on entry
     const t = $('title'); if (t) t.classList.add('hidden');
     hideOverlay();
     document.body.style.background = GAME_BG;   // sea canvas behind the board
@@ -3253,6 +3291,14 @@
   window.CATAN.lobbyStart = () => LOBBY.startTable();
   // hoisted helpers registered here, after window.CATAN exists, so onclick="CATAN.x()" works
   window.CATAN.sendBroadcast = sendBroadcastMsg;
+  window.CATAN.openQuickChat = () => openQuickChat();
+  window.CATAN.quickSendIdx = (i) => { const t = AUTH.quickList()[i]; if (t) quickSend(t); };
+  window.CATAN.openCustomMsg = () => openBroadcast();
+  window.CATAN.manageQuick = (from) => manageQuickMsgs(from);
+  window.CATAN.quickEdit = (i, v) => { if (qmDraft && i < qmDraft.length) qmDraft[i] = String(v).slice(0, 50); };
+  window.CATAN.quickDel = (i) => { if (qmDraft) { qmDraft.splice(i, 1); persistQuick(); manageQuickMsgs(); } };
+  window.CATAN.quickAdd = () => { const el = $('qmNew'); const v = (el && el.value || '').trim().slice(0, 50); if (!v) return; if (!qmDraft) qmDraft = []; if (qmDraft.length >= 16) { toast('Max 16 messages'); return; } qmDraft.push(v); persistQuick(); manageQuickMsgs(); };
+  window.CATAN.quickDone = (from) => { persistQuick(); qmDraft = null; if (from === 'profile') manageProfile(); else { hideOverlay(); render(); } };
   window.CATAN.raiseFlag = () => { hideOverlay(); raiseFlag(); };
   window.CATAN.lowerFlag = () => { hideOverlay(); lowerFlag(); };
   window.CATAN.exitGame = () => {
@@ -3307,18 +3353,27 @@
     async resume() {
       const s = this.saved(); if (!s || !s.token) return false;
       const r = await this.rpc('player_resume', { p_token: s.token });
-      if (r && r.ok) { this.me = { id: r.id, name: r.name, token: s.token, avatar: r.avatar || null }; return true; }
+      if (r && r.ok) { this.me = { id: r.id, name: r.name, token: s.token, avatar: r.avatar || null, quickMsgs: Array.isArray(r.quick_msgs) ? r.quick_msgs : null }; return true; }
       return false;
     },
     async login(name, pin) {
       const r = await this.rpc('player_login', { p_name: name, p_pin: pin });
-      if (r && r.ok) { this.save({ id: r.id, name: r.name, token: r.token, avatar: r.avatar || null }); return { ok: true }; }
+      if (r && r.ok) { this.save({ id: r.id, name: r.name, token: r.token, avatar: r.avatar || null, quickMsgs: Array.isArray(r.quick_msgs) ? r.quick_msgs : null }); return { ok: true }; }
       return { ok: false, error: (r && r.error) || 'Login failed' };
     },
     async create(name, pin) {
       const r = await this.rpc('player_create', { p_name: name, p_pin: pin });
-      if (r && r.ok) { this.save({ id: r.id, name: r.name, token: r.token, avatar: null }); return { ok: true }; }
+      if (r && r.ok) { this.save({ id: r.id, name: r.name, token: r.token, avatar: null, quickMsgs: null }); return { ok: true }; }
       return { ok: false, error: (r && r.error) || 'Could not create player' };
+    },
+    // a player's quick-chat presets — their saved list, or the shared defaults until they customise
+    quickList() { const m = this.me && this.me.quickMsgs; return (Array.isArray(m) && m.length) ? m : DEFAULT_QUICK_MSGS.slice(); },
+    async setQuickMsgs(arr) {
+      if (!this.me) return { ok: false, error: 'Not logged in' };
+      const clean = (arr || []).map((s) => String(s).trim().slice(0, 50)).filter(Boolean).slice(0, 16);
+      const r = await this.rpc('player_set_quick_msgs', { p_token: this.me.token, p_msgs: clean });
+      if (r && r.ok) { this.me.quickMsgs = clean; this.save(this.me); }
+      return r;
     },
     // returns [{name, avatar}] (older server returned bare name strings — normalise both)
     async list() { const r = await this.rpc('player_list', {}); return Array.isArray(r) ? r.map((p) => typeof p === 'string' ? { name: p, avatar: null } : p) : []; },
@@ -3450,6 +3505,7 @@
         <button class="btn" onclick="CATAN.saveName()">Save</button>
       </div>
       <div id="profErr" class="auerr"></div>
+      <button class="btn full" onclick="CATAN.manageQuick('profile')">💬 Quick messages</button>
       <button class="btn full" data-nav="changepin">Change PIN</button>
       <button class="btn ghost full" data-nav="lobby">← Back to lobby</button>`);
   }
