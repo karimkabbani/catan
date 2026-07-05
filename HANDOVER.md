@@ -388,8 +388,10 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    camera (see "Shipped 2026-06-30" below).
 
 4. ✅ **Leaderboard — SHIPPED.** Real `game_results` store keyed on persistent identity; the Stats screen
-   shows GP / W / Win% / **WAE** (wins-above-expected, normalised for table size), season toggle + season
-   crowns, and a per-player detail view (streak, H2H, bonuses). **v60:** added **2p/3p/4p size filters**.
+   shows GP / W / Win% / **WAE** (wins-above-expected, normalised for table size) and a per-player detail
+   view (streak, H2H, bonuses). **v62–v66:** month/year season selector (adaptive single-row → year+month
+   rows at scale, chronological order, auto-scroll to selection); **v60:** 2p/3p/4p size filters. **v67:**
+   the season-crowns column was removed at Karim's request (kept the code lean).
 
 5. ✅ **Player tendency stats — SHIPPED** as the per-player detail screen (tap a name): longest-road /
    largest-army counts, avg place, current/best win streak, head-to-head records.

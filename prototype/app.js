@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v67';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v68';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -236,7 +236,9 @@
     }
     const yop = action.type === 'playYearOfPlenty' ? { to: actor, resources: (action.resources || []) } : null;
     const fromRobber = state.robberHex;
+    const preLog = state.log;
     state = r.state;
+    announceFromLog(preLog, state.log);   // dev-card buys/plays -> top announcement (also runs for observers below)
     // a bought dev card: the buyer is told WHAT they drew; everyone else just sees it fly in face-down
     const bought = action.type === 'buyDevCard'
       ? { buyer: actor, card: (state.players.find((p) => p.color === actor).newDevCards.slice(-1)[0]) } : null;
@@ -1865,6 +1867,31 @@
 
   let toastT = null;
   function toast(msg) { const el = $('toast'); el.textContent = msg; el.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 2200); }
+  // ---- game-event announcements (top pill, shown on every player's screen) --------------------
+  // Driven off the engine's own state.log so it fires identically for the actor and all observers.
+  let announceT = null;
+  function announce(msg) {
+    const el = $('announce'); if (!el || !msg) return;
+    el.textContent = msg; el.classList.remove('hidden'); el.classList.add('show');
+    clearTimeout(announceT); announceT = setTimeout(() => el.classList.remove('show'), 3600);
+  }
+  // Map a raw engine log line to a nice announcement, or null to stay silent (rolls, builds, trades,
+  // steals, wins — those already have their own on-screen feedback).
+  function eventMsg(line) {
+    if (!line) return null;
+    if (/ bought a development card\.$/.test(line)) return line.replace(/\.$/, ' 🎴');
+    if (/ played a knight\.$/.test(line)) return line.replace(/ played a knight\.$/, ' played a Knight ⚔️');
+    if (/ played Road Building\.$/.test(line)) return line.replace(/\.$/, ' 🛣️');
+    if (/ played Year of Plenty\.$/.test(line)) return line.replace(/\.$/, ' 🌾');
+    const m = line.match(/^(.*) monopolised (\w+) \(\+(\d+)\)\.$/);
+    if (m) return `${m[1]} played Monopoly — took ${m[3]} ${m[2]} 💰`;
+    return null;
+  }
+  function announceFromLog(oldLog, newLog) {
+    if (!newLog || !newLog.length) return;
+    const start = (oldLog && oldLog.length) ? oldLog.length : 0;
+    for (let i = start; i < newLog.length; i++) { const msg = eventMsg(newLog[i]); if (msg) announce(msg); }
+  }
   function escapeHtml(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
   // a player's round face: their uploaded photo if any, else their initial on a tinted disc
   function faceHTML(name, dataUrl, extra) {
@@ -2619,6 +2646,7 @@
   function applyRemoteState(s) {
     const a = state;
     flagToast(a, s);   // someone raised/lowered a white flag -> tell the table
+    announceFromLog(a && a.log, s.log);   // dev-card buys/plays -> top announcement on observers' screens
     const rolled = !!(a && a.turnPhase === 'roll' && s.turnPhase !== 'roll' && s.dice && s.hasRolledThisTurn);
     const trade = detectTrade(a, s);
     const disc = detectDiscard(a, s);

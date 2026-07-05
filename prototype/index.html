@@ -70,6 +70,14 @@
     display:flex; align-items:center; gap:8px; box-shadow:0 3px 10px rgba(0,0,0,0.4); max-width:70vw; z-index:6;}
   .bdot{width:12px;height:12px;border-radius:50%;display:inline-block;border:1px solid #0008;}
   .dice{margin-left:6px;color:var(--gold);font-weight:700;}
+  /* game-event announcement pill — sits just under the turn banner, on every player's screen */
+  #announce{position:absolute; top:46px; left:50%; transform:translate(-50%,-6px); z-index:8;
+    max-width:82vw; padding:6px 15px; border-radius:16px; font-size:13px; font-weight:700; color:#ffe9c2;
+    background:linear-gradient(180deg, rgba(40,22,8,0.95), rgba(28,15,5,0.95)); border:1px solid var(--gold-edge);
+    box-shadow:0 3px 10px rgba(0,0,0,0.45); opacity:0; transition:opacity .2s, transform .2s;
+    pointer-events:none; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  #announce.hidden{display:none;}
+  #announce.show{opacity:1; transform:translate(-50%,0);}
 
   /* corner player plaques — framed: vertical stat column + portrait, like the app */
   .corner{position:absolute; z-index:5;
@@ -935,6 +943,7 @@
     <div id="stage">
       <div id="seaimg"></div>
       <div id="banner"></div>
+      <div id="announce" class="hidden"></div>
       <div class="corner tl" id="p-tl"></div>
       <div class="corner tr" id="p-tr"></div>
       <div class="corner bl" id="p-bl"></div>
