@@ -1030,7 +1030,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v65';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v66';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -4077,7 +4077,7 @@
     const body = games.length
       ? `<div class="sttbl-wrap"><table class="sttbl"><thead>${head}</thead><tbody>${rows}</tbody></table></div>
          <div class="stnote">WAE = wins above expected: your wins minus what pure luck gives at each table size. Tap a player for detail.</div>
-         <h4 class="stsub">Recent games${selLbl ? ' · ' + selLbl : ''}${sizeLbl}</h4>
+         <h4 class="stsub">Games${selLbl ? ' · ' + selLbl : ''}${sizeLbl}</h4>
          <div class="rglist tall">${recentRowsHTML(games)}</div>`
       : `<p class="muted" style="text-align:center;padding:22px 8px">No ${statsCount ? statsCount + '-player ' : ''}games ${isAll ? 'recorded' : 'in ' + selLbl} yet.</p>`;
     titleCard(`${back}
