@@ -41,11 +41,7 @@ export type Action =
   | { type: 'counterTrade'; give: Partial<Record<Resource, number>>; want: Partial<Record<Resource, number>> }
   | { type: 'confirmTrade'; with: PlayerColor }
   | { type: 'cancelTrade' }
-  | { type: 'endTurn' }
-  // Escape hatch: force-advance past an unresponsive player. In `discard` it auto-discards for the
-  // named victims (the ones detected as gone); otherwise it skips the current player's whole turn.
-  // Bypasses the turn guard on purpose — any client may invoke it once a player has stalled the table.
-  | { type: 'forceSkip'; victims?: PlayerColor[] };
+  | { type: 'endTurn' };
 
 export type ApplyResult =
   | { ok: true; state: GameState }
@@ -229,23 +225,6 @@ function stealCandidatesForHex(s: GameState, hex: number, robberColor: PlayerCol
   return [...set];
 }
 
-// Deterministically discard `n` cards from a player, taking from their largest stacks first
-// (ties broken by RESOURCES order). Used by the forceSkip escape hatch for a gone player.
-function autoDiscard(s: GameState, p: Player, n: number): void {
-  let left = n;
-  while (left > 0) {
-    let best: Resource | null = null;
-    let bestN = 0;
-    for (const r of RESOURCES) {
-      if (p.resources[r] > bestN) { bestN = p.resources[r]; best = r; }
-    }
-    if (!best) break;
-    p.resources[best]--;
-    s.bank[best]++;
-    left--;
-  }
-}
-
 // ----- the reducer ----------------------------------------------------------
 
 export function applyAction(state: GameState, action: Action, byColor: PlayerColor): ApplyResult {
@@ -320,37 +299,6 @@ export function applyAction(state: GameState, action: Action, byColor: PlayerCol
     if (Object.values(s.pendingDiscards).every((n) => n === 0)) {
       s.turnPhase = 'moveRobber';
     }
-    return { ok: true, state: s };
-  }
-
-  // Escape hatch (any client) — force-advance past a player who has stalled the table.
-  if (action.type === 'forceSkip') {
-    const victims = action.victims ?? [];
-    if (s.turnPhase === 'discard') {
-      // auto-discard for just the named (unresponsive) players; present players keep choosing
-      for (const color of victims) {
-        const owed = s.pendingDiscards[color] ?? 0;
-        if (owed <= 0) continue;
-        autoDiscard(s, getPlayer(s, color), owed);
-        s.pendingDiscards[color] = 0;
-      }
-      if (Object.values(s.pendingDiscards).every((n) => n === 0)) s.turnPhase = 'moveRobber';
-      return { ok: true, state: s };
-    }
-    // skip the current player's entire turn (abandons any in-progress robber/steal/build)
-    const skipped = getPlayer(s, cur);
-    skipped.devCards.push(...skipped.newDevCards);
-    skipped.newDevCards = [];
-    s.hasPlayedDevCardThisTurn = false;
-    s.hasRolledThisTurn = false;
-    s.pendingTrade = null;
-    s.dice = null;
-    s.freeRoads = 0;
-    s.stealCandidates = [];
-    s.pendingDiscards = {};
-    s.currentPlayerIndex = (s.currentPlayerIndex + 1) % s.players.length;
-    s.turnPhase = 'roll';
-    s.log.push(`${skipped.name}'s turn was skipped (unresponsive).`);
     return { ok: true, state: s };
   }
 

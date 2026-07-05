@@ -352,11 +352,19 @@ untouched core. Have Lovable build the lobby, board, and Supabase wiring around
   state tampering). Decision (Karim): the group is trusted ("I trust them"), so the
   real-world risk is nil — not worth the rebuild. **Revisit only if** the play turns
   competitive, someone would actually peek, or it opens beyond the friend circle.
-- Spectator experience is bare — read-only board, no "you're spectating" banner, no hand bar.
-- Disconnect handling is basic — rejoin reclaims your seat (persistent identity), but a
-  player who fully vanishes on their turn stalls the table; no skip/boot escape hatch.
-- Post-game flow is minimal — one "Back to lobby" resets the table for everyone.
-- Presence flickers when phones sleep/background (realtime times out ~30s).
+- ~~Spectator experience is bare~~ → **fixed (v60)**: a spectator dock strip ("👁 Spectating — X's
+  turn" + Leave), a `body.spectating` class driving the chrome, and the existing banner. No hidden-info leak.
+- ~~A player who vanishes on their turn stalls the table~~ → **fixed (v60): AFK escape hatch.** Engine
+  `forceSkip` action (bypasses the turn guard; skips the current player's whole turn, or auto-discards for
+  named gone players stuck on a 7). A "Skip turn / Discard for them" bar arms for the other seated players
+  once nobody's moved — ~18s if the blocker has dropped from presence, 90s if merely idle. Detection in
+  `updateStallBar()` off a `lastProgress` clock + `LOBBY.liveIds`. 3 engine tests cover it.
+- ~~Post-game flow is minimal~~ → **fixed (v60): Rematch button** on the victory screen restarts the same
+  seated players + win target with one tap (`LOBBY.rematch()`, version-guarded; onRow replays the 3·2·1
+  intro for everyone). "Back to lobby" still there.
+- ~~Presence flickers when phones sleep~~ → **softened (v60)**: a 22s grace window keeps a briefly-dropped
+  member in the roster (dimmed, "away…") instead of reshuffling, and we re-track presence on wake
+  (visibilitychange/focus/online). A 3s heartbeat sweeps expired grace entries.
 
 ### Feature ideas — requested by Karim (2026-06-22)
 
@@ -376,11 +384,12 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    animation speed scales JS-timed animations via `aScale()`; **auto-zoom** now drives the cinematic
    camera (see "Shipped 2026-06-30" below).
 
-4. ☐ **Leaderboard — wins split by player count.** Not started. Needs a persistent results store
-   keyed by identity + player-count, written at game end. Karim to share specifics.
+4. ✅ **Leaderboard — SHIPPED.** Real `game_results` store keyed on persistent identity; the Stats screen
+   shows GP / W / Win% / **WAE** (wins-above-expected, normalised for table size), season toggle + season
+   crowns, and a per-player detail view (streak, H2H, bonuses). **v60:** added **2p/3p/4p size filters**.
 
-5. ☐ **Player tendency stats.** Not started. Same store as #4 (most longest road / largest army,
-   avg points, …) — build the two together.
+5. ✅ **Player tendency stats — SHIPPED** as the per-player detail screen (tap a name): longest-road /
+   largest-army counts, avg place, current/best win streak, head-to-head records.
 
 6. ✅ **Special win celebrations — Domination SHIPPED.** Every rival held under 10 at the win →
    gold DOMINATION badge + extra confetti + a second fanfare. Room for more variants later.

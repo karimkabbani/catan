@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v60';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v61';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -237,7 +237,6 @@
     const yop = action.type === 'playYearOfPlenty' ? { to: actor, resources: (action.resources || []) } : null;
     const fromRobber = state.robberHex;
     state = r.state;
-    noteProgress();   // a move happened -> reset the AFK/stall clock
     // a bought dev card: the buyer is told WHAT they drew; everyone else just sees it fly in face-down
     const bought = action.type === 'buyDevCard'
       ? { buyer: actor, card: (state.players.find((p) => p.color === actor).newDevCards.slice(-1)[0]) } : null;
@@ -2590,7 +2589,6 @@
   let online = false, myColor = null;
   function enterGame(s) {
     state = s; ui = { mode: 'idle', pending: null }; resetZoom(); renderedBoardKey = null;
-    noteProgress();   // fresh entry -> start the AFK/stall clock now
     broadcastsLeft = BROADCAST_MAX;   // fresh message budget per game entry
     const t = $('title'); if (t) t.classList.add('hidden');
     hideOverlay();
@@ -2640,7 +2638,6 @@
     if (trade) lagTrade(trade.a, trade.b, trade.give, trade.want);
     if (bankTrade) RES.forEach((r) => { lagOut(bankTrade.color, r, (bankTrade.give && bankTrade.give[r]) || 0); lagIn(bankTrade.color, r, (bankTrade.want && bankTrade.want[r]) || 0); });
     if (disc) RES.forEach((r) => lagOut(disc.color, r, (disc.sel && disc.sel[r]) || 0));
-    noteProgress();   // a remote move landed -> reset the AFK/stall clock
     afterAction(); render();
     if (rolled) showDiceReveal(s.dice);
     if (disc) showDiscardFly(disc.color, disc.sel);   // everyone watches each player's discard; end -> afterAction
@@ -2657,39 +2654,6 @@
     if (placed && !robberMoved && !rolled) cinematicPlace(placed.kind, placed.id, false);   // observer: gentle pan to the new piece
   }
   function genCode() { const a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s = ''; for (let i = 0; i < 4; i++) s += a[(Math.random() * a.length) | 0]; return s; }
-
-  // ---- AFK / stall escape hatch -------------------------------------------------------------
-  // Any present player can force-advance past someone who has stalled the table (dropped mid-turn,
-  // or isn't discarding after a 7). We arm the "Skip" bar once enough time has passed with no move.
-  let lastProgress = Date.now();
-  function noteProgress() { lastProgress = Date.now(); }
-  function seatPlayerId(color) { const s = (gameSeats || []).find((x) => x && x.color === color); return s ? s.playerId : null; }
-  function seatIsLive(color) { const id = seatPlayerId(color); return !id || LOBBY.liveIds.has(id); }   // no id = not an online seat -> treat as present
-  function updateStallBar() {
-    const bar = $('stallbar'); if (!bar) return;
-    const hide = () => { if (!bar.classList.contains('hidden')) { bar.classList.add('hidden'); bar.innerHTML = ''; bar.dataset.h = ''; } };
-    if (!online || !myColor || !state || state.phase !== 'play' || !NET.started) return hide();
-    // who's holding up the table? in a discard it's everyone still owing; otherwise the current player
-    let blockers = state.turnPhase === 'discard'
-      ? Object.keys(state.pendingDiscards || {}).filter((c) => (state.pendingDiscards[c] || 0) > 0)
-      : [activeColor()];
-    blockers = blockers.filter((c) => c && c !== myColor);   // never offer to skip myself
-    if (!blockers.length) return hide();
-    const gone = blockers.filter((c) => !seatIsLive(c));     // fully disconnected -> skip sooner
-    const elapsed = Date.now() - lastProgress;
-    const ABSENT_MS = 18000, IDLE_MS = 90000;   // disconnected -> offer skip soon; merely idle -> wait longer
-    if (!((gone.length && elapsed > ABSENT_MS) || elapsed > IDLE_MS)) return hide();
-    const isDiscard = state.turnPhase === 'discard';
-    const victims = isDiscard ? (gone.length ? gone : blockers) : [activeColor()];
-    const nm = (c) => { const p = state.players.find((x) => x.color === c); return p ? p.name : '?'; };
-    const names = victims.map(nm);
-    const msg = isDiscard
-      ? `${names.join(' & ')} ${names.length > 1 ? "aren't" : "isn't"} discarding`
-      : `${names[0]} ${gone.length ? 'dropped' : 'is idle'}`;
-    const html = `<span class="stallmsg">⏱ ${escapeHtml(msg)}</span><button class="stallbtn" onclick="CATAN.forceSkip('${victims.join(',')}')">${isDiscard ? 'Discard for them' : 'Skip turn'}</button>`;
-    if (bar.dataset.h !== html) { bar.innerHTML = html; bar.dataset.h = html; }
-    bar.classList.remove('hidden');
-  }
 
   const NET = {
     client: null, code: null, version: 0, isHost: false, started: false, channel: null, players: [],
@@ -2723,8 +2687,12 @@
     onRow(row) {
       if (!row || !row.state || (row.phase !== 'playing' && row.phase !== 'ended')) {
         LOBBY.lastRow = null;
+        // if the game went idle while still in progress (someone left / it was abandoned), it did NOT
+        // complete -> nothing was recorded. Tell whoever's still here so it's clear it doesn't count.
+        const abandoned = this.started && state && state.phase !== 'ended';
         if (this.started) { this.started = false; this.version = 0; online = false; myColor = null; LOBBY.toLobby(); }
         else if (LOBBY.inProgress) { LOBBY.inProgress = false; renderLobby(); }   // the game I could watch just ended
+        if (abandoned) toast('Game abandoned — not recorded');
         return;   // table is idle -> stay in / return to the lobby
       }
       if (this.started && row.version <= this.version) return;   // dedup my own echo / poll repeats
@@ -2893,9 +2861,9 @@
       this.mode = 'idle'; this.readyAt = 0; this.inProgress = false; this.lastRow = null; this.table = null; online = false; myColor = null; NET.started = false; NET.code = null;
     },
   };
-  // A single 3s heartbeat while connected: expire stale presence + refresh the AFK/skip bar.
+  // A single 3s heartbeat while connected: expire stale presence-grace entries.
   let heartbeat = null;
-  function startHeartbeat() { if (heartbeat) return; heartbeat = setInterval(() => { try { LOBBY.sweepStale(); updateStallBar(); } catch (_) { } }, 3000); }
+  function startHeartbeat() { if (heartbeat) return; heartbeat = setInterval(() => { try { LOBBY.sweepStale(); } catch (_) { } }, 3000); }
   function stopHeartbeat() { if (heartbeat) { clearInterval(heartbeat); heartbeat = null; } }
   // On wake (tab visible / window focus / network back), republish our presence right away so a
   // phone that slept doesn't linger as "away" on everyone else's screen, and refresh what we see.
@@ -3194,7 +3162,7 @@
     const endsForAll = online && myColor;   // a seated player leaving ends the table
     const ttl = spectator ? 'Stop watching?' : 'Leave game?';
     const sub = spectator ? 'You go back to the lobby. The game keeps going for the players.'
-      : endsForAll ? 'This ends the game for everyone.' : 'You will leave this game.';
+      : endsForAll ? 'This ends the game for everyone. It counts as abandoned — not recorded in stats.' : 'You will leave this game.';
     const act = spectator ? 'Leave to lobby' : endsForAll ? 'End game for everyone' : 'Leave game';
     // big, full-width stacked targets — Cancel is the prominent safe action, leave is below
     // seated online players can raise/lower a white flag (concede). Last one standing wins.
@@ -3224,15 +3192,6 @@
   window.CATAN.backToPlayers = () => showIdentity('list');   // offline setup -> homepage (player picker)
   window.CATAN.tableReset = () => LOBBY.reset();
   window.CATAN.rematch = () => LOBBY.rematch();
-  window.CATAN.forceSkip = (csv) => {
-    if (!online || !myColor || !state) return;
-    const victims = String(csv || '').split(',').filter(Boolean);
-    const wasDiscard = state.turnPhase === 'discard';
-    NET.syncAction({ type: 'forceSkip', victims }, myColor);
-    const bar = $('stallbar'); if (bar) { bar.classList.add('hidden'); bar.innerHTML = ''; bar.dataset.h = ''; }
-    lastProgress = Date.now();   // re-arm the clock; give the skip a moment to land
-    toast(wasDiscard ? 'Discarding for them…' : 'Skipping turn…');
-  };
 
   // ===== identity / PIN auth (persistent player + device auto-login) =========
   const AUTH = {
