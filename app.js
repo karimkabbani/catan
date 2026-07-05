@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v84';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v85';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -1927,8 +1927,46 @@
     const chips = AUTH.quickList().map((m, i) => `<button class="qcchip" onclick="CATAN.quickSendIdx(${i})">${escapeHtml(m)}</button>`).join('');
     showOverlay(`<h3>Quick chat</h3>
       <div class="qcgrid">${chips}</div>
+      <button id="qcmic" class="qcmic">🎤 <span>Hold to talk</span></button>
       <div class="trow2"><button class="btn wood" onclick="CATAN.openCustomMsg()">✏️ Type…</button><button class="btn ghost" onclick="CATAN.manageQuick('game')">⚙️ Edit</button></div>`);
     const o = $('overlay'); if (o) o.onclick = (e) => { if (e.target === o) CATAN.close(); };
+    attachMic();
+  }
+  // press-and-hold the mic to record; release to send; slide up to cancel; auto-stops at 10s.
+  function attachMic() {
+    const mic = $('qcmic'); if (!mic) return;
+    let startY = 0, cancelArmed = false, ticking = null, active = false;
+    const showRec = () => {
+      const sh = document.querySelector('#overlay .sheet'); if (!sh) return;
+      sh.innerHTML = `<div class="vrec"><div class="vrecdot"></div><div class="vrectime" id="vrectime">0:00</div><div class="vrechint" id="vrechint">Release to send · slide up to cancel</div></div>`;
+    };
+    const finish = () => {
+      if (!active) return; active = false;
+      if (ticking) { clearInterval(ticking); ticking = null; }
+      const rec = VOICE.stop(cancelArmed);
+      hideOverlay(); render();
+      if (rec) sendVoice(rec);
+    };
+    VOICE.onauto = finish;
+    const onDown = async (e) => {
+      e.preventDefault(); if (active) return;
+      startY = (e.clientY != null ? e.clientY : 0); cancelArmed = false;
+      const ok = await VOICE.start();
+      if (!ok) return;
+      active = true;
+      try { mic.setPointerCapture(e.pointerId); } catch (_) { }
+      showRec();
+      ticking = setInterval(() => { const s = Math.min(10, Math.floor((Date.now() - VOICE.startT) / 1000)); const tt = $('vrectime'); if (tt) tt.textContent = '0:' + String(s).padStart(2, '0'); }, 150);
+    };
+    const onMove = (e) => {
+      if (!active) return;
+      const arm = (startY - (e.clientY != null ? e.clientY : startY)) > 70;
+      if (arm !== cancelArmed) { cancelArmed = arm; const h = $('vrechint'), d = document.querySelector('.vrec'); if (h) h.textContent = arm ? 'Release to CANCEL' : 'Release to send · slide up to cancel'; if (d) d.classList.toggle('cancel', arm); }
+    };
+    mic.addEventListener('pointerdown', onDown);
+    mic.addEventListener('pointermove', onMove);
+    mic.addEventListener('pointerup', () => finish());
+    mic.addEventListener('pointercancel', () => { if (active) { cancelArmed = true; finish(); } });
   }
   function openBroadcast() {
     if (!online || !myColor) return;
@@ -1956,8 +1994,112 @@
     LOBBY.sendBroadcast(msg);
     showBroadcast(msg);   // local echo — broadcast doesn't deliver back to the sender
   }
+  // ---- voice notes -------------------------------------------------------------------------
+  // Recorded via Web Audio (NOT MediaRecorder, whose webm/opus won't play on iOS) and encoded to
+  // WAV — universally playable on iOS/Android/desktop. Uploaded to a game-scoped Storage folder,
+  // the URL broadcast over the same channel as text, purged when the game ends.
+  const VOICE_MAX_MS = 10000, VOICE_RATE = 16000;
+  function downsampleTo(buf, inRate, outRate) {
+    if (outRate >= inRate) return buf;
+    const ratio = inRate / outRate, outLen = Math.round(buf.length / ratio), out = new Float32Array(outLen);
+    for (let i = 0; i < outLen; i++) {
+      const start = Math.floor(i * ratio), end = Math.min(buf.length, Math.floor((i + 1) * ratio));
+      let sum = 0, n = 0; for (let j = start; j < end; j++) { sum += buf[j]; n++; }
+      out[i] = n ? sum / n : 0;
+    }
+    return out;
+  }
+  function encodeWav(samples, rate) {
+    const n = samples.length, ab = new ArrayBuffer(44 + n * 2), v = new DataView(ab);
+    const wr = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+    wr(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); wr(8, 'WAVE'); wr(12, 'fmt ');
+    v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+    wr(36, 'data'); v.setUint32(40, n * 2, true);
+    let o = 44; for (let i = 0; i < n; i++) { const s = Math.max(-1, Math.min(1, samples[i])); v.setInt16(o, s < 0 ? s * 0x8000 : s * 0x7fff, true); o += 2; }
+    return new Blob([ab], { type: 'audio/wav' });
+  }
+  const VOICE = {
+    ctx: null, stream: null, proc: null, source: null, chunks: [], inRate: 48000, recording: false, startT: 0, timer: null,
+    async start() {
+      if (this.recording) return false;
+      // Create the AudioContext + kick off getUserMedia synchronously (both must run inside the
+      // user gesture on iOS), then await them.
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { toast('Voice not supported here'); return false; }
+      this.ctx = new Ctx();
+      const resumeP = this.ctx.resume().catch(() => { });
+      let stream;
+      try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
+      catch (e) { try { this.ctx.close(); } catch (_) { } this.ctx = null; toast('Microphone access needed'); return false; }
+      await resumeP;
+      this.stream = stream;
+      this.inRate = this.ctx.sampleRate; this.source = this.ctx.createMediaStreamSource(stream);
+      this.proc = this.ctx.createScriptProcessor(4096, 1, 1); this.chunks = []; this.recording = true; this.startT = Date.now();
+      this.proc.onaudioprocess = (e) => { if (this.recording) this.chunks.push(new Float32Array(e.inputBuffer.getChannelData(0))); };
+      this.source.connect(this.proc); this.proc.connect(this.ctx.destination);
+      this.timer = setTimeout(() => { if (VOICE.recording && VOICE.onauto) VOICE.onauto(); }, VOICE_MAX_MS);
+      return true;
+    },
+    _teardown() {
+      clearTimeout(this.timer);
+      try { this.proc && (this.proc.onaudioprocess = null, this.proc.disconnect()); } catch (_) { }
+      try { this.source && this.source.disconnect(); } catch (_) { }
+      try { this.stream && this.stream.getTracks().forEach((t) => t.stop()); } catch (_) { }
+      try { this.ctx && this.ctx.close(); } catch (_) { }
+      this.proc = this.source = this.stream = this.ctx = null;
+    },
+    stop(cancel) {
+      if (!this.recording) return null;
+      this.recording = false;
+      const dur = Math.min(VOICE_MAX_MS, Date.now() - this.startT), inRate = this.inRate, chunks = this.chunks;
+      this.chunks = []; this._teardown();
+      if (cancel || dur < 500) return null;   // cancelled or too short -> discard
+      let len = 0; chunks.forEach((c) => len += c.length);
+      const flat = new Float32Array(len); let o = 0; chunks.forEach((c) => { flat.set(c, o); o += c.length; });
+      return { blob: encodeWav(downsampleTo(flat, inRate, VOICE_RATE), VOICE_RATE), dur: Math.max(1, Math.round(dur / 1000)) };
+    },
+  };
+  async function sendVoice(rec) {
+    if (!rec || !online || !myColor) return;
+    if (Date.now() - lastBcAt < BC_COOLDOWN) { toast('Easy — one sec'); return; }
+    lastBcAt = Date.now();
+    const c = NET.init(); const code = LOBBY.table || NET.code;
+    if (!c || !code) return;
+    const path = code + '/' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.wav';
+    toast('Sending voice…');
+    const up = await c.storage.from('voice').upload(path, rec.blob, { contentType: 'audio/wav', upsert: false });
+    if (up.error) { toast('Voice failed'); return; }
+    const url = c.storage.from('voice').getPublicUrl(path).data.publicUrl;
+    const msg = { type: 'voice', url, dur: rec.dur, name: AUTH.me.name, avatar: AUTH.me.avatar || null, table: LOBBY.table || null, color: myColor || null };
+    LOBBY.sendBroadcast(msg);
+    showBroadcast(msg);   // local echo — sender sees their own note bubble
+  }
+  // delete all of a game's voice clips (called when the game ends)
+  async function purgeVoice(code) {
+    if (!code) return; const c = NET.init(); if (!c) return;
+    try {
+      const { data } = await c.storage.from('voice').list(code, { limit: 200 });
+      if (data && data.length) await c.storage.from('voice').remove(data.map((f) => code + '/' + f.name));
+    } catch (_) { }
+  }
+  // best-effort sweep of orphaned clips from games that never cleaned up (throttled, on lobby entry)
+  let voiceSweptAt = 0;
+  async function sweepOldVoice() {
+    const now = Date.now(); if (now - voiceSweptAt < 36e5) return; voiceSweptAt = now;   // at most hourly
+    const c = NET.init(); if (!c) return;
+    try {
+      const { data: folders } = await c.storage.from('voice').list('', { limit: 200 });
+      for (const f of (folders || [])) {
+        if (f.id) continue;   // a real file at root (shouldn't happen) — skip; folders have id null
+        const { data: files } = await c.storage.from('voice').list(f.name, { limit: 200 });
+        const stale = (files || []).filter((x) => x.created_at && (now - new Date(x.created_at).getTime()) > 3 * 36e5).map((x) => f.name + '/' + x.name);
+        if (stale.length) await c.storage.from('voice').remove(stale);
+      }
+    } catch (_) { }
+  }
   function showBroadcast(msg) {
-    if (!msg || !msg.text) return;
+    if (!msg || (!msg.text && msg.type !== 'voice')) return;
     playSound('click', 0.4);
     // anchor a chat bubble to the speaker's corner when we're in the game view; else a banner
     const inGameView = $('title') && $('title').classList.contains('hidden');
@@ -1979,24 +2121,42 @@
     const old = document.getElementById(id); if (old) old.remove();   // one bubble per speaker
     const b = document.createElement('div');
     b.id = id;
-    b.className = 'bcbubble ' + (top ? 'b-top' : 'b-bot') + ' ' + (left ? 'b-left' : 'b-right');
-    b.innerHTML = `<button class="bcclose" aria-label="Close">×</button><span class="bctext">${escapeHtml(String(msg.text).slice(0, 50))}</span>`;
+    const isVoice = msg.type === 'voice';
+    b.className = 'bcbubble ' + (top ? 'b-top' : 'b-bot') + ' ' + (left ? 'b-left' : 'b-right') + (isVoice ? ' bcvoice' : '');
+    b.innerHTML = isVoice
+      ? `<button class="bcclose" aria-label="Close">×</button><button class="bcplay" aria-label="Play">▶</button><span class="bctext">🎤 0:${String(msg.dur || 1).padStart(2, '0')}</span>`
+      : `<button class="bcclose" aria-label="Close">×</button><span class="bctext">${escapeHtml(String(msg.text).slice(0, 50))}</span>`;
     document.body.appendChild(b);
     const gap = 8, tail = 20;   // tail sits ~20px from the bubble's near edge
     if (top) b.style.top = (cr.bottom + gap) + 'px'; else b.style.bottom = (window.innerHeight - cr.top + gap) + 'px';
     if (left) b.style.left = Math.max(6, avCx - tail) + 'px';
     else b.style.right = Math.max(6, window.innerWidth - avCx - tail) + 'px';
     const kill = () => { b.classList.add('out'); setTimeout(() => b.remove(), 200); };
-    const t = setTimeout(kill, 7000);
+    const t = setTimeout(kill, isVoice ? 13000 : 7000);   // voice lingers longer so there's time to tap play
     b.querySelector('.bcclose').onclick = () => { clearTimeout(t); b.remove(); };
+    if (isVoice) wireVoicePlay(b.querySelector('.bcplay'), msg.url);
     requestAnimationFrame(() => b.classList.add('in'));
+  }
+  // hook a ▶/⏸ play toggle to a voice clip (preloads so the first tap is snappy)
+  function wireVoicePlay(btn, url) {
+    if (!btn) return;
+    const audio = new Audio(url); audio.preload = 'auto';
+    audio.onended = () => { btn.textContent = '▶'; };
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      if (audio.paused) { audio.play().then(() => { btn.textContent = '⏸'; }).catch(() => toast('Playback failed')); }
+      else { audio.pause(); btn.textContent = '▶'; }
+    };
   }
   // fallback when not in the game view (e.g. sitting in the table lobby): a top banner
   function showBroadcastBanner(msg) {
     const el = $('bctoast'); if (!el) return;
-    el.innerHTML = `${faceHTML(msg.name, msg.avatar, 'sm')}<span class="bcname">${escapeHtml(msg.name)}</span><span class="bctext">${escapeHtml(String(msg.text).slice(0, 50))}</span>`;
+    const isVoice = msg.type === 'voice';
+    el.innerHTML = `${faceHTML(msg.name, msg.avatar, 'sm')}<span class="bcname">${escapeHtml(msg.name)}</span>` +
+      (isVoice ? `<button class="bcplay" aria-label="Play">▶</button><span class="bctext">🎤 0:${String(msg.dur || 1).padStart(2, '0')}</span>` : `<span class="bctext">${escapeHtml(String(msg.text).slice(0, 50))}</span>`);
     el.classList.add('show');
-    clearTimeout(bctoastT); bctoastT = setTimeout(() => el.classList.remove('show'), 5000);
+    if (isVoice) wireVoicePlay(el.querySelector('.bcplay'), msg.url);
+    clearTimeout(bctoastT); bctoastT = setTimeout(() => el.classList.remove('show'), isVoice ? 9000 : 5000);
   }
   // ---- manage quick-chat presets (add / edit / delete) — reachable in-game or from Manage Profile.
   //      `qmReturn` remembers where to go on Done; `qmDraft` is the working list (saved on each change).
@@ -2876,6 +3036,7 @@
       this.channel.on('broadcast', { event: 'msg' }, (e) => { if (e && e.payload && (e.payload.table || null) === LOBBY.table) showBroadcast(e.payload); });
       this.channel.subscribe((st) => { if (st === 'SUBSCRIBED') LOBBY.track(); });
       startHeartbeat();
+      sweepOldVoice();   // best-effort cleanup of orphaned voice clips (throttled hourly)
     },
     // `created` = the code I created via "New game", so everyone can see who owns/hosts each table
     track() { if (this.channel) this.channel.track({ id: AUTH.me.id, name: AUTH.me.name, avatar: AUTH.me.avatar || null, mode: this.mode, readyAt: this.readyAt, table: this.table || null, created: this.created || null, target: this.targetPoints || null }); },
@@ -2939,7 +3100,9 @@
     },
     async reset() {   // end this table's game -> its members back to the table lobby
       const c = NET.init(); if (!c || !NET.code) return;
-      await c.from('games').upsert({ code: NET.code, phase: 'idle', state: null, players: [], version: 0 });
+      const code = NET.code;
+      await c.from('games').upsert({ code, phase: 'idle', state: null, players: [], version: 0 });
+      purgeVoice(code);   // the game's over -> drop its voice clips
     },
     // rematch: start a fresh game with the SAME seated players + win target, straight from the
     // victory screen. Version-guarded so two people tapping it doesn't spawn two games.
