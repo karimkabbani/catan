@@ -122,6 +122,21 @@
     border:1.5px solid var(--gold-edge); background:radial-gradient(circle at 38% 32%, #3d7fd6, #1f4f8f); color:#fff;
     font-size:15px; line-height:1; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(0,0,0,0.5); cursor:pointer;}
   .pchat:active{transform:scale(0.92);}
+  /* unread-message dot on another player's corner (tap their portrait to review) */
+  .pmsgdot{position:absolute; top:-6px; left:-6px; z-index:9; width:14px; height:14px; border-radius:50%;
+    background:#e0453a; border:2px solid #2a1608; box-shadow:0 1px 3px rgba(0,0,0,0.5); animation:msgpulse 1.5s ease-out infinite; pointer-events:none;}
+  @keyframes msgpulse{0%{box-shadow:0 0 0 0 rgba(224,69,58,0.5);} 100%{box-shadow:0 0 0 9px rgba(224,69,58,0);}}
+  body.spectating .pmsgdot{display:none;}
+  /* recent-messages popover, anchored to a corner */
+  #msghist{position:fixed; z-index:34; max-width:min(240px,60vw); background:#f6ecd2; color:#2a1c0c;
+    border-radius:12px; padding:9px 12px 7px; box-shadow:0 5px 18px rgba(0,0,0,0.55); border:1px solid var(--gold-edge);}
+  #msghist .bcclose{color:#7a5316;}
+  .mhhead{font-weight:800; color:#7a5316; font-size:12px; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:5px; padding-right:14px;}
+  .mhrow{display:flex; align-items:center; gap:8px; padding:5px 0; border-top:1px solid rgba(0,0,0,0.09); font-size:14px; font-weight:600;}
+  .mhrow:first-of-type{border-top:none;}
+  .mhtxt{word-break:break-word; min-width:0;}
+  .mhrow.muted{color:#8a7a5c; font-style:italic; font-weight:400;}
+  #msghist .bcplay{width:26px; height:26px; font-size:11px;}
   /* quick-chat picker (overlay): preset chips */
   .qcgrid{display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin:8px 0 12px;}
   .qcchip{padding:10px 16px; border-radius:20px; border:1px solid var(--gold-edge); background:rgba(0,0,0,0.3);
@@ -1076,7 +1091,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v87';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v88';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -1834,9 +1849,13 @@
       }
       // your OWN corner gets a 💬 bubble to open quick chat (online seated players only)
       const chatBtn = (online && myColor && p.color === myColor) ? `<button class="pchat" onclick="CATAN.openQuickChat()" aria-label="Quick chat">💬</button>` : '';
-      el.innerHTML = `${di}${tbadge}${chatBtn}
+      // unread dot: a new message from another player, not yet reviewed (tap their portrait to see it)
+      const dot = (online && p.color !== myColor && UNREAD[p.color]) ? `<span class="pmsgdot"></span>` : '';
+      // tap any online player's portrait to review their recent messages
+      const tap = online ? ` onclick="CATAN.showMsgs('${p.color}')"` : '';
+      el.innerHTML = `${di}${tbadge}${chatBtn}${dot}
         <div class="pcol">${stat(bdg.res, cards, '🃏', 'Resource cards', false, cards > 7)}${stat(bdg.card, dev, '🎴', 'Development cards')}${stat(bdg.vp, vp, '⭐', 'Victory points')}${stat(bdg.army, p.playedKnights, '⚔️', 'Knights played', p.hasLargestArmy)}${stat(bdg.road, road, '🛣️', 'Longest road', p.hasLongestRoad)}</div>
-        <div class="pport"><div class="pava${flagged ? ' flagged' : ''}" style="border-color:${PCOLOR[p.color]}">${av}</div><div class="pname">${escapeHtml(p.name)}</div></div>${flagged ? '<span class="pflag">🏳️</span>' : ''}`;
+        <div class="pport"${tap}><div class="pava${flagged ? ' flagged' : ''}" style="border-color:${PCOLOR[p.color]}">${av}</div><div class="pname">${escapeHtml(p.name)}</div></div>${flagged ? '<span class="pflag">🏳️</span>' : ''}`;
     });
     const usedSeats = {}; state.players.forEach((_, i) => { usedSeats[seatKey(i)] = 1; });
     ['tl', 'tr', 'br', 'bl'].forEach((k) => { if (!usedSeats[k]) { const el = $('p-' + k); if (el) el.style.display = 'none'; } });
@@ -3160,8 +3179,52 @@
       }
     } catch (_) { }
   }
+  // ---- per-player message history: the last few messages (text + voice) each player sent this
+  //      game, re-openable by tapping their corner portrait. Cleared on game entry (enterGame).
+  const MSG_KEEP = 5;
+  let MSGLOG = {};   // color -> [{...msg, ts}] (oldest first, capped)
+  let UNREAD = {};   // color -> true while a new message hasn't been reviewed (drives the corner dot)
+  function clearMsgLog() { MSGLOG = {}; UNREAD = {}; }
+  function logMsg(msg) {
+    if (!msg || !msg.color) return;
+    const arr = (MSGLOG[msg.color] = MSGLOG[msg.color] || []);
+    arr.push(Object.assign({ ts: Date.now() }, msg));
+    if (arr.length > MSG_KEEP) arr.splice(0, arr.length - MSG_KEEP);
+    if (online && state && msg.color !== myColor) { UNREAD[msg.color] = true; renderPanels(); }   // dot for others' new messages
+  }
+  // open a small popover of a player's recent messages, anchored to their corner
+  function showMsgHistory(color) {
+    const old = document.getElementById('msghist'); if (old) old.remove();
+    UNREAD[color] = false;
+    const log = (MSGLOG[color] || []).slice().reverse();   // newest first
+    const seat = state ? state.players.findIndex((p) => p.color === color) : -1;
+    const pos = seat >= 0 ? seatKey(seat) : null;
+    const corner = pos ? $('p-' + pos) : null;
+    const pl = state && state.players.find((p) => p.color === color);
+    const rows = log.length ? log.map((m) => m.type === 'voice'
+      ? `<div class="mhrow"><button class="bcplay mhplay" data-url="${escapeHtml(m.url)}">▶</button><span class="mhtxt">🎤 0:${String(m.dur || 1).padStart(2, '0')}</span></div>`
+      : `<div class="mhrow"><span class="mhtxt">${escapeHtml(String(m.text).slice(0, 50))}</span></div>`).join('')
+      : `<div class="mhrow muted">No messages yet</div>`;
+    const b = document.createElement('div');
+    b.id = 'msghist';
+    b.innerHTML = `<button class="bcclose" aria-label="Close">×</button><div class="mhhead">${escapeHtml((pl && pl.name) || '')}</div>${rows}`;
+    document.body.appendChild(b);
+    // anchor near the corner (fall back to centred if no corner, e.g. offline)
+    if (corner) {
+      const top = pos[0] === 't', left = pos[1] === 'l', cr = corner.getBoundingClientRect(), gap = 8;
+      if (top) b.style.top = (cr.bottom + gap) + 'px'; else b.style.bottom = (window.innerHeight - cr.top + gap) + 'px';
+      if (left) b.style.left = Math.max(6, cr.left) + 'px'; else b.style.right = Math.max(6, window.innerWidth - cr.right) + 'px';
+    } else { b.style.top = '50%'; b.style.left = '50%'; b.style.transform = 'translate(-50%,-50%)'; }
+    b.querySelectorAll('.mhplay').forEach((btn) => wireVoicePlay(btn, btn.getAttribute('data-url')));
+    const kill = () => { b.remove(); document.removeEventListener('pointerdown', outside, true); };
+    const outside = (e) => { if (!b.contains(e.target)) kill(); };
+    b.querySelector('.bcclose').onclick = kill;
+    setTimeout(() => document.addEventListener('pointerdown', outside, true), 0);   // tap outside to dismiss
+    renderPanels();   // refresh to drop the unread dot
+  }
   function showBroadcast(msg) {
     if (!msg || (!msg.text && msg.type !== 'voice')) return;
+    logMsg(msg);   // keep it in the per-player history (tap a portrait to review)
     playSound('click', 0.4);
     // anchor a chat bubble to the speaker's corner when we're in the game view; else a banner
     const inGameView = $('title') && $('title').classList.contains('hidden');
@@ -3918,7 +3981,7 @@
   let online = false, myColor = null;
   function enterGame(s) {
     state = s; ui = { mode: 'idle', pending: null }; resetZoom(); renderedBoardKey = null;
-    lastBcAt = 0;   // reset the chat cooldown on entry
+    lastBcAt = 0; clearMsgLog();   // reset chat cooldown + per-player message history on entry
     const t = $('title'); if (t) t.classList.add('hidden');
     hideOverlay();
     document.body.style.background = GAME_BG;   // sea canvas behind the board
@@ -4535,6 +4598,7 @@
   window.CATAN.quickSendIdx = (i) => { const t = AUTH.quickList()[i]; if (t) quickSend(t); };
   window.CATAN.recStop = () => finishRec(false);
   window.CATAN.recCancel = () => finishRec(true);
+  window.CATAN.showMsgs = (color) => showMsgHistory(color);
   window.CATAN.openCustomMsg = () => openBroadcast();
   window.CATAN.manageQuick = (from) => manageQuickMsgs(from);
   window.CATAN.quickEdit = (i, v) => { if (qmDraft && i < qmDraft.length) qmDraft[i] = String(v).slice(0, 50); };
