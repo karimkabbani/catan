@@ -139,7 +139,7 @@
   @keyframes vrecpulse{0%{box-shadow:0 0 0 0 rgba(224,69,58,0.55);} 100%{box-shadow:0 0 0 18px rgba(224,69,58,0);}}
   .vrectime{font-family:var(--serif); font-size:30px; color:var(--gold); font-weight:800;}
   .vrechint{color:var(--muted); font-size:13px; text-align:center;}
-  .vrec.cancel .vrecdot{background:#888;} .vrec.cancel .vrectime{color:#e3a3a3;} .vrec.cancel .vrechint{color:#e3a3a3; font-weight:800;}
+  .vrecbtns{display:flex; gap:10px; margin-top:2px;} .vrecbtns .btn{padding:12px 22px;}
   /* voice play button, in a corner bubble or the top banner */
   .bcplay{flex:0 0 auto; width:30px; height:30px; border-radius:50%; border:1px solid var(--gold-edge); cursor:pointer;
     background:radial-gradient(circle at 38% 32%, #3d7fd6, #1f4f8f); color:#fff; font-size:13px; line-height:1; padding:0;
@@ -1076,7 +1076,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v86';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v87';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -2998,46 +2998,35 @@
     const chips = AUTH.quickList().map((m, i) => `<button class="qcchip" onclick="CATAN.quickSendIdx(${i})">${escapeHtml(m)}</button>`).join('');
     showOverlay(`<h3>Quick chat</h3>
       <div class="qcgrid">${chips}</div>
-      <button id="qcmic" class="qcmic">🎤 <span>Hold to talk</span></button>
+      <button id="qcmic" class="qcmic">🎤 <span>Tap to record a voice note</span></button>
       <div class="trow2"><button class="btn wood" onclick="CATAN.openCustomMsg()">✏️ Type…</button><button class="btn ghost" onclick="CATAN.manageQuick('game')">⚙️ Edit</button></div>`);
     const o = $('overlay'); if (o) o.onclick = (e) => { if (e.target === o) CATAN.close(); };
     attachMic();
   }
-  // press-and-hold the mic to record; release to send; slide up to cancel; auto-stops at 10s.
+  // Tap to record -> a recording panel with Send / Cancel (robust on iOS; press-and-hold there is
+  //   fragile because the button gets replaced mid-hold, so the release never lands).
+  let recTicker = null;
   function attachMic() {
     const mic = $('qcmic'); if (!mic) return;
-    let startY = 0, cancelArmed = false, ticking = null, active = false;
-    const showRec = () => {
-      const sh = document.querySelector('#overlay .sheet'); if (!sh) return;
-      sh.innerHTML = `<div class="vrec"><div class="vrecdot"></div><div class="vrectime" id="vrectime">0:00</div><div class="vrechint" id="vrechint">Release to send · slide up to cancel</div></div>`;
-    };
-    const finish = () => {
-      if (!active) return; active = false;
-      if (ticking) { clearInterval(ticking); ticking = null; }
-      const rec = VOICE.stop(cancelArmed);
-      hideOverlay(); render();
-      if (rec) sendVoice(rec);
-    };
-    VOICE.onauto = finish;
-    const onDown = async (e) => {
-      e.preventDefault(); if (active) return;
-      startY = (e.clientY != null ? e.clientY : 0); cancelArmed = false;
-      const ok = await VOICE.start();
-      if (!ok) return;
-      active = true;
-      try { mic.setPointerCapture(e.pointerId); } catch (_) { }
-      showRec();
-      ticking = setInterval(() => { const s = Math.min(10, Math.floor((Date.now() - VOICE.startT) / 1000)); const tt = $('vrectime'); if (tt) tt.textContent = '0:' + String(s).padStart(2, '0'); }, 150);
-    };
-    const onMove = (e) => {
-      if (!active) return;
-      const arm = (startY - (e.clientY != null ? e.clientY : startY)) > 70;
-      if (arm !== cancelArmed) { cancelArmed = arm; const h = $('vrechint'), d = document.querySelector('.vrec'); if (h) h.textContent = arm ? 'Release to CANCEL' : 'Release to send · slide up to cancel'; if (d) d.classList.toggle('cancel', arm); }
-    };
-    mic.addEventListener('pointerdown', onDown);
-    mic.addEventListener('pointermove', onMove);
-    mic.addEventListener('pointerup', () => finish());
-    mic.addEventListener('pointercancel', () => { if (active) { cancelArmed = true; finish(); } });
+    mic.addEventListener('click', () => { if (!VOICE.recording) startRecUI(); });
+  }
+  async function startRecUI() {
+    const ok = await VOICE.start();
+    if (!ok) return;
+    const sh = document.querySelector('#overlay .sheet'); if (!sh) return;
+    const o = $('overlay'); if (o) o.onclick = null;   // no tap-outside-to-close while recording — use Send/Cancel
+    sh.innerHTML = `<div class="vrec"><div class="vrecdot"></div><div class="vrectime" id="vrectime">0:00</div>
+      <div class="vrecbtns"><button class="btn" onclick="CATAN.recStop()">⏹ Send</button><button class="btn ghost" onclick="CATAN.recCancel()">Cancel</button></div>
+      <div class="vrechint">Recording… tap Send when done (max 10s)</div></div>`;
+    if (recTicker) clearInterval(recTicker);
+    recTicker = setInterval(() => { const s = Math.min(10, Math.floor((Date.now() - VOICE.startT) / 1000)); const tt = $('vrectime'); if (tt) tt.textContent = '0:' + String(s).padStart(2, '0'); }, 150);
+    VOICE.onauto = () => finishRec(false);   // hit 10s -> auto-send
+  }
+  function finishRec(cancel) {
+    if (recTicker) { clearInterval(recTicker); recTicker = null; }
+    const rec = VOICE.stop(cancel);
+    hideOverlay(); render();
+    if (rec) sendVoice(rec);
   }
   function openBroadcast() {
     if (!online || !myColor) return;
@@ -3104,6 +3093,8 @@
       try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
       catch (e) { try { this.ctx.close(); } catch (_) { } this.ctx = null; toast('Microphone access needed'); return false; }
       await resumeP;
+      // iOS often re-suspends the context across the permission prompt — resume again so onaudioprocess fires
+      if (this.ctx.state === 'suspended') { try { await this.ctx.resume(); } catch (_) { } }
       this.stream = stream;
       this.inRate = this.ctx.sampleRate; this.source = this.ctx.createMediaStreamSource(stream);
       this.proc = this.ctx.createScriptProcessor(4096, 1, 1); this.chunks = []; this.recording = true; this.startT = Date.now();
@@ -4542,6 +4533,8 @@
   window.CATAN.sendBroadcast = sendBroadcastMsg;
   window.CATAN.openQuickChat = () => openQuickChat();
   window.CATAN.quickSendIdx = (i) => { const t = AUTH.quickList()[i]; if (t) quickSend(t); };
+  window.CATAN.recStop = () => finishRec(false);
+  window.CATAN.recCancel = () => finishRec(true);
   window.CATAN.openCustomMsg = () => openBroadcast();
   window.CATAN.manageQuick = (from) => manageQuickMsgs(from);
   window.CATAN.quickEdit = (i, v) => { if (qmDraft && i < qmDraft.length) qmDraft[i] = String(v).slice(0, 50); };
