@@ -1057,7 +1057,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v80';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v81';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -3060,12 +3060,17 @@
     const rows = qmDraft.length
       ? qmDraft.map((m, i) => `<div class="qmrow"><input class="qmedit authin" maxlength="50" value="${escapeHtml(m)}" oninput="CATAN.quickEdit(${i}, this.value)"><button class="qmdel" onclick="CATAN.quickDel(${i})" aria-label="Delete">✕</button></div>`).join('')
       : `<p class="muted small" style="text-align:center;padding:6px 0">No messages yet — add a few.</p>`;
-    const done = qmReturn === 'profile' ? 'CATAN.quickDone(\'profile\')' : 'CATAN.quickDone(\'game\')';
-    showOverlay(`<h3>Quick messages</h3>
-      <p class="muted small" style="text-align:center;margin:0 0 8px">Tap to edit. These are your one-tap chat presets.</p>
+    const body = `<p class="muted small" style="text-align:center;margin:0 0 8px">Tap to edit. These are your one-tap chat presets.</p>
       <div class="qmlist">${rows}</div>
-      <div class="qmadd"><input id="qmNew" class="authin" maxlength="50" placeholder="Add a message…" autocomplete="off"><button class="btn wood" onclick="CATAN.quickAdd()">Add</button></div>
-      <button class="btn full" style="margin-top:10px" onclick="${done}">Done</button>`);
+      <div class="qmadd"><input id="qmNew" class="authin" maxlength="50" placeholder="Add a message…" autocomplete="off"><button class="btn wood" onclick="CATAN.quickAdd()">Add</button></div>`;
+    // From the profile (a menu screen at z-40) the overlay (z-30) would be hidden behind it — so render
+    // a full menu card there. In-game (title hidden) an overlay is correct.
+    if (qmReturn === 'profile') {
+      titleCard(`<div class="lobhead"><button class="lobback" onclick="CATAN.manageProfile()" title="Back">←</button><h3>💬 Quick messages</h3></div>
+        ${body}<button class="btn full" style="margin-top:12px" onclick="CATAN.quickDone('profile')">Done</button>`);
+    } else {
+      showOverlay(`<h3>Quick messages</h3>${body}<button class="btn full" style="margin-top:10px" onclick="CATAN.quickDone('game')">Done</button>`);
+    }
   }
   function persistQuick() { AUTH.setQuickMsgs(qmDraft).then((r) => { if (r && !r.ok) toast(r.error || 'Save failed'); }); }
   // ---- white flag (concede) — coordinated through the GAME ROW (version-guarded). Each
