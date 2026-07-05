@@ -70,6 +70,18 @@
     display:flex; align-items:center; gap:8px; box-shadow:0 3px 10px rgba(0,0,0,0.4); max-width:70vw; z-index:6;}
   .bdot{width:12px;height:12px;border-radius:50%;display:inline-block;border:1px solid #0008;}
   .dice{margin-left:6px;color:var(--gold);font-weight:700;}
+  /* AFK / stall escape hatch — a slim bar under the banner offering to skip a dropped player */
+  #stallbar{position:absolute; top:42px; left:50%; transform:translateX(-50%); z-index:8;
+    display:flex; align-items:center; gap:10px; max-width:82vw;
+    background:linear-gradient(180deg, rgba(74,30,10,0.96), rgba(48,18,6,0.96));
+    border:1px solid #c9743a; border-radius:16px; padding:5px 6px 5px 14px; box-shadow:0 4px 12px rgba(0,0,0,0.5);
+    animation:stallin 0.2s ease-out;}
+  #stallbar.hidden{display:none;}
+  .stallmsg{color:#ffd7ad; font-size:12.5px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .stallbtn{flex:0 0 auto; background:linear-gradient(180deg,#e8b45a,#c98a2e); color:#3a2408; border:1px solid #7a5316;
+    border-radius:11px; padding:5px 12px; font-size:12.5px; font-weight:800; cursor:pointer; font-family:inherit;}
+  .stallbtn:active{transform:translateY(1px);}
+  @keyframes stallin{from{opacity:0; transform:translate(-50%,-6px);} to{opacity:1; transform:translate(-50%,0);}}
 
   /* corner player plaques — framed: vertical stat column + portrait, like the app */
   .corner{position:absolute; z-index:5;
@@ -364,6 +376,7 @@
   .loblist{margin:12px 0; display:flex; flex-direction:column; gap:6px;}
   .lobrow{display:flex; align-items:center; gap:9px; padding:9px 12px; font-weight:700; color:var(--ink);
     background:rgba(0,0,0,0.26); border:1px solid rgba(0,0,0,0.4); border-radius:9px;}
+  .lobrow.away{opacity:0.5;}   /* briefly dropped from presence (phone asleep) — kept during the grace window */
   /* a joinable table in the table-list */
   .tablerow{display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%; text-align:left; cursor:pointer;
     padding:15px 16px; border-radius:10px; font-weight:700; font-family:var(--serif); font-size:16px; color:#3a2400;
@@ -496,6 +509,7 @@
   .stnote{color:var(--muted); font-size:11px; text-align:center; margin:0 0 12px; font-style:italic; line-height:1.4;}
   .stsub{color:var(--gold); font-family:var(--serif); font-size:15px; margin:6px 0 7px; text-align:left;}
   .stseg{margin-bottom:12px;}
+  .stcountseg{margin-top:-4px;}
   /* per-player detail */
   .stchips{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:6px;}
   .stchip{background:rgba(0,0,0,0.25); border-radius:9px; padding:9px 5px; text-align:center;}
@@ -696,6 +710,14 @@
   .chip{display:flex;align-items:center;gap:4px;background:rgba(0,0,0,0.28);border:1px solid rgba(0,0,0,0.4);
     border-radius:9px;padding:3px 8px;font-size:14px;font-weight:700;min-width:42px;justify-content:center;}
   .chip .ic{font-size:15px;}
+  /* spectator dock strip (replaces the resource hand for watchers) */
+  body.spectating #hand{align-items:center; padding:0 8px;}
+  .spechand{display:flex; align-items:center; gap:9px; padding:9px 8px; color:#ffe6c2; font-size:13px; font-weight:700; white-space:nowrap; max-width:88vw;}
+  .specdot{width:11px;height:11px;border-radius:50%;border:1px solid #0008;flex:0 0 auto;}
+  .spectxt{overflow:hidden;text-overflow:ellipsis;}
+  .specleave{flex:0 0 auto;background:rgba(0,0,0,0.3);color:#ffd7ad;border:1px solid var(--gold-edge);border-radius:10px;
+    padding:4px 13px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;margin-left:2px;}
+  .specleave:active{transform:translateY(1px);}
   /* dice faces in the banner */
   .dice{display:inline-flex;align-items:center;gap:4px;margin-left:6px;}
   .dice img{width:22px;height:22px;filter:drop-shadow(0 1px 1px #000);}
@@ -920,6 +942,7 @@
     <div id="stage">
       <div id="seaimg"></div>
       <div id="banner"></div>
+      <div id="stallbar" class="hidden"></div>
       <div class="corner tl" id="p-tl"></div>
       <div class="corner tr" id="p-tr"></div>
       <div class="corner bl" id="p-bl"></div>

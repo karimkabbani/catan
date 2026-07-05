@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v59';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v60';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -237,6 +237,7 @@
     const yop = action.type === 'playYearOfPlenty' ? { to: actor, resources: (action.resources || []) } : null;
     const fromRobber = state.robberHex;
     state = r.state;
+    noteProgress();   // a move happened -> reset the AFK/stall clock
     // a bought dev card: the buyer is told WHAT they drew; everyone else just sees it fly in face-down
     const bought = action.type === 'buyDevCard'
       ? { buyer: actor, card: (state.players.find((p) => p.color === actor).newDevCards.slice(-1)[0]) } : null;
@@ -776,7 +777,15 @@
   }
   const HAND_ORDER = ['wheat', 'wood', 'ore', 'sheep', 'brick'];   // original app order
   function handBar() {
-    // online: always show MY hand; pass-and-play: show the active player's
+    // spectator: no hand of their own -> a clear "spectating" strip with whose turn it is + quick leave
+    if (online && !myColor) {
+      const ap = activePlayer();
+      const whose = state.phase === 'ended'
+        ? `${escapeHtml(state.players.find((x) => x.color === state.winner).name)} won`
+        : `${escapeHtml(ap.name)}'s turn`;
+      return `<div class="spechand"><span class="specdot" style="background:${PCOLOR[ap.color]}"></span><span class="spectxt">👁 Spectating — ${whose}</span><button class="specleave" onclick="CATAN.exitGame()">Leave</button></div>`;
+    }
+    // online: show MY hand; pass-and-play: show the active player's
     const p = (online && myColor) ? state.players.find((x) => x.color === myColor) : activePlayer();
     if (!p) return '';
     // slim, original-style: five resource orbs + counts. Each orb honours the per-resource lag so it
@@ -1830,7 +1839,9 @@
       <h2>${escapeHtml(winner.name)} wins!</h2>
       ${domBadge}
       <div style="margin:12px 0">${standings}</div>
-      ${online ? `<button class="btn full" onclick="CATAN.tableReset()">Back to lobby</button>` : `<button class="btn full" onclick="CATAN.restart()">New game</button>`}</div>`);
+      ${online
+        ? `${myColor ? `<button class="btn full" style="margin-bottom:9px" onclick="CATAN.rematch()">🔁 Rematch — same players</button>` : ''}<button class="btn ${myColor ? 'wood ' : ''}full" onclick="CATAN.tableReset()">Back to lobby</button>`
+        : `<button class="btn full" onclick="CATAN.restart()">New game</button>`}</div>`);
     spawnConfetti($('overlay'), domination ? 120 : 64);
     if (domination) setTimeout(() => playSound('win', 0.55), 500);   // a second flourish for the blowout
   }
@@ -1962,13 +1973,15 @@
     svUpdate((s) => { if (s.sv && s.sv.flags) { s.sv.flags = s.sv.flags.filter((c) => c !== myColor); if (!s.sv.flags.length) delete s.sv; } });
   }
   // everyone-but-one conceded -> the lone player still standing wins. Single writer = winner.
+  let svEndTimer = null;
   function endByFlags(winner) {
     if (ui.svEnding) return; ui.svEnding = true;
     // apply locally too — the winner's own row write echoes back deduped, so otherwise the
     // winner would never see their own victory.
     if (state) { state.winner = winner; state.phase = 'ended'; delete state.sv; recordResult(); render(); showVictory(); }
     svUpdate((s) => { s.winner = winner; s.phase = 'ended'; delete s.sv; });
-    setTimeout(() => { try { LOBBY.reset(); } catch (_) {} }, 6000);        // brief victory, then everyone returns to lobby
+    if (svEndTimer) clearTimeout(svEndTimer);
+    svEndTimer = setTimeout(() => { svEndTimer = null; try { LOBBY.reset(); } catch (_) {} }, 9000);   // brief victory, then back to lobby (a Rematch tap cancels this)
   }
   // checked from afterAction on every state change: trigger the win when only one stands
   function syncSurrenderUI() {
@@ -1995,6 +2008,7 @@
     const tt = $('title');
     if (tt && !tt.classList.contains('hidden')) return;   // a menu/lobby is up -> never paint the board under it
     document.body.classList.add('ingame');   // board is showing -> portrait now forces the rotate gate
+    document.body.classList.toggle('spectating', !!(online && !myColor));   // drives the spectator chrome
     renderPanels();
     $('banner').innerHTML = banner();
     // Static terrain is built once per game; only the dynamic layer (pieces, roads,
@@ -2576,6 +2590,7 @@
   let online = false, myColor = null;
   function enterGame(s) {
     state = s; ui = { mode: 'idle', pending: null }; resetZoom(); renderedBoardKey = null;
+    noteProgress();   // fresh entry -> start the AFK/stall clock now
     broadcastsLeft = BROADCAST_MAX;   // fresh message budget per game entry
     const t = $('title'); if (t) t.classList.add('hidden');
     hideOverlay();
@@ -2625,6 +2640,7 @@
     if (trade) lagTrade(trade.a, trade.b, trade.give, trade.want);
     if (bankTrade) RES.forEach((r) => { lagOut(bankTrade.color, r, (bankTrade.give && bankTrade.give[r]) || 0); lagIn(bankTrade.color, r, (bankTrade.want && bankTrade.want[r]) || 0); });
     if (disc) RES.forEach((r) => lagOut(disc.color, r, (disc.sel && disc.sel[r]) || 0));
+    noteProgress();   // a remote move landed -> reset the AFK/stall clock
     afterAction(); render();
     if (rolled) showDiceReveal(s.dice);
     if (disc) showDiscardFly(disc.color, disc.sel);   // everyone watches each player's discard; end -> afterAction
@@ -2641,6 +2657,39 @@
     if (placed && !robberMoved && !rolled) cinematicPlace(placed.kind, placed.id, false);   // observer: gentle pan to the new piece
   }
   function genCode() { const a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s = ''; for (let i = 0; i < 4; i++) s += a[(Math.random() * a.length) | 0]; return s; }
+
+  // ---- AFK / stall escape hatch -------------------------------------------------------------
+  // Any present player can force-advance past someone who has stalled the table (dropped mid-turn,
+  // or isn't discarding after a 7). We arm the "Skip" bar once enough time has passed with no move.
+  let lastProgress = Date.now();
+  function noteProgress() { lastProgress = Date.now(); }
+  function seatPlayerId(color) { const s = (gameSeats || []).find((x) => x && x.color === color); return s ? s.playerId : null; }
+  function seatIsLive(color) { const id = seatPlayerId(color); return !id || LOBBY.liveIds.has(id); }   // no id = not an online seat -> treat as present
+  function updateStallBar() {
+    const bar = $('stallbar'); if (!bar) return;
+    const hide = () => { if (!bar.classList.contains('hidden')) { bar.classList.add('hidden'); bar.innerHTML = ''; bar.dataset.h = ''; } };
+    if (!online || !myColor || !state || state.phase !== 'play' || !NET.started) return hide();
+    // who's holding up the table? in a discard it's everyone still owing; otherwise the current player
+    let blockers = state.turnPhase === 'discard'
+      ? Object.keys(state.pendingDiscards || {}).filter((c) => (state.pendingDiscards[c] || 0) > 0)
+      : [activeColor()];
+    blockers = blockers.filter((c) => c && c !== myColor);   // never offer to skip myself
+    if (!blockers.length) return hide();
+    const gone = blockers.filter((c) => !seatIsLive(c));     // fully disconnected -> skip sooner
+    const elapsed = Date.now() - lastProgress;
+    const ABSENT_MS = 18000, IDLE_MS = 90000;   // disconnected -> offer skip soon; merely idle -> wait longer
+    if (!((gone.length && elapsed > ABSENT_MS) || elapsed > IDLE_MS)) return hide();
+    const isDiscard = state.turnPhase === 'discard';
+    const victims = isDiscard ? (gone.length ? gone : blockers) : [activeColor()];
+    const nm = (c) => { const p = state.players.find((x) => x.color === c); return p ? p.name : '?'; };
+    const names = victims.map(nm);
+    const msg = isDiscard
+      ? `${names.join(' & ')} ${names.length > 1 ? "aren't" : "isn't"} discarding`
+      : `${names[0]} ${gone.length ? 'dropped' : 'is idle'}`;
+    const html = `<span class="stallmsg">⏱ ${escapeHtml(msg)}</span><button class="stallbtn" onclick="CATAN.forceSkip('${victims.join(',')}')">${isDiscard ? 'Discard for them' : 'Skip turn'}</button>`;
+    if (bar.dataset.h !== html) { bar.innerHTML = html; bar.dataset.h = html; }
+    bar.classList.remove('hidden');
+  }
 
   const NET = {
     client: null, code: null, version: 0, isHost: false, started: false, channel: null, players: [],
@@ -2683,7 +2732,12 @@
       LOBBY.lastRow = row;
       gameSeats = row.players || null;   // carries each seat's uploaded avatar for the board/corners
       const seat = (row.players || []).find((p) => p.playerId === (AUTH.me && AUTH.me.id));
-      if (this.started) { myColor = seat ? seat.color : null; applyRemoteState(row.state); return; }   // already in -> just sync
+      if (this.started) {
+        myColor = seat ? seat.color : null;
+        // a fresh game arriving while we're on an ended one = a rematch -> replay the 3·2·1 intro for everyone
+        if (isFreshStart(row.state) && state && state.phase === 'ended') { ui.svEnding = false; showCountdown(() => enterGame(row.state)); return; }
+        applyRemoteState(row.state); return;   // already in -> just sync
+      }
       // not in the game yet: seated players + anyone who chose Spectate enter now;
       // idle lobby-watchers get a "Watch" button instead of being yanked in.
       const iSeated = !!seat, iSpectate = LOBBY.mode === 'spectate';
@@ -2729,8 +2783,12 @@
   // ===== lobby: presence (who's online + ready) + explicit table formation ===
   // read a presence entry's lobby mode (back-compat with the old {ready} payload)
   function pmode(p) { return p.mode || (p.ready ? 'ready' : 'idle'); }
+  const PRESENCE_GRACE = 22000;   // keep a briefly-vanished member visible this long (rides out phone sleep/background)
   const LOBBY = {
     channel: null, presence: {}, mode: 'idle', readyAt: 0, inProgress: false, lastRow: null, table: null, created: null, targetPoints: null,
+    lastSeen: {},          // id -> last time seen live (ms) — powers the grace window
+    lastPayload: {},       // id -> last-known presence payload (kept so a grace member keeps its name/avatar)
+    liveIds: new Set(),    // ids present RIGHT NOW (no grace) — used for AFK/skip detection
     join() {
       const c = NET.init(); if (!c || !AUTH.me) return;
       if (this.table) { NET.code = this.table; NET.subscribe(); }   // re-watch our table's game if we're sitting at one
@@ -2740,6 +2798,7 @@
       this.channel.on('presence', { event: 'sync' }, () => LOBBY.onPresence());
       this.channel.on('broadcast', { event: 'msg' }, (e) => { if (e && e.payload && (e.payload.table || null) === LOBBY.table) showBroadcast(e.payload); });
       this.channel.subscribe((st) => { if (st === 'SUBSCRIBED') LOBBY.track(); });
+      startHeartbeat();
     },
     // `created` = the code I created via "New game", so everyone can see who owns/hosts each table
     track() { if (this.channel) this.channel.track({ id: AUTH.me.id, name: AUTH.me.name, avatar: AUTH.me.avatar || null, mode: this.mode, readyAt: this.readyAt, table: this.table || null, created: this.created || null, target: this.targetPoints || null }); },
@@ -2750,10 +2809,30 @@
     leaveTable() { this.table = null; NET.code = null; this.mode = 'idle'; this.readyAt = 0; this.inProgress = false; this.targetPoints = null; NET.unsubscribeGame(); this.track(); lobbySig = null; renderLobby(); },
     sendBroadcast(msg) { if (this.channel) { try { this.channel.send({ type: 'broadcast', event: 'msg', payload: msg }); } catch (_) { } } },
     onPresence() {
-      const st = this.channel.presenceState(); this.presence = {};
-      Object.values(st).forEach((arr) => { const m = arr[arr.length - 1]; if (m && m.id) this.presence[m.id] = m; });
+      const st = this.channel.presenceState();
+      const now = Date.now();
+      const live = {}; this.liveIds = new Set();
+      Object.values(st).forEach((arr) => { const m = arr[arr.length - 1]; if (m && m.id) { live[m.id] = m; this.liveIds.add(m.id); this.lastSeen[m.id] = now; this.lastPayload[m.id] = m; } });
+      // Grace window: a member who just dropped from presence (phone slept/backgrounded) stays in
+      // the roster, dimmed, for PRESENCE_GRACE ms — so the list doesn't reshuffle on every blip.
+      this.presence = Object.assign({}, live);
+      Object.keys(this.lastSeen).forEach((id) => {
+        if (live[id]) return;
+        if (now - this.lastSeen[id] < PRESENCE_GRACE) { const m = this.lastPayload[id]; if (m) this.presence[id] = Object.assign({}, m, { away: true }); }
+        else { delete this.lastSeen[id]; delete this.lastPayload[id]; }
+      });
       if (!NET.started) renderLobby();
       else renderBanner();   // in-game: keep the "N watching" count live as spectators come/go
+    },
+    // drop grace members whose window has expired; returns true if the roster changed
+    sweepStale() {
+      const now = Date.now(); let changed = false;
+      Object.keys(this.presence).forEach((id) => {
+        if (this.liveIds.has(id)) return;
+        if (now - (this.lastSeen[id] || 0) >= PRESENCE_GRACE) { delete this.presence[id]; delete this.lastSeen[id]; changed = true; }
+      });
+      if (changed) { if (!NET.started) { lobbySig = null; renderLobby(); } else renderBanner(); }
+      return changed;
     },
     online() { return Object.values(this.presence); },
     tableMembers() { return this.online().filter((p) => (p.table || null) === this.table); },   // who's at MY table
@@ -2785,25 +2864,61 @@
       const c = NET.init(); if (!c || !NET.code) return;
       await c.from('games').upsert({ code: NET.code, phase: 'idle', state: null, players: [], version: 0 });
     },
+    // rematch: start a fresh game with the SAME seated players + win target, straight from the
+    // victory screen. Version-guarded so two people tapping it doesn't spawn two games.
+    async rematch() {
+      const c = NET.init(); if (!c || !NET.code) return;
+      if (svEndTimer) { clearTimeout(svEndTimer); svEndTimer = null; }   // cancel the surrender auto-return-to-lobby
+      const seats = (gameSeats || []).filter((s) => s && s.color);
+      if (seats.length < 2) { toast('Need the same players to rematch'); return; }
+      const players = seats.map((p, i) => ({ seat: i, color: SEAT_COLORS[i], name: p.name, playerId: p.playerId || null, avatar: p.avatar || null }));
+      const target = (state && state.targetPoints) || targetForN(players.length);
+      let gstate;
+      try { gstate = C.createGame({ id: 'table', players: players.map((p) => ({ color: p.color, name: p.name })), seed: (Math.random() * 1e9) | 0, targetPoints: target, randomFirst: true }); }
+      catch (e) { toast('Rematch failed: ' + e.message); return; }
+      const prevV = NET.version || 1;
+      const { data, error } = await c.from('games')
+        .update({ phase: 'playing', players, state: gstate, target_points: target, version: prevV + 1 })
+        .eq('code', NET.code).eq('version', prevV).select('version');
+      if (error) { toast('Rematch failed: ' + error.message); return; }
+      if (!data || !data.length) toast('Starting rematch…');   // someone else already tapped it — their write drives us in
+    },
     leave() {
       const c = NET.init();
       if (c && this.channel) { try { c.removeChannel(this.channel); } catch (_) { } this.channel = null; }
       if (c && NET.channel) { try { c.removeChannel(NET.channel); } catch (_) { } NET.channel = null; }
       if (NET.poll) { clearInterval(NET.poll); NET.poll = null; }
-      this.presence = {}; this.mode = 'idle'; this.readyAt = 0; this.inProgress = false; this.lastRow = null; this.table = null; online = false; myColor = null; NET.started = false; NET.code = null;
+      stopHeartbeat();
+      this.presence = {}; this.lastSeen = {}; this.lastPayload = {}; this.liveIds = new Set();
+      this.mode = 'idle'; this.readyAt = 0; this.inProgress = false; this.lastRow = null; this.table = null; online = false; myColor = null; NET.started = false; NET.code = null;
     },
   };
+  // A single 3s heartbeat while connected: expire stale presence + refresh the AFK/skip bar.
+  let heartbeat = null;
+  function startHeartbeat() { if (heartbeat) return; heartbeat = setInterval(() => { try { LOBBY.sweepStale(); updateStallBar(); } catch (_) { } }, 3000); }
+  function stopHeartbeat() { if (heartbeat) { clearInterval(heartbeat); heartbeat = null; } }
+  // On wake (tab visible / window focus / network back), republish our presence right away so a
+  // phone that slept doesn't linger as "away" on everyone else's screen, and refresh what we see.
+  function onWake() {
+    if (document.hidden) return;
+    try { LOBBY.track(); } catch (_) { }
+    if (NET.started) renderBanner(); else { lobbySig = null; renderLobby(); }
+  }
+  document.addEventListener('visibilitychange', onWake);
+  window.addEventListener('focus', onWake);
+  window.addEventListener('online', onWake);
   function rankMode(p) { const m = pmode(p); return m === 'ready' ? 3 : m === 'playing' ? 2 : m === 'spectate' ? 1 : 0; }
   function lobbyRows(list, ready, creatorId) {
     if (!list.length) return `<p class="muted" style="text-align:center;margin:8px 0">Nobody online yet.</p>`;
     return list.slice().sort((a, b) => (rankMode(b) - rankMode(a)) || String(a.name).localeCompare(b.name)).map((p) => {
       const m = pmode(p), ri = ready.findIndex((r) => r.id === p.id), isHost = creatorId && p.id === creatorId;
       let tag;
-      if (m === 'spectate') tag = `<span class="t-pend">spectating</span>`;
+      if (p.away) tag = `<span class="t-pend">away…</span>`;   // briefly dropped from presence (phone asleep) — grace window
+      else if (m === 'spectate') tag = `<span class="t-pend">spectating</span>`;
       else if (m === 'playing') tag = `<span class="t-pend">in game</span>`;
       else if (m === 'ready') tag = ri >= 4 ? `<span class="t-pend">ready · spectating (full)</span>` : `<span class="t-acc">${isHost ? 'Host · ready' : 'ready'}</span>`;
       else tag = isHost ? `<span class="t-acc">Host · not ready</span>` : `<span class="muted">not ready</span>`;
-      return `<div class="lobrow"><span class="tnm">${faceHTML(p.name, p.avatar, 'sm')}<span>${escapeHtml(p.name)}${p.id === AUTH.me.id ? ' (you)' : ''}</span></span>${tag}</div>`;
+      return `<div class="lobrow${p.away ? ' away' : ''}"><span class="tnm">${faceHTML(p.name, p.avatar, 'sm')}<span>${escapeHtml(p.name)}${p.id === AUTH.me.id ? ' (you)' : ''}</span></span>${tag}</div>`;
     }).join('');
   }
   let lobbySig = null;
@@ -2905,6 +3020,7 @@
   }
   const ROAD_ICO = (ASSETS.pieces && ASSETS.pieces['road-eastwest'] && (ASSETS.pieces['road-eastwest'].yellow || ASSETS.pieces['road-eastwest'].red)) || '';
   let statsSeason = null;   // null = current season, 'all' = all-time
+  let statsCount = null;    // null = all table sizes; 2 | 3 | 4 = only that many players
   function recentRowsHTML(games, limit) {
     const gs = limit ? games.slice(0, limit) : games;
     return gs.map((g) => {
@@ -2918,21 +3034,36 @@
     if (!STATS.loaded) { titleCard(`${back}<p class="muted" style="text-align:center;padding:26px 0">Loading…</p>`); STATS.load().then(() => statsScreen()); return; }
     if (!STATS.games.length) { titleCard(`${back}<p class="muted" style="text-align:center;padding:22px 8px;line-height:1.5">No games recorded yet.<br>Finish an online game and it'll show up here.</p>`); return; }
     const isAll = statsSeason === 'all', season = isAll ? 'all' : STATS.curSeason();
-    const games = STATS.filter(season), board = STATS.board(games), crowns = isAll ? STATS.crowns() : null;
+    const seasonGames = STATS.filter(season);
+    // secondary filter: only games with this many players. Only offer sizes that actually occur.
+    const sizes = [...new Set(STATS.games.map((g) => g.standings.length))].sort();
+    if (statsCount && !sizes.includes(statsCount)) statsCount = null;   // size vanished (e.g. all deleted) -> reset
+    const games = statsCount ? seasonGames.filter((g) => g.standings.length === statsCount) : seasonGames;
+    const board = STATS.board(games);
+    const showCrowns = isAll && !statsCount;   // crowns are all-size season titles; hide them under a size filter
+    const crowns = showCrowns ? STATS.crowns() : null;
     const curLbl = STATS.seasonLabel(STATS.curSeason());
-    const head = `<tr><th>#</th><th>Player</th><th title="Games played">GP</th><th title="Wins">W</th><th title="Win rate">Win%</th><th title="Wins above expected — accounts for table size">WAE</th>${isAll ? '<th title="Season crowns">👑</th>' : ''}</tr>`;
+    const countSeg = sizes.length > 1
+      ? `<div class="seg stseg stcountseg"><button class="${!statsCount ? 'on' : ''}" onclick="CATAN.statsCount(null)">All sizes</button>${sizes.map((n) => `<button class="${statsCount === n ? 'on' : ''}" onclick="CATAN.statsCount(${n})">${n}p</button>`).join('')}</div>`
+      : '';
+    const head = `<tr><th>#</th><th>Player</th><th title="Games played">GP</th><th title="Wins">W</th><th title="Win rate">Win%</th><th title="Wins above expected — accounts for table size">WAE</th>${showCrowns ? '<th title="Season crowns">👑</th>' : ''}</tr>`;
     const rows = board.map((p, i) => {
       const wae = (p.wae >= 0 ? '+' : '') + p.wae.toFixed(1);
       return `<tr onclick="CATAN.statsPlayer('${encodeURIComponent(p.key)}')"><td class="str">${i + 1}</td>` +
         `<td class="stn">${escapeHtml(p.name)}</td><td>${p.gp}</td><td class="stw">${p.w}</td><td>${p.winpct}%</td>` +
-        `<td class="${p.wae >= 0 ? 'stpos' : 'stneg'}">${wae}</td>${isAll ? `<td>${'👑'.repeat(crowns[p.key] || 0) || '·'}</td>` : ''}</tr>`;
+        `<td class="${p.wae >= 0 ? 'stpos' : 'stneg'}">${wae}</td>${showCrowns ? `<td>${'👑'.repeat(crowns[p.key] || 0) || '·'}</td>` : ''}</tr>`;
     }).join('');
+    const sizeLbl = statsCount ? ' · ' + statsCount + 'p' : '';
+    const body = games.length
+      ? `<div class="sttbl-wrap"><table class="sttbl"><thead>${head}</thead><tbody>${rows}</tbody></table></div>
+         <div class="stnote">WAE = wins above expected: your wins minus what pure luck gives at each table size. Tap a player for detail.</div>
+         <h4 class="stsub">Recent games${isAll ? '' : ' · ' + curLbl}${sizeLbl}</h4>
+         <div class="rglist tall">${recentRowsHTML(games)}</div>`
+      : `<p class="muted" style="text-align:center;padding:22px 8px">No ${statsCount ? statsCount + '-player ' : ''}games ${isAll ? 'recorded' : 'this season'} yet.</p>`;
     titleCard(`${back}
       <div class="seg stseg"><button class="${!isAll ? 'on' : ''}" onclick="CATAN.statsSeason(null)">${curLbl}</button><button class="${isAll ? 'on' : ''}" onclick="CATAN.statsSeason('all')">All-time</button></div>
-      <div class="sttbl-wrap"><table class="sttbl"><thead>${head}</thead><tbody>${rows}</tbody></table></div>
-      <div class="stnote">WAE = wins above expected: your wins minus what pure luck gives at each table size. Tap a player for detail.</div>
-      <h4 class="stsub">Recent games${isAll ? '' : ' · ' + curLbl}</h4>
-      <div class="rglist tall">${recentRowsHTML(games)}</div>`);
+      ${countSeg}
+      ${body}`);
   }
   function statsPlayerScreen(key) {
     const d = STATS.detail(key);
@@ -2969,7 +3100,7 @@
     const all = LOBBY.online();
     // sig over the whole presence (table memberships + modes) so any change re-renders
     const sig = JSON.stringify([LOBBY.table, LOBBY.inProgress, LOBBY.mode, LOBBY.targetPoints,
-      all.map((p) => p.id + ':' + (p.table || '') + ':' + pmode(p) + ':' + p.name + ':' + (p.readyAt || 0) + ':' + (p.target || '') + ':' + (p.created || '')).sort()]);
+      all.map((p) => p.id + ':' + (p.table || '') + ':' + pmode(p) + ':' + p.name + ':' + (p.readyAt || 0) + ':' + (p.target || '') + ':' + (p.created || '') + ':' + (p.away ? 'a' : '')).sort()]);
     if (sig === lobbySig) return;
     lobbySig = sig;
     dynEl.innerHTML = LOBBY.table ? atTableHTML(all) : tableListHTML(all);   // footer frame untouched
@@ -3041,6 +3172,7 @@
   }
   window.CATAN.openStats = () => statsScreen();
   window.CATAN.statsSeason = (s) => { statsSeason = s; statsScreen(); };
+  window.CATAN.statsCount = (n) => { statsCount = n; statsScreen(); };
   window.CATAN.statsPlayer = (n) => statsPlayerScreen(decodeURIComponent(n));
   window.CATAN.lobbyBack = () => { if (LOBBY.table) CATAN.leaveTable(); else CATAN.lobbyLogout(); };
   window.CATAN.newTable = () => { const code = genCode(); LOBBY.created = code; LOBBY.enterTable(code); };
@@ -3091,6 +3223,16 @@
   window.CATAN.lobbyLogout = () => { LOBBY.leave(); AUTH.clear(); showIdentity('list'); };
   window.CATAN.backToPlayers = () => showIdentity('list');   // offline setup -> homepage (player picker)
   window.CATAN.tableReset = () => LOBBY.reset();
+  window.CATAN.rematch = () => LOBBY.rematch();
+  window.CATAN.forceSkip = (csv) => {
+    if (!online || !myColor || !state) return;
+    const victims = String(csv || '').split(',').filter(Boolean);
+    const wasDiscard = state.turnPhase === 'discard';
+    NET.syncAction({ type: 'forceSkip', victims }, myColor);
+    const bar = $('stallbar'); if (bar) { bar.classList.add('hidden'); bar.innerHTML = ''; bar.dataset.h = ''; }
+    lastProgress = Date.now();   // re-arm the clock; give the skip a moment to land
+    toast(wasDiscard ? 'Discarding for them…' : 'Skipping turn…');
+  };
 
   // ===== identity / PIN auth (persistent player + device auto-login) =========
   const AUTH = {
