@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v91';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v92';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -724,6 +724,10 @@
     if (myIdx >= 0 && ROT_ORDER[n]) return ROT_ORDER[n][(i - myIdx + n) % n];
     return SEATS[i];   // offline pass-and-play / spectator: original fixed layout
   }
+  // is a seated player currently connected? (their id is in lobby presence — grace-inclusive so a
+  // brief background blip doesn't flicker them offline). No id (offline/hotseat) -> treat as present.
+  function seatPlayerId(color) { const s = (gameSeats || []).find((x) => x && x.color === color); return s ? s.playerId : null; }
+  function isPlayerOnline(color) { const id = seatPlayerId(color); if (!id) return true; return LOBBY.liveIds.has(id) || !!LOBBY.presence[id]; }
   function renderPanels() {
     state.players.forEach((p, i) => {
       const el = $('p-' + seatKey(i)); el.style.display = 'flex';
@@ -767,9 +771,12 @@
       const dot = (online && p.color !== myColor && UNREAD[p.color]) ? `<span class="pmsgdot"></span>` : '';
       // tap any online player's portrait to review their recent messages
       const tap = online ? ` onclick="CATAN.showMsgs('${p.color}')"` : '';
+      // online/offline status dot on the portrait (online games only) — greys out if they left the app
+      const off = online && !isPlayerOnline(p.color);
+      const statusDot = online ? `<span class="pstatus ${off ? 'off' : 'on'}" title="${off ? 'Offline' : 'Online'}"></span>` : '';
       el.innerHTML = `${di}${tbadge}${chatBtn}${dot}
         <div class="pcol">${stat(bdg.res, cards, '🃏', 'Resource cards', false, cards > 7)}${stat(bdg.card, dev, '🎴', 'Development cards')}${stat(bdg.vp, vp, '⭐', 'Victory points')}${stat(bdg.army, p.playedKnights, '⚔️', 'Knights played', p.hasLargestArmy)}${stat(bdg.road, road, '🛣️', 'Longest road', p.hasLongestRoad)}</div>
-        <div class="pport"${tap}><div class="pava${flagged ? ' flagged' : ''}" style="border-color:${PCOLOR[p.color]}">${av}</div><div class="pname">${escapeHtml(p.name)}</div></div>${flagged ? '<span class="pflag">🏳️</span>' : ''}`;
+        <div class="pport"${tap}><div class="pava${flagged ? ' flagged' : ''}${off ? ' offline' : ''}" style="border-color:${PCOLOR[p.color]}">${av}${statusDot}</div><div class="pname">${escapeHtml(p.name)}</div></div>${flagged ? '<span class="pflag">🏳️</span>' : ''}`;
     });
     const usedSeats = {}; state.players.forEach((_, i) => { usedSeats[seatKey(i)] = 1; });
     ['tl', 'tr', 'br', 'bl'].forEach((k) => { if (!usedSeats[k]) { const el = $('p-' + k); if (el) el.style.display = 'none'; } });
@@ -3146,7 +3153,7 @@
         else { delete this.lastSeen[id]; delete this.lastPayload[id]; }
       });
       if (!NET.started) renderLobby();
-      else renderBanner();   // in-game: keep the "N watching" count live as spectators come/go
+      else { renderBanner(); if (state) renderPanels(); }   // in-game: refresh watch count + per-player online/offline dots
     },
     // drop grace members whose window has expired; returns true if the roster changed
     sweepStale() {
@@ -3155,7 +3162,7 @@
         if (this.liveIds.has(id)) return;
         if (now - (this.lastSeen[id] || 0) >= PRESENCE_GRACE) { delete this.presence[id]; delete this.lastSeen[id]; changed = true; }
       });
-      if (changed) { if (!NET.started) { lobbySig = null; renderLobby(); } else renderBanner(); }
+      if (changed) { if (!NET.started) { lobbySig = null; renderLobby(); } else { renderBanner(); if (state) renderPanels(); } }
       return changed;
     },
     online() { return Object.values(this.presence); },
