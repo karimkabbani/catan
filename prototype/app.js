@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v89';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v90';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -2091,11 +2091,13 @@
         const stale = (files || []).filter((x) => x.created_at && (now - new Date(x.created_at).getTime()) > 3 * 36e5).map((x) => f.name + '/' + x.name);
         if (stale.length) await c.storage.from('voice').remove(stale);
       }
+      // also drop chat rows from games that never cleaned up (older than ~3h)
+      await c.from('messages').delete().lt('created_at', new Date(now - 3 * 36e5).toISOString());
     } catch (_) { }
   }
   // ---- per-player message history: the last few messages (text + voice) each player sent this
   //      game, re-openable by tapping their corner portrait. Cleared on game entry (enterGame).
-  const MSG_KEEP = 5;
+  const MSG_KEEP = 30;   // keep a generous history per player; the popover scrolls
   let MSGLOG = {};   // color -> [{...msg, ts}] (oldest first, capped)
   let UNREAD = {};   // color -> true while a new message hasn't been reviewed (drives the corner dot)
   function clearMsgLog() { MSGLOG = {}; UNREAD = {}; }
@@ -2982,19 +2984,34 @@
       return this.client;
     },
     // watch the row for THIS table's game (this.code). No-op while browsing (no table).
+    lastMsgId: 0,
     subscribe() {
       const c = this.init(); if (!c || !this.code) return;
       const code = this.code;
       if (this.channel) { try { c.removeChannel(this.channel); } catch (_) { } }
       this.channel = c.channel('game-' + code)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'games', filter: 'code=eq.' + code }, (p) => { if (p.new) NET.onRow(p.new); })
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: 'code=eq.' + code }, (p) => { if (p.new) NET.onMsg(p.new); })   // chat, fast path
         .subscribe();
+      // only show messages from now on (not the whole history) — start the cursor at the current max id
+      c.from('messages').select('id').eq('code', code).order('id', { ascending: false }).limit(1)
+        .then(({ data }) => { NET.lastMsgId = (data && data[0]) ? data[0].id : 0; });
       if (this.poll) clearInterval(this.poll);
       this.poll = setInterval(async () => {
         if (!NET.code) return;
         const { data } = await c.from('games').select('*').eq('code', NET.code).maybeSingle();
         NET.onRow(data || { phase: 'idle' });   // realtime is primary; poll is the safety net
+        // chat: poll new messages (the reliable fallback when realtime drops, esp. on iOS/PWA)
+        const { data: msgs } = await c.from('messages').select('*').eq('code', NET.code).gt('id', NET.lastMsgId).order('id', { ascending: true }).limit(50);
+        if (msgs && msgs.length) msgs.forEach((m) => NET.onMsg(m));
       }, 2500);
+    },
+    // a chat message arrived (via realtime or poll) — dedup by monotonic id, skip my own echo
+    onMsg(row) {
+      if (!row || !row.id || row.id <= this.lastMsgId) return;
+      this.lastMsgId = row.id;
+      if (row.color && row.color === myColor) return;   // mine — already shown locally on send
+      showBroadcast({ type: row.type || 'text', text: row.body, url: row.url, dur: row.dur, name: row.name, avatar: row.avatar, color: row.color, code: row.code });
     },
     unsubscribeGame() {
       const c = this.init();
@@ -3100,9 +3117,16 @@
     // enter / switch tables (a table is a presence grouping keyed by a game code)
     enterTable(code) { this.table = code; NET.code = code; this.mode = 'idle'; this.readyAt = 0; this.inProgress = false; this.targetPoints = null; NET.subscribe(); this.track(); lobbySig = null; renderLobby(); },
     leaveTable() { this.table = null; NET.code = null; this.mode = 'idle'; this.readyAt = 0; this.inProgress = false; this.targetPoints = null; NET.unsubscribeGame(); this.track(); lobbySig = null; renderLobby(); },
+    // Chat rides a polled table (like the game state), NOT realtime broadcast — so it survives
+    // iOS/PWA WebSocket drops. Insert a row; every client picks it up via postgres_changes + poll.
     sendBroadcast(msg) {
-      try { console.log('[bcast tx]', { kind: msg.type || 'text', code: msg.code, table: msg.table, hasChannel: !!this.channel }); } catch (_) { }
-      if (this.channel) { try { this.channel.send({ type: 'broadcast', event: 'msg', payload: msg }); } catch (e) { try { console.log('[bcast tx err]', e && e.message); } catch (_) { } } }
+      const c = NET.init(); const code = msg.code || NET.code || this.table;
+      if (!c || !code) return;
+      c.from('messages').insert({
+        code, color: msg.color || null, name: msg.name || null, avatar: msg.avatar || null,
+        type: msg.type || 'text', body: msg.text || null, url: msg.url || null, dur: msg.dur || null,
+        sender: (AUTH.me && AUTH.me.id) || null,
+      }).then(({ error }) => { if (error) toast('Message failed'); });
     },
     onPresence() {
       const st = this.channel.presenceState();
@@ -3161,6 +3185,7 @@
       const code = NET.code;
       await c.from('games').upsert({ code, phase: 'idle', state: null, players: [], version: 0 });
       purgeVoice(code);   // the game's over -> drop its voice clips
+      try { c.from('messages').delete().eq('code', code); } catch (_) { }   // ...and its chat
     },
     // rematch: start a fresh game with the SAME seated players + win target, straight from the
     // victory screen. Version-guarded so two people tapping it doesn't spawn two games.
