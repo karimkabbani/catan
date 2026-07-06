@@ -86,7 +86,12 @@
   .corner.tr{top:calc(env(safe-area-inset-top,0px) * 0.4 + 8px);    right:calc(env(safe-area-inset-right,0px) * 0.4 + 8px);}
   .corner.bl{bottom:calc(env(safe-area-inset-bottom,0px) * 0.4 + 8px); left:calc(env(safe-area-inset-left,0px) * 0.4 + 8px);}
   .corner.br{bottom:calc(env(safe-area-inset-bottom,0px) * 0.4 + 8px); right:calc(env(safe-area-inset-right,0px) * 0.4 + 8px);}
-  .corner.tr, .corner.br{flex-direction:row-reverse;}   /* portrait faces the screen edge */
+  /* portrait always at the SCREEN EDGE (like the original): right corners keep natural order
+     (stats | portrait), left corners reverse (portrait | stats). */
+  .corner.tl, .corner.bl{flex-direction:row-reverse;}
+  /* ...and the number sits next to the portrait, the icon toward the centre. Right corners already
+     do this (icon | number, portrait on the right); left corners reverse each stat so it's number | icon. */
+  .corner.tl .pstat, .corner.bl .pstat{flex-direction:row-reverse;}
   /* turn clarity: dim everyone who isn't up, lift + glow the active player */
   .corner:not(.active){opacity:0.85; filter:saturate(0.5) brightness(0.88);}
   .corner.active{border-color:var(--gold); box-shadow:0 0 0 1px var(--gold), 0 0 16px rgba(233,196,90,0.7), 0 4px 12px rgba(0,0,0,0.5); transform:scale(1.07); z-index:8;}
@@ -119,8 +124,8 @@
   .pstatus.off{background:#9a9a9a;}   /* offline / away */
   .pflag{position:absolute; top:calc(50% - 13px); z-index:6; font-size:25px; line-height:1; pointer-events:none;
     filter:drop-shadow(0 1px 2px #000); transform-origin:bottom center; animation:flagwave 1.2s ease-in-out infinite;}
-  .corner.tl .pflag, .corner.bl .pflag{left:calc(100% + 1px);}   /* left corners -> flag to the right */
-  .corner.tr .pflag, .corner.br .pflag{right:calc(100% + 1px);}  /* right corners -> flag to the left */
+  .corner.tl .pflag, .corner.bl .pflag{right:calc(100% + 1px);}  /* portrait at the left edge -> flag beside it, to the left */
+  .corner.tr .pflag, .corner.br .pflag{left:calc(100% + 1px);}   /* portrait at the right edge -> flag beside it, to the right */
   /* quick-chat bubble on your own corner (always bottom-left) -> pokes toward the board */
   .pchat{position:absolute; top:-9px; right:-9px; z-index:9; width:30px; height:30px; border-radius:50%; padding:0;
     border:1.5px solid var(--gold-edge); background:radial-gradient(circle at 38% 32%, #3d7fd6, #1f4f8f); color:#fff;
@@ -1095,7 +1100,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v97';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v98';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
