@@ -356,6 +356,7 @@ export function applyAction(state: GameState, action: Action, byColor: PlayerCol
         s.turnPhase = 'main';
         s.freeRoads = 0;
       }
+      s.log.push(`${player.name} built a road.`);
       checkWin(s, cur);
       return { ok: true, state: s };
     }
@@ -370,6 +371,7 @@ export function applyAction(state: GameState, action: Action, byColor: PlayerCol
       s.settlements[action.vertex] = { type: 'settlement', owner: cur };
       player.settlementsLeft--;
       updateLongestRoad(s); // a new settlement may cut an opponent's road
+      s.log.push(`${player.name} built a settlement.`);
       checkWin(s, cur);
       return { ok: true, state: s };
     }
@@ -384,6 +386,7 @@ export function applyAction(state: GameState, action: Action, byColor: PlayerCol
       s.settlements[action.vertex] = { type: 'city', owner: cur };
       player.settlementsLeft++; // settlement piece returns to supply
       player.citiesLeft--;
+      s.log.push(`${player.name} upgraded to a city.`);
       checkWin(s, cur);
       return { ok: true, state: s };
     }

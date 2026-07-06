@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v90';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v91';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -1237,6 +1237,8 @@
   }
   function banner() {
     if (state.phase === 'ended') return `🏆 ${escapeHtml(state.players.find((p) => p.color === state.winner).name)} wins!${watchingTag()}`;
+    // a game event just happened -> show it here (it reverts to the turn indicator when the feed clears)
+    if (announceCur) return `<span class="bevent">${escapeHtml(announceCur)}</span>${watchingTag()}`;
     const p = activePlayer();
     if (online && !myColor) return `<span class="bdot" style="background:${PCOLOR[p.color]}"></span> 👁 Spectating — ${escapeHtml(p.name)}'s turn${watchingTag()}`;
     const phase = state.phase === 'setup' ? 'Setup' : (isMyTurn() ? 'your turn' : 'to play');
@@ -1874,19 +1876,15 @@
 
   let toastT = null;
   function toast(msg) { const el = $('toast'); el.textContent = msg; el.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 2200); }
-  // ---- game-event announcements (top pill, shown on every player's screen) --------------------
-  // Driven off the engine's own state.log (dev cards) + owner diffs (longest road / largest army),
-  // so it fires identically for the actor and all observers. Queued so two events from one action
-  // (e.g. a Knight that also grabs Largest Army) show in sequence instead of clobbering each other.
-  let announceT = null, announceQ = [], announceBusy = false;
-  function announce(msg) { if (!msg) return; announceQ.push(msg); if (!announceBusy) nextAnnounce(); }
+  // ---- game-event feed: shows what just happened IN the top banner (in place of "X — your turn"),
+  //      reverting to the turn indicator when the queue empties. Driven off the engine's state.log
+  //      (+ owner diffs for longest road / largest army), so it fires the same for actor & observers.
+  let announceT = null, announceQ = [], announceCur = null;
+  function announce(msg) { if (!msg) return; announceQ.push(msg); if (!announceCur) nextAnnounce(); }
   function nextAnnounce() {
-    const el = $('announce'); if (!el) { announceQ = []; announceBusy = false; return; }
-    if (!announceQ.length) { announceBusy = false; return; }
-    announceBusy = true;
-    el.textContent = announceQ.shift(); el.classList.remove('hidden'); el.classList.add('show');
-    clearTimeout(announceT);
-    announceT = setTimeout(() => { el.classList.remove('show'); setTimeout(nextAnnounce, 220); }, 2800);
+    if (!announceQ.length) { announceCur = null; renderBanner(); return; }
+    announceCur = announceQ.shift(); renderBanner();
+    clearTimeout(announceT); announceT = setTimeout(nextAnnounce, 2400);
   }
   // longest road / largest army aren't in the engine log -> announce them off an owner diff
   function announceMilestones(a, s) {
@@ -1895,16 +1893,22 @@
     if (s.longestRoadOwner && s.longestRoadOwner !== a.longestRoadOwner) { const n = nm(s.longestRoadOwner); if (n) announce(`${n} now holds the Longest Road 🛣️`); }
     if (s.largestArmyOwner && s.largestArmyOwner !== a.largestArmyOwner) { const n = nm(s.largestArmyOwner); if (n) announce(`${n} now holds the Largest Army ⚔️`); }
   }
-  // Map a raw engine log line to a nice announcement, or null to stay silent (rolls, builds, trades,
-  // steals, wins — those already have their own on-screen feedback).
+  // Map a raw engine log line to a feed message, or null to stay silent (setup, the "7 activates"
+  // line, wins — those have their own on-screen feedback).
   function eventMsg(line) {
     if (!line) return null;
-    if (/ bought a development card\.$/.test(line)) return line.replace(/\.$/, ' 🎴');
+    let m;
+    if ((m = line.match(/^(.*) rolled (\d+)\.$/))) return `${m[1]} rolled ${m[2]} 🎲`;
+    if (/ built a road\.$/.test(line)) return line.replace(/\.$/, ' 🛤️');
+    if (/ built a settlement\.$/.test(line)) return line.replace(/\.$/, ' 🏠');
+    if (/ upgraded to a city\.$/.test(line)) return line.replace(/ upgraded to a city\.$/, ' built a city 🏛️');
+    if (/ bought a development card\.$/.test(line)) return line.replace(/ bought a development card\.$/, ' bought a dev card 🎴');
     if (/ played a knight\.$/.test(line)) return line.replace(/ played a knight\.$/, ' played a Knight ⚔️');
     if (/ played Road Building\.$/.test(line)) return line.replace(/\.$/, ' 🛣️');
     if (/ played Year of Plenty\.$/.test(line)) return line.replace(/\.$/, ' 🌾');
-    const m = line.match(/^(.*) monopolised (\w+) \(\+(\d+)\)\.$/);
-    if (m) return `${m[1]} played Monopoly — took ${m[3]} ${m[2]} 💰`;
+    if ((m = line.match(/^(.*) monopolised (\w+) \(\+(\d+)\)\.$/))) return `${m[1]} played Monopoly — took ${m[3]} ${m[2]} 💰`;
+    if ((m = line.match(/^(.*) stole a card from (.+)\.$/))) return `${m[1]} robbed ${m[2]} 🃏`;
+    if ((m = line.match(/^(.*) traded with (.+)\.$/))) return `${m[1]} traded with ${m[2]} 🤝`;
     return null;
   }
   function announceFromLog(oldLog, newLog) {
