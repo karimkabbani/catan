@@ -152,12 +152,14 @@
   .mhrow.muted{color:#8a7a5c; font-style:italic; font-weight:400;}
   #msghist .bcplay{width:26px; height:26px; font-size:11px;}
   /* quick-chat picker (overlay): preset chips */
-  .qcgrid{display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin:8px 0 12px;}
+  .qcgrid{display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin:8px 0 8px;}
+  /* divider between the text tools (presets + Type/Edit) and the voice note */
+  .qcdiv{border-top:1px solid rgba(255,220,170,0.16); margin:16px 0 12px;}
   .qcchip{padding:10px 16px; border-radius:20px; border:1px solid var(--gold-edge); background:rgba(0,0,0,0.3);
     color:var(--ink); font-weight:700; font-size:15px; font-family:inherit; cursor:pointer;}
   .qcchip:active{transform:scale(0.95); background:rgba(255,220,170,0.12);}
   /* hold-to-talk mic button in the picker */
-  .qcmic{display:flex; align-items:center; justify-content:center; gap:8px; width:100%; margin:2px 0 12px; padding:14px;
+  .qcmic{display:flex; align-items:center; justify-content:center; gap:8px; width:100%; margin:0 0 14px; padding:14px;
     border-radius:14px; border:1px solid var(--gold-edge); background:linear-gradient(180deg, rgba(61,127,214,0.32), rgba(31,79,143,0.32));
     color:#eaf2ff; font-weight:800; font-size:16px; font-family:inherit; cursor:pointer;
     touch-action:none; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;}
@@ -1104,7 +1106,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v100';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v101';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -3046,8 +3048,10 @@
     const chips = AUTH.quickList().map((m, i) => `<button class="qcchip" onclick="CATAN.quickSendIdx(${i})">${escapeHtml(m)}</button>`).join('');
     showOverlay(`<h3>Quick chat</h3>
       <div class="qcgrid">${chips}</div>
+      <div class="trow2"><button class="btn wood" onclick="CATAN.openCustomMsg()">✏️ Type…</button><button class="btn ghost" onclick="CATAN.manageQuick('game')">⚙️ Edit</button></div>
+      <div class="qcdiv"></div>
       <button id="qcmic" class="qcmic">🎤 <span>Tap to record a voice note</span></button>
-      <div class="trow2"><button class="btn wood" onclick="CATAN.openCustomMsg()">✏️ Type…</button><button class="btn ghost" onclick="CATAN.manageQuick('game')">⚙️ Edit</button></div>`);
+      <button class="btn ghost full" onclick="CATAN.close()">Close</button>`);
     const o = $('overlay'); if (o) o.onclick = (e) => { if (e.target === o) CATAN.close(); };
     attachMic();
   }
