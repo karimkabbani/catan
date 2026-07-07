@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v100';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v101';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -1947,8 +1947,10 @@
     const chips = AUTH.quickList().map((m, i) => `<button class="qcchip" onclick="CATAN.quickSendIdx(${i})">${escapeHtml(m)}</button>`).join('');
     showOverlay(`<h3>Quick chat</h3>
       <div class="qcgrid">${chips}</div>
+      <div class="trow2"><button class="btn wood" onclick="CATAN.openCustomMsg()">✏️ Type…</button><button class="btn ghost" onclick="CATAN.manageQuick('game')">⚙️ Edit</button></div>
+      <div class="qcdiv"></div>
       <button id="qcmic" class="qcmic">🎤 <span>Tap to record a voice note</span></button>
-      <div class="trow2"><button class="btn wood" onclick="CATAN.openCustomMsg()">✏️ Type…</button><button class="btn ghost" onclick="CATAN.manageQuick('game')">⚙️ Edit</button></div>`);
+      <button class="btn ghost full" onclick="CATAN.close()">Close</button>`);
     const o = $('overlay'); if (o) o.onclick = (e) => { if (e.target === o) CATAN.close(); };
     attachMic();
   }
