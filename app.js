@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v98';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v99';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -124,12 +124,16 @@
   // Fill a RECTANGLE of water hexes (not a hexagon) so the whole viewport — including
   // its corners and anywhere you can pan to — is real ocean hexes, never a blue gap.
   // X is the wide axis (landscape); bounds cover the 1x view plus the pan overscroll.
-  const WATER_X = 20, WATER_Y = 10.5;
-  const VB_HALF = 6.2;            // viewBox half-size (keep in sync with boardSVG)
+  // The #board layers are 2x the viewport, so the viewBox is 2x too (VB_HALF below);
+  // the water rect must reach the viewBox corners (±VB_HALF) plus the wide letterbox,
+  // or a drag would expose the deep-ocean backdrop instead of hexes.
+  const WATER_X = 26, WATER_Y = 13;
+  const VB_HALF = 12.4;           // viewBox half-size (keep in sync with boardSVG + #board CSS 2x)
   let boardCx = 0, boardCy = 0;   // island/viewBox centre, set in boardSVG, used by zClamp
+  let boardHalfW = 4, boardHalfH = 4;   // island half-extent (board units, from vertices) — pan clamp
   const WATER_HEXES = (() => {
     const out = [];
-    for (let q = -13; q <= 13; q++) for (let r = -14; r <= 14; r++) {
+    for (let q = -18; q <= 18; q++) for (let r = -18; r <= 18; r++) {
       const s = -q - r;
       if (Math.max(Math.abs(q), Math.abs(r), Math.abs(s)) < 3) continue;   // skip the island region
       const cx = 1.5 * q, cy = Math.sqrt(3) * (r + q / 2);
@@ -431,6 +435,7 @@
     const xs = state.board.vertices.map((v) => v.x), ys = state.board.vertices.map((v) => v.y);
     const cx0 = (Math.min(...xs) + Math.max(...xs)) / 2, cy0 = (Math.min(...ys) + Math.max(...ys)) / 2;
     boardCx = cx0; boardCy = cy0;
+    boardHalfW = (Math.max(...xs) - Math.min(...xs)) / 2; boardHalfH = (Math.max(...ys) - Math.min(...ys)) / 2;
     const half = VB_HALF;
     const minx = cx0 - half, miny = cy0 - half, w = half * 2, h = half * 2;
     const P = [defs(state.board.hexes)];
@@ -2714,13 +2719,25 @@
     zArea.style.transform = `translate(${zoom.tx.toFixed(2)}px,${zoom.ty.toFixed(2)}px) scale(${zoom.s.toFixed(4)})`;
   }
   function zClamp() {
-    const r = zRect();
+    const r = zRect(), W = r.width, H = r.height;
     if (zoom.s < 1) zoom.s = 1;
-    // The SVG = the viewport and renders the water grid out to its edges, so the rule is
-    // simply: never pan the viewport past the SVG. The rectangular water fills every
-    // viewport corner at the clamp limits, so you only ever see ocean hexes — no stage.
-    zoom.tx = Math.min(0, Math.max(-(zoom.s - 1) * r.width, zoom.tx));
-    zoom.ty = Math.min(0, Math.max(-(zoom.s - 1) * r.height, zoom.ty));
+    const s = zoom.s;
+    // The #board layers span local [-0.5·W, 1.5·W] × [-0.5·H, 1.5·H] (2x, centred).
+    // translate(t)·scale(s) maps that edge to t ∓ 0.5·s·W / t + 1.5·s·W, so keeping the
+    // viewport fully over water means t ∈ [W(1−1.5s), 0.5·s·W] (and likewise vertically).
+    // That structural range is exactly "half the island off" at s=1, and opens up as you
+    // pinch in — so you can always drag but never expose the bare ocean backdrop.
+    const txLo = W * (1 - 1.5 * s), txHi = 0.5 * s * W;
+    const tyLo = H * (1 - 1.5 * s), tyHi = 0.5 * s * H;
+    // Vertical: full structural slack — up to half the island can slide off the top/bottom.
+    zoom.ty = Math.min(tyHi, Math.max(tyLo, zoom.ty));
+    // Horizontal: keep the whole island (+ its port badges) on screen at the default zoom,
+    // a touch stricter than just-touching. Relax by the pinch overscroll so a zoomed-in
+    // board can still be dragged side to side.
+    const base = Math.min(W, H) / VB_HALF;              // px per board unit at s = 1
+    const islandHalfPx = (boardHalfW + 1.0) * base;     // +1 unit of slack for the ports
+    const txCap = Math.max(0, (W / 2 - islandHalfPx) * 0.8) + Math.max(0, s - 1) * W;
+    zoom.tx = Math.min(Math.min(txHi, txCap), Math.max(Math.max(txLo, -txCap), zoom.tx));
   }
   // zoom toward a focal screen point, keeping the content under it fixed
   function zoomTo(newS, fx, fy) {
