@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v107';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v108';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -3183,12 +3183,14 @@
       sweepOldVoice();   // best-effort cleanup of orphaned voice clips (throttled hourly)
     },
     // `created` = the code I created via "New game", so everyone can see who owns/hosts each table
-    track() { if (this.channel) this.channel.track({ id: AUTH.me.id, name: AUTH.me.name, avatar: AUTH.me.avatar || null, pref: AUTH.me.prefColor || null, mode: this.mode, readyAt: this.readyAt, table: this.table || null, created: this.created || null, target: this.targetPoints || null }); },
+    // pref: the color this player wants NEXT game — a table-session override (prefGame) if they
+    // changed it at the table, else their profile preference. undefined = no override in play.
+    track() { if (this.channel) this.channel.track({ id: AUTH.me.id, name: AUTH.me.name, avatar: AUTH.me.avatar || null, pref: (this.prefGame !== undefined ? this.prefGame : (AUTH.me.prefColor || null)), mode: this.mode, readyAt: this.readyAt, table: this.table || null, created: this.created || null, target: this.targetPoints || null }); },
     creatorOf(code) { return this.online().find((p) => (p.table || null) === code && p.created === code) || null; },
     gameName(code) { const c = this.creatorOf(code); return c ? c.name + "'s Game" : 'Game'; },
     // enter / switch tables (a table is a presence grouping keyed by a game code)
-    enterTable(code) { this.table = code; NET.code = code; this.mode = 'idle'; this.readyAt = 0; this.inProgress = false; this.targetPoints = null; NET.subscribe(); this.track(); lobbySig = null; renderLobby(); },
-    leaveTable() { this.table = null; NET.code = null; this.mode = 'idle'; this.readyAt = 0; this.inProgress = false; this.targetPoints = null; NET.unsubscribeGame(); this.track(); lobbySig = null; renderLobby(); },
+    enterTable(code) { this.table = code; NET.code = code; this.mode = 'idle'; this.readyAt = 0; this.inProgress = false; this.targetPoints = null; this.prefGame = undefined; NET.subscribe(); this.track(); lobbySig = null; renderLobby(); },
+    leaveTable() { this.table = null; NET.code = null; this.mode = 'idle'; this.readyAt = 0; this.inProgress = false; this.targetPoints = null; this.prefGame = undefined; NET.unsubscribeGame(); this.track(); lobbySig = null; renderLobby(); },
     // Chat rides a polled table (like the game state), NOT realtime broadcast — so it survives
     // iOS/PWA WebSocket drops. Insert a row; every client picks it up via postgres_changes + poll.
     sendBroadcast(msg) {
@@ -3314,7 +3316,9 @@
       else if (m === 'playing') tag = `<span class="t-pend">in game</span>`;
       else if (m === 'ready') tag = ri >= 4 ? `<span class="t-pend">ready · spectating (full)</span>` : `<span class="t-acc">${isHost ? 'Host · ready' : 'ready'}</span>`;
       else tag = isHost ? `<span class="t-acc">Host · not ready</span>` : `<span class="muted">not ready</span>`;
-      return `<div class="lobrow${p.away ? ' away' : ''}"><span class="tnm">${faceHTML(p.name, p.avatar, 'sm')}<span>${escapeHtml(p.name)}${p.id === AUTH.me.id ? ' (you)' : ''}</span></span>${tag}</div>`;
+      // preferred-color dot beside the name (what they'll ask for when the game starts)
+      const pd = (p.pref && PCOLOR[p.pref]) ? `<span class="lobprefdot" style="background:${PCOLOR[p.pref]}" title="wants ${p.pref}"></span>` : '';
+      return `<div class="lobrow${p.away ? ' away' : ''}"><span class="tnm">${faceHTML(p.name, p.avatar, 'sm')}<span>${escapeHtml(p.name)}${p.id === AUTH.me.id ? ' (you)' : ''}</span>${pd}</span>${tag}</div>`;
     }).join('');
   }
   let lobbySig = null;
@@ -3542,7 +3546,7 @@
     const all = LOBBY.online();
     // sig over the whole presence (table memberships + modes) so any change re-renders
     const sig = JSON.stringify([LOBBY.table, LOBBY.inProgress, LOBBY.mode, LOBBY.targetPoints,
-      all.map((p) => p.id + ':' + (p.table || '') + ':' + pmode(p) + ':' + p.name + ':' + (p.readyAt || 0) + ':' + (p.target || '') + ':' + (p.created || '') + ':' + (p.away ? 'a' : '')).sort()]);
+      all.map((p) => p.id + ':' + (p.table || '') + ':' + pmode(p) + ':' + p.name + ':' + (p.readyAt || 0) + ':' + (p.target || '') + ':' + (p.created || '') + ':' + (p.pref || '') + ':' + (p.away ? 'a' : '')).sort()]);
     if (sig === lobbySig) return;
     lobbySig = sig;
     dynEl.innerHTML = LOBBY.table ? atTableHTML(all) : tableListHTML(all);   // footer frame untouched
@@ -3603,9 +3607,15 @@
     const targetRow = iAmHost
       ? `<div class="lobtgt"><span class="lobtgt-lbl">Win at <b id="tgt-val">${tgt}</b> pts</span><input class="lobtgt-slider" type="range" min="9" max="15" step="1" value="${tgt}" oninput="var e=document.getElementById('tgt-val');if(e)e.textContent=this.value" onchange="CATAN.lobbyTarget(this.value)"></div>`
       : `<div class="lobtgt muted">Win at ${tgt} pts</div>`;
+    // your color for THIS game: the table-session override if set, else your profile preference
+    const myPref = LOBBY.prefGame !== undefined ? LOBBY.prefGame : (AUTH.me.prefColor || null);
+    const prefRow = `<div class="lobprefrow"><span class="lobtgt-lbl">Your color</span>
+      ${SEAT_COLORS.map((c) => `<button class="prefsw sm${myPref === c ? ' on' : ''}" style="background:${PCOLOR[c]}" onclick="CATAN.lobbyPref('${c}')" aria-label="${c}"></button>`).join('')}
+      <button class="prefnone sm${!myPref ? ' on' : ''}" onclick="CATAN.lobbyPref(null)">Any</button></div>`;
     return `<p class="muted small" style="text-align:center">${members.length} here · ${ready.length} ready</p>
       <div class="loblist">${rows}</div>
       ${targetRow}
+      ${prefRow}
       <div class="lobrow2">
         <button class="btn ${LOBBY.mode === 'ready' ? '' : 'wood'}" onclick="CATAN.lobbyReady()">${LOBBY.mode === 'ready' ? '✓ Ready' : "I'm ready"}</button>
         <button class="btn ${LOBBY.mode === 'spectate' ? '' : 'wood'}" onclick="CATAN.lobbySpectate()">${LOBBY.mode === 'spectate' ? '✓ Spectating' : '👁 Spectate'}</button>
@@ -3623,6 +3633,8 @@
   window.CATAN.joinTable = (code) => LOBBY.enterTable(code);
   window.CATAN.leaveTable = () => LOBBY.leaveTable();
   window.CATAN.lobbyReady = () => LOBBY.setReady();
+  // pick a color for THIS game only (doesn't touch the profile preference)
+  window.CATAN.lobbyPref = (c) => { LOBBY.prefGame = c; LOBBY.track(); lobbySig = null; renderLobby(); };
   window.CATAN.lobbySpectate = () => LOBBY.setSpectate();
   window.CATAN.lobbyWatch = () => LOBBY.watch();
   window.CATAN.lobbyStart = () => LOBBY.startTable();
