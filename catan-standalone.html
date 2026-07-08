@@ -518,6 +518,15 @@
   .profhbtns .btn{padding:9px 16px; font-size:14px;}
   .proflbl{display:block; color:var(--muted); font-size:13px; margin:4px 2px 2px; text-align:left;}
   .profname{display:flex; gap:8px; align-items:center;}
+  /* preferred-color picker: four swatches + a "no preference" pill */
+  .prefrow{display:flex; align-items:center; gap:10px; margin:4px 0 12px;}
+  .prefsw{width:38px; height:38px; border-radius:50%; border:2px solid rgba(0,0,0,0.45); cursor:pointer; padding:0;
+    box-shadow:inset 0 2px 4px rgba(255,255,255,0.25), 0 2px 5px rgba(0,0,0,0.45);}
+  .prefsw.on{border-color:#fff; box-shadow:0 0 0 3px var(--gold), inset 0 2px 4px rgba(255,255,255,0.25), 0 2px 5px rgba(0,0,0,0.45);}
+  .prefsw:active{transform:scale(0.92);}
+  .prefnone{margin-left:auto; padding:8px 12px; border-radius:11px; background:rgba(0,0,0,0.28); border:1px solid transparent;
+    color:#f0dcb0; font-size:12.5px; font-weight:700; font-family:inherit; cursor:pointer; white-space:nowrap;}
+  .prefnone.on{border-color:var(--gold); background:rgba(233,196,90,0.18); color:#fff;}
   .profname .authin{flex:1 1 auto; min-width:0; margin:0;}
   .profname .btn{flex:0 0 auto; padding:11px 16px;}
   /* ===== photo cropper ===== */
@@ -1128,7 +1137,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v106';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v107';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -3647,6 +3656,23 @@
 
   const DEFAULT_NAMES = ['Karim', 'Sam', 'Alex', 'Jordan'];
   const SEAT_COLORS = ['red', 'blue', 'green', 'yellow'];
+  // Seat-color assignment honouring player preferences (profile -> presence `pref`).
+  // Each contested color goes to ONE random claimant; everyone else draws from the
+  // remaining colors in seat order. Runs only on the host (single writer), so plain
+  // Math.random is safe — the result ships to everyone in the game row.
+  function assignSeatColors(seated) {
+    const byId = {}, taken = new Set();
+    const wants = {};   // color -> [ids that asked for it]
+    seated.forEach((p) => { if (p.pref && SEAT_COLORS.includes(p.pref)) (wants[p.pref] = wants[p.pref] || []).push(p.id); });
+    for (const c of SEAT_COLORS) {
+      const w = wants[c]; if (!w || !w.length) continue;
+      byId[w[(Math.random() * w.length) | 0]] = c;   // random winner among the claimants
+      taken.add(c);
+    }
+    const rest = SEAT_COLORS.filter((c) => !taken.has(c));
+    seated.forEach((p) => { if (!byId[p.id]) byId[p.id] = rest.shift(); });
+    return byId;
+  }
   // win target by player count — mirrors the engine's targetForCount (2p is a 15-pt house rule)
   function targetForN(n) { return n === 2 ? 15 : n === 3 ? 13 : n === 4 ? 11 : 10; }
   // Scale the New Game card so the whole title screen always fits the viewport,
@@ -4289,7 +4315,7 @@
       sweepOldVoice();   // best-effort cleanup of orphaned voice clips (throttled hourly)
     },
     // `created` = the code I created via "New game", so everyone can see who owns/hosts each table
-    track() { if (this.channel) this.channel.track({ id: AUTH.me.id, name: AUTH.me.name, avatar: AUTH.me.avatar || null, mode: this.mode, readyAt: this.readyAt, table: this.table || null, created: this.created || null, target: this.targetPoints || null }); },
+    track() { if (this.channel) this.channel.track({ id: AUTH.me.id, name: AUTH.me.name, avatar: AUTH.me.avatar || null, pref: AUTH.me.prefColor || null, mode: this.mode, readyAt: this.readyAt, table: this.table || null, created: this.created || null, target: this.targetPoints || null }); },
     creatorOf(code) { return this.online().find((p) => (p.table || null) === code && p.created === code) || null; },
     gameName(code) { const c = this.creatorOf(code); return c ? c.name + "'s Game" : 'Game'; },
     // enter / switch tables (a table is a presence grouping keyed by a game code)
@@ -4348,7 +4374,8 @@
       if (!host || host.id !== AUTH.me.id) { toast('Only the game creator can start'); return; }
       if (!ready.some((r) => r.id === host.id)) { toast('Ready up before starting'); return; }
       const seated = ready.slice(0, 4), n = seated.length;
-      const players = seated.map((p, i) => ({ seat: i, color: SEAT_COLORS[i], name: p.name, playerId: p.id, avatar: p.avatar || null }));
+      const colorOf = assignSeatColors(seated);   // honour preferred colors; ties resolved randomly
+      const players = seated.map((p, i) => ({ seat: i, color: colorOf[p.id], name: p.name, playerId: p.id, avatar: p.avatar || null }));
       const playerN = Math.min(4, this.tableMembers().filter((m) => pmode(m) !== 'spectate').length) || n;
       const target = (this.targetPoints != null ? this.targetPoints : targetForN(playerN));   // host's chosen win target, else the count default
       let gstate;
@@ -4372,7 +4399,7 @@
       if (svEndTimer) { clearTimeout(svEndTimer); svEndTimer = null; }   // cancel the surrender auto-return-to-lobby
       const seats = (gameSeats || []).filter((s) => s && s.color);
       if (seats.length < 2) { toast('Need the same players to rematch'); return; }
-      const players = seats.map((p, i) => ({ seat: i, color: SEAT_COLORS[i], name: p.name, playerId: p.playerId || null, avatar: p.avatar || null }));
+      const players = seats.map((p, i) => ({ seat: i, color: p.color, name: p.name, playerId: p.playerId || null, avatar: p.avatar || null }));   // rematch keeps everyone's color
       const target = (state && state.targetPoints) || targetForN(players.length);
       let gstate;
       try { gstate = C.createGame({ id: 'table', players: players.map((p) => ({ color: p.color, name: p.name })), seed: (Math.random() * 1e9) | 0, targetPoints: target, randomFirst: true }); }
@@ -4810,12 +4837,12 @@
     async resume() {
       const s = this.saved(); if (!s || !s.token) return false;
       const r = await this.rpc('player_resume', { p_token: s.token });
-      if (r && r.ok) { this.me = { id: r.id, name: r.name, token: s.token, avatar: r.avatar || null, quickMsgs: Array.isArray(r.quick_msgs) ? r.quick_msgs : null }; return true; }
+      if (r && r.ok) { this.me = { id: r.id, name: r.name, token: s.token, avatar: r.avatar || null, quickMsgs: Array.isArray(r.quick_msgs) ? r.quick_msgs : null, prefColor: r.pref_color || null }; return true; }
       return false;
     },
     async login(name, pin) {
       const r = await this.rpc('player_login', { p_name: name, p_pin: pin });
-      if (r && r.ok) { this.save({ id: r.id, name: r.name, token: r.token, avatar: r.avatar || null, quickMsgs: Array.isArray(r.quick_msgs) ? r.quick_msgs : null }); return { ok: true }; }
+      if (r && r.ok) { this.save({ id: r.id, name: r.name, token: r.token, avatar: r.avatar || null, quickMsgs: Array.isArray(r.quick_msgs) ? r.quick_msgs : null, prefColor: r.pref_color || null }); return { ok: true }; }
       return { ok: false, error: (r && r.error) || 'Login failed' };
     },
     async create(name, pin) {
@@ -4830,6 +4857,13 @@
       const clean = (arr || []).map((s) => String(s).trim().slice(0, 50)).filter(Boolean).slice(0, 16);
       const r = await this.rpc('player_set_quick_msgs', { p_token: this.me.token, p_msgs: clean });
       if (r && r.ok) { this.me.quickMsgs = clean; this.save(this.me); }
+      return r;
+    },
+    // preferred seat color ('red'|'blue'|'green'|'yellow') or null = no preference
+    async setPrefColor(color) {
+      if (!this.me) return { ok: false, error: 'Not logged in' };
+      const r = await this.rpc('player_set_pref_color', { p_token: this.me.token, p_color: color || null });
+      if (r && r.ok) { this.me.prefColor = color || null; this.save(this.me); }
       return r;
     },
     // returns [{name, avatar}] (older server returned bare name strings — normalise both)
@@ -4962,11 +4996,21 @@
         <button class="btn" onclick="CATAN.saveName()">Save</button>
       </div>
       <div id="profErr" class="auerr"></div>
+      <label class="proflbl">Preferred color</label>
+      <div class="prefrow">
+        ${SEAT_COLORS.map((c) => `<button class="prefsw${AUTH.me.prefColor === c ? ' on' : ''}" style="background:${PCOLOR[c]}" onclick="CATAN.setPrefColor('${c}')" aria-label="${c}"></button>`).join('')}
+        <button class="prefnone${!AUTH.me.prefColor ? ' on' : ''}" onclick="CATAN.setPrefColor(null)">No preference</button>
+      </div>
       <button class="btn full" onclick="CATAN.manageQuick('profile')">💬 Quick messages</button>
       <button class="btn full" data-nav="changepin">Change PIN</button>
       <button class="btn ghost full" data-nav="lobby">← Back to lobby</button>`);
   }
   window.CATAN.manageProfile = () => manageProfile();
+  window.CATAN.setPrefColor = async (c) => {
+    const r = await AUTH.setPrefColor(c);
+    if (r && r.ok) { LOBBY.track(); manageProfile(); }   // re-track so the lobby/table sees the new preference
+    else toast((r && r.error) || 'Could not save color');
+  };
   window.CATAN.saveName = async () => {
     const el = $('profName'); const v = (el && el.value || '').trim();
     if (v === AUTH.me.name) { manageProfile(); return; }
