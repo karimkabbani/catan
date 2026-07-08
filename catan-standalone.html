@@ -1144,7 +1144,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v109';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v110';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -1418,7 +1418,9 @@
     if (ui.diceRevealing || ui.discardAnimating || ui.robberFlying) { render(); return; }
     // discards are over -> drop the "X is discarding" status on every screen (roller + watchers),
     // otherwise it covers the board and nobody can move the robber.
-    if (ui.discardWait && state.turnPhase !== 'discard') { ui.discardWait = false; hideOverlay(); }
+    // only auto-close the "X is discarding…" status itself (#dwait) — a compose box that was
+    // left open through the discards must not be swept away with it
+    if (ui.discardWait && state.turnPhase !== 'discard') { ui.discardWait = false; if ($('dwait')) hideOverlay(); }
     // discards happen sequentially in turn order; promptDiscards picks who's up
     if (state.turnPhase === 'discard') { promptDiscards(); return; }
     if (!isMyTurn()) { render(); return; }   // online: spectating another player's turn
@@ -2456,13 +2458,19 @@
     const cur = currentDiscarder();
     if (!cur) { ui.discardWait = false; render(); return; }   // everyone has discarded — afterAction moves on to the robber
     if (!online || cur.color === myColor) {
+      // the discard is mandatory and takes the screen — but never orphan an active voice
+      // recording (stop it cleanly) and the typed draft survives via bcDraft.
+      if (VOICE.recording) finishRec(true);
       ui.discardWait = false;
       ui.pending = { color: cur.color, need: state.pendingDiscards[cur.color], sel: { brick: 0, wood: 0, sheep: 0, wheat: 0, ore: 0 } };
       renderDiscard();
     } else {
-      // online: only the current discarder is prompted; everyone else waits and watches
+      // online: only the current discarder is prompted; everyone else waits and watches.
       ui.discardWait = true;
-      showOverlay(`<h3>Discarding</h3><p class="muted" style="text-align:center;margin:10px 0"><b style="color:var(--gold)">${escapeHtml(cur.name)}</b> is discarding…</p>`);
+      // ...but don't steal an active compose box or voice recording for a purely
+      // informational status — the banner already says whose turn it is.
+      if ($('bcInput') || document.querySelector('#overlay .vrec')) return;
+      showOverlay(`<h3>Discarding</h3><p id="dwait" class="muted" style="text-align:center;margin:10px 0"><b style="color:var(--gold)">${escapeHtml(cur.name)}</b> is discarding…</p>`);
     }
   }
   // discard (after a 7) — trade-style sheet: SWIPE a resource up into its slot to discard
@@ -3125,10 +3133,13 @@
     hideOverlay(); render();
     if (rec) sendVoice(rec);
   }
+  // draft survives forced interruptions (a 7 forcing YOU to discard replaces the overlay) —
+  // kept on every keystroke, restored next time the box opens, cleared on send.
+  let bcDraft = '';
   function openBroadcast() {
     if (!online || !myColor) return;
     showOverlay(`<h3>Quick message</h3>
-      <input id="bcInput" class="authin" maxlength="50" placeholder="Say something…" autocomplete="off">
+      <input id="bcInput" class="authin" maxlength="50" placeholder="Say something…" autocomplete="off" value="${escapeHtml(bcDraft)}" oninput="CATAN.bcKeep(this.value)">
       <div class="trow2"><button class="btn ghost" onclick="CATAN.close()">Cancel</button><button class="btn" onclick="CATAN.sendBroadcast()">Send</button></div>`);
     const el = $('bcInput'); if (el) el.focus();   // synchronous -> iOS keyboard opens within the tap
   }
@@ -3139,6 +3150,7 @@
   }
   function sendBroadcastMsg() {
     const el = $('bcInput'); const text = (el && el.value || '').trim().slice(0, 50);
+    bcDraft = '';   // sent (or deliberately submitted empty) -> the draft is done
     hideOverlay(); render();
     sendBroadcastText(text);
   }
@@ -4794,6 +4806,7 @@
   window.CATAN.lobbyStart = () => LOBBY.startTable();
   // hoisted helpers registered here, after window.CATAN exists, so onclick="CATAN.x()" works
   window.CATAN.sendBroadcast = sendBroadcastMsg;
+  window.CATAN.bcKeep = (v) => { bcDraft = String(v || '').slice(0, 50); };   // keep the draft on every keystroke
   window.CATAN.openQuickChat = () => openQuickChat();
   // spectator taps a player chip -> view their resources; tapping the active one again returns to follow-the-turn
   window.CATAN.specView = (color) => { specView = (specView === color) ? null : color; renderCounts(); };
