@@ -791,6 +791,20 @@
   .specleave{flex:0 0 auto;background:rgba(0,0,0,0.3);color:#ffd7ad;border:1px solid var(--gold-edge);border-radius:10px;
     padding:4px 13px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;margin-left:2px;}
   .specleave:active{transform:translateY(1px);}
+  /* spectator resource inspector: player chips + the selected player's resource orbs */
+  .spechand.specview{gap:10px; max-width:96vw;}
+  .speceye{flex:0 0 auto; font-size:15px;}
+  .specsel{display:flex; align-items:center; gap:6px; overflow-x:auto; -webkit-overflow-scrolling:touch;}
+  .specpl{display:flex; align-items:center; gap:5px; flex:0 0 auto; padding:5px 9px; border-radius:11px;
+    background:rgba(0,0,0,0.28); border:1px solid transparent; color:#f0dcb0; font-size:12.5px; font-weight:700;
+    font-family:inherit; cursor:pointer; white-space:nowrap;}
+  .specpl.turn{background:rgba(233,196,90,0.12);}
+  .specpl.on{border-color:var(--gold); background:rgba(233,196,90,0.22); color:#fff;}
+  .specpl:active{transform:scale(0.96);}
+  .specorbs{display:flex; align-items:center; gap:13px; flex:0 0 auto;}
+  .specorbs .res{display:flex; align-items:center; gap:3px;}
+  .specorbs .res img{width:24px; height:24px;}
+  .specorbs .rcount{font-size:14px; font-weight:800; color:#fff; text-shadow:0 1px 2px #000;}
   /* dice faces in the banner */
   .dice{display:inline-flex;align-items:center;gap:4px;margin-left:6px;}
   .dice img{width:22px;height:22px;filter:drop-shadow(0 1px 1px #000);}
