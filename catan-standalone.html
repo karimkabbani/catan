@@ -1146,7 +1146,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v111';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v112';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -4348,7 +4348,7 @@
     // several metas per member (a dropped leave-diff makes that permanent), and array order lies.
     track() { if (this.channel) this.channel.track({ id: AUTH.me.id, name: AUTH.me.name, avatar: AUTH.me.avatar || null, pref: this.myPref(), mode: this.mode, readyAt: this.readyAt, table: this.table || null, created: this.created || null, target: this.targetPoints || null, at: Date.now() }); },
     creatorOf(code) { return this.online().find((p) => (p.table || null) === code && p.created === code) || null; },
-    gameName(code) { if (code === HOME_CODE) return 'The Table'; const c = this.creatorOf(code); return c ? c.name + "'s Game" : 'Game'; },
+    gameName(code) { if (code === HOME_CODE) return 'Main Game'; const c = this.creatorOf(code); return c ? c.name + "'s Game" : 'Game'; },
     // enter / switch tables (a table is a presence grouping keyed by a game code)
     enterTable(code) { this.table = code; NET.code = code; this.mode = 'idle'; this.readyAt = 0; this.inProgress = false; this.targetPoints = null; this.prefGame = undefined; NET.subscribe(); this.track(); lobbySig = null; renderLobby(); },
     leaveTable() { this.table = null; NET.code = null; this.mode = 'idle'; this.readyAt = 0; this.inProgress = false; this.targetPoints = null; this.prefGame = undefined; NET.unsubscribeGame(); this.track(); lobbySig = null; renderLobby(); },
@@ -4736,7 +4736,7 @@
     const rowFor = (code, m) => {
       const home = code === HOME_CODE, inGame = m.some((p) => pmode(p) === 'playing');
       const creator = m.find((p) => p.created === code);
-      const gname = home ? '🏠 The Table' : creator ? escapeHtml(creator.name) + "'s Game" : 'Game';
+      const gname = home ? '🏠 Main Game' : creator ? escapeHtml(creator.name) + "'s Game" : 'Game';
       const names = m.map((p) => escapeHtml(p.name)).join(', ');
       return `<button class="tablerow${home ? ' home' : ''}" onclick="CATAN.joinTable('${code}')"><span class="trow-main"><span class="tgname">${gname}</span><span class="tgwho">${names || (home ? 'Empty — gather here' : 'Empty')}</span></span>` +
         `<span class="${inGame ? 't-pend' : 't-acc'}">${inGame ? '🔴 watch' : m.length ? m.length + ' here' : 'join'}</span></button>`;
