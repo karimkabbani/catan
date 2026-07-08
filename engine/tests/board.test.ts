@@ -88,4 +88,24 @@ describe('generated board (seeded)', () => {
     const b = generateBoard(42).board.hexes.map((h) => `${h.terrain}:${h.token}`).join(',');
     expect(a).toBe(b);
   });
+
+  it('never places two 3:1 harbours on neighbouring port slots', () => {
+    // mirror assignPorts: coastal edges sorted by angle, ports at the fixed slots
+    const SLOTS = [0, 3, 6, 10, 13, 16, 20, 23, 26];
+    for (let seed = 1; seed <= 80; seed++) {
+      const { board } = generateBoard(seed);
+      const coastal = board.edges
+        .filter((e) => e.hexes.length === 1)
+        .map((e) => {
+          const a = board.vertices[e.v[0]], b = board.vertices[e.v[1]];
+          return { e, angle: Math.atan2((a.y + b.y) / 2, (a.x + b.x) / 2) };
+        })
+        .sort((p, q) => p.angle - q.angle);
+      const ring = SLOTS.map((s) => board.vertices[coastal[s].e.v[0]].port);
+      ring.forEach((t) => expect(t).not.toBeNull());   // sanity: we're reading real port slots
+      for (let i = 0; i < ring.length; i++) {
+        expect(ring[i] === '3:1' && ring[(i + 1) % ring.length] === '3:1').toBe(false);
+      }
+    }
+  });
 });

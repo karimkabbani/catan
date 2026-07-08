@@ -177,6 +177,24 @@ const PIPS: Record<number, number> = { 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 8: 5, 9: 4,
 // 3-high super-spot" and reliably generates. ≤11 is ~150x rarer and impractical with retry.
 const MAX_VERTEX_PIPS = 12;
 
+/** True if two generic 3:1 harbours sit on neighbouring coastal slots. The 9 port positions
+ *  form a ring around the coast; each resource harbour is unique, so the four 3:1s are the
+ *  only type that can clump. (The official fixed board interleaves them for the same reason —
+ *  its variable setup just doesn't bother; this is our balance rule, like the token ones.) */
+function hasAdjacentGenericPorts(types: PortType[]): boolean {
+  for (let i = 0; i < types.length; i++) {
+    if (types[i] === '3:1' && types[(i + 1) % types.length] === '3:1') return true;
+  }
+  return false;
+}
+
+/** Shuffle the harbours until no two 3:1 are neighbours (~7% of shuffles pass; bounded retry). */
+function shufflePorts(rng: number): { result: PortType[]; state: number } {
+  let ps = shuffle(PORT_TYPES, rng);
+  for (let t = 0; t < 200 && hasAdjacentGenericPorts(ps.result); t++) ps = shuffle(PORT_TYPES, ps.state);
+  return ps;
+}
+
 /** True if two adjacent hexes share the same number token. */
 function hasAdjacentSameNumber(board: Board, nb: Map<number, number[]>): boolean {
   for (const h of board.hexes) {
@@ -251,7 +269,7 @@ export function generateBoard(seed: number): { board: Board; rngState: number } 
     if (hasAdjacentSameNumber(board, nb)) continue;   // balance: no duplicate numbers touching
     if (hasOverproductiveVertex(board)) continue;     // balance: cap the pip total at any settlement spot
 
-    const ps = shuffle(PORT_TYPES, rng); rng = ps.state;   // randomise the harbours
+    const ps = shufflePorts(rng); rng = ps.state;   // randomise the harbours (no adjacent 3:1s)
     assignPorts(board, ps.result);
     return { board, rngState: rng };
   }
@@ -267,7 +285,7 @@ export function generateBoard(seed: number): { board: Board; rngState: number } 
     h.terrain = st.result[i];
     h.token = h.terrain === 'desert' ? null : tk.result[ti++];
   });
-  const ps = shuffle(PORT_TYPES, rng); rng = ps.state;
+  const ps = shufflePorts(rng); rng = ps.state;
   assignPorts(board, ps.result);
   return { board, rngState: rng };
 }
