@@ -475,7 +475,7 @@
   .authrow{display:flex !important; align-items:center; gap:12px; text-align:left; padding:12px 14px;}
   .authrow .anm{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .lobrow .tnm{display:flex; align-items:center; gap:8px; min-width:0;}
-  .lobrow .tnm > span:last-child{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .lobrow .tnm > span:nth-child(2){overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}   /* the name (a pref dot may follow) */
   /* ===== broadcast message banner (top-centre, ephemeral) ===== */
   #bctoast{position:fixed; left:50%; top:calc(env(safe-area-inset-top, 0px) + 10px); transform:translateX(-50%) translateY(-14px);
     z-index:34; display:flex; align-items:center; gap:8px; max-width:86vw; pointer-events:none;
@@ -527,6 +527,13 @@
   .prefnone{margin-left:auto; padding:8px 12px; border-radius:11px; background:rgba(0,0,0,0.28); border:1px solid transparent;
     color:#f0dcb0; font-size:12.5px; font-weight:700; font-family:inherit; cursor:pointer; white-space:nowrap;}
   .prefnone.on{border-color:var(--gold); background:rgba(233,196,90,0.18); color:#fff;}
+  /* table-lobby variant: compact picker next to the ready buttons + a pref dot on player rows */
+  .lobprefrow{display:flex; align-items:center; gap:8px; margin:6px 0 8px;}
+  .lobprefrow .lobtgt-lbl{margin-right:2px;}
+  .prefsw.sm{width:26px; height:26px;}
+  .prefnone.sm{margin-left:auto; padding:5px 10px; font-size:11.5px;}
+  .lobprefdot{width:10px; height:10px; border-radius:50%; border:1px solid rgba(0,0,0,0.5); flex:0 0 auto;
+    box-shadow:0 1px 2px rgba(0,0,0,0.4);}
   .profname .authin{flex:1 1 auto; min-width:0; margin:0;}
   .profname .btn{flex:0 0 auto; padding:11px 16px;}
   /* ===== photo cropper ===== */
