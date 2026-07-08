@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v103';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v104';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -797,13 +797,20 @@
   }
   const HAND_ORDER = ['wheat', 'wood', 'ore', 'sheep', 'brick'];   // original app order
   function handBar() {
-    // spectator: no hand of their own -> a clear "spectating" strip with whose turn it is + quick leave
+    // spectator: no hand of their own -> tap any player to inspect that player's resources.
+    // Defaults to following whoever's up; the active player's chip carries a turn ring.
     if (online && !myColor) {
       const ap = activePlayer();
-      const whose = state.phase === 'ended'
-        ? `${escapeHtml(state.players.find((x) => x.color === state.winner).name)} won`
-        : `${escapeHtml(ap.name)}'s turn`;
-      return `<div class="spechand"><span class="specdot" style="background:${PCOLOR[ap.color]}"></span><span class="spectxt">👁 Spectating — ${whose}</span><button class="specleave" onclick="CATAN.exitGame()">Leave</button></div>`;
+      const viewColor = (specView && state.players.some((x) => x.color === specView)) ? specView : ap.color;
+      const vp = state.players.find((x) => x.color === viewColor) || ap;
+      const chips = state.players.map((pl) => {
+        const on = pl.color === viewColor, turn = pl.color === ap.color && state.phase !== 'ended';
+        return `<button class="specpl${on ? ' on' : ''}${turn ? ' turn' : ''}" onclick="CATAN.specView('${pl.color}')">`
+          + `<span class="specdot" style="background:${PCOLOR[pl.color]}"></span>${escapeHtml(pl.name)}</button>`;
+      }).join('');
+      const orbs = HAND_ORDER.map((r) => resOrb(r, Math.max(0, vp.resources[r]))).join('');
+      return `<div class="spechand specview"><span class="speceye">👁</span><div class="specsel">${chips}</div>`
+        + `<div class="specorbs">${orbs}</div><button class="specleave" onclick="CATAN.exitGame()">Leave</button></div>`;
     }
     // online: show MY hand; pass-and-play: show the active player's
     const p = (online && myColor) ? state.players.find((x) => x.color === myColor) : activePlayer();
@@ -2934,8 +2941,9 @@
   // new state to Supabase; Realtime fans it out to the other phones. No host needs to be
   // online — Supabase holds the shared truth and is always up.
   let online = false, myColor = null;
+  let specView = null;   // spectators: which player's resources to show in the hand bar (null = follow whoever's up)
   function enterGame(s) {
-    state = s; ui = { mode: 'idle', pending: null }; resetZoom(); renderedBoardKey = null;
+    state = s; ui = { mode: 'idle', pending: null }; resetZoom(); renderedBoardKey = null; specView = null;
     lastBcAt = 0; clearMsgLog();   // reset chat cooldown + per-player message history on entry
     const t = $('title'); if (t) t.classList.add('hidden');
     hideOverlay();
@@ -3573,6 +3581,8 @@
   // hoisted helpers registered here, after window.CATAN exists, so onclick="CATAN.x()" works
   window.CATAN.sendBroadcast = sendBroadcastMsg;
   window.CATAN.openQuickChat = () => openQuickChat();
+  // spectator taps a player chip -> view their resources; tapping the active one again returns to follow-the-turn
+  window.CATAN.specView = (color) => { specView = (specView === color) ? null : color; renderCounts(); };
   window.CATAN.quickSendIdx = (i) => { const t = AUTH.quickList()[i]; if (t) quickSend(t); };
   window.CATAN.recStop = () => finishRec(false);
   window.CATAN.recCancel = () => finishRec(true);
