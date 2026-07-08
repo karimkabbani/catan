@@ -518,6 +518,15 @@
   .profhbtns .btn{padding:9px 16px; font-size:14px;}
   .proflbl{display:block; color:var(--muted); font-size:13px; margin:4px 2px 2px; text-align:left;}
   .profname{display:flex; gap:8px; align-items:center;}
+  /* preferred-color picker: four swatches + a "no preference" pill */
+  .prefrow{display:flex; align-items:center; gap:10px; margin:4px 0 12px;}
+  .prefsw{width:38px; height:38px; border-radius:50%; border:2px solid rgba(0,0,0,0.45); cursor:pointer; padding:0;
+    box-shadow:inset 0 2px 4px rgba(255,255,255,0.25), 0 2px 5px rgba(0,0,0,0.45);}
+  .prefsw.on{border-color:#fff; box-shadow:0 0 0 3px var(--gold), inset 0 2px 4px rgba(255,255,255,0.25), 0 2px 5px rgba(0,0,0,0.45);}
+  .prefsw:active{transform:scale(0.92);}
+  .prefnone{margin-left:auto; padding:8px 12px; border-radius:11px; background:rgba(0,0,0,0.28); border:1px solid transparent;
+    color:#f0dcb0; font-size:12.5px; font-weight:700; font-family:inherit; cursor:pointer; white-space:nowrap;}
+  .prefnone.on{border-color:var(--gold); background:rgba(233,196,90,0.18); color:#fff;}
   .profname .authin{flex:1 1 auto; min-width:0; margin:0;}
   .profname .btn{flex:0 0 auto; padding:11px 16px;}
   /* ===== photo cropper ===== */
