@@ -452,6 +452,8 @@
     padding:15px 16px; border-radius:10px; font-weight:700; font-family:var(--serif); font-size:16px; color:#3a2400;
     background:linear-gradient(180deg,#e8cf86,#c79b3f); border:1px solid var(--gold-edge); box-shadow:0 2px 6px rgba(0,0,0,0.35);}
   .tablerow:active{transform:scale(0.99);}
+  /* the group's standing table — pinned first, visually the main door */
+  .tablerow.home{border:2px solid var(--gold); box-shadow:0 0 0 1px rgba(233,196,90,0.35), 0 3px 8px rgba(0,0,0,0.4);}
   .tablerow .tnm2{overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; min-width:0;}
   .tablerow .trow-main{display:flex; flex-direction:column; gap:2px; flex:1; min-width:0;}
   .tablerow .tgname{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
@@ -1144,7 +1146,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v110';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v111';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -4196,6 +4198,10 @@
     if (placed && !robberMoved && !rolled) cinematicPlace(placed.kind, placed.id, false);   // observer: gentle pan to the new piece
   }
   function genCode() { const a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s = ''; for (let i = 0; i < 4; i++) s += a[(Math.random() * a.length) | 0]; return s; }
+  // The group's standing table: always exists, pinned at the top of the lobby, and where a fresh
+  // login lands. No creator — the first player to ready up hosts (startTable/atTableHTML fall back
+  // to ready[0]). 5 chars so a random 4-char genCode can never collide with it.
+  const HOME_CODE = 'TABLE';
 
   const NET = {
     client: null, code: null, version: 0, isHost: false, started: false, channel: null, players: [],
@@ -4342,7 +4348,7 @@
     // several metas per member (a dropped leave-diff makes that permanent), and array order lies.
     track() { if (this.channel) this.channel.track({ id: AUTH.me.id, name: AUTH.me.name, avatar: AUTH.me.avatar || null, pref: this.myPref(), mode: this.mode, readyAt: this.readyAt, table: this.table || null, created: this.created || null, target: this.targetPoints || null, at: Date.now() }); },
     creatorOf(code) { return this.online().find((p) => (p.table || null) === code && p.created === code) || null; },
-    gameName(code) { const c = this.creatorOf(code); return c ? c.name + "'s Game" : 'Game'; },
+    gameName(code) { if (code === HOME_CODE) return 'The Table'; const c = this.creatorOf(code); return c ? c.name + "'s Game" : 'Game'; },
     // enter / switch tables (a table is a presence grouping keyed by a game code)
     enterTable(code) { this.table = code; NET.code = code; this.mode = 'idle'; this.readyAt = 0; this.inProgress = false; this.targetPoints = null; this.prefGame = undefined; NET.subscribe(); this.track(); lobbySig = null; renderLobby(); },
     leaveTable() { this.table = null; NET.code = null; this.mode = 'idle'; this.readyAt = 0; this.inProgress = false; this.targetPoints = null; this.prefGame = undefined; NET.unsubscribeGame(); this.track(); lobbySig = null; renderLobby(); },
@@ -4725,19 +4731,20 @@
     const me = escapeHtml(AUTH.me.name);
     const tables = {};
     all.forEach((p) => { if (p.table) (tables[p.table] = tables[p.table] || []).push(p); });
-    const codes = Object.keys(tables).sort();
+    const codes = Object.keys(tables).filter((c) => c !== HOME_CODE).sort();   // the standing table renders pinned, above
     const browsing = all.filter((p) => !p.table).length;
-    const rows = codes.length ? codes.map((code) => {
-      const m = tables[code], inGame = m.some((p) => pmode(p) === 'playing');
+    const rowFor = (code, m) => {
+      const home = code === HOME_CODE, inGame = m.some((p) => pmode(p) === 'playing');
       const creator = m.find((p) => p.created === code);
-      const gname = creator ? escapeHtml(creator.name) + "'s Game" : 'Game';
+      const gname = home ? '🏠 The Table' : creator ? escapeHtml(creator.name) + "'s Game" : 'Game';
       const names = m.map((p) => escapeHtml(p.name)).join(', ');
-      return `<button class="tablerow" onclick="CATAN.joinTable('${code}')"><span class="trow-main"><span class="tgname">${gname}</span><span class="tgwho">${names || 'Empty'}</span></span>` +
-        `<span class="${inGame ? 't-pend' : 't-acc'}">${inGame ? '🔴 watch' : m.length + ' here'}</span></button>`;
-    }).join('') : `<p class="muted" style="text-align:center;margin:12px 0">No games yet — start one.</p>`;
+      return `<button class="tablerow${home ? ' home' : ''}" onclick="CATAN.joinTable('${code}')"><span class="trow-main"><span class="tgname">${gname}</span><span class="tgwho">${names || (home ? 'Empty — gather here' : 'Empty')}</span></span>` +
+        `<span class="${inGame ? 't-pend' : 't-acc'}">${inGame ? '🔴 watch' : m.length ? m.length + ' here' : 'join'}</span></button>`;
+    };
+    const rows = rowFor(HOME_CODE, tables[HOME_CODE] || []) + codes.map((code) => rowFor(code, tables[code])).join('');
     return `<p class="muted small" style="text-align:center">${me} · ${all.length} online${browsing ? ' · ' + browsing + ' browsing' : ''}</p>
       <div class="loblist">${rows}</div>
-      <button class="btn wood full" onclick="CATAN.newTable()">+ New game</button>
+      <button class="btn ghost full" onclick="CATAN.newTable()">+ New separate game</button>
       <div class="rgsec">
         <div class="rghead"><span>Recent games</span><button class="rglink" data-nav="stats">Full stats →</button></div>
         <div class="rglist">${STATS.games.length ? recentRowsHTML(STATS.games, 8) : `<p class="muted small" style="text-align:center;padding:8px 0">${STATS.loaded ? 'No games recorded yet.' : 'Loading…'}</p>`}</div>
@@ -4761,7 +4768,7 @@
     const seatN = Math.min(4, ready.length);
     // the win target follows PLAYERS AT THE TABLE (spectators excluded), so it updates as people join — not only once they ready up
     const playerN = Math.min(4, members.filter((m) => pmode(m) !== 'spectate').length) || seatN;
-    const chosen = iAmHost ? LOBBY.targetPoints : (creator ? creator.target : null);
+    const chosen = iAmHost ? LOBBY.targetPoints : (host ? host.target : null);   // host may be first-ready (standing table has no creator)
     // host's pick if set; else the count default for 2+ players (2p15 · 3p13 · 4p11); else the general 13
     const tgt = (chosen != null ? chosen : (playerN >= 2 ? targetForN(playerN) : 13));
     const hostName = escapeHtml((host && host.name) || 'the host');
@@ -4794,7 +4801,29 @@
   window.CATAN.statsCount = (n) => { statsCount = n; statsScreen(); };
   window.CATAN.statsPlayer = (n) => statsPlayerScreen(decodeURIComponent(n));
   window.CATAN.lobbyBack = () => { if (LOBBY.table) CATAN.leaveTable(); else CATAN.lobbyLogout(); };
-  window.CATAN.newTable = () => { const code = genCode(); LOBBY.created = code; LOBBY.enterTable(code); };
+  window.CATAN.newTable = () => {
+    // creation guard: if friends are already gathered somewhere waiting to play, joining them is
+    // almost always what you meant — creating a second table splits the group.
+    const tables = {};
+    LOBBY.online().forEach((p) => { if (p.table) (tables[p.table] = tables[p.table] || []).push(p); });
+    const waiting = Object.keys(tables)
+      .filter((code) => !tables[code].some((p) => pmode(p) === 'playing'))   // a table already mid-game can't be joined anyway
+      .sort((a, b) => tables[b].length - tables[a].length)[0];
+    if (waiting && tables[waiting].length) {
+      const m = tables[waiting];
+      const names = m.map((p) => escapeHtml(p.name)).join(', ');
+      titleCard(`<h3>Friends are gathering</h3>
+        <p class="muted" style="text-align:center;margin:10px 0 14px"><b style="color:var(--gold)">${escapeHtml(LOBBY.gameName(waiting))}</b> already has ${m.length} waiting: ${names}</p>
+        <button class="btn full" onclick="CATAN.guardJoin('${waiting}')">Join them</button>
+        <button class="btn ghost full" onclick="CATAN.newTableGo()">Create a separate game anyway</button>
+        <button class="btn ghost full" data-nav="lobby">← Back</button>`);
+      return;
+    }
+    CATAN.newTableGo();
+  };
+  // both guard exits rebuild the lobby shell — the guard card replaced it (titleCard swaps the whole card)
+  window.CATAN.guardJoin = (code) => { lobbyShell(); LOBBY.enterTable(code); };
+  window.CATAN.newTableGo = () => { const code = genCode(); LOBBY.created = code; lobbyShell(); LOBBY.enterTable(code); };
   window.CATAN.lobbyTarget = (v) => { LOBBY.targetPoints = Math.max(9, Math.min(15, parseInt(v, 10) || 13)); LOBBY.track(); lobbySig = null; renderLobby(); };
   window.CATAN.joinTable = (code) => LOBBY.enterTable(code);
   window.CATAN.leaveTable = () => LOBBY.leaveTable();
@@ -4994,6 +5023,9 @@
     exitGameUI();      // clear any lingering game layer before the lobby paints
     lobbyShell();      // build the frame (title + footer + empty dyn slot) once
     LOBBY.join();
+    // fresh login lands AT the standing table — the group's meeting point — once per session.
+    // The ← from there shows the full games list (and won't bounce back here).
+    if (!LOBBY.table && !LOBBY.autoHomed) { LOBBY.autoHomed = true; LOBBY.enterTable(HOME_CODE); }
     renderLobby();     // fill the dynamic half
     STATS.load().then(() => { if (!NET.started && !LOBBY.table && $('lobby-dyn')) { lobbySig = null; renderLobby(); } });   // fill the recent-games strip once results load
     purgeStaleGames();   // auto-clean abandoned/idle games whenever someone opens the lobby
