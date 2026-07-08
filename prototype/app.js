@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v104';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v105';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -2319,7 +2319,7 @@
     const fa = flagsOf(a), fs = flagsOf(s);
     const nm = (c) => { const p = (s.players || []).find((x) => x.color === c); return p ? p.name : 'A player'; };
     const raised = fs.filter((c) => fa.indexOf(c) < 0), lowered = fa.filter((c) => fs.indexOf(c) < 0);
-    if (raised.length) toast('🏳️ ' + raised.map(nm).join(', ') + (raised.length > 1 ? ' raised white flags' : ' raised the white flag'));
+    if (raised.length) toast('🏳️ ' + raised.map(nm).join(', ') + (raised.length > 1 ? ' want to surrender — raised white flags' : ' wants to surrender — raised the white flag'));
     else if (lowered.length) toast(lowered.map(nm).join(', ') + (lowered.length > 1 ? ' are back in' : ' is back in'));
   }
 
