@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v105';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v106';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -2303,6 +2303,23 @@
     if (svEndTimer) clearTimeout(svEndTimer);
     svEndTimer = setTimeout(() => { svEndTimer = null; try { LOBBY.reset(); } catch (_) {} }, 9000);   // brief victory, then back to lobby (a Rematch tap cancels this)
   }
+  // a seated player quits mid-game (via Leave -> confirm). The leader among those still in wins;
+  // the quitter takes a recorded penalty (a loss). We push the ended state through the game row so
+  // every client records it the normal way (dedup-safe), then the quitter leaves the table.
+  async function endByQuit() {
+    if (!online || !myColor || !state || state.phase !== 'play') return false;
+    const others = state.players.filter((p) => p.color !== myColor);
+    if (!others.length) return false;   // nobody to hand the win to -> caller falls back to plain abandon
+    const winner = others
+      .map((p) => ({ c: p.color, vp: C.victoryPoints(state, p.color, true) }))
+      .sort((a, b) => b.vp - a.vp)[0].c;
+    const q = myColor;
+    ui.svEnding = true;
+    state.winner = winner; state.phase = 'ended'; state.quitBy = q; delete state.sv;
+    recordResult();   // record locally too, so the result lands even if the state push is slow
+    await svUpdate((s) => { s.winner = winner; s.phase = 'ended'; s.quitBy = q; delete s.sv; });
+    return true;
+  }
   // checked from afterAction on every state change: trigger the win when only one stands
   function syncSurrenderUI() {
     if (!online || !myColor || ui.svEnding || !state || !state.sv) return;
@@ -3319,7 +3336,7 @@
           STATS.games = ((!error && data) ? data : []).filter((r) => Array.isArray(r.standings) && r.standings.length).map((r) => {
             const d = new Date(r.finished_at), mo = d.getMonth();
             return { date: MONTH_ABBR[mo] + ' ' + d.getDate() + ', ' + d.getFullYear(), ym: d.getFullYear() + '-' + String(mo + 1).padStart(2, '0'),
-              standings: r.standings.map((s) => ({ id: s.id || null, n: s.name, pts: s.pts, lr: s.lr ? 1 : 0, la: s.la ? 1 : 0 })) };
+              standings: r.standings.map((s) => ({ id: s.id || null, n: s.name, pts: s.pts, lr: s.lr ? 1 : 0, la: s.la ? 1 : 0, pen: s.penalty ? 1 : 0 })) };
           });
           // Resolve the LATEST display name per identity key (games are newest-first, so the first
           // name seen for a key wins). Keying on the persistent player id means a rename never
@@ -3342,12 +3359,12 @@
     monthShort(ym) { return MONTH_ABBR[(+ym.split('-')[1]) - 1]; },   // "Jul" (the year is shown separately in the year row)
     filter(season) { return season === 'all' ? STATS.games : STATS.games.filter((g) => g.ym === season); },
     board(games) {
-      const m = {}, get = (k) => (m[k] = m[k] || { key: k, gp: 0, w: 0, exp: 0, ps: 0, lr: 0, la: 0 });
+      const m = {}, get = (k) => (m[k] = m[k] || { key: k, gp: 0, w: 0, exp: 0, ps: 0, lr: 0, la: 0, pen: 0 });
       games.forEach((g) => {
         const N = g.standings.length;
-        g.standings.forEach((s, i) => { const p = get(pkey(s)); p.gp++; p.exp += 1 / N; p.ps += i + 1; if (i === 0) p.w++; if (s.lr) p.lr++; if (s.la) p.la++; });
+        g.standings.forEach((s, i) => { const p = get(pkey(s)); p.gp++; p.exp += 1 / N; p.ps += i + 1; if (i === 0) p.w++; if (s.lr) p.lr++; if (s.la) p.la++; if (s.pen) p.pen++; });
       });
-      return Object.values(m).map((p) => ({ key: p.key, name: STATS.nameFor(p.key), gp: p.gp, w: p.w, lr: p.lr, la: p.la, winpct: Math.round((100 * p.w) / p.gp), wae: p.w - p.exp, avg: p.ps / p.gp }))
+      return Object.values(m).map((p) => ({ key: p.key, name: STATS.nameFor(p.key), gp: p.gp, w: p.w, lr: p.lr, la: p.la, pen: p.pen, winpct: Math.round((100 * p.w) / p.gp), wae: p.w - p.exp, avg: p.ps / p.gp }))
         .sort((a, b) => b.wae - a.wae || b.w - a.w || a.avg - b.avg);
     },
     streak(key) {
@@ -3370,13 +3387,25 @@
     if (!online || !NET.code || !NET.client || !state || state.phase !== 'ended' || !state.winner) return;
     const seatId = {};   // color -> persistent player id, from the game's seat map (rename-proof stats key)
     (gameSeats || []).forEach((s) => { if (s && s.color) seatId[s.color] = s.playerId || null; });
-    // the actual winner is ALWAYS place 1 — a surrender winner may not be the VP leader; the rest rank by VP
+    // the actual winner is ALWAYS place 1 — a surrender winner may not be the VP leader; the rest rank by VP.
+    // A mid-game quitter (state.quitBy) is forced to last place and carries a penalty flag.
     const win = state.winner;
+    const quitter = state.quitBy || null;
     const rows = state.players.map((p) => ({ p, vp: C.victoryPoints(state, p.color, true) }))
-      .sort((a, b) => ((b.p.color === win) - (a.p.color === win)) || (b.vp - a.vp));
-    const standings = rows.map(({ p, vp }, i) => ({ id: seatId[p.color] || null, name: p.name, color: p.color, pts: vp, place: i + 1, lr: p.hasLongestRoad ? 1 : 0, la: p.hasLargestArmy ? 1 : 0 }));
+      .sort((a, b) => {
+        const aq = a.p.color === quitter, bq = b.p.color === quitter;   // the quitter always ranks last
+        if (aq !== bq) return aq ? 1 : -1;
+        const aw = a.p.color === win, bw = b.p.color === win;           // winner first
+        if (aw !== bw) return aw ? -1 : 1;
+        return b.vp - a.vp;                                             // everyone else by victory points
+      });
+    const standings = rows.map(({ p, vp }, i) => {
+      const s = { id: seatId[p.color] || null, name: p.name, color: p.color, pts: vp, place: i + 1, lr: p.hasLongestRoad ? 1 : 0, la: p.hasLargestArmy ? 1 : 0 };
+      if (p.color === quitter) s.penalty = 1;   // quit mid-game -> flagged (shown in the Penalties column)
+      return s;
+    });
     const fp = ((state.board && state.board.hexes) || []).map((h) => ((h.terrain || '?')[0]) + (h.token || '')).join('');
-    const gameId = (NET.code || '?') + ':' + fp;
+    const gameId = (NET.code || '?') + ':' + fp + (quitter ? ':q' : '');   // a quit end is a distinct record
     if (lastRecorded === gameId) return;
     lastRecorded = gameId;
     NET.client.from('game_results').upsert(
@@ -3431,11 +3460,12 @@
     const countSeg = sizes.length > 1
       ? `<div class="seg stseg stcountseg"><button class="${!statsCount ? 'on' : ''}" onclick="CATAN.statsCount(null)">All sizes</button>${sizes.map((n) => `<button class="${statsCount === n ? 'on' : ''}" onclick="CATAN.statsCount(${n})">${n}p</button>`).join('')}</div>`
       : '';
-    const head = `<tr><th>#</th><th>Player</th><th title="Games played">GP</th><th title="Wins">W</th><th title="Win rate">Win%</th><th title="Wins above expected — accounts for table size">WAE</th></tr>`;
+    const head = `<tr><th>#</th><th>Player</th><th title="Games played">GP</th><th title="Wins">W</th><th title="Win rate">Win%</th><th title="Quits — a quit mid-game counts as a loss">Pen</th><th title="Wins above expected — accounts for table size">WAE</th></tr>`;
     const rows = board.map((p, i) => {
       const wae = (p.wae >= 0 ? '+' : '') + p.wae.toFixed(1);
       return `<tr onclick="CATAN.statsPlayer('${encodeURIComponent(p.key)}')"><td class="str">${i + 1}</td>` +
         `<td class="stn">${escapeHtml(p.name)}</td><td>${p.gp}</td><td class="stw">${p.w}</td><td>${p.winpct}%</td>` +
+        `<td class="${p.pen ? 'stpen' : 'stz'}">${p.pen || '—'}</td>` +
         `<td class="${p.wae >= 0 ? 'stpos' : 'stneg'}">${wae}</td></tr>`;
     }).join('');
     const sizeLbl = statsCount ? ' · ' + statsCount + 'p' : '';
@@ -3600,10 +3630,13 @@
     const rr = $('radialroot'); if (rr) { rr.classList.remove('open'); rr.classList.add('hidden'); }
     const spectator = online && !myColor;   // a watcher: leaving just returns them to the lobby
     const endsForAll = online && myColor;   // a seated player leaving ends the table
-    const ttl = spectator ? 'Stop watching?' : 'Leave game?';
+    // quitting a LIVE game (not one that's already ended) costs a penalty; a finished game leaves cleanly
+    const midGame = endsForAll && state && state.phase === 'play' && state.players.length > 1;
+    const ttl = spectator ? 'Stop watching?' : midGame ? 'Quit the game?' : 'Leave game?';
     const sub = spectator ? 'You go back to the lobby. The game keeps going for the players.'
-      : endsForAll ? 'This ends the game for everyone. It counts as abandoned — not recorded in stats.' : 'You will leave this game.';
-    const act = spectator ? 'Leave to lobby' : endsForAll ? 'End game for everyone' : 'Leave game';
+      : midGame ? 'Quitting ends the game for everyone. You take a penalty — it counts as a loss — and the win goes to whoever is leading.'
+      : endsForAll ? 'This ends the game for everyone.' : 'You will leave this game.';
+    const act = spectator ? 'Leave to lobby' : midGame ? 'Quit — take the penalty' : endsForAll ? 'End game' : 'Leave game';
     // big, full-width stacked targets — Cancel is the prominent safe action, leave is below
     // seated online players can raise/lower a white flag (concede). Last one standing wins.
     const canFlag = endsForAll && state && state.players.length > 1;
@@ -3621,6 +3654,13 @@
     hideOverlay();
     if (!online) { NET.started = false; startScreen(); return; }
     const wasSpectator = !myColor;
+    // seated player quitting a LIVE game: hand the win to the leader + take a penalty, then leave the
+    // table WITHOUT wiping the game row, so the others receive the ended state and record it too.
+    if (!wasSpectator && state && state.phase === 'play' && state.players.length > 1) {
+      let quit = false;
+      try { quit = await endByQuit(); } catch (_) { }
+      if (quit) { NET.started = false; online = false; myColor = null; NET.version = 0; exitGameUI(); LOBBY.leaveTable(); return; }
+    }
     NET.started = false; online = false; myColor = null; NET.version = 0;
     if (wasSpectator) { LOBBY.mode = 'idle'; LOBBY.inProgress = false; showLobby(); return; }   // watcher leaves -> lobby, game untouched
     // seated player ending the game: idle the table FIRST, then re-enter the lobby —
