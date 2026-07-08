@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v108';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v109';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -3185,7 +3185,11 @@
     // `created` = the code I created via "New game", so everyone can see who owns/hosts each table
     // pref: the color this player wants NEXT game — a table-session override (prefGame) if they
     // changed it at the table, else their profile preference. undefined = no override in play.
-    track() { if (this.channel) this.channel.track({ id: AUTH.me.id, name: AUTH.me.name, avatar: AUTH.me.avatar || null, pref: (this.prefGame !== undefined ? this.prefGame : (AUTH.me.prefColor || null)), mode: this.mode, readyAt: this.readyAt, table: this.table || null, created: this.created || null, target: this.targetPoints || null }); },
+    // effective color preference: the table-session override if set, else the profile default
+    myPref() { return this.prefGame !== undefined ? this.prefGame : ((AUTH.me && AUTH.me.prefColor) || null); },
+    // `at` stamps each payload so receivers can pick the NEWEST meta — presence can briefly hold
+    // several metas per member (a dropped leave-diff makes that permanent), and array order lies.
+    track() { if (this.channel) this.channel.track({ id: AUTH.me.id, name: AUTH.me.name, avatar: AUTH.me.avatar || null, pref: this.myPref(), mode: this.mode, readyAt: this.readyAt, table: this.table || null, created: this.created || null, target: this.targetPoints || null, at: Date.now() }); },
     creatorOf(code) { return this.online().find((p) => (p.table || null) === code && p.created === code) || null; },
     gameName(code) { const c = this.creatorOf(code); return c ? c.name + "'s Game" : 'Game'; },
     // enter / switch tables (a table is a presence grouping keyed by a game code)
@@ -3206,7 +3210,14 @@
       const st = this.channel.presenceState();
       const now = Date.now();
       const live = {}; this.liveIds = new Set();
-      Object.values(st).forEach((arr) => { const m = arr[arr.length - 1]; if (m && m.id) { live[m.id] = m; this.liveIds.add(m.id); this.lastSeen[m.id] = now; this.lastPayload[m.id] = m; } });
+      // A member can appear with several metas (re-tracks, reconnects, a dropped leave-diff that
+      // leaves a stale meta behind). Keep the NEWEST payload by its `at` stamp, not array order.
+      Object.values(st).forEach((arr) => arr.forEach((m) => {
+        if (!m || !m.id) return;
+        const cur = live[m.id];
+        if (!cur || (m.at || 0) >= (cur.at || 0)) live[m.id] = m;
+      }));
+      Object.values(live).forEach((m) => { this.liveIds.add(m.id); this.lastSeen[m.id] = now; this.lastPayload[m.id] = m; });
       // Grace window: a member who just dropped from presence (phone slept/backgrounded) stays in
       // the roster, dimmed, for PRESENCE_GRACE ms — so the list doesn't reshuffle on every blip.
       this.presence = Object.assign({}, live);
@@ -3244,7 +3255,9 @@
       if (!host || host.id !== AUTH.me.id) { toast('Only the game creator can start'); return; }
       if (!ready.some((r) => r.id === host.id)) { toast('Ready up before starting'); return; }
       const seated = ready.slice(0, 4), n = seated.length;
-      const colorOf = assignSeatColors(seated);   // honour preferred colors; ties resolved randomly
+      // honour preferred colors; ties resolved randomly. The host's OWN pref comes from local
+      // state — its presence echo may lag behind a just-tapped lobby swatch.
+      const colorOf = assignSeatColors(seated.map((p) => p.id === AUTH.me.id ? Object.assign({}, p, { pref: this.myPref() }) : p));
       const players = seated.map((p, i) => ({ seat: i, color: colorOf[p.id], name: p.name, playerId: p.id, avatar: p.avatar || null }));
       const playerN = Math.min(4, this.tableMembers().filter((m) => pmode(m) !== 'spectate').length) || n;
       const target = (this.targetPoints != null ? this.targetPoints : targetForN(playerN));   // host's chosen win target, else the count default
@@ -3316,8 +3329,10 @@
       else if (m === 'playing') tag = `<span class="t-pend">in game</span>`;
       else if (m === 'ready') tag = ri >= 4 ? `<span class="t-pend">ready · spectating (full)</span>` : `<span class="t-acc">${isHost ? 'Host · ready' : 'ready'}</span>`;
       else tag = isHost ? `<span class="t-acc">Host · not ready</span>` : `<span class="muted">not ready</span>`;
-      // preferred-color dot beside the name (what they'll ask for when the game starts)
-      const pd = (p.pref && PCOLOR[p.pref]) ? `<span class="lobprefdot" style="background:${PCOLOR[p.pref]}" title="wants ${p.pref}"></span>` : '';
+      // preferred-color dot beside the name (what they'll ask for when the game starts).
+      // My own dot reads LOCAL state — the presence echo can lag or hold a stale meta.
+      const pref = p.id === AUTH.me.id ? LOBBY.myPref() : p.pref;
+      const pd = (pref && PCOLOR[pref]) ? `<span class="lobprefdot" style="background:${PCOLOR[pref]}" title="wants ${pref}"></span>` : '';
       return `<div class="lobrow${p.away ? ' away' : ''}"><span class="tnm">${faceHTML(p.name, p.avatar, 'sm')}<span>${escapeHtml(p.name)}${p.id === AUTH.me.id ? ' (you)' : ''}</span>${pd}</span>${tag}</div>`;
     }).join('');
   }
