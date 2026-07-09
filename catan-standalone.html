@@ -1146,7 +1146,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v113';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v114';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -3018,7 +3018,9 @@
       ${domBadge}
       <div style="margin:12px 0">${standings}</div>
       ${online
-        ? `${myColor ? `<button class="btn full" style="margin-bottom:9px" onclick="CATAN.rematch()">🔁 Rematch — same players</button>` : ''}<button class="btn ${myColor ? 'wood ' : ''}full" onclick="CATAN.tableReset()">Back to lobby</button>`
+        ? (myColor
+          ? `<button class="btn full" style="margin-bottom:9px" onclick="CATAN.rematch()">🔁 Rematch — same players</button><button class="btn wood full" onclick="CATAN.tableReset()">Back to lobby</button>`
+          : `<button class="btn full" onclick="CATAN.confirmExit()">Back to lobby</button>`)   /* a watcher leaves for themselves — never resets the players' table */
         : `<button class="btn full" onclick="CATAN.restart()">New game</button>`}</div>`);
     spawnConfetti($('overlay'), domination ? 120 : 64);
     if (domination) setTimeout(() => playSound('win', 0.55), 500);   // a second flourish for the blowout
@@ -4258,7 +4260,16 @@
         if (abandoned) toast('Game abandoned — not recorded');
         return;   // table is idle -> stay in / return to the lobby
       }
-      if (this.started && row.version <= this.version) return;   // dedup my own echo / poll repeats
+      if (this.started && row.version === this.version) return;   // dedup my own echo / poll repeats
+      if (this.started && row.version < this.version) {
+        // a LOWER version can only mean the row was replaced under us (table reset + a new game
+        // on the same standing code while this device slept). Ignoring it would freeze this
+        // client forever — drop out of the dead game and rejoin from scratch instead.
+        this.started = false; online = false; myColor = null;
+        const seat2 = (row.players || []).find((p) => p.playerId === (AUTH.me && AUTH.me.id));
+        if (!seat2 && LOBBY.mode !== 'spectate') { this.version = row.version; LOBBY.lastRow = row; gameSeats = row.players || null; toast('A new game started at this table'); LOBBY.toLobby(); LOBBY.inProgress = true; lobbySig = null; renderLobby(); return; }
+        // seated (or spectating) in the new game -> fall through and enter it like a fresh join
+      }
       this.version = row.version;
       LOBBY.lastRow = row;
       gameSeats = row.players || null;   // carries each seat's uploaded avatar for the board/corners
@@ -4422,13 +4433,22 @@
       try { gstate = C.createGame({ id: 'table', players: players.map((p) => ({ color: p.color, name: p.name })), seed: (Math.random() * 1e9) | 0, targetPoints: target, randomFirst: true }); }
       catch (e) { toast('Start failed: ' + e.message); return; }
       const c = NET.init();
+      // never start OVER a live game — a stale ready-screen (slow fetch, resumed PWA) must not
+      // clobber a match in progress on this code. Check the row right before writing.
+      const { data: cur } = await c.from('games').select('*').eq('code', NET.code).maybeSingle();
+      if (cur && cur.phase === 'playing' && cur.state) { toast('A game is already running at this table'); NET.onRow(cur); return; }
       const { error } = await c.from('games').upsert({ code: NET.code, phase: 'playing', players, state: gstate, target_points: target, version: 1, host_id: AUTH.me.id });
       if (error) toast('Start failed: ' + error.message);   // realtime drives everyone in
     },
-    async reset() {   // end this table's game -> its members back to the table lobby
+    async reset() {   // end this table's game -> its members back to the table lobby.
+      // VERSION-GUARDED: the standing table reuses its code, so a stale client (a PWA suspended
+      // on an old victory screen — its 9s back-to-lobby timer fires on reopen) must never idle
+      // a DIFFERENT, live game that's since started on the same code.
       const c = NET.init(); if (!c || !NET.code) return;
-      const code = NET.code;
-      await c.from('games').upsert({ code, phase: 'idle', state: null, players: [], version: 0 });
+      const code = NET.code, v = NET.version || 0;
+      const { data } = await c.from('games').update({ phase: 'idle', state: null, players: [], version: 0 })
+        .eq('code', code).eq('version', v).select('code');
+      if (!data || !data.length) return;   // the row moved on (a new game is live) or is gone -> hands off
       purgeVoice(code);   // the game's over -> drop its voice clips
       try { c.from('messages').delete().eq('code', code); } catch (_) { }   // ...and its chat
     },
