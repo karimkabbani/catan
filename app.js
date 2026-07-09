@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v115';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v116';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -3308,16 +3308,27 @@
       if (error) toast('Start failed: ' + error.message);   // realtime drives everyone in
     },
     async reset() {   // end this table's game -> its members back to the table lobby.
-      // VERSION-GUARDED: the standing table reuses its code, so a stale client (a PWA suspended
-      // on an old victory screen — its 9s back-to-lobby timer fires on reopen) must never idle
-      // a DIFFERENT, live game that's since started on the same code.
+      // Guarded by SEAT, not by my possibly-stale version: a player seated in the live row is
+      // entitled to end it, retrying the compare-and-swap around concurrent moves (a silent no-op
+      // here left the row 'playing' and the poll yanked the quitter straight back into the game).
+      // A client NOT seated in a live row is a stale old session on the reused standing code —
+      // it must never idle someone else's game.
       const c = NET.init(); if (!c || !NET.code) return;
-      const code = NET.code, v = NET.version || 0;
-      const { data } = await c.from('games').update({ phase: 'idle', state: null, players: [], version: 0 })
-        .eq('code', code).eq('version', v).select('code');
-      if (!data || !data.length) return;   // the row moved on (a new game is live) or is gone -> hands off
-      purgeVoice(code);   // the game's over -> drop its voice clips
-      try { c.from('messages').delete().eq('code', code); } catch (_) { }   // ...and its chat
+      const code = NET.code;
+      for (let i = 0; i < 4; i++) {
+        const { data: cur } = await c.from('games').select('version,phase,players,state').eq('code', code).maybeSingle();
+        if (!cur) return;   // no row -> nothing to reset
+        const seated = (cur.players || []).some((p) => p && p.playerId === (AUTH.me && AUTH.me.id));
+        if (cur.phase === 'playing' && cur.state && !seated) return;   // someone else's live game -> hands off
+        const { data } = await c.from('games').update({ phase: 'idle', state: null, players: [], version: 0 })
+          .eq('code', code).eq('version', cur.version).select('code');
+        if (data && data.length) {
+          purgeVoice(code);   // the game's over -> drop its voice clips
+          try { c.from('messages').delete().eq('code', code); } catch (_) { }   // ...and its chat
+          return;
+        }
+        await new Promise((r) => setTimeout(r, 150));   // raced a concurrent move -> re-read, try again
+      }
     },
     // rematch: start a fresh game with the SAME seated players + win target, straight from the
     // victory screen. Version-guarded so two people tapping it doesn't spawn two games.
