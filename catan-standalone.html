@@ -1146,7 +1146,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v114';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v115';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -4043,12 +4043,20 @@
     // on. Zoom in on the settlement and HOLD (no zoom-out); glide back out only once the road lands.
     if (setup) {
       if (kind === 'e') { cancelCine(); cameraHome(CINE_MS); return; }   // road down -> now glide home
+      // The 2nd-settlement starting cards MUST fly no matter what the camera does — dispatch
+      // already held the counts (lagIn), and only the landing cards tick them back up. landCard
+      // is a no-op once the lag was cleared, so flying after a cancel can't double-count.
+      const flyGrant = () => { if (mine && grant && grant.items && grant.items.length) flySettlementGrant(grant); };
+      // auto-zoom off (runCine would bail): no camera hold — just fly the cards at the current view
+      if (!SETTINGS.autozoom || !zArea) { flyGrant(); return; }
       // settlement: hold. Don't cancelCine on the placer — that would wipe the grant-card lag set in
       // dispatch; a fresh runCine already supersedes any prior tour via its token.
       runCine(async (alive) => {
         cameraTo(c, CINE_Z_SPOT, CINE_MS);
-        await cineSleep(aDur(CINE_MS + 80)); if (!alive()) return;
-        if (mine && grant && grant.items && grant.items.length) { flySettlementGrant(grant); await cineSleep(aDur(grant.items.length * 430 + 450)); }   // starting cards stream in during the hold
+        await cineSleep(aDur(CINE_MS + 80));
+        flyGrant();   // even if superseded mid-glide — the cards still land and settle the counts
+        if (!alive()) return;
+        if (mine && grant && grant.items && grant.items.length) await cineSleep(aDur(grant.items.length * 430 + 450));   // linger while they stream in
       }, { stay: true });
       return;
     }
