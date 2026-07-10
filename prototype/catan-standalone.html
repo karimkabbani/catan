@@ -110,8 +110,14 @@
   /* fixed-width icon box so icons stack in one column and numbers line up in the next */
   .pstat img{height:15px; width:18px; object-fit:contain; flex:0 0 18px; filter:drop-shadow(0 1px 1px #0008);}
   .pstat b{font-weight:800; color:var(--ink); text-shadow:0 1px 1px #000; text-align:left;}
-  .pstat.hot img{filter:drop-shadow(0 0 3px var(--gold));}
-  .pstat.hot b{color:var(--gold);}
+  /* holder of Longest Road / Largest Army: the whole stat row becomes a glowing gold badge
+     (padding offset by negative margin so the icon/number columns stay aligned) */
+  .pstat.hot{background:linear-gradient(90deg, rgba(233,196,90,0.38), rgba(233,196,90,0.12));
+    border:1px solid var(--gold); border-radius:7px; padding:1px 4px; margin:-2px -4px;
+    box-shadow:0 0 9px rgba(233,196,90,0.55); animation:hotglow 2.2s ease-in-out infinite;}
+  .pstat.hot img{filter:drop-shadow(0 0 4px var(--gold)) brightness(1.12);}
+  .pstat.hot b{color:#ffe9a8; text-shadow:0 1px 1px #000, 0 0 7px rgba(233,196,90,0.9);}
+  @keyframes hotglow{0%,100%{box-shadow:0 0 5px rgba(233,196,90,0.4);}50%{box-shadow:0 0 13px rgba(233,196,90,0.85);}}
   /* over 7 cards: at risk of discarding on a 7 — flag the count red */
   .pstat.over b{color:#ff5a4d; text-shadow:0 1px 1px #000, 0 0 4px rgba(255,40,30,0.5);}
   .pport{position:relative; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; gap:2px;}
@@ -1159,7 +1165,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v118';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v119';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
