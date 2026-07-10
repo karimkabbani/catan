@@ -63,3 +63,6 @@ begin
   delete from public.lobby_presence where at < now() - interval '2 hours';
   return n;
 end $$;
+
+-- lobby chat (messages with code 'LOBBY') keeps 48h of history — folded into the same purge
+-- (see the purge_stale_games body above; re-applied 2026-07-09 with the messages cleanup line)

@@ -454,6 +454,19 @@
   .tablerow:active{transform:scale(0.99);}
   /* the group's standing table — pinned first, visually the main door */
   .tablerow.home{border:2px solid var(--gold); box-shadow:0 0 0 1px rgba(233,196,90,0.35), 0 3px 8px rgba(0,0,0,0.4);}
+  /* lobby chat — one shared conversation, shown in the games list AND the table lobby */
+  .lchat{margin-top:10px; border-top:1px solid rgba(255,220,170,0.16); padding-top:8px;}
+  .lchatlist{max-height:140px; overflow-y:auto; -webkit-overflow-scrolling:touch; display:flex; flex-direction:column; gap:4px; padding:2px 1px 6px;}
+  .lcrow{display:flex; align-items:baseline; gap:7px; font-size:13.5px; line-height:1.35; text-align:left;}
+  .lcname{flex:0 0 auto; color:var(--gold); font-weight:800;}
+  .lcname.me{color:#9fd4ff;}
+  .lctxt{color:var(--ink); min-width:0; overflow-wrap:anywhere;}
+  .lctime{margin-left:auto; flex:0 0 auto; font-size:10.5px; color:var(--muted); opacity:0.8;}
+  .lcempty{color:var(--muted); font-size:12.5px; text-align:center; padding:8px 0;}
+  .lchatin{display:flex; gap:8px; align-items:center;}
+  .lchatin input{flex:1; min-width:0; background:rgba(0,0,0,0.32); border:1px solid var(--wood-edge); border-radius:10px;
+    color:var(--ink); padding:10px 11px; font-size:16px; font-family:var(--serif);}   /* 16px: no iOS zoom-on-focus */
+  .lchatin .lchatgo{flex:0 0 auto; padding:10px 16px;}
   .tablerow .tnm2{overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; min-width:0;}
   .tablerow .trow-main{display:flex; flex-direction:column; gap:2px; flex:1; min-width:0;}
   .tablerow .tgname{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}

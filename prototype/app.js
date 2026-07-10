@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v117';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v118';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -3211,6 +3211,7 @@
       if (this.channel) { try { c.removeChannel(this.channel); } catch (_) { } this.channel = null; }   // retire the old WebSocket presence channel
       this.track();           // announce myself now…
       this.pollPresence();    // …and fetch the roster now
+      pollLobbyChat();        // …and the group chat
       startHeartbeat();       // …then keep both fresh on a timer
       sweepOldVoice();   // best-effort cleanup of orphaned voice clips (throttled hourly)
     },
@@ -3355,7 +3356,7 @@
   };
   // A single 3s heartbeat while connected: expire stale presence-grace entries.
   let heartbeat = null;
-  function startHeartbeat() { if (heartbeat) return; heartbeat = setInterval(() => { try { LOBBY.track(); LOBBY.pollPresence(); } catch (_) { } }, 5000); }
+  function startHeartbeat() { if (heartbeat) return; heartbeat = setInterval(() => { try { LOBBY.track(); LOBBY.pollPresence(); if (!NET.started) pollLobbyChat(); } catch (_) { } }, 5000); }
   function stopHeartbeat() { if (heartbeat) { clearInterval(heartbeat); heartbeat = null; } }
   // On wake (tab visible / window focus / network back), republish our presence right away so a
   // phone that slept doesn't linger as "away" on everyone else's screen, and refresh what we see.
@@ -3384,6 +3385,61 @@
       const pd = (pref && PCOLOR[pref]) ? `<span class="lobprefdot" style="background:${PCOLOR[pref]}" title="wants ${pref}"></span>` : '';
       return `<div class="lobrow${p.away ? ' away' : ''}"><span class="tnm">${faceHTML(p.name, p.avatar, 'sm')}<span>${escapeHtml(p.name)}${p.id === AUTH.me.id ? ' (you)' : ''}</span>${pd}</span>${tag}</div>`;
     }).join('');
+  }
+  // ===== lobby chat — ONE continuous group conversation shown in BOTH the games list and the
+  // table lobby (messages table, fixed code 'LOBBY'; polled — same reliable transport as in-game
+  // chat). 48h retention server-side.
+  const LCHAT = { msgs: [], lastId: 0, loaded: false, loading: false };
+  let lchatDraft = '';
+  async function pollLobbyChat() {
+    const c = NET.init(); if (!c || !AUTH.me || LCHAT.loading) return;
+    LCHAT.loading = true;
+    try {
+      const { data, error } = await c.from('messages').select('id,name,avatar,body,type,sender,created_at')
+        .eq('code', 'LOBBY').gt('id', LCHAT.lastId).order('id', { ascending: true }).limit(50);
+      if (!error && Array.isArray(data) && data.length) {
+        data.forEach((m) => { if (m.id > LCHAT.lastId) { LCHAT.lastId = m.id; if (m.type !== 'voice') LCHAT.msgs.push(m); } });
+        if (LCHAT.msgs.length > 100) LCHAT.msgs = LCHAT.msgs.slice(-100);
+        renderLobbyChat();
+      }
+      LCHAT.loaded = true;
+    } catch (_) { }
+    LCHAT.loading = false;
+  }
+  async function sendLobbyChat() {
+    const el = $('lchatIn'); const text = (el && el.value || '').trim().slice(0, 200);
+    if (!text) return;
+    lchatDraft = ''; if (el) el.value = '';
+    const c = NET.init(); if (!c || !AUTH.me) return;
+    const { data, error } = await c.from('messages')
+      .insert({ code: 'LOBBY', name: AUTH.me.name, avatar: AUTH.me.avatar || null, sender: AUTH.me.id, type: 'text', body: text })
+      .select('id,name,avatar,body,type,sender,created_at').maybeSingle();
+    if (error) { toast('Message failed'); lchatDraft = text; renderLobbyChat(); return; }
+    if (data) { LCHAT.msgs.push(data); LCHAT.lastId = Math.max(LCHAT.lastId, data.id || 0); renderLobbyChat(); }
+  }
+  // the shared chat block — identical in the games list and the table lobby
+  function lobbyChatHTML() {
+    return `<div class="lchat">
+      <div class="lchatlist" id="lchatlist"></div>
+      <div class="lchatin">
+        <input id="lchatIn" maxlength="200" placeholder="Message the group…" autocomplete="off"
+          value="${escapeHtml(lchatDraft)}" oninput="CATAN.lchatKeep(this.value)"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();CATAN.lchatSend();}">
+        <button class="btn lchatgo" onclick="CATAN.lchatSend()">Send</button>
+      </div>
+    </div>`;
+  }
+  function renderLobbyChat() {
+    const el = $('lchatlist'); if (!el) return;
+    const mineId = AUTH.me && AUTH.me.id;
+    el.innerHTML = LCHAT.msgs.length
+      ? LCHAT.msgs.map((m) => {
+        const t = m.created_at ? relTime(new Date(m.created_at).getTime()) : '';
+        return `<div class="lcrow"><b class="lcname${m.sender === mineId ? ' me' : ''}">${escapeHtml(m.name || '?')}</b>` +
+          `<span class="lctxt">${escapeHtml(m.body || '')}</span><span class="lctime">${t}</span></div>`;
+      }).join('')
+      : (LCHAT.loaded ? '<p class="lcempty">Say hi — everyone in the lobby sees this.</p>' : '<p class="lcempty">Loading…</p>');
+    el.scrollTop = el.scrollHeight;   // keep pinned to the newest message
   }
   let lobbySig = null;
   // Menu navigation (Switch player / Change PIN / Back to players / Back to lobby) fires on
@@ -3614,6 +3670,7 @@
     if (sig === lobbySig) return;
     lobbySig = sig;
     dynEl.innerHTML = LOBBY.table ? atTableHTML(all) : tableListHTML(all);   // footer frame untouched
+    renderLobbyChat();   // the full re-render just rebuilt the chat shell — refill it
     const tt = $('lob-title'); if (tt) tt.textContent = LOBBY.table ? LOBBY.gameName(LOBBY.table) : 'Lobby';   // "<creator>'s Game" at a table
     const bk = $('lobback'); if (bk) bk.title = LOBBY.table ? 'Back to games' : 'Switch player';   // back arrow goes back one level
     scheduleFit();   // content height just changed (players joined/readied) -> rescale now + across font-load/frames so the card never overflows
@@ -3637,6 +3694,7 @@
     return `<p class="muted small" style="text-align:center">${me} · ${all.length} online${browsing ? ' · ' + browsing + ' browsing' : ''}</p>
       <div class="loblist">${rows}</div>
       <button class="btn ghost full" onclick="CATAN.newTable()">+ New separate game</button>
+      ${lobbyChatHTML()}
       <div class="rgsec">
         <div class="rghead"><span>Recent games</span><button class="rglink" data-nav="stats">Full stats →</button></div>
         <div class="rglist">${STATS.games.length ? recentRowsHTML(STATS.games, 8) : `<p class="muted small" style="text-align:center;padding:8px 0">${STATS.loaded ? 'No games recorded yet.' : 'Loading…'}</p>`}</div>
@@ -3685,7 +3743,8 @@
         <button class="btn ${LOBBY.mode === 'ready' ? '' : 'wood'}" onclick="CATAN.lobbyReady()">${LOBBY.mode === 'ready' ? '✓ Ready' : "I'm ready"}</button>
         <button class="btn ${LOBBY.mode === 'spectate' ? '' : 'wood'}" onclick="CATAN.lobbySpectate()">${LOBBY.mode === 'spectate' ? '✓ Spectating' : '👁 Spectate'}</button>
       </div>
-      ${startBtn}`;
+      ${startBtn}
+      ${lobbyChatHTML()}`;
   }
   window.CATAN.openStats = () => statsScreen();
   window.CATAN.statsSeason = (s) => { statsSeason = s; statsScreen(); };
@@ -3728,6 +3787,8 @@
   // hoisted helpers registered here, after window.CATAN exists, so onclick="CATAN.x()" works
   window.CATAN.sendBroadcast = sendBroadcastMsg;
   window.CATAN.bcKeep = (v) => { bcDraft = String(v || '').slice(0, 50); };   // keep the draft on every keystroke
+  window.CATAN.lchatKeep = (v) => { lchatDraft = String(v || '').slice(0, 200); };   // lobby-chat draft survives re-renders
+  window.CATAN.lchatSend = () => sendLobbyChat();
   window.CATAN.openQuickChat = () => openQuickChat();
   // spectator taps a player chip -> view their resources; tapping the active one again returns to follow-the-turn
   window.CATAN.specView = (color) => { specView = (specView === color) ? null : color; renderCounts(); };
