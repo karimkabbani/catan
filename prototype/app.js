@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v119';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v120';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -3433,13 +3433,13 @@
     const el = $('lchatlist'); if (!el) return;
     const mineId = AUTH.me && AUTH.me.id;
     el.innerHTML = LCHAT.msgs.length
-      ? LCHAT.msgs.map((m) => {
+      ? LCHAT.msgs.slice().reverse().map((m) => {   // newest first
         const t = m.created_at ? relTime(new Date(m.created_at).getTime()) : '';
         return `<div class="lcrow"><b class="lcname${m.sender === mineId ? ' me' : ''}">${escapeHtml(m.name || '?')}</b>` +
           `<span class="lctxt">${escapeHtml(m.body || '')}</span><span class="lctime">${t}</span></div>`;
       }).join('')
       : (LCHAT.loaded ? '<p class="lcempty">Say hi — everyone in the lobby sees this.</p>' : '<p class="lcempty">Loading…</p>');
-    el.scrollTop = el.scrollHeight;   // keep pinned to the newest message
+    el.scrollTop = 0;   // newest message sits at the top, in view
   }
   let lobbySig = null;
   // Menu navigation (Switch player / Change PIN / Back to players / Back to lobby) fires on
