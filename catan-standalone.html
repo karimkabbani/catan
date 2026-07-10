@@ -1146,7 +1146,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v116';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v117';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -4238,7 +4238,8 @@
       if (this.poll) clearInterval(this.poll);
       this.poll = setInterval(async () => {
         if (!NET.code) return;
-        const { data } = await c.from('games').select('*').eq('code', NET.code).maybeSingle();
+        const { data, error } = await c.from('games').select('*').eq('code', NET.code).maybeSingle();
+        if (error) return;                      // transient network/DB blip -> keep the state we have (never boot on a failed fetch)
         NET.onRow(data || { phase: 'idle' });   // realtime is primary; poll is the safety net
         // chat: poll new messages (the reliable fallback when realtime drops, esp. on iOS/PWA)
         const { data: msgs } = await c.from('messages').select('*').eq('code', NET.code).gt('id', NET.lastMsgId).order('id', { ascending: true }).limit(50);
@@ -4270,9 +4271,11 @@
       }
       if (this.started && row.version === this.version) return;   // dedup my own echo / poll repeats
       if (this.started && row.version < this.version) {
-        // a LOWER version can only mean the row was replaced under us (table reset + a new game
-        // on the same standing code while this device slept). Ignoring it would freeze this
-        // client forever — drop out of the dead game and rejoin from scratch instead.
+        // A lower version is EITHER a stale read (a poll response that raced a realtime update —
+        // common) or the row was genuinely replaced (table reset + new game while this device
+        // slept). Distinguish by GAME IDENTITY: the same board means it's still my game.
+        const bfp = (s) => (((s && s.board && s.board.hexes) || []).map((h) => ((h.terrain || '?')[0]) + (h.token || '')).join(''));
+        if (state && row.state && bfp(state) === bfp(row.state)) return;   // stale read of my own game -> ignore
         this.started = false; online = false; myColor = null;
         const seat2 = (row.players || []).find((p) => p.playerId === (AUTH.me && AUTH.me.id));
         if (!seat2 && LOBBY.mode !== 'spectate') { this.version = row.version; LOBBY.lastRow = row; gameSeats = row.players || null; toast('A new game started at this table'); LOBBY.toLobby(); LOBBY.inProgress = true; lobbySig = null; renderLobby(); return; }
@@ -4343,19 +4346,13 @@
       const c = NET.init(); if (!c || !AUTH.me) return;
       if (this.table) { NET.code = this.table; NET.subscribe(); }   // re-watch our table's game if we're sitting at one
       else NET.unsubscribeGame();                                   // browsing the table list -> no game watch
-      if (this.channel) { try { c.removeChannel(this.channel); } catch (_) { } }
-      this.channel = c.channel('lobby', { config: { presence: { key: AUTH.me.id } } });
-      this.channel.on('presence', { event: 'sync' }, () => LOBBY.onPresence());
-      this.channel.on('broadcast', { event: 'msg' }, (e) => {
-        const p = e && e.payload; if (!p) return;
-        // match on the GAME CODE (robust: LOBBY.table can be null in-game, but NET.code is set),
-        // falling back to the old table field for older senders.
-        const pc = p.code || p.table || null, mine = NET.code || LOBBY.table || null;
-        try { console.log('[bcast rx]', { kind: p.type || 'text', from: p.name, pc, mine, match: !!(pc && mine && pc === mine) }); } catch (_) { }
-        if (pc && mine && pc === mine) showBroadcast(p);
-      });
-      this.channel.subscribe((st) => { if (st === 'SUBSCRIBED') LOBBY.track(); });
-      startHeartbeat();
+      // Presence is DB-BACKED (heartbeat row + poll, server-stamped ages): the realtime socket dies
+      // silently on mobile, so "who's online" must never depend on it — the same lesson that moved
+      // chat and game state onto polled tables. Different phones can no longer see different rosters.
+      if (this.channel) { try { c.removeChannel(this.channel); } catch (_) { } this.channel = null; }   // retire the old WebSocket presence channel
+      this.track();           // announce myself now…
+      this.pollPresence();    // …and fetch the roster now
+      startHeartbeat();       // …then keep both fresh on a timer
       sweepOldVoice();   // best-effort cleanup of orphaned voice clips (throttled hourly)
     },
     // `created` = the code I created via "New game", so everyone can see who owns/hosts each table
@@ -4363,9 +4360,15 @@
     // changed it at the table, else their profile preference. undefined = no override in play.
     // effective color preference: the table-session override if set, else the profile default
     myPref() { return this.prefGame !== undefined ? this.prefGame : ((AUTH.me && AUTH.me.prefColor) || null); },
-    // `at` stamps each payload so receivers can pick the NEWEST meta — presence can briefly hold
-    // several metas per member (a dropped leave-diff makes that permanent), and array order lies.
-    track() { if (this.channel) this.channel.track({ id: AUTH.me.id, name: AUTH.me.name, avatar: AUTH.me.avatar || null, pref: this.myPref(), mode: this.mode, readyAt: this.readyAt, table: this.table || null, created: this.created || null, target: this.targetPoints || null, at: Date.now() }); },
+    myPayload() { return { id: AUTH.me.id, name: AUTH.me.name, avatar: AUTH.me.avatar || null, pref: this.myPref(), mode: this.mode, readyAt: this.readyAt, table: this.table || null, created: this.created || null, target: this.targetPoints || null }; },
+    // announce my state: heartbeat row on the server + an optimistic local echo so my own UI updates
+    // instantly (the poll confirms it a few seconds later)
+    track() {
+      if (!AUTH.me) return;
+      const p = this.myPayload();
+      this.presence[p.id] = Object.assign({}, this.presence[p.id] || {}, p, { away: false }); this.liveIds.add(p.id);
+      const c = NET.init(); if (c) c.rpc('presence_beat', { p }).then(() => { }, () => { });
+    },
     creatorOf(code) { return this.online().find((p) => (p.table || null) === code && p.created === code) || null; },
     gameName(code) { if (code === HOME_CODE) return 'Main Game'; const c = this.creatorOf(code); return c ? c.name + "'s Game" : 'Game'; },
     // enter / switch tables (a table is a presence grouping keyed by a game code)
@@ -4382,38 +4385,28 @@
         sender: (AUTH.me && AUTH.me.id) || null,
       }).then(({ error }) => { if (error) toast('Message failed'); });
     },
-    onPresence() {
-      const st = this.channel.presenceState();
-      const now = Date.now();
-      const live = {}; this.liveIds = new Set();
-      // A member can appear with several metas (re-tracks, reconnects, a dropped leave-diff that
-      // leaves a stale meta behind). Keep the NEWEST payload by its `at` stamp, not array order.
-      Object.values(st).forEach((arr) => arr.forEach((m) => {
-        if (!m || !m.id) return;
-        const cur = live[m.id];
-        if (!cur || (m.at || 0) >= (cur.at || 0)) live[m.id] = m;
-      }));
-      Object.values(live).forEach((m) => { this.liveIds.add(m.id); this.lastSeen[m.id] = now; this.lastPayload[m.id] = m; });
-      // Grace window: a member who just dropped from presence (phone slept/backgrounded) stays in
-      // the roster, dimmed, for PRESENCE_GRACE ms — so the list doesn't reshuffle on every blip.
-      this.presence = Object.assign({}, live);
-      Object.keys(this.lastSeen).forEach((id) => {
-        if (live[id]) return;
-        if (now - this.lastSeen[id] < PRESENCE_GRACE) { const m = this.lastPayload[id]; if (m) this.presence[id] = Object.assign({}, m, { away: true }); }
-        else { delete this.lastSeen[id]; delete this.lastPayload[id]; }
+    // fetch the roster from the DB. A failed fetch keeps the roster we have (a blip never empties the lobby).
+    async pollPresence() {
+      const c = NET.init(); if (!c || !AUTH.me) return;
+      const { data, error } = await c.rpc('presence_list');
+      if (error || !Array.isArray(data)) return;
+      this.applyPresence(data);
+    },
+    applyPresence(rows) {
+      const live = {};
+      this.liveIds = new Set();
+      rows.forEach((r) => {
+        if (!r || !r.id || r.mode === 'gone') return;   // 'gone' = logged out on purpose
+        const m = { id: r.id, name: r.name, avatar: r.avatar, pref: r.pref, mode: r.mode, readyAt: Number(r.ready_at) || 0, table: r.table_code || null, created: r.created || null, target: r.target || null };
+        const age = Number(r.age_s) || 0;
+        if (age < 18) { this.liveIds.add(r.id); live[r.id] = m; }               // fresh heartbeat (5s cadence + slack)
+        else live[r.id] = Object.assign(m, { away: true });                     // phone asleep — keep in the roster, dimmed
       });
+      // my own entry reflects LOCAL truth — a beat may still be in flight after a mode change
+      if (AUTH.me) { const p = this.myPayload(); live[p.id] = Object.assign(live[p.id] || {}, p, { away: false }); this.liveIds.add(p.id); }
+      this.presence = live;
       if (!NET.started) renderLobby();
       else { renderBanner(); if (state) renderPanels(); }   // in-game: refresh watch count + per-player online/offline dots
-    },
-    // drop grace members whose window has expired; returns true if the roster changed
-    sweepStale() {
-      const now = Date.now(); let changed = false;
-      Object.keys(this.presence).forEach((id) => {
-        if (this.liveIds.has(id)) return;
-        if (now - (this.lastSeen[id] || 0) >= PRESENCE_GRACE) { delete this.presence[id]; delete this.lastSeen[id]; changed = true; }
-      });
-      if (changed) { if (!NET.started) { lobbySig = null; renderLobby(); } else { renderBanner(); if (state) renderPanels(); } }
-      return changed;
     },
     online() { return Object.values(this.presence); },
     tableMembers() { return this.online().filter((p) => (p.table || null) === this.table); },   // who's at MY table
@@ -4421,8 +4414,8 @@
     spectators() { return this.tableMembers().filter((p) => pmode(p) === 'spectate'); },
     setReady() { this.mode = this.mode === 'ready' ? 'idle' : 'ready'; this.readyAt = this.mode === 'ready' ? Date.now() : 0; this.track(); renderLobby(); },
     setSpectate() { this.mode = this.mode === 'spectate' ? 'idle' : 'spectate'; this.readyAt = 0; this.track(); renderLobby(); },
-    enterAs(role) { this.mode = role === 'play' ? 'playing' : 'spectate'; this.readyAt = 0; this.inProgress = false; if (this.channel) this.track(); },
-    toLobby() { this.mode = 'idle'; this.readyAt = 0; this.inProgress = false; if (this.channel) this.track(); showLobby(); },   // table idle -> back to lobby
+    enterAs(role) { this.mode = role === 'play' ? 'playing' : 'spectate'; this.readyAt = 0; this.inProgress = false; this.track(); },
+    toLobby() { this.mode = 'idle'; this.readyAt = 0; this.inProgress = false; this.track(); showLobby(); },   // table idle -> back to lobby
     watch() { const row = this.lastRow; if (!row || !row.state) { toast('No game to watch'); return; } myColor = null; online = true; this.enterAs('spectate'); NET.started = true; NET.version = row.version; enterGame(row.state); },   // join an in-progress game as a spectator (no countdown)
     async startTable() {
       const ready = this.readyList();
@@ -4492,6 +4485,7 @@
     },
     leave() {
       const c = NET.init();
+      if (c && AUTH.me) { try { c.rpc('presence_beat', { p: Object.assign(this.myPayload(), { mode: 'gone', table: null }) }).then(() => { }, () => { }); } catch (_) { } }   // drop off the roster immediately
       if (c && this.channel) { try { c.removeChannel(this.channel); } catch (_) { } this.channel = null; }
       if (c && NET.channel) { try { c.removeChannel(NET.channel); } catch (_) { } NET.channel = null; }
       if (NET.poll) { clearInterval(NET.poll); NET.poll = null; }
@@ -4502,13 +4496,13 @@
   };
   // A single 3s heartbeat while connected: expire stale presence-grace entries.
   let heartbeat = null;
-  function startHeartbeat() { if (heartbeat) return; heartbeat = setInterval(() => { try { LOBBY.sweepStale(); } catch (_) { } }, 3000); }
+  function startHeartbeat() { if (heartbeat) return; heartbeat = setInterval(() => { try { LOBBY.track(); LOBBY.pollPresence(); } catch (_) { } }, 5000); }
   function stopHeartbeat() { if (heartbeat) { clearInterval(heartbeat); heartbeat = null; } }
   // On wake (tab visible / window focus / network back), republish our presence right away so a
   // phone that slept doesn't linger as "away" on everyone else's screen, and refresh what we see.
   function onWake() {
     if (document.hidden) return;
-    try { LOBBY.track(); } catch (_) { }
+    try { LOBBY.track(); LOBBY.pollPresence(); } catch (_) { }
     if (NET.started) renderBanner(); else { lobbySig = null; renderLobby(); }
   }
   document.addEventListener('visibilitychange', onWake);
