@@ -43,7 +43,7 @@ create or replace function public.presence_list()
   select id, name, avatar, pref, mode, ready_at, table_code, created, target,
          extract(epoch from (now() - at)) as age_s
   from lobby_presence
-  where at > now() - interval '60 seconds';
+  where at > now() - interval '5 minutes';   -- backgrounded phones stay visible as away, not vanished
 $$;
 
 revoke all on function public.presence_beat(jsonb) from public;
