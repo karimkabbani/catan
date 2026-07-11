@@ -1174,7 +1174,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v125';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v126';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -5130,14 +5130,10 @@
       const list = names.length
         ? names.map((n) => `<button class="btn full authrow" onclick="CATAN.authPick('${encodeURIComponent(n.name)}')">${faceHTML(n.name, n.avatar)}<span class="anm">${escapeHtml(n.name)}</span></button>`).join('')
         : `<p class="muted" style="text-align:center;margin:8px 0">No players yet — create one.</p>`;
-      const recent = STATS.games.length ? recentRowsHTML(STATS.games, 8) : `<p class="muted small" style="text-align:center;padding:8px 0">${STATS.loaded ? 'No games recorded yet.' : 'Loading…'}</p>`;
       titleCard(`<div class="lobhead"><h3>Login</h3><div class="lobtools"><button class="lobtool" data-nav="stats" title="Stats & leaderboard">🏆</button></div></div>
         <div class="authlist">${list}</div>
         <button class="btn wood full" onclick="CATAN.authNew()">+ New player</button>
-        <button class="offline-link" onclick="CATAN.playOffline()">Pass &amp; play offline</button>
-        <div class="rgsec"><div class="rghead"><span>Recent games</span><button class="rglink" data-nav="stats">Full stats →</button></div>
-          <div class="rglist" id="login-recent">${recent}</div></div>`);
-      STATS.load().then(() => { const el = $('login-recent'); if (el) el.innerHTML = STATS.games.length ? recentRowsHTML(STATS.games, 8) : `<p class="muted small" style="text-align:center;padding:8px 0">No games recorded yet.</p>`; });
+        <button class="offline-link" onclick="CATAN.playOffline()">Pass &amp; play offline</button>`);
     } else if (mode === 'new') {
       titleCard(`<div class="lobhead"><button class="lobback" onclick="CATAN.authBack()" title="Back">←</button><h3>New player</h3></div>
         <input id="auName" class="authin" placeholder="Your name" maxlength="20" autocomplete="off"/>
