@@ -1174,7 +1174,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v126';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v127';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -5165,10 +5165,7 @@
     exitGameUI();      // clear any lingering game layer before the lobby paints
     lobbyShell();      // build the frame (title + footer + empty dyn slot) once
     LOBBY.join();
-    // fresh login lands AT the standing table — the group's meeting point — once per session.
-    // The ← from there shows the full games list (and won't bounce back here).
-    if (!LOBBY.table && !LOBBY.autoHomed) { LOBBY.autoHomed = true; LOBBY.enterTable(HOME_CODE); }
-    renderLobby();     // fill the dynamic half
+    renderLobby();     // fill the dynamic half (lands at the games list; Main Game is the pinned row)
     STATS.load().then(() => { if (!NET.started && !LOBBY.table && $('lobby-dyn')) { lobbySig = null; renderLobby(); } });   // fill the recent-games strip once results load
     purgeStaleGames();   // auto-clean abandoned/idle games whenever someone opens the lobby
     lastRecorded = null;   // a fresh lobby visit re-arms the one-shot result writer for the next game
