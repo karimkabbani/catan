@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v122';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v123';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -2676,6 +2676,7 @@
         <div class="seg">${[2, 3, 4].map((n) => `<button class="${n === count ? 'on' : ''}" onclick="CATAN._setCount(${n})">${n} players</button>`).join('')}</div>
         <div class="t-seats">${seats}</div>
         <button class="btn full" onclick="CATAN._start()">Start game</button>
+        <p class="verline">Catan · ${APP_VERSION}</p>
       </div></div>`;
       scheduleFit();
     };
@@ -3932,7 +3933,7 @@
     const banner = (ASSETS.logo)
       ? `<div class="t-banner"><img src="${ASSETS.logo}" alt="CATAN"></div>`
       : `<div class="t-banner"><h2 style="color:#e9c45a;text-align:center;line-height:30vh;font-family:var(--serif)">CATAN</h2></div>`;
-    t.innerHTML = `${banner}<div class="t-body"><div class="t-card">${html}</div></div>`;
+    t.innerHTML = `${banner}<div class="t-body"><div class="t-card">${html}<p class="verline">Catan · ${APP_VERSION}</p></div></div>`;
     t.classList.remove('hidden'); hideOverlay(); stopMusic(); document.body.classList.remove('ingame');   // pre-game: portrait allowed
     document.body.style.background = MENU_BG;   // canvas (incl. iOS safe-area strip) matches the wood menu
     $('leavetab').classList.add('hidden'); $('radialtab').classList.add('hidden'); $('settingstab').classList.add('hidden');
@@ -3951,8 +3952,7 @@
         <button class="btn wood full" onclick="CATAN.authNew()">+ New player</button>
         <button class="offline-link" onclick="CATAN.playOffline()">Pass &amp; play offline</button>
         <div class="rgsec"><div class="rghead"><span>Recent games</span><button class="rglink" data-nav="stats">Full stats →</button></div>
-          <div class="rglist" id="login-recent">${recent}</div></div>
-        <p class="verline">Catan · ${APP_VERSION}</p>`);
+          <div class="rglist" id="login-recent">${recent}</div></div>`);
       STATS.load().then(() => { const el = $('login-recent'); if (el) el.innerHTML = STATS.games.length ? recentRowsHTML(STATS.games, 8) : `<p class="muted small" style="text-align:center;padding:8px 0">No games recorded yet.</p>`; });
     } else if (mode === 'new') {
       titleCard(`<div class="lobhead"><button class="lobback" onclick="CATAN.authBack()" title="Back">←</button><h3>New player</h3></div>
@@ -4042,8 +4042,7 @@
         <button class="prefnone${!AUTH.me.prefColor ? ' on' : ''}" onclick="CATAN.setPrefColor(null)">No preference</button>
       </div>
       <button class="btn wood full" onclick="CATAN.manageQuick('profile')">💬 Quick messages</button>
-      <button class="btn wood full" data-nav="changepin">🔒 Change PIN</button>
-      <p class="verline">Catan · ${APP_VERSION}</p>`);
+      <button class="btn wood full" data-nav="changepin">🔒 Change PIN</button>`);
   }
   window.CATAN.manageProfile = () => manageProfile();
   window.CATAN.setPrefColor = async (c) => {
