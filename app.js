@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v124';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v125';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -16,7 +16,7 @@
   // per-device preferences (each player's own phone) — persisted in localStorage. The
   // effects of these are wired up per-setting; here we just store + expose them.
   const SETTINGS = (() => {
-    const def = { music: false, sfx: true, anim: 'medium', autozoom: true };
+    const def = { music: true, sfx: true, anim: 'medium', autozoom: true };
     try { return Object.assign(def, JSON.parse(localStorage.getItem('catan-settings') || '{}')); } catch (_) { return def; }
   })();
   let settingsPush = null;
