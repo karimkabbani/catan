@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v120';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v121';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -2342,7 +2342,14 @@
     if (flags.length < seats.length - 1) return;                            // more than one still standing
     const standing = seats.filter((c) => flags.indexOf(c) < 0);
     const winner = standing.length ? standing[0] : leaderColor(state);      // all flagged (rare race) -> leader takes it
-    if (winner === myColor) endByFlags(winner);
+    if (winner === myColor) { endByFlags(winner); return; }
+    // The finale is normally written by the winner's device — but the winner may have the app
+    // CLOSED (everyone else flagged while they were away), and a dead device can't finalize;
+    // the game would hang in limbo until they reopen. Fallback: the first seated color with a
+    // LIVE heartbeat ends it on the offline winner's behalf. Deterministic single writer; the
+    // version-guarded write + result dedup make a rare double-finalize harmless.
+    const liveSeat = (c) => { const id = seatPlayerId(c); return !!id && LOBBY.liveIds.has(id); };
+    if (!liveSeat(winner) && seats.filter((c) => c !== winner && liveSeat(c))[0] === myColor) endByFlags(winner);
   }
   // toast the table when a white flag goes up or down (diff old vs new shared state)
   function flagToast(a, s) {
