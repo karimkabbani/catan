@@ -1174,7 +1174,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v123';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v124';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -1188,7 +1188,21 @@
     const def = { music: false, sfx: true, anim: 'medium', autozoom: true };
     try { return Object.assign(def, JSON.parse(localStorage.getItem('catan-settings') || '{}')); } catch (_) { return def; }
   })();
-  function saveSettings() { try { localStorage.setItem('catan-settings', JSON.stringify(SETTINGS)); } catch (_) {} }
+  let settingsPush = null;
+  function saveSettings() {
+    try { localStorage.setItem('catan-settings', JSON.stringify(SETTINGS)); } catch (_) {}   // instant local cache
+    // settings follow the LOGIN (like quick messages) — push to the profile, debounced
+    if (AUTH && AUTH.me) {
+      clearTimeout(settingsPush);
+      settingsPush = setTimeout(() => { AUTH.setSettings({ music: SETTINGS.music, sfx: SETTINGS.sfx, anim: SETTINGS.anim, autozoom: SETTINGS.autozoom }); }, 600);
+    }
+  }
+  // profile settings arriving at login/resume override the device cache
+  function applyProfileSettings(s) {
+    if (!s || typeof s !== 'object') return;
+    ['music', 'sfx', 'anim', 'autozoom'].forEach((k) => { if (s[k] !== undefined) SETTINGS[k] = s[k]; });
+    try { localStorage.setItem('catan-settings', JSON.stringify(SETTINGS)); } catch (_) {}
+  }
   // Animation speed setting -> a time multiplier applied to JS-timed animations.
   function aScale() { return SETTINGS.anim === 'slow' ? 1.5 : (SETTINGS.anim === 'fast' ? 0.6 : 1); }
   function aDur(ms) { return Math.round(ms * aScale()); }
@@ -5046,12 +5060,12 @@
     async resume() {
       const s = this.saved(); if (!s || !s.token) return false;
       const r = await this.rpc('player_resume', { p_token: s.token });
-      if (r && r.ok) { this.me = { id: r.id, name: r.name, token: s.token, avatar: r.avatar || null, quickMsgs: Array.isArray(r.quick_msgs) ? r.quick_msgs : null, prefColor: r.pref_color || null }; return true; }
+      if (r && r.ok) { this.me = { id: r.id, name: r.name, token: s.token, avatar: r.avatar || null, quickMsgs: Array.isArray(r.quick_msgs) ? r.quick_msgs : null, prefColor: r.pref_color || null }; applyProfileSettings(r.settings); return true; }
       return false;
     },
     async login(name, pin) {
       const r = await this.rpc('player_login', { p_name: name, p_pin: pin });
-      if (r && r.ok) { this.save({ id: r.id, name: r.name, token: r.token, avatar: r.avatar || null, quickMsgs: Array.isArray(r.quick_msgs) ? r.quick_msgs : null, prefColor: r.pref_color || null }); return { ok: true }; }
+      if (r && r.ok) { this.save({ id: r.id, name: r.name, token: r.token, avatar: r.avatar || null, quickMsgs: Array.isArray(r.quick_msgs) ? r.quick_msgs : null, prefColor: r.pref_color || null }); applyProfileSettings(r.settings); return { ok: true }; }
       return { ok: false, error: (r && r.error) || 'Login failed' };
     },
     async create(name, pin) {
@@ -5068,6 +5082,7 @@
       if (r && r.ok) { this.me.quickMsgs = clean; this.save(this.me); }
       return r;
     },
+    async setSettings(s) { if (!this.me) return { ok: false, error: 'Not logged in' }; return await this.rpc('player_set_settings', { p_token: this.me.token, p_settings: s }); },
     // preferred seat color ('red'|'blue'|'green'|'yellow') or null = no preference
     async setPrefColor(color) {
       if (!this.me) return { ok: false, error: 'Not logged in' };
