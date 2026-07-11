@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v121';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v122';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -2264,7 +2264,7 @@
     // a full menu card there. In-game (title hidden) an overlay is correct.
     if (qmReturn === 'profile') {
       titleCard(`<div class="lobhead"><button class="lobback" onclick="CATAN.manageProfile()" title="Back">←</button><h3>💬 Quick messages</h3></div>
-        ${body}<button class="btn full" style="margin-top:12px" onclick="CATAN.quickDone('profile')">Done</button>`);
+        ${body}<p class="verline">Changes save automatically</p>`);
     } else {
       showOverlay(`<h3>Quick messages</h3>${body}<button class="btn full" style="margin-top:10px" onclick="CATAN.quickDone('game')">Done</button>`);
     }
@@ -2578,7 +2578,9 @@
     // are unreliable or absorbed by the system.
     const sH = (body.clientHeight - 48) / card.offsetHeight;
     const sW = (body.clientWidth - 16) / card.offsetWidth;
-    const s = Math.max(0.3, Math.min(sH, sW, 1.7));
+    // Never shrink content (and its tap targets) below 90% to make it fit — past that the
+    // card BODY SCROLLS instead (t-body overflow-y + the card's auto-margins handle it).
+    const s = Math.max(0.9, Math.min(sH, sW, 1.7));
     card.style.transform = 'scale(' + s.toFixed(3) + ')';
   }
   // Recompute the fit several times after a (re)launch: the web font and the iOS PWA
@@ -2667,14 +2669,13 @@
         const medal = (ASSETS.avatars && ASSETS.avatars[i]) ? `<img src="${ASSETS.avatars[i]}" alt="">` : '';
         return `<div class="t-seat"><span class="medal">${medal}</span><span class="cdot" style="background:${PCOLOR[c]}"></span><input id="pn${i}" value="${DEFAULT_NAMES[i]}" maxlength="14"/></div>`;
       }).join('');
+      const backNav = AUTH.me ? 'lobby' : (window.SUPA ? 'players' : '');
       title.innerHTML = `${banner}<div class="t-body"><div class="t-card newgame">
         <button class="demobtn" onclick="CATAN.demo()" title="Jump into a mid-game (testing)">🎲 Demo</button>
-        <h3>New Game</h3>
+        <div class="lobhead">${backNav ? `<button class="lobback" data-nav="${backNav}" title="Back">←</button>` : ''}<h3 style="margin-bottom:0">New Game</h3></div>
         <div class="seg">${[2, 3, 4].map((n) => `<button class="${n === count ? 'on' : ''}" onclick="CATAN._setCount(${n})">${n} players</button>`).join('')}</div>
         <div class="t-seats">${seats}</div>
         <button class="btn full" onclick="CATAN._start()">Start game</button>
-        ${AUTH.me ? `<button class="btn ghost full" data-nav="lobby">← Back to lobby</button>`
-          : (window.SUPA ? `<button class="btn ghost full" data-nav="players">← Back to players</button>` : '')}
       </div></div>`;
       scheduleFit();
     };
@@ -3609,18 +3610,18 @@
     const countSeg = sizes.length > 1
       ? `<div class="seg stseg stcountseg"><button class="${!statsCount ? 'on' : ''}" onclick="CATAN.statsCount(null)">All sizes</button>${sizes.map((n) => `<button class="${statsCount === n ? 'on' : ''}" onclick="CATAN.statsCount(${n})">${n}p</button>`).join('')}</div>`
       : '';
-    const head = `<tr><th>#</th><th>Player</th><th title="Games played">GP</th><th title="Wins">W</th><th title="Win rate">Win%</th><th title="Quits — a quit mid-game counts as a loss">Pen</th><th title="Wins above expected — accounts for table size">WAE</th></tr>`;
+    const head = `<tr><th>#</th><th>Player</th><th>GP</th><th>W</th><th>Win%</th><th>Pen</th><th>WAE</th><th></th></tr>`;
     const rows = board.map((p, i) => {
       const wae = (p.wae >= 0 ? '+' : '') + p.wae.toFixed(1);
       return `<tr onclick="CATAN.statsPlayer('${encodeURIComponent(p.key)}')"><td class="str">${i + 1}</td>` +
         `<td class="stn">${escapeHtml(p.name)}</td><td>${p.gp}</td><td class="stw">${p.w}</td><td>${p.winpct}%</td>` +
         `<td class="${p.pen ? 'stpen' : 'stz'}">${p.pen || '—'}</td>` +
-        `<td class="${p.wae >= 0 ? 'stpos' : 'stneg'}">${wae}</td></tr>`;
+        `<td class="${p.wae >= 0 ? 'stpos' : 'stneg'}">${wae}</td><td class="stgo">›</td></tr>`;
     }).join('');
     const sizeLbl = statsCount ? ' · ' + statsCount + 'p' : '';
     const body = games.length
       ? `<div class="sttbl-wrap"><table class="sttbl"><thead>${head}</thead><tbody>${rows}</tbody></table></div>
-         <div class="stnote">WAE = wins above expected: your wins minus what pure luck gives at each table size. Tap a player for detail.</div>
+         <div class="stnote">GP games · W wins · Pen quit penalties · WAE wins above what pure luck gives at each table size. Tap a player for detail.</div>
          <h4 class="stsub">Games${selLbl ? ' · ' + selLbl : ''}${sizeLbl}</h4>
          <div class="rglist tall">${recentRowsHTML(games)}</div>`
       : `<p class="muted" style="text-align:center;padding:22px 8px">No ${statsCount ? statsCount + '-player ' : ''}games ${isAll ? 'recorded' : 'in ' + selLbl} yet.</p>`;
@@ -3729,11 +3730,13 @@
     // host's pick if set; else the count default for 2+ players (2p15 · 3p13 · 4p11); else the general 13
     const tgt = (chosen != null ? chosen : (playerN >= 2 ? targetForN(playerN) : 13));
     const hostName = escapeHtml((host && host.name) || 'the host');
+    // ONE gold primary at a time: "I'm ready" until you're ready; then (host) Start goes gold.
+    // Everything passive is a STATUS LINE, never a disabled button.
+    const iAmReady = LOBBY.mode === 'ready';
     const startBtn = iAmHost
-      ? (ready.length < 2 ? `<button class="btn full" disabled>Start · need 2 ready</button>`
-        : !hostReady ? `<button class="btn full" disabled>Ready up to start</button>`
-          : `<button class="btn full" onclick="CATAN.lobbyStart()">Start · ${seatN}p (${tgt} pts)</button>`)
-      : `<button class="btn full" disabled>${ready.length < 2 ? 'Waiting for players…' : 'Waiting for ' + hostName + ' to start…'}</button>`;
+      ? (!hostReady ? '' : ready.length < 2 ? `<div class="lobstatus">Waiting for more players to ready up…</div>`
+        : `<button class="btn full" onclick="CATAN.lobbyStart()">Start · ${seatN}p (${tgt} pts)</button>`)
+      : (iAmReady ? `<div class="lobstatus">${ready.length < 2 ? 'Waiting for more players…' : 'Waiting for ' + hostName + ' to start…'}</div>` : '');
     const targetRow = iAmHost
       ? `<div class="lobtgt"><span class="lobtgt-lbl">Win at <b id="tgt-val">${tgt}</b> pts</span><input class="lobtgt-slider" type="range" min="9" max="15" step="1" value="${tgt}" oninput="var e=document.getElementById('tgt-val');if(e)e.textContent=this.value" onchange="CATAN.lobbyTarget(this.value)"></div>`
       : `<div class="lobtgt muted">Win at ${tgt} pts</div>`;
@@ -3742,15 +3745,16 @@
     const prefRow = `<div class="lobprefrow"><span class="lobtgt-lbl">Your color</span>
       ${SEAT_COLORS.map((c) => `<button class="prefsw sm${myPref === c ? ' on' : ''}" style="background:${PCOLOR[c]}" onclick="CATAN.lobbyPref('${c}')" aria-label="${c}"></button>`).join('')}
       <button class="prefnone sm${!myPref ? ' on' : ''}" onclick="CATAN.lobbyPref(null)">Any</button></div>`;
+    const readyBtn = iAmReady
+      ? `<button class="btn wood full" onclick="CATAN.lobbyReady()">✓ Ready — tap to sit out</button>`
+      : `<button class="btn full" onclick="CATAN.lobbyReady()">I'm ready</button>`;
+    const specLink = `<button class="linkbtn" onclick="CATAN.lobbySpectate()">${LOBBY.mode === 'spectate' ? '✓ Spectating — tap to stop' : '👁 Spectate instead'}</button>`;
     return `<p class="muted small" style="text-align:center">${members.length} here · ${ready.length} ready</p>
       <div class="loblist">${rows}</div>
-      ${targetRow}
-      ${prefRow}
-      <div class="lobrow2">
-        <button class="btn ${LOBBY.mode === 'ready' ? '' : 'wood'}" onclick="CATAN.lobbyReady()">${LOBBY.mode === 'ready' ? '✓ Ready' : "I'm ready"}</button>
-        <button class="btn ${LOBBY.mode === 'spectate' ? '' : 'wood'}" onclick="CATAN.lobbySpectate()">${LOBBY.mode === 'spectate' ? '✓ Spectating' : '👁 Spectate'}</button>
-      </div>
+      <div class="lobsetup">${targetRow}${prefRow}</div>
+      ${readyBtn}
       ${startBtn}
+      ${specLink}
       ${lobbyChatHTML()}`;
   }
   window.CATAN.openStats = () => statsScreen();
@@ -3770,11 +3774,10 @@
     if (waiting && tables[waiting].length) {
       const m = tables[waiting];
       const names = m.map((p) => escapeHtml(p.name)).join(', ');
-      titleCard(`<h3>Friends are gathering</h3>
+      titleCard(`<div class="lobhead"><button class="lobback" data-nav="lobby" title="Back">←</button><h3>Friends are gathering</h3></div>
         <p class="muted" style="text-align:center;margin:10px 0 14px"><b style="color:var(--gold)">${escapeHtml(LOBBY.gameName(waiting))}</b> already has ${m.length} waiting: ${names}</p>
         <button class="btn full" onclick="CATAN.guardJoin('${waiting}')">Join them</button>
-        <button class="btn ghost full" onclick="CATAN.newTableGo()">Create a separate game anyway</button>
-        <button class="btn ghost full" data-nav="lobby">← Back</button>`);
+        <button class="linkbtn" onclick="CATAN.newTableGo()">Create a separate game anyway</button>`);
       return;
     }
     CATAN.newTableGo();
@@ -3948,22 +3951,21 @@
         <button class="btn wood full" onclick="CATAN.authNew()">+ New player</button>
         <button class="offline-link" onclick="CATAN.playOffline()">Pass &amp; play offline</button>
         <div class="rgsec"><div class="rghead"><span>Recent games</span><button class="rglink" data-nav="stats">Full stats →</button></div>
-          <div class="rglist" id="login-recent">${recent}</div></div>`);
+          <div class="rglist" id="login-recent">${recent}</div></div>
+        <p class="verline">Catan · ${APP_VERSION}</p>`);
       STATS.load().then(() => { const el = $('login-recent'); if (el) el.innerHTML = STATS.games.length ? recentRowsHTML(STATS.games, 8) : `<p class="muted small" style="text-align:center;padding:8px 0">No games recorded yet.</p>`; });
     } else if (mode === 'new') {
-      titleCard(`<h3>New player</h3>
+      titleCard(`<div class="lobhead"><button class="lobback" onclick="CATAN.authBack()" title="Back">←</button><h3>New player</h3></div>
         <input id="auName" class="authin" placeholder="Your name" maxlength="20" autocomplete="off"/>
         <input id="auPin" class="authin" type="password" inputmode="numeric" placeholder="Choose a PIN (4+ digits)" autocomplete="off"/>
         <div id="auErr" class="auerr"></div>
-        <button class="btn full" onclick="CATAN.authCreate()">Create &amp; enter</button>
-        <button class="btn ghost full" onclick="CATAN.authBack()">Back</button>`);
+        <button class="btn full" onclick="CATAN.authCreate()">Create &amp; enter</button>`);
     } else if (mode.indexOf('login:') === 0) {
       const name = decodeURIComponent(mode.slice(6));
-      titleCard(`<h3>${escapeHtml(name)}</h3>
+      titleCard(`<div class="lobhead"><button class="lobback" onclick="CATAN.authBack()" title="Back">←</button><h3>${escapeHtml(name)}</h3></div>
         <input id="auPin" class="authin" type="password" inputmode="numeric" placeholder="Enter your PIN" autocomplete="off"/>
         <div id="auErr" class="auerr"></div>
-        <button class="btn full" onclick="CATAN.authLogin('${encodeURIComponent(name)}')">Log in</button>
-        <button class="btn ghost full" onclick="CATAN.authBack()">Back</button>`);
+        <button class="btn full" onclick="CATAN.authLogin('${encodeURIComponent(name)}')">Log in</button>`);
       // focus SYNCHRONOUSLY, still inside the name-tap gesture, so iOS opens the keyboard
       const el = $('auPin'); if (el) el.focus();
     }
@@ -4009,19 +4011,18 @@
   window.CATAN.playOffline = () => { LOBBY.leave(); startScreen(); };
   window.CATAN.showLobby = () => showLobby();
   window.CATAN.authChangePin = () => {
-    titleCard(`<h3>Change PIN</h3>
+    titleCard(`<div class="lobhead"><button class="lobback" data-nav="profback" title="Back">←</button><h3>Change PIN</h3></div>
       <input id="auOld" class="authin" type="password" inputmode="numeric" placeholder="Current PIN" autocomplete="off"/>
       <input id="auNew" class="authin" type="password" inputmode="numeric" placeholder="New PIN (4+ digits)" autocomplete="off"/>
       <div id="auErr" class="auerr"></div>
-      <button class="btn full" onclick="CATAN.authDoChangePin()">Save</button>
-      <button class="btn ghost full" data-nav="profback">Back</button>`);
+      <button class="btn full" onclick="CATAN.authDoChangePin()">Save</button>`);
   };
   window.CATAN.authDoChangePin = async () => { const r = await AUTH.setPin(($('auOld') || {}).value, ($('auNew') || {}).value); if (r && r.ok) { toast('PIN changed'); manageProfile(); } else { const e = $('auErr'); if (e) e.textContent = (r && r.error) || 'Failed'; } };
 
   // ===== Manage Profile: photo (cropper) + nickname + change PIN ==================
   function manageProfile() {
     const me = AUTH.me; if (!me) { showLobby(); return; }
-    titleCard(`<h3>Manage Profile</h3>
+    titleCard(`<div class="lobhead"><button class="lobback" data-nav="lobby" title="Back to lobby">←</button><h3>Profile</h3></div>
       <div class="profhead">
         <button class="profpic" onclick="CATAN.pickAvatar()" aria-label="Change photo">${faceHTML(me.name, me.avatar, 'lg')}<span class="profcam">📷</span></button>
         <div class="profhbtns">
@@ -4032,7 +4033,7 @@
       <label class="proflbl">Nickname</label>
       <div class="profname">
         <input id="profName" class="authin" maxlength="20" value="${escapeHtml(me.name)}" autocomplete="off"/>
-        <button class="btn" onclick="CATAN.saveName()">Save</button>
+        <button class="btn wood" onclick="CATAN.saveName()">Save</button>
       </div>
       <div id="profErr" class="auerr"></div>
       <label class="proflbl">Preferred color</label>
@@ -4040,9 +4041,9 @@
         ${SEAT_COLORS.map((c) => `<button class="prefsw${AUTH.me.prefColor === c ? ' on' : ''}" style="background:${PCOLOR[c]}" onclick="CATAN.setPrefColor('${c}')" aria-label="${c}"></button>`).join('')}
         <button class="prefnone${!AUTH.me.prefColor ? ' on' : ''}" onclick="CATAN.setPrefColor(null)">No preference</button>
       </div>
-      <button class="btn full" onclick="CATAN.manageQuick('profile')">💬 Quick messages</button>
-      <button class="btn full" data-nav="changepin">Change PIN</button>
-      <button class="btn ghost full" data-nav="lobby">← Back to lobby</button>`);
+      <button class="btn wood full" onclick="CATAN.manageQuick('profile')">💬 Quick messages</button>
+      <button class="btn wood full" data-nav="changepin">🔒 Change PIN</button>
+      <p class="verline">Catan · ${APP_VERSION}</p>`);
   }
   window.CATAN.manageProfile = () => manageProfile();
   window.CATAN.setPrefColor = async (c) => {
@@ -4131,7 +4132,6 @@
   };
 
   function boot() {
-    const v = document.getElementById('ver'); if (v) v.textContent = APP_VERSION;   // version stamp (login/lobby)
     const rv = document.getElementById('radialver'); if (rv) rv.textContent = APP_VERSION;   // in-game: shown in the radial menu
     initBoardZoom();
     const m = location.href.match(/[?#&]rig(?:=(\d))?\b/);   // ?rig -> 4 players, ?rig=2 -> 2, etc.
