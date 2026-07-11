@@ -247,10 +247,7 @@
     display:flex; flex-direction:column; gap:12px;}
   #confirmbar.hidden{display:none;}
   /* tiny build stamp so you can confirm the live version at a glance (cache checks) */
-  #ver{position:fixed; left:5px; bottom:calc(3px + env(safe-area-inset-bottom,0)); z-index:99999;
-    font:10px/1 monospace; color:rgba(255,255,255,0.5); text-shadow:0 1px 2px rgba(0,0,0,0.7);
-    pointer-events:none; letter-spacing:0.5px;}
-  body.ingame #ver{display:none;}   /* in-game the version moves into the radial menu (below) */
+  /* the version stamp lives in the login/profile footers + the in-game radial menu */
   /* floats on the sea just above your own (bottom-left) corner, only while the radial menu is open */
   #radialver{position:absolute; left:10px; bottom:calc(env(safe-area-inset-bottom,0) + 118px); text-align:left;
     font:11px/1 monospace; color:rgba(255,235,200,0.6); letter-spacing:0.5px; pointer-events:none;}
@@ -455,7 +452,7 @@
   .lobrow.away{opacity:0.5;}   /* briefly dropped from presence (phone asleep) — kept during the grace window */
   /* a joinable table in the table-list */
   .tablerow{display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%; text-align:left; cursor:pointer;
-    padding:15px 16px; border-radius:10px; font-weight:700; font-family:var(--serif); font-size:16px; color:#3a2400;
+    padding:14px 16px; border-radius:12px; font-weight:700; font-family:var(--serif); font-size:16px; color:#3a2400;
     background:linear-gradient(180deg,#e8cf86,#c79b3f); border:1px solid var(--gold-edge); box-shadow:0 2px 6px rgba(0,0,0,0.35);}
   .tablerow:active{transform:scale(0.99);}
   /* the group's standing table — pinned first, visually the main door */
@@ -611,6 +608,7 @@
   .sttbl td.stpos{color:#8fd98f; font-weight:700;}
   .sttbl td.stneg{color:#e3a3a3; font-weight:700;}
   .sttbl td.stpen{color:#ff5a4d; font-weight:800;}   /* quit penalties — stand out */
+  .sttbl td.stgo{color:var(--muted); opacity:0.55; font-size:16px; padding-left:0; width:14px;}   /* rows are tappable — say so */
   .sttbl td.stz{color:var(--muted); opacity:0.5;}    /* zero penalties — muted dash */
   .sttbl tbody tr:first-child td.str{color:var(--gold);}
   .sttbl tbody tr{cursor:pointer;}
@@ -949,7 +947,7 @@
   .seg button.on{background:linear-gradient(180deg,var(--gold),var(--gold-edge));color:#3a2400;}
   .dot{width:12px;height:12px;border-radius:50%;display:inline-block;border:1px solid #000;}
 
-  #toast{position:fixed; left:50%; bottom:96px; transform:translateX(-50%) translateY(16px);
+  #toast{position:fixed; left:50%; bottom:150px; transform:translateX(-50%) translateY(16px);
     background:#000d;color:#fff;padding:9px 15px;border-radius:20px;font-size:13px;opacity:0;transition:.2s;z-index:40;
     pointer-events:none;max-width:86%;text-align:center;border:1px solid var(--gold-edge);}
   #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
@@ -1020,8 +1018,8 @@
   .t-banner img{position:absolute; inset:0; width:100%; height:100%;
     object-fit:contain; object-position:center;}   /* show the whole flag, never crop the CATAN logo */
   /* fills remaining height; the card is scaled by JS (fitTitle) to always fit */
-  .t-body{flex:1 1 auto; min-height:0; display:flex; align-items:center; justify-content:center; width:100%; padding:8px; overflow:hidden;}
-  .t-card{transform-origin:center;}
+  .t-body{flex:1 1 auto; min-height:0; display:flex; width:100%; padding:8px; overflow-y:auto; -webkit-overflow-scrolling:touch;}
+  .t-card{transform-origin:center; margin:auto;}   /* auto-margins centre WITHOUT clipping when the body scrolls */
   .t-card{width:min(680px,94vw);
     background:linear-gradient(rgba(70,40,16,0.5),rgba(35,20,8,0.72)), var(--wood-tex); background-size:cover;
     border:2px solid var(--gold-edge); border-radius:14px; padding:16px 18px;
@@ -1058,6 +1056,18 @@
   .t-card.newgame .btn.full{padding:18px; font-size:20px;}
   .t-card.newgame .btn.ghost.full{padding:11px; font-size:15px; margin-top:10px;}
   /* low-key secondary action: a small muted link, not a full button */
+  .verline{margin:14px 0 2px; text-align:center; color:var(--muted); opacity:0.6; font-size:12px; letter-spacing:0.4px;}
+  /* tertiary action: a quiet text link (same voice as the login screen's offline link) */
+  .linkbtn{display:block; width:fit-content; margin:10px auto 2px; padding:6px 10px;
+    background:none; border:none; box-shadow:none; color:var(--muted); opacity:0.7;
+    font-size:14px; font-weight:600; cursor:pointer; text-decoration:underline; text-underline-offset:3px; font-family:inherit;}
+  .linkbtn:active{opacity:1;}
+  /* passive status (never a disabled button — buttons look tappable) */
+  .lobstatus{text-align:center; color:#cbb489; font-size:14.5px; font-weight:600; padding:12px 8px 4px;}
+  /* game-setup cluster: win target + your color live together */
+  .lobsetup{border:1px solid rgba(255,220,170,0.14); border-radius:12px; padding:10px 12px; margin:10px 0 4px;
+    display:flex; flex-direction:column; gap:8px;}
+  .lobsetup .lobtgt, .lobsetup .lobprefrow{margin:0;}
   .t-card .offline-link{display:block; width:fit-content; margin:14px auto 2px; padding:4px 8px;
     background:none; border:none; box-shadow:none; color:var(--muted); opacity:0.55;
     font-size:13px; font-weight:600; cursor:pointer; text-decoration:underline; text-underline-offset:3px;}
@@ -1113,7 +1123,6 @@
   </div>
   <div id="toast"></div>
   <div id="bctoast"></div>
-  <div id="ver"></div>
   </div><!-- /#app (rotation wrapper: everything the user sees lives here) -->
   <script>
     /* Optional custom art. Drop your own PNGs into the assets/ subfolders using
