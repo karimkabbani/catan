@@ -1174,7 +1174,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v127';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v128';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -1231,7 +1231,27 @@
         .then((buf) => { sndBuf[name] = buf; }).catch(() => {});
     }
   }
-  function unlockAudio() { if (!actx) initAudio(); if (actx && actx.state === 'suspended') actx.resume(); startMusic(); }
+  // iOS quirk: the RINGER/SILENT switch mutes Web Audio (our sound effects) but NOT <audio>
+  // elements (our music). Holding the session open with a silent looping <audio> promotes the
+  // page to "playback" audio, so SFX play through the mute switch — same as the music does.
+  let sessionEl = null;
+  function silentWavURI() {
+    const rate = 8000, n = rate / 2;   // 0.5s of silence
+    const buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+    const w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+    w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVEfmt '); v.setUint32(16, 16, true);
+    v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, rate, true);
+    v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+    w(36, 'data'); v.setUint32(40, n * 2, true);
+    let b = ''; const u8 = new Uint8Array(buf); for (let i = 0; i < u8.length; i++) b += String.fromCharCode(u8[i]);
+    return 'data:audio/wav;base64,' + btoa(b);
+  }
+  function keepAudioSession() {
+    if (!SETTINGS.sfx) { if (sessionEl && !sessionEl.paused) { try { sessionEl.pause(); } catch (_) { } } return; }
+    if (!sessionEl) { sessionEl = new Audio(silentWavURI()); sessionEl.loop = true; sessionEl.volume = 0.01; }
+    if (sessionEl.paused) sessionEl.play().catch(() => { });   // lands inside the tap gesture; retried on the next tap
+  }
+  function unlockAudio() { if (!actx) initAudio(); if (actx && actx.state === 'suspended') actx.resume(); keepAudioSession(); startMusic(); }
   function playSound(name, vol) {
     if (!SETTINGS.sfx) return;            // Sound effects setting (music is separate)
     if (!actx || !sndBuf[name]) return;
@@ -3651,7 +3671,7 @@
     },
     openDev, openTrade, openMonopoly, openYoP,
     openSettings,
-    setToggle: (key) => { SETTINGS[key] = !SETTINGS[key]; saveSettings(); openSettings(); if (key === 'music') { if (SETTINGS.music) startMusic(); else stopMusic(); } },
+    setToggle: (key) => { SETTINGS[key] = !SETTINGS[key]; saveSettings(); openSettings(); if (key === 'music') { if (SETTINGS.music) startMusic(); else stopMusic(); } if (key === 'sfx') keepAudioSession(); },
     musicNext: () => musicSkip(1),
     musicPrev: () => musicSkip(-1),
     setAnim: (v) => { SETTINGS.anim = v; saveSettings(); openSettings(); },
