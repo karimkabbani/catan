@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v136';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v137';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -1695,7 +1695,7 @@
       return `<div class="ds-luck"><span class="dot" style="background:${PCOLOR[p.color]}"></span><b>${escapeHtml(p.name)}</b>`
         + `<span>hit ${t.numbersHit}× · normal ${Math.round(t.numbersNormal)}</span></div>`;
     }).join('');
-    return rows ? `<div class="ds-lucks">${rows}</div>` : '';
+    return rows ? `<div class="ds-lucks">${rows}</div><div class="ds-lucknote">Hit = rolls that paid that player · normal = usual with fair dice</div>` : '';
   }
   // end-of-game awards (only the ones that clear their bar): Robber magnet + Blessed / Cursed by the dice
   const AWARD_MIN_ROBBER = 5, AWARD_MIN_LUCK = 4;

@@ -382,6 +382,7 @@
   .ds-luck b{color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:6.5em; flex:0 1 auto;}
   .ds-luck span:last-child{white-space:nowrap;}
   .ds-luck .dot{width:9px; height:9px; border-radius:50%; flex:0 0 auto;}
+  .ds-lucknote{margin-top:5px; text-align:center; font-size:10.5px; font-style:italic; color:var(--muted); opacity:0.85;}
   .awards{margin:-2px 0 12px; text-align:left;}
   .awhead{font-family:var(--serif); color:var(--gold); font-size:15px; text-align:center; margin-bottom:6px;}
   .award{display:flex; gap:10px; align-items:center; padding:7px 10px; margin-bottom:6px; border-radius:9px;
@@ -1261,7 +1262,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v136';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v137';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -2951,7 +2952,7 @@
       return `<div class="ds-luck"><span class="dot" style="background:${PCOLOR[p.color]}"></span><b>${escapeHtml(p.name)}</b>`
         + `<span>hit ${t.numbersHit}× · normal ${Math.round(t.numbersNormal)}</span></div>`;
     }).join('');
-    return rows ? `<div class="ds-lucks">${rows}</div>` : '';
+    return rows ? `<div class="ds-lucks">${rows}</div><div class="ds-lucknote">Hit = rolls that paid that player · normal = usual with fair dice</div>` : '';
   }
   // end-of-game awards (only the ones that clear their bar): Robber magnet + Blessed / Cursed by the dice
   const AWARD_MIN_ROBBER = 5, AWARD_MIN_LUCK = 4;
