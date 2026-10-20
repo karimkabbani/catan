@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v132';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v133';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -300,6 +300,7 @@
     state = r.state;
     announceFromLog(preState.log, state.log);   // dev-card buys/plays -> top announcement (also runs for observers below)
     announceMilestones(preState, state);        // longest road / largest army changing hands
+    noteMoments(preState, state);               // reactable moments + suggested reaction chip
     // a bought dev card: the buyer is told WHAT they drew; everyone else just sees it fly in face-down
     const bought = action.type === 'buyDevCard'
       ? { buyer: actor, card: (state.players.find((p) => p.color === actor).newDevCards.slice(-1)[0]) } : null;
@@ -829,7 +830,7 @@
         tbadge = `<div class="tbadge ${cls}"${tap}>${ico}</div>`;
       }
       // your OWN corner gets a 💬 bubble to open quick chat (online seated players only)
-      const chatBtn = (online && myColor && p.color === myColor) ? `<button class="pchat" onclick="CATAN.openQuickChat()" aria-label="Quick chat">💬</button>` : '';
+      const chatBtn = (online && myColor && p.color === myColor) ? `<button class="pchat" onclick="CATAN.openEmojiTray()" aria-label="Quick chat">💬</button>` : '';
       // unread dot: a new message from another player, not yet reviewed (tap their portrait to see it)
       const dot = (online && p.color !== myColor && UNREAD[p.color]) ? `<span class="pmsgdot"></span>` : '';
       // tap any online player's portrait to review their recent messages
@@ -1354,7 +1355,7 @@
   }
 
   // ---- overlays (unchanged logic) -----------------------------------------
-  function showOverlay(html) { const o = $('overlay'); o.innerHTML = `<div class="sheet">${html}</div>`; o.classList.remove('hidden', 'menu', 'devmode', 'trademode', 'qmode'); document.body.classList.remove('trading'); const rr = $('radialroot'); rr.classList.remove('open'); rr.classList.add('hidden'); $('radialtab').classList.add('hidden'); $('settingstab').classList.add('hidden'); $('dicetab').classList.add('hidden'); $('trophytab').classList.add('hidden'); }
+  function showOverlay(html) { const o = $('overlay'); o.innerHTML = `<div class="sheet">${html}</div>`; o.classList.remove('hidden', 'menu', 'devmode', 'trademode', 'qmode'); document.body.classList.remove('trading'); const rr = $('radialroot'); rr.classList.remove('open'); rr.classList.add('hidden'); $('radialtab').classList.add('hidden'); $('settingstab').classList.add('hidden'); $('dicetab').classList.add('hidden'); $('trophytab').classList.add('hidden'); closeEmojiTray(); hideChip(); }
   function showFullMenu(html) { const o = $('overlay'); o.innerHTML = html; o.classList.remove('hidden', 'devmode', 'trademode', 'qmode'); o.classList.add('menu'); document.body.classList.remove('trading'); }
   // Re-render a menu sheet without replaying its slide-up / reloading images: if the
   // same view is already open, swap only its inner content; otherwise mount fresh.
@@ -2327,6 +2328,7 @@
     renderPanels();   // refresh to drop the unread dot
   }
   function showBroadcast(msg) {
+    if (msg && msg.type === 'emoji') { showEmojiMsg(msg); return; }
     if (!msg || (!msg.text && msg.type !== 'voice')) return;
     logMsg(msg);   // keep it in the per-player history (tap a portrait to review)
     playSound('click', 0.4);
@@ -2338,6 +2340,192 @@
     if (corner && corner.style.display !== 'none') showBroadcastBubble(msg, corner, pos);
     else showBroadcastBanner(msg);
   }
+  // ---- express yourself: emoji tray, bursts, reactable moments, suggested chips ----------------
+  // Emoji ride the messages table as type 'emoji' (body = emoji, dur = tap count, url = 'm:<moment>'),
+  // so no migration; an older client just shows the emoji as a text bubble. Taps are batched: each
+  // tap floats one emoji locally at once, and the run is sent as ONE row when you pause or switch.
+  const EMOJI_TRAY = ['😂', '😡', '😭', '🔥', '🙏', '👀', '🫠'];
+  const EMO_FLUSH_MS = 700, EMO_MAX = 30, MOMENT_LIVE_MS = 8000, CHIP_MS = 4000, CHIP_GAP_MS = 10000;
+  let emoPending = null, emoFlushT = null, trayT = null, chipT = null, lastChipAt = 0, pillT = null;
+  const moments = {};   // key -> { text, at, counts: { emoji: n } }; key is shared by every client (log index)
+  let liveMoment = null;
+  function myCorner() {
+    if (!state || !myColor) return null;
+    const i = state.players.findIndex((p) => p.color === myColor);
+    return i < 0 ? null : { el: $('p-' + seatKey(i)), pos: seatKey(i) };
+  }
+  function cornerOf(color) {
+    const i = state ? state.players.findIndex((p) => p.color === color) : -1;
+    const el = i < 0 ? null : $('p-' + seatKey(i));
+    return (el && el.style.display !== 'none') ? { el, pos: seatKey(i) } : null;
+  }
+  function avatarCentre(corner) {
+    const av = corner.el.querySelector('.pavawrap') || corner.el.querySelector('.pava') || corner.el;
+    const r = av.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  }
+  // n emoji float out of a player's portrait toward the board, plus a "×n" combo tag
+  function emojiBurst(color, emoji, n, combo) {
+    const c = cornerOf(color); if (!c) return;
+    const o = avatarCentre(c), top = c.pos[0] === 't', left = c.pos[1] === 'l';
+    const k = Math.min(n, 12);
+    for (let i = 0; i < k; i++) {
+      const e = document.createElement('span');
+      e.className = 'emofloat'; e.textContent = emoji;
+      e.style.left = o.x + 'px'; e.style.top = o.y + 'px';
+      e.style.setProperty('--dx', ((left ? 1 : -1) * (20 + Math.random() * 70)).toFixed(0) + 'px');
+      e.style.setProperty('--dy', ((top ? 1 : -1) * (90 + Math.random() * 70)).toFixed(0) + 'px');
+      e.style.setProperty('--rot', (Math.random() * 40 - 20).toFixed(0) + 'deg');
+      e.style.animationDelay = (i * 0.09).toFixed(2) + 's';
+      document.body.appendChild(e);
+      setTimeout(() => e.remove(), 1900 + i * 90);
+    }
+    if (combo > 1) {
+      const id = 'emocombo-' + color; let t = document.getElementById(id);
+      if (!t) { t = document.createElement('span'); t.id = id; t.className = 'emocombo'; document.body.appendChild(t); }
+      t.textContent = emoji + ' ×' + combo;
+      const r = c.el.getBoundingClientRect();   // beside the corner, over the sea — never on its stats
+      t.style.left = (left ? r.right + 34 : r.left - 34) + 'px'; t.style.top = o.y + 'px';
+      const tray = color === myColor && $('emotray');   // my own tray is open there -> sit just above it
+      if (tray) { const tr = tray.getBoundingClientRect(); t.style.left = (left ? tr.left + 40 : tr.right - 40) + 'px'; t.style.top = (tr.top - 16) + 'px'; }
+      t.classList.remove('pop'); void t.offsetWidth; t.classList.add('pop');
+      clearTimeout(t._t); t._t = setTimeout(() => t.remove(), 1600);
+    }
+  }
+  // a moment collects reactions from everyone: "Sam robbed Alex · 😂 3 😡 1" under the banner
+  function addReaction(key, emoji, n) {
+    if (!key) return;
+    const m = (moments[key] = moments[key] || { text: null, at: 0, counts: {} });
+    m.counts[emoji] = (m.counts[emoji] || 0) + n;
+    showPill(key);
+  }
+  function showPill(key) {
+    const m = moments[key], el = $('momentpill'); if (!m || !m.text || !el || !inGame()) return;
+    const counts = Object.entries(m.counts).sort((a, b) => b[1] - a[1]).map(([e, n]) => `<span class="mpc">${e} ${n}</span>`).join('');
+    if (!counts) return;
+    el.innerHTML = `<span class="mpt">${escapeHtml(m.text)}</span>${counts}`;
+    el.classList.remove('hidden', 'out'); el.classList.add('bump'); setTimeout(() => el.classList.remove('bump'), 220);
+    clearTimeout(pillT); pillT = setTimeout(() => { el.classList.add('out'); setTimeout(() => el.classList.add('hidden'), 250); }, 6000);
+  }
+  // one tap = one emoji now; the run goes out as a single message when you pause or switch emoji
+  function sendEmoji(emoji, key) {
+    if (!online || !myColor) return;
+    if (!key && liveMoment && moments[liveMoment] && Date.now() - moments[liveMoment].at < MOMENT_LIVE_MS) key = liveMoment;
+    if (emoPending && (emoPending.emoji !== emoji || emoPending.key !== key)) flushEmoji();
+    if (!emoPending) emoPending = { emoji, key, n: 0 };
+    if (emoPending.n >= EMO_MAX) return;
+    emoPending.n++;
+    emojiBurst(myColor, emoji, 1, emoPending.n);
+    if (key) addReaction(key, emoji, 1);
+    clearTimeout(emoFlushT); emoFlushT = setTimeout(flushEmoji, EMO_FLUSH_MS);
+  }
+  function flushEmoji() {
+    clearTimeout(emoFlushT); emoFlushT = null;
+    const p = emoPending; emoPending = null;
+    if (!p || !p.n) return;
+    LOBBY.sendBroadcast({ type: 'emoji', text: p.emoji, dur: p.n, url: p.key ? 'm:' + p.key : null,
+      name: (AUTH.me && AUTH.me.name) || null, avatar: (AUTH.me && AUTH.me.avatar) || null, code: NET.code || LOBBY.table || null, color: myColor });
+  }
+  function showEmojiMsg(msg) {
+    const n = Math.max(1, Math.min(EMO_MAX, msg.dur || 1)), emoji = String(msg.text || '').slice(0, 8);
+    if (!emoji || !inGame()) return;
+    playSound('click', 0.3);
+    emojiBurst(msg.color, emoji, n, n);
+    if (msg.url && String(msg.url).startsWith('m:')) addReaction(String(msg.url).slice(2), emoji, n);
+  }
+  // the tray fans out of your portrait; it stays open while you tap (mash away), closes on an outside tap
+  function openEmojiTray() {
+    if ($('emotray')) { closeEmojiTray(); return; }
+    const c = myCorner(); if (!c || !c.el) { openQuickChat(); return; }
+    hideChip();
+    const o = avatarCentre(c), left = c.pos[1] === 'l';
+    const t = document.createElement('div');
+    t.id = 'emotray'; t.className = left ? 'from-left' : 'from-right';
+    t.innerHTML = EMOJI_TRAY.map((e) => `<button class="emobtn" onclick="CATAN.emo('${e}')">${e}</button>`).join('')
+      + `<button class="emobtn more" onclick="CATAN.emoMore()" aria-label="More">⋯</button>`;
+    const r = c.el.getBoundingClientRect();
+    t.style.top = Math.max(6, o.y - 23) + 'px';
+    if (left) t.style.left = (r.right + 8) + 'px'; else t.style.right = (window.innerWidth - r.left + 8) + 'px';
+    document.body.appendChild(t);
+    requestAnimationFrame(() => t.classList.add('in'));
+    bumpTray();
+  }
+  function bumpTray() { clearTimeout(trayT); trayT = setTimeout(closeEmojiTray, 6000); }
+  function closeEmojiTray() { clearTimeout(trayT); const t = $('emotray'); if (t) t.remove(); }
+  document.addEventListener('pointerdown', (e) => {
+    const t = $('emotray'); if (!t) return;
+    if (t.contains(e.target) || (e.target.closest && e.target.closest('.pchat'))) return;
+    closeEmojiTray();
+  }, true);
+  // ---- moments: shared, reactable game events + the suggested chip by your portrait ----
+  // Keys come from the shared state (log index / log length), so every client agrees on them.
+  function noteMoments(a, s) {
+    if (!online || !a || !s || !s.players || s.phase !== 'play') return;
+    const me = myColor, byName = (n) => (s.players.find((p) => p.name === n) || {}).color;
+    const nm = (c) => (s.players.find((p) => p.color === c) || {}).name || '?';
+    const evs = [];
+    const log = s.log || [], start = (a.log || []).length;
+    for (let i = start; i < log.length; i++) {
+      const line = log[i]; let m;
+      if ((m = line.match(/^(.*) stole a card from (.+)\.$/))) {
+        const thief = byName(m[1]), victim = byName(m[2]);
+        evs.push({ key: 'L' + i, text: `${m[1]} robbed ${m[2]}`, mine: me === victim || me === thief,
+          emoji: me === victim ? '😡' : me === thief ? '😈' : '😂' });
+      } else if ((m = line.match(/^(.*) monopolised (\w+)/))) {
+        const who = byName(m[1]);
+        evs.push({ key: 'L' + i, text: `${m[1]} played Monopoly`, mine: true, emoji: me === who ? '😈' : '😡' });
+      } else if ((m = line.match(/^(.*) rolled (\d+)\.$/))) {
+        if (+m[2] === 7) {
+          const owe = Object.keys(s.pendingDiscards || {}).filter((c) => s.pendingDiscards[c] > 0);
+          if (owe.length) evs.push({ key: 'L' + i, text: `7 — ${owe.map(nm).join(', ')} must discard`, mine: owe.includes(me),
+            emoji: owe.includes(me) ? '😭' : '😂' });
+        } else {
+          const tot = (pl) => RES.reduce((n, r) => n + (pl.resources[r] || 0), 0);
+          const gains = s.players.map((p) => { const was = a.players.find((x) => x.color === p.color); return { c: p.color, g: was ? tot(p) - tot(was) : 0 }; })
+            .sort((x, y) => y.g - x.g);
+          if (gains[0] && gains[0].g >= 3) evs.push({ key: 'L' + i, text: `${nm(gains[0].c)} got ${gains[0].g} cards from one roll`,
+            mine: gains[0].c === me, emoji: gains[0].c === me ? '🤑' : '😤' });
+        }
+      }
+    }
+    const holder = (field, label) => {
+      if (!s[field] || s[field] === a[field]) return;
+      const was = a[field];
+      evs.push({ key: field + ':' + log.length, text: `${nm(s[field])} took the ${label}`, mine: me === s[field] || me === was,
+        emoji: me === s[field] ? '💪' : me === was ? '😤' : '👀' });
+    };
+    holder('longestRoadOwner', 'Longest Road'); holder('largestArmyOwner', 'Largest Army');
+    if (!evs.length) return;
+    evs.forEach((ev) => {
+      const m = (moments[ev.key] = moments[ev.key] || { text: null, at: 0, counts: {} });
+      m.text = ev.text; m.at = Date.now();
+      liveMoment = ev.key;
+      if (Object.keys(m.counts).length) showPill(ev.key);   // reactions that beat the state here
+    });
+    const pick = evs.filter((e) => e.mine).pop() || evs[evs.length - 1];
+    setTimeout(() => suggestChip(pick.emoji, pick.key), 900);   // let the event's own animation land first
+  }
+  // never mid-action: no chip while placing, choosing, discarding, or with any dialog open
+  function busyForChip() {
+    return !inGame() || !state || state.phase !== 'play' || !$('overlay').classList.contains('hidden') || !!ui.confirm
+      || (ui.mode && ui.mode !== 'idle') || !!$('emotray') || (isMyTurn() && ['moveRobber', 'steal', 'discard'].includes(state.turnPhase))
+      || !!(state.pendingDiscards && state.pendingDiscards[myColor] > 0);
+  }
+  function suggestChip(emoji, key) {
+    if (!online || !myColor || busyForChip() || Date.now() - lastChipAt < CHIP_GAP_MS) return;
+    const c = myCorner(); if (!c || !c.el) return;
+    lastChipAt = Date.now();
+    hideChip();
+    const o = avatarCentre(c), top = c.pos[0] === 't', left = c.pos[1] === 'l';
+    const b = document.createElement('button');
+    b.id = 'reactchip'; b.textContent = emoji;
+    b.style.left = (o.x + (left ? 40 : -40) - 22) + 'px'; b.style.top = (o.y + (top ? 36 : -36) - 22) + 'px';
+    b.onclick = (e) => { e.stopPropagation(); sendEmoji(emoji, key); hideChip(); };
+    document.body.appendChild(b);
+    requestAnimationFrame(() => b.classList.add('in'));
+    chipT = setTimeout(hideChip, CHIP_MS);
+  }
+  function hideChip() { clearTimeout(chipT); const b = $('reactchip'); if (b) b.remove(); }
   // a speech bubble that hangs off the speaker's corner avatar, pointing back at it:
   //   top corners -> below + tail up;  bottom corners -> above + tail down;
   //   tail aligned under the avatar, bubble extending toward screen centre.
@@ -2635,6 +2823,9 @@
     openDiceStats: (from) => openDiceStats(from),
     diceDetail: (t) => diceDetail(t),
     diceBack: () => showVictory(true),
+    openEmojiTray: () => openEmojiTray(),
+    emo: (e) => { sendEmoji(e); bumpTray(); },
+    emoMore: () => { closeEmojiTray(); openQuickChat(); },
     viewBoard: () => { endView = true; hideOverlay(); render(); },   // dismiss the victory to study the final board
     showResults: () => { if (state && state.phase === 'ended') showVictory(true); },
     bannerTap: () => { if (state && state.phase === 'ended' && $('overlay').classList.contains('hidden')) showVictory(true); },
@@ -3198,6 +3389,7 @@
     flagToast(a, s);   // someone raised/lowered a white flag -> tell the table
     announceFromLog(a && a.log, s.log);   // dev-card buys/plays -> top announcement on observers' screens
     announceMilestones(a, s);             // longest road / largest army changing hands
+    noteMoments(a, s);                    // reactable moments + suggested reaction chip
     const rolled = !!(a && a.turnPhase === 'roll' && s.turnPhase !== 'roll' && s.dice && s.hasRolledThisTurn);
     const trade = detectTrade(a, s);
     const disc = detectDiscard(a, s);
@@ -3276,7 +3468,7 @@
       if (!row || !row.id || row.id <= this.lastMsgId) return;
       this.lastMsgId = row.id;
       if (row.color && row.color === myColor) return;   // mine — already shown locally on send
-      showBroadcast({ type: row.type || 'text', text: row.body, url: row.url, dur: row.dur, name: row.name, avatar: row.avatar, color: row.color, code: row.code });
+      showBroadcast({ type: row.type || 'text', text: row.body, url: row.url, dur: row.dur, name: row.name, avatar: row.avatar, color: row.color, code: row.code });   // 'emoji': body = emoji, dur = tap count, url = 'm:<moment key>'
     },
     unsubscribeGame() {
       const c = this.init();
@@ -4142,7 +4334,8 @@
   function exitGameUI() {
     ['leavetab', 'radialtab', 'settingstab', 'dicetab', 'trophytab', 'dicereveal', 'toast', 'confirmbar', 'countdown'].forEach((id) => { const e = $(id); if (e) e.classList.add('hidden'); });
     const rr = $('radialroot'); if (rr) { rr.classList.remove('open'); rr.classList.add('hidden'); }
-    document.querySelectorAll('.flyres, .robberdrag').forEach((el) => el.remove());
+    document.querySelectorAll('.flyres, .robberdrag, .emofloat, .emocombo').forEach((el) => el.remove());
+    closeEmojiTray(); hideChip(); const mp = $('momentpill'); if (mp) mp.classList.add('hidden');
     document.body.classList.remove('ingame', 'trading', 'gameover');
     hideOverlay();
   }
