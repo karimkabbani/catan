@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v131';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v132';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -1681,8 +1681,36 @@
       <div class="ds-dchart">${cols}</div>
       <div class="ds-dkey"><span class="ds-kbar"></span>rolled <span class="ds-kexp"></span>fair dice</div>
       <div class="ds-ddetail" id="diceDetail">${sevens}</div>
+      ${luckRows()}
       ${back}
     </div>`);
+  }
+  // "luck so far": per player, how often a number their buildings touch came up vs how often it normally would
+  function luckRows() {
+    const T = (state && state.tally) || {};
+    const rows = state.players.filter((p) => T[p.color] && T[p.color].numbersNormal > 0).map((p) => {
+      const t = T[p.color];
+      return `<div class="ds-luck"><span class="dot" style="background:${PCOLOR[p.color]}"></span><b>${escapeHtml(p.name)}</b>`
+        + `<span>hit ${t.numbersHit}× · normal ${Math.round(t.numbersNormal)}</span></div>`;
+    }).join('');
+    return rows ? `<div class="ds-lucks">${rows}</div>` : '';
+  }
+  // end-of-game awards (only the ones that clear their bar): Robber magnet + Blessed / Cursed by the dice
+  const AWARD_MIN_ROBBER = 5, AWARD_MIN_LUCK = 4;
+  function gameAwards() {
+    const T = (state && state.tally) || {};
+    const name = (c) => escapeHtml((state.players.find((p) => p.color === c) || {}).name || '?');
+    const ent = state.players.map((p) => ({ c: p.color, t: T[p.color] })).filter((e) => e.t);
+    const out = [];
+    const rob = ent.slice().sort((a, b) => b.t.robberCost - a.t.robberCost)[0];
+    if (rob && rob.t.robberCost >= AWARD_MIN_ROBBER) out.push(['🦹', 'Robber magnet', `The robber cost ${name(rob.c)} ${rob.t.robberCost} cards.`]);
+    const gap = (e) => e.t.numbersHit - e.t.numbersNormal;
+    const luck = ent.filter((e) => e.t.numbersNormal > 0).sort((a, b) => gap(b) - gap(a));
+    const line = (e) => `${name(e.c)}'s numbers came up ${e.t.numbersHit} times. Normal is about ${Math.round(e.t.numbersNormal)}.`;
+    if (luck.length && gap(luck[0]) >= AWARD_MIN_LUCK) out.push(['🍀', 'Blessed by the dice', line(luck[0])]);
+    const worst = luck[luck.length - 1];
+    if (worst && gap(worst) <= -AWARD_MIN_LUCK) out.push(['💀', 'Cursed by the dice', line(worst)]);
+    return out;
   }
   function diceDetail(t) {
     const rolls = (state && state.rolls) || [], n = rolls.length, el = $('diceDetail');
@@ -1954,6 +1982,12 @@
     else { ui.tradeView = 'respond'; renderTradeRespond(pt, meColor); }
   }
 
+  function awardsHTML() {
+    const a = gameAwards();
+    if (!a.length) return '';
+    return `<div class="awards"><div class="awhead">Awards</div>${a.map(([ic, t, why]) =>
+      `<div class="award"><span class="awic">${ic}</span><div><b>${t}</b><span>${why}</span></div></div>`).join('')}</div>`;
+  }
   function showVictory(quiet) {   // quiet = returning from the dice stats: no fanfare/confetti replay
     if (!quiet) playSound('win', 0.8);
     STATS.loaded = false;   // a game just ended -> every client refetches stats on the next lobby visit
@@ -1977,6 +2011,7 @@
       <h2>${escapeHtml(winner.name)} wins!</h2>
       ${domBadge}
       <div style="margin:12px 0">${standings}</div>
+      ${awardsHTML()}
       <div class="winrow"><button class="btn wood" onclick="CATAN.viewBoard()">🗺️ View board</button><button class="btn wood" onclick="CATAN.openDiceStats('victory')">📊 Dice stats</button></div>
       ${online
         ? (myColor
@@ -2763,6 +2798,9 @@
     let rs = 2026; s.rolls = [];
     for (let i = 0; i < 72; i++) { const r = C.rollDice(rs); rs = r.state; s.rolls.push(r.dice[0] + r.dice[1]); }
     s.dice = [3, 5];
+    const tal = [{ robberCost: 3, numbersHit: 21, numbersNormal: 15.2 }, { robberCost: 11, numbersHit: 12, numbersNormal: 13.6 },
+      { robberCost: 2, numbersHit: 7, numbersNormal: 12.4 }, { robberCost: 4, numbersHit: 10, numbersNormal: 9.8 }];
+    s.tally = {}; s.players.forEach((p, i) => { s.tally[p.color] = tal[i]; });
     // your turn, already rolled, in the build phase
     s.phase = 'play'; s.currentPlayerIndex = 0; s.turnPhase = 'main'; s.hasRolledThisTurn = true;
     state = s; ui = { mode: 'idle', pending: null }; resetZoom(); renderedBoardKey = null;
