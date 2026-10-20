@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v142';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v143';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -2378,8 +2378,8 @@
   // url = 'r:<run id>|t:<tap offsets>|m:<moment key>' (m last: a v135 client then just skips the pill).
   // A run of taps streams out in ~0.5s chunks; each carries its taps' ms offsets from the run's first
   // tap, so other screens replay your real rhythm with the counter climbing, even if chunks clump.
-  // three rows of seven: faces, then reactions + gestures, then the five resources (⋯ "more" closes row three)
-  const EMOJI_TRAY = ['🙂', '😂', '😮', '😖', '😞', '😭', '😡', '😈', '💀', '🫠', '🔥', '🙏', '👀', '🤘', '🖕', '🐑', '🪵', '🪨', '🧱', '🌾'];
+  // two rows of eleven: faces, then reactions + gestures + the five resources (⋯ "more" closes row two)
+  const EMOJI_TRAY = ['🙂', '😂', '😮', '😖', '😞', '😭', '😡', '🤮', '😈', '💀', '🫠', '🔥', '🙏', '👀', '🤘', '🖕', '🐑', '🪵', '🪨', '🧱', '🌾'];
   const EMO_CHUNK_MS = 500, EMO_IDLE_MS = 700, EMO_MAX = 40, MOMENT_LIVE_MS = 8000, CHIP_MS = 4000, CHIP_GAP_MS = 10000;
   let emoRun = null, emoFlushT = null, emoIdleT = null, trayT = null, chipT = null, lastChipAt = 0, pillT = null;
   const emoPlay = {};   // incoming runs: run id -> { at: local time of its first tap, last: latest scheduled tap, n }
