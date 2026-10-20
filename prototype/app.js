@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v139';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v140';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -2095,7 +2095,7 @@
   }
   // ---- broadcast messages: quick chat every online player sees -------
   // Default quick-chat presets, used until a player saves their own (managed in-game or from profile).
-  const DEFAULT_QUICK_MSGS = ['yalla', 'nice move', 'wtf', 'hek sarit?', 'GG', 'haha'];
+  const DEFAULT_QUICK_MSGS = ['yalla', 'wtf', 'hek sarit?', 'GG', 'haha', 'khalesna', 'tfeh', 'wleeee', 'khroti', 'slakh', 'fayyish', 'ma32oul?!', 'ya haram', 'shu hal 7azz'];
   const BC_COOLDOWN = 1500;   // min gap between messages (anti-spam) — replaces the old 3-per-game cap
   let lastBcAt = 0, bctoastT = null;
   function bcReady() { return online && myColor && (Date.now() - lastBcAt >= BC_COOLDOWN); }
@@ -2378,7 +2378,8 @@
   // url = 'r:<run id>|t:<tap offsets>|m:<moment key>' (m last: a v135 client then just skips the pill).
   // A run of taps streams out in ~0.5s chunks; each carries its taps' ms offsets from the run's first
   // tap, so other screens replay your real rhythm with the counter climbing, even if chunks clump.
-  const EMOJI_TRAY = ['😂', '😡', '😭', '🔥', '🙏', '👀', '🫠'];
+  // two rows of nine: reactions, then gestures + the five resources (the ⋯ "more" closes row two)
+  const EMOJI_TRAY = ['😂', '😡', '😭', '🔥', '🙏', '👀', '😈', '💀', '🫠', '🤘', '🖕', '😮', '🐑', '🪵', '🪨', '🧱', '🌾'];
   const EMO_CHUNK_MS = 500, EMO_IDLE_MS = 700, EMO_MAX = 40, MOMENT_LIVE_MS = 8000, CHIP_MS = 4000, CHIP_GAP_MS = 10000;
   let emoRun = null, emoFlushT = null, emoIdleT = null, trayT = null, chipT = null, lastChipAt = 0, pillT = null;
   const emoPlay = {};   // incoming runs: run id -> { at: local time of its first tap, last: latest scheduled tap, n }
@@ -2498,10 +2499,12 @@
     t.id = 'emotray'; t.className = left ? 'from-left' : 'from-right';
     t.innerHTML = EMOJI_TRAY.map((e) => `<button class="emobtn" onclick="CATAN.emo('${e}')">${e}</button>`).join('')
       + `<button class="emobtn more" onclick="CATAN.emoMore()" aria-label="More">⋯</button>`;
-    const r = c.el.getBoundingClientRect();
-    t.style.top = Math.max(6, o.y - 23) + 'px';
+    const r = c.el.getBoundingClientRect(), top = c.pos[0] === 't';
     if (left) t.style.left = (r.right + 8) + 'px'; else t.style.right = (window.innerWidth - r.left + 8) + 'px';
     document.body.appendChild(t);
+    // top corners: the tray hangs down from the portrait; bottom corners: it grows up, so its last row sits level with it
+    const h = t.offsetHeight, y = top ? o.y - 23 : o.y + 23 - h;
+    t.style.top = Math.max(6, Math.min(window.innerHeight - h - 6, y)) + 'px';
     requestAnimationFrame(() => t.classList.add('in'));
     bumpTray();
   }
