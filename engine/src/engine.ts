@@ -8,6 +8,7 @@ import {
   PortType,
   Resource,
   RESOURCES,
+  Tally,
   TERRAIN_RESOURCE,
   VICTORY_POINTS_TO_WIN,
 } from './types.js';
@@ -162,7 +163,42 @@ function roadConnects(s: GameState, color: PlayerColor, edge: number): boolean {
 
 // ----- resource production --------------------------------------------------
 
+// ----- tallies (awards + dice-stats luck line) ------------------------------
+const NUMBER_ODDS: Record<number, number> = { 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 8: 5, 9: 4, 10: 3, 11: 2, 12: 1 }; // of 36
+
+function tallyOf(s: GameState, color: PlayerColor): Tally {
+  s.tally ??= {}; // games saved before tallies existed
+  return (s.tally[color] ??= { robberCost: 0, numbersHit: 0, numbersNormal: 0 });
+}
+
+/** Every roll (7s included): did one of each player's numbers come up, and how often would it normally. */
+function tallyRoll(s: GameState, roll: number): void {
+  for (const p of s.players) {
+    const nums = new Set<number>();
+    for (const [vid, b] of Object.entries(s.settlements)) {
+      if (b.owner !== p.color) continue;
+      for (const h of s.board.vertices[Number(vid)].hexes) {
+        const t = s.board.hexes[h].token;
+        if (t) nums.add(t);
+      }
+    }
+    if (nums.size === 0) continue;
+    const t = tallyOf(s, p.color);
+    for (const n of nums) t.numbersNormal += NUMBER_ODDS[n] / 36;
+    if (nums.has(roll)) t.numbersHit++;
+  }
+}
+
 function produce(s: GameState, roll: number): void {
+  // production the robber blocks counts against its victims (Robber magnet award)
+  const robbed = s.board.hexes[s.robberHex];
+  if (robbed && robbed.token === roll && TERRAIN_RESOURCE[robbed.terrain]) {
+    for (const vid of robbed.vertices) {
+      const b = s.settlements[vid];
+      if (b) tallyOf(s, b.owner).robberCost += b.type === 'city' ? 2 : 1;
+    }
+  }
+
   // Gather demand: color -> resource -> count.
   const demand: Record<string, Partial<Record<Resource, number>>> = {};
   for (const hex of s.board.hexes) {
@@ -326,6 +362,7 @@ export function applyAction(state: GameState, action: Action, byColor: PlayerCol
       s.hasRolledThisTurn = true;
       const sum = r.dice[0] + r.dice[1];
       (s.rolls ||= []).push(sum);   // games started before the roll log existed have none
+      tallyRoll(s, sum);
       s.log.push(`${player.name} rolled ${sum}.`);
       if (sum === 7) {
         beginRobber(s, 7);
@@ -450,6 +487,7 @@ export function applyAction(state: GameState, action: Action, byColor: PlayerCol
         const stolen = pool[pick.value];
         victim.resources[stolen]--;
         player.resources[stolen]++;
+        tallyOf(s, victim.color).robberCost++;
         s.log.push(`${player.name} stole a card from ${victim.name}.`);
       }
       s.stealCandidates = [];

@@ -507,6 +507,27 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
   hears nothing while it reads `running · 16/16`, the cause is outside the engine (volume, Bluetooth
   route, Focus mode).
 
+### Agreed next build: "express yourself" + awards (planned 2026-10-20)
+
+Context: the group plays WITHOUT a voice call and spectating is rare, so the app is the only table
+talk. Goal: make the table feel alive (live-stream mechanics adapted to 2–4 players, not a comment
+stream). Three rounds, one deploy each:
+
+1. **Awards + tallies.** Engine tallies per player: robber cost (cards stolen + production blocked by
+   the robber) and "numbers hit vs normal" (each roll: did a number on a hex your buildings touch come
+   up; normal = sum of those numbers' odds). Victory screen: 🦹 Robber magnet, 🍀 Blessed / 💀 Cursed
+   by the dice ("Alex's numbers came up 14 times. Normal is about 9."), each only past a threshold.
+   Dice stats gets a per-player "luck so far" line. Game-level only.
+2. **Alive table.** 💬 opens a 7-emoji tray from your portrait (😂 😡 😭 🔥 🙏 👀 🫠), "more" opens the old
+   picker. Emoji are spammable bursts with combo counts (no cooldown; taps batched into one message).
+   Reactions attach to banner events ("Sam stole from Alex · 😂 3 😡 1"). Suggested one-tap chip by
+   your portrait on notable events, for the involved player AND bystanders; never mid-action, ≤1/10s.
+3. **Narrator.** Occasional banner commentary from the tallies ("No 8 for 11 rolls", "Sam is one point
+   away"), at most one every few turns.
+
+Out of scope: spectator reactions, scrolling comment stream, other awards, per-player tray
+customisation, lifetime awards in Stats, replay (#8).
+
 ### Older notes (some now done — left for history)
 
 - ~~3–4 players only~~ → **2–4 players** now (2p = 15 pts). 5–6 still needs a 5th+ colour's piece

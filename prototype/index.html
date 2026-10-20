@@ -328,7 +328,7 @@
   /* dice-stats sheet: solid bar = rolled, dashed outline behind it = fair-dice expectation (same scale) */
   .dicestats h3{font-family:var(--serif); color:var(--gold); font-size:21px; text-align:center; text-shadow:0 1px 3px #000;}
   .dicestats .ds-dsub{text-align:center; color:var(--muted); font-size:13px; margin:2px 0 10px;}
-  .ds-dchart{display:flex; gap:4px; align-items:stretch; height:min(150px,34vh); padding:0 2px;
+  .ds-dchart{display:flex; gap:4px; align-items:stretch; height:min(150px,30vh); padding:0 2px;
     border-bottom:1px solid rgba(255,220,170,0.25);}
   .ds-dcol{flex:1 1 0; display:flex; flex-direction:column; cursor:pointer; border-radius:4px;}
   .ds-dcol.sel{background:rgba(255,220,170,0.10);}
@@ -344,6 +344,18 @@
   .ds-ddetail{text-align:center; color:var(--ink); font-size:14px; margin:10px 0 4px; min-height:20px;}
   .ds-ddetail b{color:var(--gold);}
   .dicestats .btn.full{margin-top:10px;}
+  .ds-lucks{display:grid; grid-template-columns:1fr 1fr; gap:4px 12px; margin:8px 0 2px; padding-top:8px; border-top:1px solid rgba(255,220,170,0.12);}
+  .ds-luck{display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); min-width:0;}
+  .ds-luck b{color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:6.5em; flex:0 1 auto;}
+  .ds-luck span:last-child{white-space:nowrap;}
+  .ds-luck .dot{width:9px; height:9px; border-radius:50%; flex:0 0 auto;}
+  .awards{margin:-2px 0 12px; text-align:left;}
+  .awhead{font-family:var(--serif); color:var(--gold); font-size:15px; text-align:center; margin-bottom:6px;}
+  .award{display:flex; gap:10px; align-items:center; padding:7px 10px; margin-bottom:6px; border-radius:9px;
+    background:rgba(0,0,0,0.25); border:1px solid rgba(255,220,170,0.14);}
+  .awic{font-size:24px; line-height:1;}
+  .award b{display:block; color:var(--gold); font-size:14px;}
+  .award span{display:block; color:var(--ink); font-size:13px;}
   #leavetab{position:fixed; left:0; top:50%; transform:translateY(-50%);
     z-index:8; width:36px; height:50px; border-radius:0 13px 13px 0;
     background:linear-gradient(rgba(74,42,17,0.7),rgba(40,22,10,0.85)), var(--wood-tex); background-size:cover;

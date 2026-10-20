@@ -102,6 +102,7 @@ export function createGame(opts: {
     setupLastVertex: null,
     dice: null,
     rolls: [],
+    tally: {},
     robberHex: desertHexId(board),
     bank,
     devDeck: deckShuffle.result,

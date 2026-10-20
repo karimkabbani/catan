@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { createGame } from '../src/setup.js';
 import { applyAction, victoryPoints, currentColor } from '../src/engine.js';
 import { GameState, PlayerColor, RESOURCES } from '../src/types.js';
+import { rollDice } from '../src/random.js';
 
 // ----- helpers --------------------------------------------------------------
 
@@ -136,6 +137,46 @@ describe('turn mechanics', () => {
     const r2 = applyAction(legacy, { type: 'rollDice' }, 'red');
     if (!r2.ok) throw new Error(r2.error);
     expect(r2.state.rolls).toHaveLength(1);
+  });
+
+  it('tallies numbers hit vs normal on every roll', () => {
+    const s = runSetup(createGame({ id: 'g5c', players: PLAYERS, seed: 8 }));
+    const r = applyAction(s, { type: 'rollDice' }, 'red');
+    if (!r.ok) throw new Error(r.error);
+    const sum = r.state.dice![0] + r.state.dice![1];
+    for (const p of r.state.players) {
+      const nums = new Set<number>();
+      for (const [vid, b] of Object.entries(r.state.settlements)) {
+        if (b.owner !== p.color) continue;
+        for (const h of r.state.board.vertices[Number(vid)].hexes) { const t = r.state.board.hexes[h].token; if (t) nums.add(t); }
+      }
+      const odds: Record<number, number> = { 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 8: 5, 9: 4, 10: 3, 11: 2, 12: 1 };
+      const t = r.state.tally[p.color]!;
+      expect(t.numbersHit).toBe(nums.has(sum) ? 1 : 0);
+      expect(t.numbersNormal).toBeCloseTo([...nums].reduce((n, x) => n + odds[x] / 36, 0));
+    }
+  });
+
+  it('charges blocked production and steals to the robber cost', () => {
+    let s = runSetup(createGame({ id: 'g5d', players: PLAYERS, seed: 8 }));
+    // park the robber on a numbered hex touching one of red's settlements, then force that number
+    const [vid] = Object.entries(s.settlements).find(([, b]) => b.owner === 'red')!;
+    const hex = s.board.vertices[Number(vid)].hexes.map((h) => s.board.hexes[h]).find((h) => h.token && h.token !== 7)!;
+    s = { ...s, robberHex: hex.id };
+    let rng = 1;
+    while (rollDice(rng).dice[0] + rollDice(rng).dice[1] !== hex.token) rng++;
+    s = { ...s, rngState: rng };
+    const owed = hex.vertices.reduce((n, v) => n + (s.settlements[v]?.owner === 'red' ? (s.settlements[v].type === 'city' ? 2 : 1) : 0), 0);
+    const r = applyAction(s, { type: 'rollDice' }, 'red');
+    if (!r.ok) throw new Error(r.error);
+    expect(r.state.tally.red!.robberCost).toBe(owed);
+    // a steal adds one more card to the victim's robber cost
+    const st = { ...r.state, turnPhase: 'steal' as const, stealCandidates: ['blue' as PlayerColor] };
+    st.players.find((p) => p.color === 'blue')!.resources.wood = 2;
+    const before = st.tally.blue?.robberCost ?? 0;
+    const r2 = applyAction(st, { type: 'steal', victim: 'blue' }, 'red');
+    if (!r2.ok) throw new Error(r2.error);
+    expect(r2.state.tally.blue!.robberCost).toBe(before + 1);
   });
 
   it('only the current player may act', () => {

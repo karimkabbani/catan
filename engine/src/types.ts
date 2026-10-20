@@ -92,6 +92,16 @@ export interface Player {
   hasLargestArmy: boolean;
 }
 
+/** Awards bookkeeping, updated by the engine as the game runs. */
+export interface Tally {
+  /** Cards the robber cost this player: cards stolen + production blocked by the robber. */
+  robberCost: number;
+  /** Rolls on which a number this player's buildings touch came up. */
+  numbersHit: number;
+  /** How many such hits are normal: per roll, the summed odds of this player's numbers. */
+  numbersNormal: number;
+}
+
 export type TurnPhase =
   | 'roll' // current player must roll the dice
   | 'main' // build, trade, play one dev card
@@ -136,6 +146,8 @@ export interface GameState {
   dice: [number, number] | null;
   /** Every dice total rolled this game, in order (for the dice-stats view). */
   rolls: number[];
+  /** Per-player running tallies for the end-of-game awards + the dice-stats luck line. */
+  tally: Partial<Record<PlayerColor, Tally>>;
   robberHex: number;
 
   /** Bank supply remaining per resource. */
