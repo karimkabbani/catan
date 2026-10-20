@@ -455,6 +455,16 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
   animations for steal (face-down to non-parties), dev-card buy, and bank trade; portrait-lock for the
   pre-game screens on phones (touch only); the lobby card re-fits when players join.
 
+### Dice stats (v129, 2026-10-20)
+
+- The engine logs every dice total in `state.rolls` (shared via the games row; games saved before
+  v129 start logging from their next roll). Lives with the game only — nothing written to Supabase.
+- In-game: a round chart button under the radial tab (`#dicetab`, hidden during setup and behind
+  dialogs) opens a bar chart of 2–12, with gold ticks for the fair-dice expectation. Tap a column
+  for "8 came up 7 times · fair dice 6.5 (+0.5)"; the default line is 7s rolled vs expected.
+- Victory screen: a "📊 Dice stats" button opens the same chart; Back returns to the victory
+  screen without replaying the fanfare (`showVictory(true)`).
+
 ### Older notes (some now done — left for history)
 
 - ~~3–4 players only~~ → **2–4 players** now (2p = 15 pts). 5–6 still needs a 5th+ colour's piece

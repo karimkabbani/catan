@@ -325,6 +325,7 @@ export function applyAction(state: GameState, action: Action, byColor: PlayerCol
       s.dice = r.dice;
       s.hasRolledThisTurn = true;
       const sum = r.dice[0] + r.dice[1];
+      (s.rolls ||= []).push(sum);   // games started before the roll log existed have none
       s.log.push(`${player.name} rolled ${sum}.`);
       if (sum === 7) {
         beginRobber(s, 7);

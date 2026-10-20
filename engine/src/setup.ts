@@ -101,6 +101,7 @@ export function createGame(opts: {
     setupOrder: snakeOrder(players.length),
     setupLastVertex: null,
     dice: null,
+    rolls: [],
     robberHex: desertHexId(board),
     bank,
     devDeck: deckShuffle.result,

@@ -305,6 +305,33 @@
   .trknum{color:var(--gold); font-weight:800; font-size:13px; min-width:26px; text-align:center; text-shadow:0 1px 1px #000;}
   #radialtab.pulse{animation:tabpulse 1.5s ease-in-out infinite;}
   /* always-available leave button during a game (left edge) */
+  /* dice-stats quick button: tucked under the radial tab (same centre line), opens the chart */
+  #dicetab{position:fixed; right:14px; top:calc(50% + 38px); z-index:8; width:44px; height:44px; cursor:pointer;
+    border-radius:50%; display:flex; align-items:center; justify-content:center; transition:transform .1s;
+    background:radial-gradient(circle at 40% 34%, #4a3a26, #170d04); border:1px solid var(--gold-edge);
+    box-shadow:0 3px 10px rgba(0,0,0,0.6);}
+  #dicetab svg{width:22px; height:22px; fill:var(--gold);}
+  #dicetab:active{transform:scale(0.92);}
+  #dicetab.hidden{display:none;}
+  /* dice-stats sheet: solid bar = rolled, dashed outline behind it = fair-dice expectation (same scale) */
+  .dicestats h3{font-family:var(--serif); color:var(--gold); font-size:21px; text-align:center; text-shadow:0 1px 3px #000;}
+  .dicestats .ds-dsub{text-align:center; color:var(--muted); font-size:13px; margin:2px 0 10px;}
+  .ds-dchart{display:flex; gap:4px; align-items:stretch; height:min(150px,34vh); padding:0 2px;
+    border-bottom:1px solid rgba(255,220,170,0.25);}
+  .ds-dcol{flex:1 1 0; display:flex; flex-direction:column; cursor:pointer; border-radius:4px;}
+  .ds-dcol.sel{background:rgba(255,220,170,0.10);}
+  .ds-dplot{flex:1; position:relative; margin-top:16px;}
+  .ds-dbar{position:absolute; left:20%; right:20%; bottom:0; background:#efe1c2; border-radius:4px 4px 0 0;}
+  .ds-dexp{position:absolute; left:8%; right:8%; bottom:0; border:1.5px dashed var(--gold); border-bottom:none; border-radius:4px 4px 0 0; opacity:0.85;}
+  .ds-dval{position:absolute; left:-8px; right:-8px; bottom:100%; margin-bottom:2px; text-align:center; font-size:11px; color:var(--ink); font-weight:700; text-shadow:0 1px 2px #000;}
+  .ds-dcol .ds-dnum{position:static; transform:none; text-align:center; font-size:13px; font-weight:700; color:var(--ink); padding-top:4px; flex:0 0 auto;}
+  .ds-dcol .ds-dnum.hot{color:#e2574f;}
+  .ds-dkey{display:flex; align-items:center; justify-content:center; gap:6px; margin-top:10px; color:var(--muted); font-size:12px;}
+  .ds-dkey .ds-kbar{width:10px; height:10px; border-radius:2px; background:#efe1c2;}
+  .ds-dkey .ds-kexp{width:10px; height:10px; border:1.5px dashed var(--gold); border-radius:2px; margin-left:10px;}
+  .ds-ddetail{text-align:center; color:var(--ink); font-size:14px; margin:10px 0 4px; min-height:20px;}
+  .ds-ddetail b{color:var(--gold);}
+  .dicestats .btn.full{margin-top:10px;}
   #leavetab{position:fixed; left:0; top:50%; transform:translateY(-50%);
     z-index:8; width:36px; height:50px; border-radius:0 13px 13px 0;
     background:linear-gradient(rgba(74,42,17,0.7),rgba(40,22,10,0.85)), var(--wood-tex); background-size:cover;
@@ -964,7 +991,7 @@
   #rotate .r-land, #rotate .r-port{display:none;}
   @media (orientation:portrait) and (pointer:coarse){   /* in a game + portrait -> rotate to landscape */
     body.ingame #stage, body.ingame #overlay, body.ingame #confirmbar, body.ingame #radialroot,
-    body.ingame #radialtab, body.ingame #settingstab, body.ingame #dicereveal, body.ingame #toast, body.ingame #tradeprompt{display:none !important;}
+    body.ingame #radialtab, body.ingame #dicetab, body.ingame #settingstab, body.ingame #dicereveal, body.ingame #toast, body.ingame #tradeprompt{display:none !important;}
     body.ingame #rotate{display:flex !important; position:fixed; inset:0; z-index:200; flex-direction:column; align-items:center; justify-content:center;
       gap:16px; background:radial-gradient(120% 120% at 50% 40%, #1f4f74, #0a2336); text-align:center; padding:24px;}
     body.ingame #rotate .r-land{display:block;}
@@ -1103,6 +1130,7 @@
   </div>
   <div id="radialtab" class="hidden" onclick="CATAN.openRadial()"></div>
   <div id="settingstab" class="hidden" onclick="CATAN.openSettings()" aria-label="Settings">⚙</div>
+  <div id="dicetab" class="hidden" onclick="CATAN.openDiceStats()" aria-label="Dice stats"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="10" width="4" height="7" rx="1"/><rect x="8" y="4" width="4" height="13" rx="1"/><rect x="13.5" y="8" width="4" height="9" rx="1"/></svg></div>
   <div id="leavetab" class="hidden" onclick="CATAN.exitGame()" title="Leave game">🚪</div>
   <div id="radialroot" class="hidden"><div id="radialback" onclick="CATAN.closeRadial()"></div><div id="radialwrap"></div><div id="radialver"></div></div>
   <div id="title" class="hidden"></div>

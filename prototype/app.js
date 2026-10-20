@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v128';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v129';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -1326,7 +1326,7 @@
   }
 
   // ---- overlays (unchanged logic) -----------------------------------------
-  function showOverlay(html) { const o = $('overlay'); o.innerHTML = `<div class="sheet">${html}</div>`; o.classList.remove('hidden', 'menu', 'devmode', 'trademode', 'qmode'); document.body.classList.remove('trading'); const rr = $('radialroot'); rr.classList.remove('open'); rr.classList.add('hidden'); $('radialtab').classList.add('hidden'); $('settingstab').classList.add('hidden'); }
+  function showOverlay(html) { const o = $('overlay'); o.innerHTML = `<div class="sheet">${html}</div>`; o.classList.remove('hidden', 'menu', 'devmode', 'trademode', 'qmode'); document.body.classList.remove('trading'); const rr = $('radialroot'); rr.classList.remove('open'); rr.classList.add('hidden'); $('radialtab').classList.add('hidden'); $('settingstab').classList.add('hidden'); $('dicetab').classList.add('hidden'); }
   function showFullMenu(html) { const o = $('overlay'); o.innerHTML = html; o.classList.remove('hidden', 'devmode', 'trademode', 'qmode'); o.classList.add('menu'); document.body.classList.remove('trading'); }
   // Re-render a menu sheet without replaying its slide-up / reloading images: if the
   // same view is already open, swap only its inner content; otherwise mount fresh.
@@ -1624,6 +1624,44 @@
       <button class="btn full" onclick="CATAN.close()">Done</button>
     </div>`);
   }
+  // ---- dice stats: how often each total 2–12 came up vs fair dice. Reads the engine's shared roll log
+  //      (state.rolls), so every phone and spectator sees the same numbers. `from` = 'victory' adds a
+  //      Back to the victory screen instead of closing to the board.
+  const DICE_WAYS = { 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 7: 6, 8: 5, 9: 4, 10: 3, 11: 2, 12: 1 };   // of 36
+  let diceFrom = null;
+  function openDiceStats(from) {
+    diceFrom = from || null;
+    const rolls = (state && state.rolls) || [];
+    const n = rolls.length;
+    const counts = {}; for (let t = 2; t <= 12; t++) counts[t] = 0;
+    rolls.forEach((t) => { counts[t]++; });
+    const exp = (t) => n * DICE_WAYS[t] / 36;
+    const top = Math.max(1, ...Object.values(counts), exp(7));   // shared scale for bars + expected outlines
+    const pct = (v) => (100 * v / top).toFixed(1) + '%';
+    const cols = Object.keys(counts).map(Number).map((t) => `<div class="ds-dcol" onclick="CATAN.diceDetail(${t})">
+        <div class="ds-dplot">${n ? `<div class="ds-dexp" style="height:${pct(exp(t))}"></div>` : ''}
+          <div class="ds-dbar" style="height:${pct(counts[t])}"><span class="ds-dval">${counts[t] || ''}</span></div></div>
+        <div class="ds-dnum${t === 6 || t === 8 ? ' hot' : ''}">${t}</div></div>`).join('');
+    const sevens = n ? `7s rolled: <b>${counts[7]}</b> · fair dice: ${exp(7).toFixed(1)}` : 'No rolls yet — the chart fills in as the game goes.';
+    const back = diceFrom === 'victory'
+      ? `<button class="btn full" onclick="CATAN.diceBack()">Back</button>`
+      : `<button class="btn full" onclick="CATAN.close()">Done</button>`;
+    showOverlay(`<div class="dicestats">
+      <h3>Dice rolls</h3>
+      <div class="ds-dsub">${n} roll${n === 1 ? '' : 's'}${diceFrom === 'victory' ? ' this game' : ' so far'}</div>
+      <div class="ds-dchart">${cols}</div>
+      <div class="ds-dkey"><span class="ds-kbar"></span>rolled <span class="ds-kexp"></span>fair dice</div>
+      <div class="ds-ddetail" id="diceDetail">${sevens}</div>
+      ${back}
+    </div>`);
+  }
+  function diceDetail(t) {
+    const rolls = (state && state.rolls) || [], n = rolls.length, el = $('diceDetail');
+    if (!el || !n) return;
+    const c = rolls.filter((x) => x === t).length, e = n * DICE_WAYS[t] / 36, d = c - e;
+    el.innerHTML = `<b>${t}</b> came up <b>${c}</b> time${c === 1 ? '' : 's'} · fair dice: ${e.toFixed(1)} (${d >= 0 ? '+' : '−'}${Math.abs(d).toFixed(1)})`;
+    document.querySelectorAll('.dicestats .ds-dcol').forEach((col, i) => col.classList.toggle('sel', i + 2 === t));
+  }
   // ---- trade -------------------------------------------------------------
   // describe a give/want bundle as little resource icons
   function offerStr(obj) {
@@ -1887,8 +1925,8 @@
     else { ui.tradeView = 'respond'; renderTradeRespond(pt, meColor); }
   }
 
-  function showVictory() {
-    playSound('win', 0.8);
+  function showVictory(quiet) {   // quiet = returning from the dice stats: no fanfare/confetti replay
+    if (!quiet) playSound('win', 0.8);
     STATS.loaded = false;   // a game just ended -> every client refetches stats on the next lobby visit
     const winner = state.players.find((p) => p.color === state.winner);
     const wi = state.players.indexOf(winner);
@@ -1910,11 +1948,13 @@
       <h2>${escapeHtml(winner.name)} wins!</h2>
       ${domBadge}
       <div style="margin:12px 0">${standings}</div>
+      <button class="btn wood full" style="margin-bottom:9px" onclick="CATAN.openDiceStats('victory')">📊 Dice stats</button>
       ${online
         ? (myColor
           ? `<button class="btn full" style="margin-bottom:9px" onclick="CATAN.rematch()">🔁 Rematch — same players</button><button class="btn wood full" onclick="CATAN.tableReset()">Back to lobby</button>`
           : `<button class="btn full" onclick="CATAN.confirmExit()">Back to lobby</button>`)   /* a watcher leaves for themselves — never resets the players' table */
         : `<button class="btn full" onclick="CATAN.restart()">New game</button>`}</div>`);
+    if (quiet) return;
     spawnConfetti($('overlay'), domination ? 120 : 64);
     if (domination) setTimeout(() => playSound('win', 0.55), 500);   // a second flourish for the blowout
   }
@@ -2439,6 +2479,8 @@
     // the settings gear only appears while the radial menu is open (and rides above it)
     $('settingstab').classList.toggle('hidden', hideTab || !$('radialroot').classList.contains('open'));
     $('radialtab').classList.toggle('pulse', radialPhase && !hideTab);
+    // dice stats: a quick-look button under the radial tab, once play has begun
+    $('dicetab').classList.toggle('hidden', hideTab || state.phase !== 'play');
     // ✓/✗ once a spot is chosen; a lone ✗ while still choosing (so you can back out of the build)
     $('confirmbar').classList.toggle('hidden', !ui.confirm && !placing);
     $('cfm-yes').classList.toggle('hidden', !ui.confirm);
@@ -2523,6 +2565,9 @@
     },
     close: () => { hideOverlay(); render(); },
     restart: () => startScreen(),
+    openDiceStats: (from) => openDiceStats(from),
+    diceDetail: (t) => diceDetail(t),
+    diceBack: () => showVictory(true),
     rig: (n) => rigNearWin(n),
     dev: (c) => { hideOverlay(); if (c === 'knight') dispatch({ type: 'playKnight' }); else if (c === 'road_building') dispatch({ type: 'playRoadBuilding' }); else if (c === 'year_of_plenty') openYoP(); else if (c === 'monopoly') openMonopoly(); },
     // dev-cards carousel
@@ -2679,6 +2724,10 @@
       s.players[pi].resources = { brick: 1, wood: 1, sheep: 2, wheat: 1, ore: 1 };
     }
 
+    // a late-game roll history (seeded, so the same every time) so the dice stats have something to show
+    let rs = 2026; s.rolls = [];
+    for (let i = 0; i < 72; i++) { const r = C.rollDice(rs); rs = r.state; s.rolls.push(r.dice[0] + r.dice[1]); }
+    s.dice = [3, 5];
     // your turn, already rolled, in the build phase
     s.phase = 'play'; s.currentPlayerIndex = 0; s.turnPhase = 'main'; s.hasRolledThisTurn = true;
     state = s; ui = { mode: 'idle', pending: null }; resetZoom(); renderedBoardKey = null;
@@ -2691,7 +2740,7 @@
     if (ASSETS.sea) { const si = document.getElementById('seaimg'); if (si) si.style.backgroundImage = `url("${ASSETS.sea}")`; }
     hideOverlay();
     document.body.style.background = MENU_BG;   // wood canvas behind the offline title
-    $('leavetab').classList.add('hidden'); $('radialtab').classList.add('hidden'); $('settingstab').classList.add('hidden');
+    $('leavetab').classList.add('hidden'); $('radialtab').classList.add('hidden'); $('settingstab').classList.add('hidden'); $('dicetab').classList.add('hidden');
     const title = $('title'); title.classList.remove('hidden'); stopMusic(); document.body.classList.remove('ingame');   // pre-game: portrait allowed
     let count = 4;
     const banner = ASSETS.logo
@@ -3971,7 +4020,7 @@
     t.innerHTML = `${banner}<div class="t-body"><div class="t-card">${html}<p class="verline">Catan · ${APP_VERSION}</p></div></div>`;
     t.classList.remove('hidden'); hideOverlay(); stopMusic(); document.body.classList.remove('ingame');   // pre-game: portrait allowed
     document.body.style.background = MENU_BG;   // canvas (incl. iOS safe-area strip) matches the wood menu
-    $('leavetab').classList.add('hidden'); $('radialtab').classList.add('hidden'); $('settingstab').classList.add('hidden');
+    $('leavetab').classList.add('hidden'); $('radialtab').classList.add('hidden'); $('settingstab').classList.add('hidden'); $('dicetab').classList.add('hidden');
     scheduleFit();
   }
   async function showIdentity(mode) {
@@ -4005,7 +4054,7 @@
   // element so nothing lingers over the lobby — a stray fly/countdown layer, the rotate
   // gate, or a half-open radial can all make the footer look dead.
   function exitGameUI() {
-    ['leavetab', 'radialtab', 'settingstab', 'dicereveal', 'toast', 'confirmbar', 'countdown'].forEach((id) => { const e = $(id); if (e) e.classList.add('hidden'); });
+    ['leavetab', 'radialtab', 'settingstab', 'dicetab', 'dicereveal', 'toast', 'confirmbar', 'countdown'].forEach((id) => { const e = $(id); if (e) e.classList.add('hidden'); });
     const rr = $('radialroot'); if (rr) { rr.classList.remove('open'); rr.classList.add('hidden'); }
     document.querySelectorAll('.flyres, .robberdrag').forEach((el) => el.remove());
     document.body.classList.remove('ingame', 'trading');

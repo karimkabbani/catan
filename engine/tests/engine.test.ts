@@ -125,6 +125,19 @@ describe('turn mechanics', () => {
     void before;
   });
 
+  it('logs every dice total, including games saved before the log existed', () => {
+    const s = runSetup(createGame({ id: 'g5b', players: PLAYERS, seed: 8 }));
+    expect(s.rolls).toEqual([]);
+    const r = applyAction(s, { type: 'rollDice' }, 'red');
+    if (!r.ok) throw new Error(r.error);
+    expect(r.state.rolls).toEqual([r.state.dice![0] + r.state.dice![1]]);
+    const legacy = { ...s } as any;
+    delete legacy.rolls;
+    const r2 = applyAction(legacy, { type: 'rollDice' }, 'red');
+    if (!r2.ok) throw new Error(r2.error);
+    expect(r2.state.rolls).toHaveLength(1);
+  });
+
   it('only the current player may act', () => {
     const s = runSetup(createGame({ id: 'g6', players: PLAYERS, seed: 5 }));
     const wrong = applyAction(s, { type: 'rollDice' }, 'blue');

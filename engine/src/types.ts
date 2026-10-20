@@ -134,6 +134,8 @@ export interface GameState {
   setupLastVertex: number | null; // settlement just placed, for road adjacency
 
   dice: [number, number] | null;
+  /** Every dice total rolled this game, in order (for the dice-stats view). */
+  rolls: number[];
   robberHex: number;
 
   /** Bank supply remaining per resource. */
