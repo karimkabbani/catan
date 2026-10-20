@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v140';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v141';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -2095,7 +2095,7 @@
   }
   // ---- broadcast messages: quick chat every online player sees -------
   // Default quick-chat presets, used until a player saves their own (managed in-game or from profile).
-  const DEFAULT_QUICK_MSGS = ['yalla', 'wtf', 'hek sarit?', 'GG', 'haha', 'khalesna', 'tfeh', 'wleeee', 'khroti', 'slakh', 'fayyish', 'ma32oul?!', 'ya haram', 'shu hal 7azz'];
+  const DEFAULT_QUICK_MSGS = ['yalla', 'nice move', 'wtf', 'hek sarit?', 'GG', 'haha', 'khalesna', 'tfeh', 'wleeee', 'khroti', 'slakh', 'fayyish', 'ma32oul?!', 'ya haram', 'shu hal 7azz'];
   const BC_COOLDOWN = 1500;   // min gap between messages (anti-spam) — replaces the old 3-per-game cap
   let lastBcAt = 0, bctoastT = null;
   function bcReady() { return online && myColor && (Date.now() - lastBcAt >= BC_COOLDOWN); }
