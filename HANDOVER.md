@@ -403,6 +403,21 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    (`targetForCount(2)=15`). 5p is blocked on art — piece sets exist for only 4 colours; a fifth
    player needs a full 5th-colour set + a target value.
 
+8. ☐ **Game history / replay — PARKED (2026-10-20), not worth building now.** Idea: chess.com-style
+   ← → through past moves. Feasible because the engine is a deterministic reducer with the RNG in
+   state: log each action (~65 B, ~20–40 KB/game) and replay from the start state. Hard parts are the
+   UI, not the data: step by TURN not by action (Catan turns are 5–15 micro-actions), highlight what
+   changed, and render a past state without disturbing live sync. Also log the non-engine mutations
+   (surrender flags, flag-win, quit) or replays end wrong. Hidden info: full reveal post-game only; in
+   game it would have to stay public-only. Discussed options, in order of cost:
+   a. **Turn history sheet (in-game "what did I miss")**: tappable newest-first list grouped by turn,
+      built on the banner feed + `state.log` + `state.rolls`, plus structured production/steal events.
+      Cheapest fit for the in-game need.
+   b. **VP-over-time chart** on the victory screen, key moments marked.
+   c. **Full post-game replay** with full reveal; optionally store moves to rewatch from Stats.
+   Revisit if people keep asking "what just happened?" mid-game (→ a) or argue about how a game was
+   won (→ b/c). Whatever is built first, start logging actions early: history only exists from then on.
+
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
