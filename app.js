@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v134';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v135';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -3864,6 +3864,7 @@
   const MONTH_FULL = { Jan: 'January', Feb: 'February', Mar: 'March', Apr: 'April', May: 'May', Jun: 'June', Jul: 'July', Aug: 'August', Sep: 'September', Oct: 'October', Nov: 'November', Dec: 'December' };
   const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   function pkey(s) { return s.id || s.n; }   // player identity key: persistent id if present, else the name
+  const STATS_MIN_GAMES = 5;   // games needed to be ranked on the Stats board
   const STATS = {
     games: [], loaded: false, loading: null, nameMap: {},
     // fetch finished games from the DB (cached; a new result clears `loaded` to force a refetch)
@@ -3901,13 +3902,13 @@
     monthShort(ym) { return MONTH_ABBR[(+ym.split('-')[1]) - 1]; },   // "Jul" (the year is shown separately in the year row)
     filter(season) { return season === 'all' ? STATS.games : STATS.games.filter((g) => g.ym === season); },
     board(games) {
-      const m = {}, get = (k) => (m[k] = m[k] || { key: k, gp: 0, w: 0, exp: 0, ps: 0, lr: 0, la: 0, pen: 0 });
+      const m = {}, get = (k) => (m[k] = m[k] || { key: k, gp: 0, w: 0, ps: 0, lr: 0, la: 0, pen: 0 });
       games.forEach((g) => {
-        const N = g.standings.length;
-        g.standings.forEach((s, i) => { const p = get(pkey(s)); p.gp++; p.exp += 1 / N; p.ps += i + 1; if (i === 0) p.w++; if (s.lr) p.lr++; if (s.la) p.la++; if (s.pen) p.pen++; });
+        g.standings.forEach((s, i) => { const p = get(pkey(s)); p.gp++; p.ps += i + 1; if (i === 0) p.w++; if (s.lr) p.lr++; if (s.la) p.la++; if (s.pen) p.pen++; });
       });
-      return Object.values(m).map((p) => ({ key: p.key, name: STATS.nameFor(p.key), gp: p.gp, w: p.w, lr: p.lr, la: p.la, pen: p.pen, winpct: Math.round((100 * p.w) / p.gp), wae: p.w - p.exp, avg: p.ps / p.gp }))
-        .sort((a, b) => b.wae - a.wae || b.w - a.w || a.avg - b.avg);
+      // ranked by win % (ties: more wins, then better average place); fewer than STATS_MIN_GAMES games sit below, unranked
+      return Object.values(m).map((p) => ({ key: p.key, name: STATS.nameFor(p.key), gp: p.gp, w: p.w, lr: p.lr, la: p.la, pen: p.pen, winpct: Math.round((100 * p.w) / p.gp), rate: p.w / p.gp, ranked: p.gp >= STATS_MIN_GAMES, avg: p.ps / p.gp }))
+        .sort((a, b) => (b.ranked - a.ranked) || b.rate - a.rate || b.w - a.w || a.avg - b.avg);
     },
     streak(key) {
       const gs = STATS.games.filter((g) => g.standings.some((s) => pkey(s) === key)).slice().reverse();   // oldest -> newest
@@ -4002,18 +4003,14 @@
     const countSeg = sizes.length > 1
       ? `<div class="seg stseg stcountseg"><button class="${!statsCount ? 'on' : ''}" onclick="CATAN.statsCount(null)">All sizes</button>${sizes.map((n) => `<button class="${statsCount === n ? 'on' : ''}" onclick="CATAN.statsCount(${n})">${n}p</button>`).join('')}</div>`
       : '';
-    const head = `<tr><th>#</th><th>Player</th><th>GP</th><th>W</th><th>Win%</th><th>Pen</th><th>WAE</th><th></th></tr>`;
-    const rows = board.map((p, i) => {
-      const wae = (p.wae >= 0 ? '+' : '') + p.wae.toFixed(1);
-      return `<tr onclick="CATAN.statsPlayer('${encodeURIComponent(p.key)}')"><td class="str">${i + 1}</td>` +
+    const head = `<tr><th>#</th><th>Player</th><th>GP</th><th>W</th><th>Win%</th><th>Pen</th><th></th></tr>`;
+    const rows = board.map((p, i) => `<tr class="${p.ranked ? '' : 'stfew'}" onclick="CATAN.statsPlayer('${encodeURIComponent(p.key)}')"><td class="str">${p.ranked ? i + 1 : '—'}</td>` +
         `<td class="stn">${escapeHtml(p.name)}</td><td>${p.gp}</td><td class="stw">${p.w}</td><td>${p.winpct}%</td>` +
-        `<td class="${p.pen ? 'stpen' : 'stz'}">${p.pen || '—'}</td>` +
-        `<td class="${p.wae >= 0 ? 'stpos' : 'stneg'}">${wae}</td><td class="stgo">›</td></tr>`;
-    }).join('');
+        `<td class="${p.pen ? 'stpen' : 'stz'}">${p.pen || '—'}</td><td class="stgo">›</td></tr>`).join('');
     const sizeLbl = statsCount ? ' · ' + statsCount + 'p' : '';
     const body = games.length
       ? `<div class="sttbl-wrap"><table class="sttbl"><thead>${head}</thead><tbody>${rows}</tbody></table></div>
-         <div class="stnote">GP games · W wins · Pen quit penalties · WAE wins above what pure luck gives at each table size. Tap a player for detail.</div>
+         <div class="stnote">GP games · W wins · Pen quit penalties · Ranked by win %, from ${STATS_MIN_GAMES} games (fewer are greyed out). Tap a player for detail.</div>
          <h4 class="stsub">Games${selLbl ? ' · ' + selLbl : ''}${sizeLbl}</h4>
          <div class="rglist tall">${recentRowsHTML(games)}</div>`
       : `<p class="muted" style="text-align:center;padding:22px 8px">No ${statsCount ? statsCount + '-player ' : ''}games ${isAll ? 'recorded' : 'in ' + selLbl} yet.</p>`;
@@ -4034,8 +4031,7 @@
   function statsPlayerScreen(key) {
     const d = STATS.detail(key);
     if (!d) { statsScreen(); return; }
-    const wae = (d.wae >= 0 ? '+' : '') + d.wae.toFixed(1);
-    const chips = [['Games', d.gp], ['Wins', d.w], ['Win%', d.winpct + '%'], ['WAE', wae], ['Avg place', d.avg.toFixed(1)], ['Streak', d.cur + ' · best ' + d.best]];
+    const chips = [['Games', d.gp], ['Wins', d.w], ['Win%', d.winpct + '%'], ['Avg place', d.avg.toFixed(1)], ['Streak', d.cur + ' · best ' + d.best]];
     const chipHTML = chips.map((c) => `<div class="stchip"><span class="stcv">${c[1]}</span><span class="stcl">${c[0]}</span></div>`).join('');
     const h2hHTML = Object.keys(d.h2h).map((ok) => { const r = d.h2h[ok], lead = r.w > r.l ? 'stpos' : (r.w < r.l ? 'stneg' : '');
       return `<div class="h2hrow"><span class="h2hn">vs ${escapeHtml(r.name)}</span><span class="h2hr ${lead}">${r.w}–${r.l}</span></div>`; }).join('');
