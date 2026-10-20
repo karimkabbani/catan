@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v138';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v139';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -3048,6 +3048,7 @@
     const tal = [{ robberCost: 3, numbersHit: 21, numbersNormal: 15.2 }, { robberCost: 11, numbersHit: 12, numbersNormal: 13.6 },
       { robberCost: 2, numbersHit: 7, numbersNormal: 12.4 }, { robberCost: 4, numbersHit: 10, numbersNormal: 9.8 }];
     s.tally = {}; s.players.forEach((p, i) => { s.tally[p.color] = tal[i]; });
+    s.targetPoints = C.victoryPoints(s, me.color, true) + 1;   // whatever the table size, the one city wins
     // your turn, already rolled, in the build phase
     s.phase = 'play'; s.currentPlayerIndex = 0; s.turnPhase = 'main'; s.hasRolledThisTurn = true;
     state = s; ui = { mode: 'idle', pending: null }; resetZoom(); renderedBoardKey = null;
