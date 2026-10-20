@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v133';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v134';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -301,6 +301,7 @@
     announceFromLog(preState.log, state.log);   // dev-card buys/plays -> top announcement (also runs for observers below)
     announceMilestones(preState, state);        // longest road / largest army changing hands
     noteMoments(preState, state);               // reactable moments + suggested reaction chip
+    narrate(preState, state);                   // occasional commentary line in the banner feed
     // a bought dev card: the buyer is told WHAT they drew; everyone else just sees it fly in face-down
     const bought = action.type === 'buyDevCard'
       ? { buyer: actor, card: (state.players.find((p) => p.color === actor).newDevCards.slice(-1)[0]) } : null;
@@ -2340,6 +2341,38 @@
     if (corner && corner.style.display !== 'none') showBroadcastBubble(msg, corner, pos);
     else showBroadcastBanner(msg);
   }
+  // ---- narrator: the game itself comments when something is worth a remark ----------------------
+  // Built from shared state (rolls, tallies, public VP), so every phone says roughly the same thing.
+  // At most one line every NARR_GAP_ROLLS rolls (a near-win call skips the wait), each said once.
+  const NARR_GAP_ROLLS = 3;
+  let narrLastRoll = -99, narrated = new Set(), narrGame = null;
+  function narrate(a, s) {
+    if (!a || !s || s.phase !== 'play' || !s.players) return;
+    const gid = s.board.hexes.map((h) => h.terrain[0] + (h.token || '')).join('');   // a new board = a new game -> fresh memory
+    if (gid !== narrGame) { narrGame = gid; narrLastRoll = -99; narrated = new Set(); }
+    const rolls = s.rolls || [], n = rolls.length, lines = [];   // [priority, key, text]
+    s.players.forEach((p) => {   // public VP only: hidden VP cards stay hidden
+      if (C.victoryPoints(s, p.color, false) === (s.targetPoints || 10) - 1) lines.push([3, 'near:' + p.color, `${p.name} is one point away`]);
+    });
+    const T = s.tally || {};
+    s.players.forEach((p) => {
+      const rc = (T[p.color] || {}).robberCost || 0, step = rc >= 10 ? 10 : rc >= 5 ? 5 : 0;
+      if (step) lines.push([2, 'rob:' + p.color + ':' + step, `The robber has cost ${p.name} ${rc} cards`]);
+    });
+    if (n > ((a.rolls || []).length)) {   // a roll just happened
+      const last = rolls[n - 1];
+      if (last === 7 && rolls[n - 2] === 7) lines.push([2, '77:' + n, 'Back-to-back 7s']);
+      if (last !== 7 && rolls.slice(-4).filter((x) => x === last).length >= 3) lines.push([1, 'hot:' + n, `${last} keeps coming up: 3 of the last 4 rolls`]);
+      [[6, 15], [8, 15], [5, 18], [9, 18]].forEach(([num, th]) => {
+        let k = 0; for (let i = n - 1; i >= 0 && rolls[i] !== num; i--) k++;
+        if (k === th) lines.push([1, 'dry:' + num + ':' + n, `No ${num} for ${th} rolls`]);
+      });
+    }
+    const pick = lines.filter((l) => !narrated.has(l[1])).sort((x, y) => y[0] - x[0])[0];
+    if (!pick || (pick[0] < 3 && n - narrLastRoll < NARR_GAP_ROLLS)) return;
+    narrated.add(pick[1]); narrLastRoll = n;
+    announce('🎙️ ' + pick[2]);
+  }
   // ---- express yourself: emoji tray, bursts, reactable moments, suggested chips ----------------
   // Emoji ride the messages table as type 'emoji' (body = emoji, dur = tap count, url = 'm:<moment>'),
   // so no migration; an older client just shows the emoji as a text bubble. Taps are batched: each
@@ -3390,6 +3423,7 @@
     announceFromLog(a && a.log, s.log);   // dev-card buys/plays -> top announcement on observers' screens
     announceMilestones(a, s);             // longest road / largest army changing hands
     noteMoments(a, s);                    // reactable moments + suggested reaction chip
+    narrate(a, s);                        // occasional commentary line in the banner feed
     const rolled = !!(a && a.turnPhase === 'roll' && s.turnPhase !== 'roll' && s.dice && s.hasRolledThisTurn);
     const trade = detectTrade(a, s);
     const disc = detectDiscard(a, s);

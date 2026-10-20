@@ -507,7 +507,14 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
   hears nothing while it reads `running · 16/16`, the cause is outside the engine (volume, Bluetooth
   route, Focus mode).
 
-### Agreed next build: "express yourself" + awards (planned 2026-10-20)
+### "Express yourself" + awards (planned and built 2026-10-20: v132 awards, v133 chat, v134 narrator)
+
+Implementation notes: tallies live in `state.tally` (engine: `tallyRoll`, robber cost in `produce` +
+`steal`). Emoji travel as `messages.type = 'emoji'` (body = emoji, dur = tap count, url =
+`m:<moment key>`), so no migration was needed; v131 clients show them as plain bubbles. Moment keys
+are shared log indices (`L<i>`, `longestRoadOwner:<logLen>`), so reactions from every phone land on the
+same pill. `noteMoments` + `narrate` run next to `announceFromLog` in both `dispatch` and
+`applyRemoteState`. Narrator memory resets per board.
 
 Context: the group plays WITHOUT a voice call and spectating is rare, so the app is the only table
 talk. Goal: make the table feel alive (live-stream mechanics adapted to 2–4 players, not a comment
