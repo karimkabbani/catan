@@ -511,7 +511,8 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
 
 Implementation notes: tallies live in `state.tally` (engine: `tallyRoll`, robber cost in `produce` +
 `steal`). Emoji travel as `messages.type = 'emoji'` (body = emoji, dur = tap count, url =
-`m:<moment key>`), so no migration was needed; v131 clients show them as plain bubbles. Moment keys
+`m:<moment key>`), so no migration was needed; v131 clients show them as plain bubbles. v138: emoji runs stream in ~0.5s chunks,
+`url = r:<run>|t:<tap offsets ms>|m:<moment>`; receivers replay the sender's rhythm (`emoPlay`). Moment keys
 are shared log indices (`L<i>`, `longestRoadOwner:<logLen>`), so reactions from every phone land on the
 same pill. `noteMoments` + `narrate` run next to `announceFromLog` in both `dispatch` and
 `applyRemoteState`. Narrator memory resets per board.
