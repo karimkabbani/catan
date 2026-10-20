@@ -1261,7 +1261,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v135';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v136';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -1566,7 +1566,7 @@
     if (robberMoved) ui.robberFlying = true;
     // queue the server sync BEFORE afterAction — afterAction can chain a follow-up action
     // (e.g. the auto-steal after the robber moves), and the syncs must persist in that order.
-    if (online) NET.syncAction(action, actor);
+    if (online && !demoMode) NET.syncAction(action, actor);
     // hold card counts behind the transfer flies so the numbers tick with the animation, not before it
     if (steal) { lagOut(steal.victim, steal.res, 1); lagIn(steal.thief, steal.res, 1); }
     if (trade) lagTrade(trade.a, trade.b, trade.give, trade.want);
@@ -3271,7 +3271,7 @@
       <div style="margin:12px 0">${standings}</div>
       ${awardsHTML()}
       <div class="winrow"><button class="btn wood" onclick="CATAN.viewBoard()">🗺️ View board</button><button class="btn wood" onclick="CATAN.openDiceStats('victory')">📊 Dice stats</button></div>
-      ${online
+      ${demoMode ? `<button class="btn full" onclick="CATAN.exitDemo()">Exit showcase</button>` : online
         ? (myColor
           ? `<button class="btn full" style="margin-bottom:9px" onclick="CATAN.rematch()">🔁 Rematch — same players</button><button class="btn wood full" onclick="CATAN.leaveEnded()">Back to lobby</button>`
           : `<button class="btn full" onclick="CATAN.confirmExit()">Back to lobby</button>`)   /* a watcher leaves for themselves — never resets the players' table */
@@ -3712,6 +3712,7 @@
     clearTimeout(emoFlushT); emoFlushT = null;
     const p = emoPending; emoPending = null;
     if (!p || !p.n) return;
+    if (demoMode) { demoEcho(p); return; }
     LOBBY.sendBroadcast({ type: 'emoji', text: p.emoji, dur: p.n, url: p.key ? 'm:' + p.key : null,
       name: (AUTH.me && AUTH.me.name) || null, avatar: (AUTH.me && AUTH.me.avatar) || null, code: NET.code || LOBBY.table || null, color: myColor });
   }
@@ -4113,6 +4114,7 @@
     diceDetail: (t) => diceDetail(t),
     diceBack: () => showVictory(true),
     openEmojiTray: () => openEmojiTray(),
+    exitDemo: () => exitDemo(),
     emo: (e) => { sendEmoji(e); bumpTray(); },
     emoMore: () => { closeEmojiTray(); openQuickChat(); },
     viewBoard: () => { endView = true; hideOverlay(); render(); },   // dismiss the victory to study the final board
@@ -5459,6 +5461,7 @@
   window.CATAN.raiseFlag = () => { hideOverlay(); raiseFlag(); };
   window.CATAN.lowerFlag = () => { hideOverlay(); lowerFlag(); };
   window.CATAN.exitGame = () => {
+    if (demoMode) { exitDemo(); return; }
     // ensure no higher layer (radial root sits at z-31, above the overlay) eats taps
     const rr = $('radialroot'); if (rr) { rr.classList.remove('open'); rr.classList.add('hidden'); }
     const spectator = online && !myColor;   // a watcher: leaving just returns them to the lobby
@@ -5772,11 +5775,93 @@
     if (r && r.ok) { LOBBY.track(); manageProfile(); } else { manageProfile(); toast((r && r.error) || 'Upload failed'); }
   };
 
+  // ---- DEMO: ?showcase — a scripted solo "online" table to see the social features in action ----
+  // Three bots rob you, roll big, take Longest Road, play Monopoly and react; the narrator and the
+  // suggested chips fire for real. Bot moves are crafted states fed through applyRemoteState (the
+  // same path real remote moves take). demoMode keeps it offline: no game sync, no chat rows.
+  let demoMode = false;
+  function showcase() {
+    rigNearWin(4);
+    demoMode = true; online = true; myColor = state.players[0].color;
+    render();
+    const P = state.players, idx = (p) => P.findIndex((x) => x.color === p.color);
+    const [me, sam, alex, jordan] = P;
+    const pl = (n, p) => n.players.find((x) => x.color === p.color);
+    const step = (fn) => { const n = JSON.parse(JSON.stringify(state)); fn(n); applyRemoteState(n); };
+    const fresh = () => (liveMoment && moments[liveMoment] && Date.now() - moments[liveMoment].at < MOMENT_LIVE_MS) ? 'm:' + liveMoment : null;   // same 8s rule as real taps
+    const react = (who, e, k) => showBroadcast({ type: 'emoji', text: e, dur: k, url: fresh(), color: who.color, name: who.name });
+    const turn = (n, p) => { n.currentPlayerIndex = idx(p); n.turnPhase = 'roll'; n.hasRolledThisTurn = false; };
+    const myHex = () => {   // a numbered hex touching one of my settlements (the robber's target)
+      for (const [vid, b] of Object.entries(state.settlements)) {
+        if (b.owner !== me.color) continue;
+        const h = state.board.vertices[+vid].hexes.map((x) => state.board.hexes[x]).find((x) => x.token && x.id !== state.robberHex);
+        if (h) return h.id;
+      }
+      return state.robberHex;
+    };
+    const script = [
+      [2500, () => { toast('Showcase: bots are playing. Tap 💬 on your portrait to react anytime'); step((n) => turn(n, sam)); }],
+      [2500, () => step((n) => { n.dice = [3, 4]; n.rolls.push(7); n.hasRolledThisTurn = true; n.turnPhase = 'moveRobber'; n.log.push(`${sam.name} rolled 7.`, 'Rolled a 7 — robber activates.'); })],
+      [2800, () => step((n) => {   // Sam robs you
+        n.robberHex = myHex(); n.turnPhase = 'main';
+        const mine = pl(n, me), res = ['sheep', 'brick', 'wood'].find((r) => mine.resources[r] > 0) || 'sheep';
+        mine.resources[res] = Math.max(0, mine.resources[res] - 1); pl(n, sam).resources[res]++;
+        (n.tally[me.color] = n.tally[me.color] || { robberCost: 0, numbersHit: 0, numbersNormal: 0 }).robberCost++;
+        n.log.push(`${sam.name} stole a card from ${me.name}.`);
+      })],
+      [1600, () => react(alex, '😂', 6)], [700, () => react(jordan, '😂', 3)], [1300, () => react(sam, '😈', 2)],
+      [3200, () => step((n) => { n.longestRoadOwner = sam.color; n.players.forEach((p) => { p.hasLongestRoad = p.color === sam.color; }); })],
+      [1500, () => react(sam, '💪', 4)], [900, () => react(jordan, '👀', 2)],
+      [3500, () => step((n) => turn(n, alex))],
+      [2200, () => step((n) => {   // Alex's big payday on an 8, after a long dry spell of 6s (narrator)
+        n.dice = [4, 4]; n.hasRolledThisTurn = true; n.turnPhase = 'main';
+        n.rolls = n.rolls.concat([6, 4, 9, 5, 10, 3, 9, 4, 11, 5, 10, 9, 4, 3, 5, 8]);
+        const a = pl(n, alex); a.resources.wheat += 3; a.resources.ore += 2;
+        n.log.push(`${alex.name} rolled 8.`);
+      })],
+      [1800, () => react(alex, '🤑', 8)], [900, () => react(sam, '😭', 3)],
+      [5000, () => step((n) => turn(n, jordan))],
+      [2200, () => step((n) => { n.dice = [2, 3]; n.rolls.push(5); n.hasRolledThisTurn = true; n.turnPhase = 'main'; n.log.push(`${jordan.name} rolled 5.`); })],
+      [3000, () => step((n) => {   // Jordan's Monopoly on sheep hits everyone (you included)
+        let took = 0;
+        n.players.forEach((p) => { if (p.color !== jordan.color) { took += p.resources.sheep; p.resources.sheep = 0; } });
+        if (!took) { took = 2; }
+        pl(n, jordan).resources.sheep += took;
+        n.log.push(`${jordan.name} monopolised sheep (+${took}).`);
+      })],
+      [1700, () => react(alex, '😡', 3)], [800, () => react(sam, '😡', 2)], [900, () => react(jordan, '😈', 5)],
+      [4000, () => step((n) => turn(n, sam))],
+      [2000, () => step((n) => { n.dice = [5, 5]; n.rolls.push(10); n.hasRolledThisTurn = true; n.turnPhase = 'main'; n.log.push(`${sam.name} rolled 10.`); })],
+      [2500, () => step((n) => {   // Sam builds up to one point from the win (narrator calls it)
+        const need = (n.targetPoints || 11) - 1;
+        const free = n.board.vertices.filter((v) => !n.settlements[v.id] && v.neighbors.every((x) => !n.settlements[x]));
+        for (const v of free) { if (C.victoryPoints(n, sam.color, false) >= need) break; n.settlements[v.id] = { type: 'settlement', owner: sam.color }; }
+        n.log.push(`${sam.name} built a settlement.`);
+      })],
+      [1800, () => react(sam, '🔥', 6)], [800, () => react(alex, '👀', 3)],
+      [4500, () => {
+        step((n) => { n.currentPlayerIndex = idx(me); n.turnPhase = 'main'; n.hasRolledThisTurn = true; n.dice = [3, 5]; });
+        toast('Your turn. Build a city on your lone settlement to win and see the awards');
+      }],
+    ];
+    let i = 0;
+    const next = () => { if (!demoMode || i >= script.length) return; const [d, fn] = script[i++]; setTimeout(() => { if (!demoMode) return; try { fn(); } catch (e) { console.warn('showcase', e); } next(); }, d); };
+    next();
+  }
+  // in the demo, your emoji get a bot reply instead of going to the server
+  function demoEcho(p) {
+    const bots = state.players.filter((x) => x.color !== myColor), b = bots[(Math.random() * bots.length) | 0];
+    const pick = ['😂', '🔥', '👀', '😭'][(Math.random() * 4) | 0];
+    setTimeout(() => showBroadcast({ type: 'emoji', text: pick, dur: 1 + ((Math.random() * 4) | 0), url: p.key ? 'm:' + p.key : null, color: b.color, name: b.name }), 900 + Math.random() * 900);
+  }
+  function exitDemo() { demoMode = false; online = false; myColor = null; location.href = location.pathname; }
+
   function boot() {
     const rv = document.getElementById('radialver'); if (rv) rv.textContent = APP_VERSION;   // in-game: shown in the radial menu
     initBoardZoom();
     const m = location.href.match(/[?#&]rig(?:=(\d))?\b/);   // ?rig -> 4 players, ?rig=2 -> 2, etc.
     if (m) { rigNearWin(m[1] ? parseInt(m[1], 10) : 4); return; }
+    if (/[?#&]showcase\b/.test(location.href)) { showcase(); return; }
     AUTH.start();
   }
   document.addEventListener('DOMContentLoaded', boot);
