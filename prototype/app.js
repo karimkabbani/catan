@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v129';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v131';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -52,16 +52,29 @@
     res_sheep: 'assets/audio/res_wool.mp3', res_wheat: 'assets/audio/res_grain.mp3',
     res_ore: 'assets/audio/res_ore.mp3',
   };
-  let actx = null; const sndBuf = {};
-  function initAudio() {
-    if (actx) return;
-    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
-    actx = new AC();
+  // iOS can leave the one AudioContext dead until the app is relaunched: 'interrupted' after a call,
+  // Siri, another app's audio or a lock (never 'suspended', so a plain resume check misses it), or
+  // 'running' but silent after a mic recording / headphone switch. So: resume anything not running,
+  // and REBUILD the context (inside a tap) when it won't run, after waking, and after a voice note.
+  // Decoded buffers aren't tied to a context, so a rebuild is cheap.
+  let actx = null, audioStale = false, audioRebuiltAt = 0, audioRebuilds = 0; const sndBuf = {}, sndLoading = {};
+  function loadSfx() {   // (re)tries any sound that hasn't loaded — a flaky first fetch no longer mutes it for good
     for (const name in SFX) {
-      fetch(SFX[name]).then((r) => r.arrayBuffer()).then((b) => actx.decodeAudioData(b))
-        .then((buf) => { sndBuf[name] = buf; }).catch(() => {});
+      if (sndBuf[name] || sndLoading[name]) continue;
+      sndLoading[name] = true;
+      fetch(SFX[name]).then((r) => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
+        .then((b) => actx.decodeAudioData(b)).then((buf) => { sndBuf[name] = buf; })
+        .catch(() => {}).finally(() => { delete sndLoading[name]; });
     }
   }
+  function initAudio() {
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+    if (actx) { try { actx.close(); } catch (_) { } audioRebuilds++; }
+    actx = new AC(); audioStale = false; audioRebuiltAt = Date.now();
+    if (actx.state !== 'running') actx.resume().catch(() => { });
+    loadSfx();
+  }
+  function audioHealthy() { return actx && !audioStale && actx.state === 'running'; }
   // iOS quirk: the RINGER/SILENT switch mutes Web Audio (our sound effects) but NOT <audio>
   // elements (our music). Holding the session open with a silent looping <audio> promotes the
   // page to "playback" audio, so SFX play through the mute switch — same as the music does.
@@ -82,7 +95,16 @@
     if (!sessionEl) { sessionEl = new Audio(silentWavURI()); sessionEl.loop = true; sessionEl.volume = 0.01; }
     if (sessionEl.paused) sessionEl.play().catch(() => { });   // lands inside the tap gesture; retried on the next tap
   }
-  function unlockAudio() { if (!actx) initAudio(); if (actx && actx.state === 'suspended') actx.resume(); keepAudioSession(); startMusic(); }
+  function unlockAudio() {   // runs on every tap: the only moment iOS lets us start/rebuild audio
+    if (!audioHealthy() && Date.now() - audioRebuiltAt > 1000) initAudio();   // throttled: one tap fires 3 events
+    else if (actx) loadSfx();
+    keepAudioSession(); startMusic();
+  }
+  // back from the background: try a gesture-free resume now (covers an ended interruption) and
+  // rebuild on the next tap in case the context came back silently broken
+  function onAudioWake() { if (document.hidden || !actx) return; audioStale = true; actx.resume().catch(() => { }); }
+  document.addEventListener('visibilitychange', onAudioWake);
+  window.addEventListener('pageshow', onAudioWake);
   function playSound(name, vol) {
     if (!SETTINGS.sfx) return;            // Sound effects setting (music is separate)
     if (!actx || !sndBuf[name]) return;
@@ -305,7 +327,7 @@
   function isMyTurn() { return !online || (myColor && activeColor() === myColor); }
   function afterAction() {
     ui.mode = 'idle';
-    if (state.phase === 'ended') { recordResult(); render(); showVictory(); return; }
+    if (state.phase === 'ended') { recordResult(); render(); if (!endView) showVictory(); return; }
     if (ui.spinning) return;   // who-goes-first spinner playing — don't render over it / prompt yet
     // Hold off on prompts while an animation plays: the dice reveal, or one player's
     // discard fly. Each animation's end re-runs afterAction to advance the sequence —
@@ -780,7 +802,7 @@
       el.style.backgroundSize = 'cover';
       // you see your OWN victory-point cards in your star total; opponents stay public (VP cards are secret).
       // online -> your seat; offline pass-and-play -> whoever's turn it is sees their own.
-      const vp = C.victoryPoints(state, p.color, online ? p.color === myColor : p.color === activeColor());
+      const vp = C.victoryPoints(state, p.color, state.phase === 'ended' || (online ? p.color === myColor : p.color === activeColor()));
       const cards = RES.reduce((n, r) => n + p.resources[r], 0) - lagTot(p.color) + outTot(p.color);   // total walks with the card animation
       const dev = p.devCards.length + p.newDevCards.length;
       const road = C.longestRoadLength(state, p.color);
@@ -835,9 +857,10 @@
   function handBar() {
     // spectator: no hand of their own -> tap any player to inspect that player's resources.
     // Defaults to following whoever's up; the active player's chip carries a turn ring.
-    if (online && !myColor) {
+    const over = state.phase === 'ended';
+    if ((online && !myColor) || over) {
       const ap = activePlayer();
-      const viewColor = (specView && state.players.some((x) => x.color === specView)) ? specView : ap.color;
+      const viewColor = (specView && state.players.some((x) => x.color === specView)) ? specView : (over ? ((online && myColor) || state.winner) : ap.color);
       const vp = state.players.find((x) => x.color === viewColor) || ap;
       const chips = state.players.map((pl) => {
         const on = pl.color === viewColor, turn = pl.color === ap.color && state.phase !== 'ended';
@@ -845,6 +868,11 @@
           + `<span class="specdot" style="background:${PCOLOR[pl.color]}"></span>${escapeHtml(pl.name)}</button>`;
       }).join('');
       const orbs = HAND_ORDER.map((r) => resOrb(r, Math.max(0, vp.resources[r]))).join('');
+      if (over) {   // final reveal: the hand plus unplayed dev cards (VP cards called out); results via the trophy
+        const devs = vp.devCards.concat(vp.newDevCards), vpc = devs.filter((d) => d === 'victory_point').length;
+        const dev = `<span class="specdev">🎴 ${devs.length}${vpc ? ` · ⭐ ${vpc} VP` : ''}</span>`;
+        return `<div class="spechand specview"><div class="specsel">${chips}</div><div class="specorbs">${orbs}</div>${dev}</div>`;
+      }
       return `<div class="spechand specview"><span class="speceye">👁</span><div class="specsel">${chips}</div>`
         + `<div class="specorbs">${orbs}</div><button class="specleave" onclick="CATAN.exitGame()">Leave</button></div>`;
     }
@@ -1291,7 +1319,7 @@
     return n ? ` <span class="watchtag">👁 ${n}</span>` : '';
   }
   function banner() {
-    if (state.phase === 'ended') return `🏆 ${escapeHtml(state.players.find((p) => p.color === state.winner).name)} wins!${watchingTag()}`;
+    if (state.phase === 'ended') return `🏆 Game over — ${escapeHtml(state.players.find((p) => p.color === state.winner).name)} wins<span class="bmore">Results ›</span>${watchingTag()}`;
     // a game event just happened -> show it here (it reverts to the turn indicator when the feed clears)
     if (announceCur) return `<span class="bevent">${escapeHtml(announceCur)}</span>${watchingTag()}`;
     const p = activePlayer();
@@ -1326,7 +1354,7 @@
   }
 
   // ---- overlays (unchanged logic) -----------------------------------------
-  function showOverlay(html) { const o = $('overlay'); o.innerHTML = `<div class="sheet">${html}</div>`; o.classList.remove('hidden', 'menu', 'devmode', 'trademode', 'qmode'); document.body.classList.remove('trading'); const rr = $('radialroot'); rr.classList.remove('open'); rr.classList.add('hidden'); $('radialtab').classList.add('hidden'); $('settingstab').classList.add('hidden'); $('dicetab').classList.add('hidden'); }
+  function showOverlay(html) { const o = $('overlay'); o.innerHTML = `<div class="sheet">${html}</div>`; o.classList.remove('hidden', 'menu', 'devmode', 'trademode', 'qmode'); document.body.classList.remove('trading'); const rr = $('radialroot'); rr.classList.remove('open'); rr.classList.add('hidden'); $('radialtab').classList.add('hidden'); $('settingstab').classList.add('hidden'); $('dicetab').classList.add('hidden'); $('trophytab').classList.add('hidden'); }
   function showFullMenu(html) { const o = $('overlay'); o.innerHTML = html; o.classList.remove('hidden', 'devmode', 'trademode', 'qmode'); o.classList.add('menu'); document.body.classList.remove('trading'); }
   // Re-render a menu sheet without replaying its slide-up / reloading images: if the
   // same view is already open, swap only its inner content; otherwise mount fresh.
@@ -1621,6 +1649,7 @@
       ${toggle('sfx', 'Sound effects')}
       ${seg}
       ${toggle('autozoom', 'Auto-zoom')}
+      <div class="setdiag">Sound engine: ${actx ? actx.state : 'not started'} · ${Object.keys(sndBuf).length}/${Object.keys(SFX).length} sounds · rebuilt ${audioRebuilds}×</div>
       <button class="btn full" onclick="CATAN.close()">Done</button>
     </div>`);
   }
@@ -1948,12 +1977,13 @@
       <h2>${escapeHtml(winner.name)} wins!</h2>
       ${domBadge}
       <div style="margin:12px 0">${standings}</div>
-      <button class="btn wood full" style="margin-bottom:9px" onclick="CATAN.openDiceStats('victory')">📊 Dice stats</button>
+      <div class="winrow"><button class="btn wood" onclick="CATAN.viewBoard()">🗺️ View board</button><button class="btn wood" onclick="CATAN.openDiceStats('victory')">📊 Dice stats</button></div>
       ${online
         ? (myColor
-          ? `<button class="btn full" style="margin-bottom:9px" onclick="CATAN.rematch()">🔁 Rematch — same players</button><button class="btn wood full" onclick="CATAN.tableReset()">Back to lobby</button>`
+          ? `<button class="btn full" style="margin-bottom:9px" onclick="CATAN.rematch()">🔁 Rematch — same players</button><button class="btn wood full" onclick="CATAN.leaveEnded()">Back to lobby</button>`
           : `<button class="btn full" onclick="CATAN.confirmExit()">Back to lobby</button>`)   /* a watcher leaves for themselves — never resets the players' table */
         : `<button class="btn full" onclick="CATAN.restart()">New game</button>`}</div>`);
+    $('overlay').onclick = (e) => { if (e.target.id === 'overlay') CATAN.viewBoard(); };   // tap outside the card = look at the board
     if (quiet) return;
     spawnConfetti($('overlay'), domination ? 120 : 64);
     if (domination) setTimeout(() => playSound('win', 0.55), 500);   // a second flourish for the blowout
@@ -2156,6 +2186,7 @@
       try { this.stream && this.stream.getTracks().forEach((t) => t.stop()); } catch (_) { }
       try { this.ctx && this.ctx.close(); } catch (_) { }
       this.proc = this.source = this.stream = this.ctx = null;
+      audioStale = true;   // the mic flips iOS into record mode -> rebuild the SFX context on the next tap
     },
     stop(cancel) {
       if (!this.recording) return null;
@@ -2389,7 +2420,6 @@
     if (state) { state.winner = winner; state.phase = 'ended'; delete state.sv; recordResult(); render(); showVictory(); }
     svUpdate((s) => { s.winner = winner; s.phase = 'ended'; delete s.sv; });
     if (svEndTimer) clearTimeout(svEndTimer);
-    svEndTimer = setTimeout(() => { svEndTimer = null; try { LOBBY.reset(); } catch (_) {} }, 9000);   // brief victory, then back to lobby (a Rematch tap cancels this)
   }
   // a seated player quits mid-game (via Leave -> confirm). The leader among those still in wins;
   // the quitter takes a recorded penalty (a loss). We push the ended state through the game row so
@@ -2441,6 +2471,7 @@
     if (tt && !tt.classList.contains('hidden')) return;   // a menu/lobby is up -> never paint the board under it
     document.body.classList.add('ingame');   // board is showing -> portrait now forces the rotate gate
     document.body.classList.toggle('spectating', !!(online && !myColor));   // drives the spectator chrome
+    document.body.classList.toggle('gameover', state.phase === 'ended');   // final-reveal hand bar layout
     renderPanels();
     $('banner').innerHTML = banner();
     // Static terrain is built once per game; only the dynamic layer (pieces, roads,
@@ -2475,7 +2506,8 @@
     const placing = state.phase === 'play' && state.turnPhase === 'main'
       && (ui.mode === 'placeSettlement' || ui.mode === 'placeCity' || ui.mode === 'placeRoad');
     const hideTab = !!ui.confirm || placing || ui.mode === 'moveRobber' || ui.mode === 'steal' || !$('overlay').classList.contains('hidden');
-    $('radialtab').classList.toggle('hidden', hideTab);
+    $('radialtab').classList.toggle('hidden', hideTab || state.phase === 'ended');
+    $('trophytab').classList.toggle('hidden', hideTab || state.phase !== 'ended');   // game over: reopen the results
     // the settings gear only appears while the radial menu is open (and rides above it)
     $('settingstab').classList.toggle('hidden', hideTab || !$('radialroot').classList.contains('open'));
     $('radialtab').classList.toggle('pulse', radialPhase && !hideTab);
@@ -2568,6 +2600,9 @@
     openDiceStats: (from) => openDiceStats(from),
     diceDetail: (t) => diceDetail(t),
     diceBack: () => showVictory(true),
+    viewBoard: () => { endView = true; hideOverlay(); render(); },   // dismiss the victory to study the final board
+    showResults: () => { if (state && state.phase === 'ended') showVictory(true); },
+    bannerTap: () => { if (state && state.phase === 'ended' && $('overlay').classList.contains('hidden')) showVictory(true); },
     rig: (n) => rigNearWin(n),
     dev: (c) => { hideOverlay(); if (c === 'knight') dispatch({ type: 'playKnight' }); else if (c === 'road_building') dispatch({ type: 'playRoadBuilding' }); else if (c === 'year_of_plenty') openYoP(); else if (c === 'monopoly') openMonopoly(); },
     // dev-cards carousel
@@ -2740,7 +2775,7 @@
     if (ASSETS.sea) { const si = document.getElementById('seaimg'); if (si) si.style.backgroundImage = `url("${ASSETS.sea}")`; }
     hideOverlay();
     document.body.style.background = MENU_BG;   // wood canvas behind the offline title
-    $('leavetab').classList.add('hidden'); $('radialtab').classList.add('hidden'); $('settingstab').classList.add('hidden'); $('dicetab').classList.add('hidden');
+    $('leavetab').classList.add('hidden'); $('radialtab').classList.add('hidden'); $('settingstab').classList.add('hidden'); $('dicetab').classList.add('hidden'); $('trophytab').classList.add('hidden');
     const title = $('title'); title.classList.remove('hidden'); stopMusic(); document.body.classList.remove('ingame');   // pre-game: portrait allowed
     let count = 4;
     const banner = ASSETS.logo
@@ -3089,9 +3124,10 @@
   // new state to Supabase; Realtime fans it out to the other phones. No host needs to be
   // online — Supabase holds the shared truth and is always up.
   let online = false, myColor = null;
+  let endView = false;   // the victory screen was dismissed to look at the final board (don't re-pop it)
   let specView = null;   // spectators: which player's resources to show in the hand bar (null = follow whoever's up)
   function enterGame(s) {
-    state = s; ui = { mode: 'idle', pending: null }; resetZoom(); renderedBoardKey = null; specView = null;
+    state = s; ui = { mode: 'idle', pending: null }; resetZoom(); renderedBoardKey = null; specView = null; endView = false;
     lastBcAt = 0; clearMsgLog();   // reset chat cooldown + per-player message history on entry
     const t = $('title'); if (t) t.classList.add('hidden');
     hideOverlay();
@@ -3219,6 +3255,13 @@
         else if (LOBBY.inProgress) { LOBBY.inProgress = false; renderLobby(); }   // the game I could watch just ended
         if (abandoned) toast('Game abandoned — not recorded');
         return;   // table is idle -> stay in / return to the lobby
+      }
+      // a FINISHED game only stays on screen for those still looking at it. Anyone else (incl. a player
+      // who already left it) treats the table as free: no re-entry, no Watch, a new game can start.
+      if (!this.started && row.state.phase === 'ended') {
+        LOBBY.lastRow = null;
+        if (LOBBY.inProgress) { LOBBY.inProgress = false; renderLobby(); }
+        return;
       }
       if (this.started && row.version === this.version) return;   // dedup my own echo / poll repeats
       if (this.started && row.version < this.version) {
@@ -3389,7 +3432,8 @@
       // never start OVER a live game — a stale ready-screen (slow fetch, resumed PWA) must not
       // clobber a match in progress on this code. Check the row right before writing.
       const { data: cur } = await c.from('games').select('*').eq('code', NET.code).maybeSingle();
-      if (cur && cur.phase === 'playing' && cur.state) { toast('A game is already running at this table'); NET.onRow(cur); return; }
+      if (cur && cur.phase === 'playing' && cur.state && cur.state.phase !== 'ended') { toast('A game is already running at this table'); NET.onRow(cur); return; }
+      if (cur && cur.state && cur.state.phase === 'ended') { purgeVoice(NET.code); try { c.from('messages').delete().eq('code', NET.code); } catch (_) { } }   // the finished game's chat goes with it
       const { error } = await c.from('games').upsert({ code: NET.code, phase: 'playing', players, state: gstate, target_points: target, version: 1, host_id: AUTH.me.id });
       if (error) toast('Start failed: ' + error.message);   // realtime drives everyone in
     },
@@ -3936,6 +3980,7 @@
     }
     NET.started = false; online = false; myColor = null; NET.version = 0;
     if (wasSpectator) { LOBBY.mode = 'idle'; LOBBY.inProgress = false; showLobby(); return; }   // watcher leaves -> lobby, game untouched
+    if (state && state.phase === 'ended') { LOBBY.toLobby(); return; }   // game's over -> just me; the others keep the final board
     // seated player ending the game: idle the table FIRST, then re-enter the lobby —
     // otherwise re-subscribing reads the still-'playing' row and bounces us back in.
     try { await LOBBY.reset(); } catch (_) { }
@@ -3944,6 +3989,9 @@
   window.CATAN.lobbyLogout = () => { LOBBY.leave(); AUTH.clear(); showIdentity('list'); };
   window.CATAN.backToPlayers = () => showIdentity('list');   // offline setup -> homepage (player picker)
   window.CATAN.tableReset = () => LOBBY.reset();
+  // leave a FINISHED game: only this device goes back to the lobby — the row keeps the ended game for
+  // whoever's still looking, and onRow won't pull me back in (a rematch / new game at the table still will)
+  window.CATAN.leaveEnded = () => { NET.started = false; NET.version = 0; online = false; myColor = null; LOBBY.toLobby(); };
   window.CATAN.rematch = () => LOBBY.rematch();
 
   // ===== identity / PIN auth (persistent player + device auto-login) =========
@@ -4020,7 +4068,7 @@
     t.innerHTML = `${banner}<div class="t-body"><div class="t-card">${html}<p class="verline">Catan · ${APP_VERSION}</p></div></div>`;
     t.classList.remove('hidden'); hideOverlay(); stopMusic(); document.body.classList.remove('ingame');   // pre-game: portrait allowed
     document.body.style.background = MENU_BG;   // canvas (incl. iOS safe-area strip) matches the wood menu
-    $('leavetab').classList.add('hidden'); $('radialtab').classList.add('hidden'); $('settingstab').classList.add('hidden'); $('dicetab').classList.add('hidden');
+    $('leavetab').classList.add('hidden'); $('radialtab').classList.add('hidden'); $('settingstab').classList.add('hidden'); $('dicetab').classList.add('hidden'); $('trophytab').classList.add('hidden');
     scheduleFit();
   }
   async function showIdentity(mode) {
@@ -4054,10 +4102,10 @@
   // element so nothing lingers over the lobby — a stray fly/countdown layer, the rotate
   // gate, or a half-open radial can all make the footer look dead.
   function exitGameUI() {
-    ['leavetab', 'radialtab', 'settingstab', 'dicetab', 'dicereveal', 'toast', 'confirmbar', 'countdown'].forEach((id) => { const e = $(id); if (e) e.classList.add('hidden'); });
+    ['leavetab', 'radialtab', 'settingstab', 'dicetab', 'trophytab', 'dicereveal', 'toast', 'confirmbar', 'countdown'].forEach((id) => { const e = $(id); if (e) e.classList.add('hidden'); });
     const rr = $('radialroot'); if (rr) { rr.classList.remove('open'); rr.classList.add('hidden'); }
     document.querySelectorAll('.flyres, .robberdrag').forEach((el) => el.remove());
-    document.body.classList.remove('ingame', 'trading');
+    document.body.classList.remove('ingame', 'trading', 'gameover');
     hideOverlay();
   }
   function showLobby() {

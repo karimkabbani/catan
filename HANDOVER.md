@@ -465,6 +465,33 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
 - Victory screen: a "📊 Dice stats" button opens the same chart; Back returns to the victory
   screen without replaying the fanfare (`showVictory(true)`).
 
+### End of game (v130, 2026-10-20)
+
+- **Leaving a finished game only moves you.** "Back to lobby" (`CATAN.leaveEnded`) and a seated
+  player's Leave on an ended game no longer idle the games row, so the others keep the final board.
+  `onRow` ignores an ended row for anyone not already looking at it (no re-entry, no Watch), and
+  `startTable` may overwrite an ended row (purging its chat/voice). Only a Rematch or a new game at
+  the table moves people. The 9s surrender auto-reset is gone. Stale ended rows go via the 6h purge.
+- **Final board view.** "🗺️ View board" (or tap outside the victory card) dismisses the victory
+  (`endView` stops `afterAction` re-popping it). Banner: "Game over — X wins · Results ›" (tappable);
+  a 🏆 tab in the radial tab's spot reopens the results. Everything is revealed: corners count every
+  VP card, and the hand bar lets anyone flip through each player's hand + unplayed dev cards.
+
+### Sound dropping out until relaunch (v131, 2026-10-20)
+
+- Reported: SFX sometimes silent until the app is relaunched. Not reproduced (no iPhone in the loop).
+  Likely cause: the single Web Audio context dies on iOS and was never rebuilt. After a call, Siri,
+  another app's audio or a lock it goes `'interrupted'`, which the old `state === 'suspended'` check
+  never resumed. After a voice-note recording (mic → record mode) or a headphone switch it can stay
+  `'running'` but silent.
+- Fix: `unlockAudio` (every tap) rebuilds the context when it isn't running, after any return from
+  the background (`onAudioWake` marks it stale) and after a voice note (`audioStale` in
+  `VOICE._teardown`). Throttled to once a second. Decoded buffers are reused across contexts, and
+  failed sound loads are retried on later taps.
+- Diagnostic: Settings shows "Sound engine: <state> · N/16 sounds · rebuilt N×". If someone still
+  hears nothing while it reads `running · 16/16`, the cause is outside the engine (volume, Bluetooth
+  route, Focus mode).
+
 ### Older notes (some now done — left for history)
 
 - ~~3–4 players only~~ → **2–4 players** now (2p = 15 pts). 5–6 still needs a 5th+ colour's piece

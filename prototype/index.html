@@ -296,6 +296,7 @@
   .setseg button:first-child{border-left:none;}
   .setseg button.on{background:linear-gradient(180deg,#d8b258,#a9802a); color:#3a2400;}
   .settingsmenu .btn.full{margin-top:12px;}
+  .setdiag{margin-top:8px; text-align:center; font-size:11px; color:var(--muted);}
   /* music row: ‹ track › nav + toggle */
   .setctl{display:flex; align-items:center; gap:9px;}
   .trknav{width:30px; height:30px; border-radius:50%; border:1px solid var(--gold-edge); cursor:pointer; padding:0;
@@ -313,6 +314,17 @@
   #dicetab svg{width:22px; height:22px; fill:var(--gold);}
   #dicetab:active{transform:scale(0.92);}
   #dicetab.hidden{display:none;}
+  /* game over: a trophy in the radial tab's spot reopens the results */
+  #trophytab{position:fixed; right:7px; top:50%; transform:translateY(-50%); z-index:8; width:52px; height:52px; cursor:pointer;
+    border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:26px; line-height:1;
+    background:radial-gradient(circle at 40% 34%, #4a3a26, #170d04); border:1.5px solid var(--gold-edge);
+    box-shadow:0 3px 10px rgba(0,0,0,0.6), 0 0 14px rgba(233,196,90,0.45);}
+  #trophytab:active{transform:translateY(-50%) scale(0.92);}
+  #trophytab.hidden{display:none;}
+  .bmore{margin-left:6px; color:var(--gold); font-size:12px; font-weight:700;}
+  .specdev{flex:0 0 auto; color:#f0dcb0; font-size:13px; font-weight:700; white-space:nowrap;}
+  .winrow{display:flex; gap:9px; margin-bottom:9px;}
+  .winrow .btn{flex:1;}
   /* dice-stats sheet: solid bar = rolled, dashed outline behind it = fair-dice expectation (same scale) */
   .dicestats h3{font-family:var(--serif); color:var(--gold); font-size:21px; text-align:center; text-shadow:0 1px 3px #000;}
   .dicestats .ds-dsub{text-align:center; color:var(--muted); font-size:13px; margin:2px 0 10px;}
@@ -850,7 +862,7 @@
     border-radius:9px;padding:3px 8px;font-size:14px;font-weight:700;min-width:42px;justify-content:center;}
   .chip .ic{font-size:15px;}
   /* spectator dock strip (replaces the resource hand for watchers) */
-  body.spectating #hand{align-items:center; padding:0 8px;}
+  body.spectating #hand, body.gameover #hand{align-items:center; padding:0 8px;}
   .spechand{display:flex; align-items:center; gap:9px; padding:9px 8px; color:#ffe6c2; font-size:13px; font-weight:700; white-space:nowrap; max-width:88vw;}
   .specdot{width:11px;height:11px;border-radius:50%;border:1px solid #0008;flex:0 0 auto;}
   .spectxt{overflow:hidden;text-overflow:ellipsis;}
@@ -991,7 +1003,7 @@
   #rotate .r-land, #rotate .r-port{display:none;}
   @media (orientation:portrait) and (pointer:coarse){   /* in a game + portrait -> rotate to landscape */
     body.ingame #stage, body.ingame #overlay, body.ingame #confirmbar, body.ingame #radialroot,
-    body.ingame #radialtab, body.ingame #dicetab, body.ingame #settingstab, body.ingame #dicereveal, body.ingame #toast, body.ingame #tradeprompt{display:none !important;}
+    body.ingame #radialtab, body.ingame #dicetab, body.ingame #trophytab, body.ingame #settingstab, body.ingame #dicereveal, body.ingame #toast, body.ingame #tradeprompt{display:none !important;}
     body.ingame #rotate{display:flex !important; position:fixed; inset:0; z-index:200; flex-direction:column; align-items:center; justify-content:center;
       gap:16px; background:radial-gradient(120% 120% at 50% 40%, #1f4f74, #0a2336); text-align:center; padding:24px;}
     body.ingame #rotate .r-land{display:block;}
@@ -1106,7 +1118,7 @@
   <div id="app">
     <div id="stage">
       <div id="seaimg"></div>
-      <div id="banner"></div>
+      <div id="banner" onclick="CATAN.bannerTap()"></div>
       <div class="corner tl" id="p-tl"></div>
       <div class="corner tr" id="p-tr"></div>
       <div class="corner bl" id="p-bl"></div>
@@ -1130,6 +1142,7 @@
   </div>
   <div id="radialtab" class="hidden" onclick="CATAN.openRadial()"></div>
   <div id="settingstab" class="hidden" onclick="CATAN.openSettings()" aria-label="Settings">⚙</div>
+  <div id="trophytab" class="hidden" onclick="CATAN.showResults()" aria-label="Results">🏆</div>
   <div id="dicetab" class="hidden" onclick="CATAN.openDiceStats()" aria-label="Dice stats"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="10" width="4" height="7" rx="1"/><rect x="8" y="4" width="4" height="13" rx="1"/><rect x="13.5" y="8" width="4" height="9" rx="1"/></svg></div>
   <div id="leavetab" class="hidden" onclick="CATAN.exitGame()" title="Leave game">🚪</div>
   <div id="radialroot" class="hidden"><div id="radialback" onclick="CATAN.closeRadial()"></div><div id="radialwrap"></div><div id="radialver"></div></div>
