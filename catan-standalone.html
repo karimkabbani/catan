@@ -1262,7 +1262,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v137';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v138';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -3631,12 +3631,14 @@
     announce('🎙️ ' + pick[2]);
   }
   // ---- express yourself: emoji tray, bursts, reactable moments, suggested chips ----------------
-  // Emoji ride the messages table as type 'emoji' (body = emoji, dur = tap count, url = 'm:<moment>'),
-  // so no migration; an older client just shows the emoji as a text bubble. Taps are batched: each
-  // tap floats one emoji locally at once, and the run is sent as ONE row when you pause or switch.
+  // Emoji ride the messages table as type 'emoji': body = emoji, dur = taps in this chunk, and
+  // url = 'r:<run id>|t:<tap offsets>|m:<moment key>' (m last: a v135 client then just skips the pill).
+  // A run of taps streams out in ~0.5s chunks; each carries its taps' ms offsets from the run's first
+  // tap, so other screens replay your real rhythm with the counter climbing, even if chunks clump.
   const EMOJI_TRAY = ['😂', '😡', '😭', '🔥', '🙏', '👀', '🫠'];
-  const EMO_FLUSH_MS = 700, EMO_MAX = 30, MOMENT_LIVE_MS = 8000, CHIP_MS = 4000, CHIP_GAP_MS = 10000;
-  let emoPending = null, emoFlushT = null, trayT = null, chipT = null, lastChipAt = 0, pillT = null;
+  const EMO_CHUNK_MS = 500, EMO_IDLE_MS = 700, EMO_MAX = 40, MOMENT_LIVE_MS = 8000, CHIP_MS = 4000, CHIP_GAP_MS = 10000;
+  let emoRun = null, emoFlushT = null, emoIdleT = null, trayT = null, chipT = null, lastChipAt = 0, pillT = null;
+  const emoPlay = {};   // incoming runs: run id -> { at: local time of its first tap, last: latest scheduled tap, n }
   const moments = {};   // key -> { text, at, counts: { emoji: n } }; key is shared by every client (log index)
   let liveMoment = null;
   function myCorner() {
@@ -3697,32 +3699,51 @@
     el.classList.remove('hidden', 'out'); el.classList.add('bump'); setTimeout(() => el.classList.remove('bump'), 220);
     clearTimeout(pillT); pillT = setTimeout(() => { el.classList.add('out'); setTimeout(() => el.classList.add('hidden'), 250); }, 6000);
   }
-  // one tap = one emoji now; the run goes out as a single message when you pause or switch emoji
+  // one tap = one emoji floating out right away; the run streams to the others in chunks (see above)
   function sendEmoji(emoji, key) {
     if (!online || !myColor) return;
     if (!key && liveMoment && moments[liveMoment] && Date.now() - moments[liveMoment].at < MOMENT_LIVE_MS) key = liveMoment;
-    if (emoPending && (emoPending.emoji !== emoji || emoPending.key !== key)) flushEmoji();
-    if (!emoPending) emoPending = { emoji, key, n: 0 };
-    if (emoPending.n >= EMO_MAX) return;
-    emoPending.n++;
-    emojiBurst(myColor, emoji, 1, emoPending.n);
+    if (emoRun && (emoRun.emoji !== emoji || emoRun.key !== key)) endEmojiRun();
+    if (!emoRun) emoRun = { id: Math.random().toString(36).slice(2, 8), emoji, key, t0: Date.now(), n: 0, taps: [] };
+    if (emoRun.n >= EMO_MAX) return;
+    emoRun.n++; emoRun.taps.push(Date.now() - emoRun.t0);
+    emojiBurst(myColor, emoji, 1, emoRun.n);
     if (key) addReaction(key, emoji, 1);
-    clearTimeout(emoFlushT); emoFlushT = setTimeout(flushEmoji, EMO_FLUSH_MS);
+    if (!emoFlushT) emoFlushT = setTimeout(flushEmoji, EMO_CHUNK_MS);
+    clearTimeout(emoIdleT); emoIdleT = setTimeout(endEmojiRun, EMO_IDLE_MS);
   }
-  function flushEmoji() {
+  function flushEmoji() {   // send the taps since the last chunk
     clearTimeout(emoFlushT); emoFlushT = null;
-    const p = emoPending; emoPending = null;
-    if (!p || !p.n) return;
-    if (demoMode) { demoEcho(p); return; }
-    LOBBY.sendBroadcast({ type: 'emoji', text: p.emoji, dur: p.n, url: p.key ? 'm:' + p.key : null,
+    const r = emoRun; if (!r || !r.taps.length) return;
+    const taps = r.taps; r.taps = [];
+    if (demoMode) return;
+    LOBBY.sendBroadcast({ type: 'emoji', text: r.emoji, dur: taps.length, url: `r:${r.id}|t:${taps.join(',')}` + (r.key ? '|m:' + r.key : ''),
       name: (AUTH.me && AUTH.me.name) || null, avatar: (AUTH.me && AUTH.me.avatar) || null, code: NET.code || LOBBY.table || null, color: myColor });
   }
+  function endEmojiRun() {
+    clearTimeout(emoIdleT); emoIdleT = null;
+    flushEmoji();
+    const r = emoRun; emoRun = null;
+    if (r && demoMode) demoEcho(r);
+  }
+  // replay a chunk at the sender's rhythm; a late (clumped) chunk still climbs, just a touch faster
   function showEmojiMsg(msg) {
-    const n = Math.max(1, Math.min(EMO_MAX, msg.dur || 1)), emoji = String(msg.text || '').slice(0, 8);
+    const emoji = String(msg.text || '').slice(0, 8);
     if (!emoji || !inGame()) return;
+    const seg = {};
+    String(msg.url || '').split('|').forEach((x) => { const i = x.indexOf(':'); if (i > 0) seg[x.slice(0, i)] = x.slice(i + 1); });
+    const key = seg.m || null, n = Math.max(1, Math.min(EMO_MAX, msg.dur || 1));
+    let taps = (seg.t || '').split(',').filter((x) => x !== '').map(Number).filter((x) => x >= 0);
+    if (!taps.length) taps = Array.from({ length: n }, (_, i) => i * 110);   // older sender / showcase bots: a made-up rhythm
+    const runId = seg.r || ('x' + Math.random()), now = Date.now();
+    const run = (emoPlay[runId] = emoPlay[runId] || { at: now - taps[0], last: 0, n: 0 });
     playSound('click', 0.3);
-    emojiBurst(msg.color, emoji, n, n);
-    if (msg.url && String(msg.url).startsWith('m:')) addReaction(String(msg.url).slice(2), emoji, n);
+    taps.slice(0, EMO_MAX).forEach((off) => {
+      const when = Math.max(run.at + off, run.last + 70, now);
+      run.last = when;
+      setTimeout(() => { if (!inGame()) return; run.n++; emojiBurst(msg.color, emoji, 1, run.n); if (key) addReaction(key, emoji, 1); }, when - now);
+    });
+    clearTimeout(run.gc); run.gc = setTimeout(() => { delete emoPlay[runId]; }, 15000);
   }
   // the tray fans out of your portrait; it stays open while you tap (mash away), closes on an outside tap
   function openEmojiTray() {
