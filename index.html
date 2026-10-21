@@ -73,6 +73,21 @@
     border:1px solid var(--gold-edge); border-radius:20px; padding:6px 16px; font-size:14px; font-weight:600;
     display:flex; align-items:center; gap:8px; box-shadow:0 3px 10px rgba(0,0,0,0.4); max-width:70vw; z-index:6;}
   .bdot{width:12px;height:12px;border-radius:50%;display:inline-block;border:1px solid #0008;}
+  /* soft turn timer + poke */
+  .btimer{font-size:12.5px; font-weight:800; color:var(--muted); padding:1px 7px; border-radius:10px; background:rgba(255,255,255,0.06); font-variant-numeric:tabular-nums;}
+  .btimer.low{color:#ffd76b;}
+  .btimer.over{color:#fff; background:#b3322c; animation:tickred 1s ease-in-out infinite;}
+  @keyframes tickred{50%{background:#7a1f1b;}}
+  .bpoke{border:1px solid var(--gold-edge); border-radius:12px; padding:2px 9px; font-size:12.5px; font-weight:800; cursor:pointer;
+    background:linear-gradient(180deg,#d8b258,#a9802a); color:#3a2400;}
+  .bpoke.hot{animation:pokepulse 0.9s ease-in-out infinite;}
+  @keyframes pokepulse{50%{transform:scale(1.08); box-shadow:0 0 12px rgba(233,196,90,0.9);}}
+  .corner.poked{animation:pokeshake .6s ease;}
+  @keyframes pokeshake{0%,100%{translate:0 0;} 20%{translate:-7px 0;} 40%{translate:7px 0;} 60%{translate:-5px 0;} 80%{translate:5px 0;}}
+  #pokenote{position:fixed; left:50%; top:36%; z-index:40; transform:translate(-50%,-50%) scale(0.6); opacity:0; pointer-events:none;
+    font-family:var(--serif); font-size:26px; color:#fff; padding:10px 22px; border-radius:16px; white-space:nowrap;
+    background:rgba(120,30,20,0.92); border:1.5px solid var(--gold); box-shadow:0 6px 24px rgba(0,0,0,0.6); transition:opacity .2s, transform .25s cubic-bezier(.3,1.6,.6,1);}
+  #pokenote.show{opacity:1; transform:translate(-50%,-50%) scale(1);}
   .dice{margin-left:6px;color:var(--gold);font-weight:700;}
   /* a game event shown in the banner (in place of the turn text), reverts when the feed clears */
   .bevent{color:var(--gold); font-weight:800;}

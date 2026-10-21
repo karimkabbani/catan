@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v143';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v144';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -1325,9 +1325,69 @@
     // a game event just happened -> show it here (it reverts to the turn indicator when the feed clears)
     if (announceCur) return `<span class="bevent">${escapeHtml(announceCur)}</span>${watchingTag()}`;
     const p = activePlayer();
-    if (online && !myColor) return `<span class="bdot" style="background:${PCOLOR[p.color]}"></span> 👁 Spectating — ${escapeHtml(p.name)}'s turn${watchingTag()}`;
+    if (online && !myColor) return `<span class="bdot" style="background:${PCOLOR[p.color]}"></span> 👁 Spectating — ${escapeHtml(p.name)}'s turn${clockHTML()}${watchingTag()}`;
     const phase = state.phase === 'setup' ? 'Setup' : (isMyTurn() ? 'your turn' : 'to play');
-    return `<span class="bdot" style="background:${PCOLOR[p.color]}"></span> ${escapeHtml(p.name)} — ${phase}${watchingTag()}`;
+    return `<span class="bdot" style="background:${PCOLOR[p.color]}"></span> ${escapeHtml(p.name)} — ${phase}${clockHTML()}${watchingTag()}`;
+  }
+  // ---- soft turn timer + poke ("khalesna") -----------------------------------------------------
+  // Online only. Each phone times the turn from when it saw it start (sync lag is a second or two).
+  // Nothing happens at zero: the clock just goes red into overtime. After POKE_AFTER the others get
+  // a "👉 khalesna" button; a poke buzzes the slow player and shows everyone who poked.
+  const TURN_LIMIT_MS = 120000, POKE_AFTER_MS = 30000, POKE_GAP_MS = 20000;
+  let turnKey = null, turnStart = 0, lastPokeAt = 0;
+  function turnLimit() { return demoMode ? 20000 : TURN_LIMIT_MS; }   // the showcase runs a fast clock
+  function pokeAfter() { return demoMode ? 6000 : POKE_AFTER_MS; }
+  function turnElapsed() {
+    if (!state || (state.phase !== 'play' && state.phase !== 'setup')) return null;
+    const k = state.phase + ':' + state.currentPlayerIndex + ':' + (state.phase === 'setup' ? state.setupIndex : '');
+    if (k !== turnKey) { turnKey = k; turnStart = Date.now(); }
+    return Date.now() - turnStart;
+  }
+  function fmtClock(ms) { const t = Math.floor(ms / 1000); return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); }
+  function clockHTML() {
+    if (!online) return '';
+    const e = turnElapsed(); if (e == null) return '';
+    const left = turnLimit() - e;
+    const t = left >= 0 ? `<span class="btimer${left < 20000 ? ' low' : ''}">⏳ ${fmtClock(left)}</span>` : `<span class="btimer over">⏳ +${fmtClock(-left)}</span>`;
+    const canPoke = myColor && !isMyTurn() && e >= pokeAfter() && Date.now() - lastPokeAt >= POKE_GAP_MS;
+    return t + (canPoke ? `<button class="bpoke${left < 0 ? ' hot' : ''}" onclick="event.stopPropagation();CATAN.poke()">👉 khalesna</button>` : '');
+  }
+  // tick the clock in place (re-rendering the banner every second would eat taps on the poke button)
+  setInterval(() => {
+    if (!state || !online || !inGame() || announceCur || (state.phase !== 'play' && state.phase !== 'setup')) return;
+    const b = $('banner'); if (!b) return;
+    const html = clockHTML(), tm = b.querySelector('.btimer'), pk = b.querySelector('.bpoke');
+    if (!tm || !!pk !== html.includes('bpoke')) { renderBanner(); return; }
+    const tmp = document.createElement('div'); tmp.innerHTML = html;
+    const nt = tmp.querySelector('.btimer'); if (nt) { tm.className = nt.className; tm.textContent = nt.textContent; }
+    const np = tmp.querySelector('.bpoke'); if (np && pk) pk.className = np.className;
+  }, 1000);
+  function poke() {
+    if (!online || !myColor || isMyTurn() || Date.now() - lastPokeAt < POKE_GAP_MS) return;
+    lastPokeAt = Date.now();
+    const target = activeColor(), tname = (state.players.find((p) => p.color === target) || {}).name || '';
+    const msg = { type: 'poke', text: `👉 ${tname}: khalesna!`, url: 'p:' + target, color: myColor,
+      name: (AUTH.me && AUTH.me.name) || (state.players.find((p) => p.color === myColor) || {}).name || null,
+      avatar: (AUTH.me && AUTH.me.avatar) || null, code: NET.code || LOBBY.table || null };
+    if (demoMode) {   // the showcase bot grumbles back
+      const who = state.players.find((p) => p.color === target);
+      setTimeout(() => showBroadcast({ type: 'emoji', text: '😤', dur: 3, color: target, name: who && who.name }), 1300);
+    } else LOBBY.sendBroadcast(msg);
+    showPoke(msg);
+    renderBanner();
+  }
+  // everyone sees who poked whom; the poked player gets the buzz (an older client just shows the text bubble)
+  function showPoke(msg) {
+    const target = String(msg.url || '').startsWith('p:') ? String(msg.url).slice(2) : null;
+    showBroadcast(Object.assign({}, msg, { type: 'text' }));
+    if (!target || target !== myColor) return;
+    playSound('knight', 0.9);
+    try { if (navigator.vibrate) navigator.vibrate([120, 60, 120]); } catch (_) { }
+    const c = cornerOf(myColor); if (c) { c.el.classList.remove('poked'); void c.el.offsetWidth; c.el.classList.add('poked'); }
+    let n = $('pokenote'); if (!n) { n = document.createElement('div'); n.id = 'pokenote'; document.body.appendChild(n); }
+    n.textContent = `${msg.name || 'Someone'}: khalesna! 👉`;
+    n.classList.remove('show'); void n.offsetWidth; n.classList.add('show');
+    clearTimeout(n._t); n._t = setTimeout(() => n.classList.remove('show'), 2400);
   }
   function renderBanner() { const b = $('banner'); if (b && state) b.innerHTML = banner(); }   // live count refresh from presence
 
@@ -2330,6 +2390,7 @@
   }
   function showBroadcast(msg) {
     if (msg && msg.type === 'emoji') { showEmojiMsg(msg); return; }
+    if (msg && msg.type === 'poke') { showPoke(msg); return; }
     if (!msg || (!msg.text && msg.type !== 'voice')) return;
     logMsg(msg);   // keep it in the per-player history (tap a portrait to review)
     playSound('click', 0.4);
@@ -2883,6 +2944,7 @@
     diceBack: () => showVictory(true),
     openEmojiTray: () => openEmojiTray(),
     exitDemo: () => exitDemo(),
+    poke: () => poke(),
     emo: (e) => { sendEmoji(e); bumpTray(); },
     emoMore: () => { closeEmojiTray(); openQuickChat(); },
     viewBoard: () => { endView = true; hideOverlay(); render(); },   // dismiss the victory to study the final board
@@ -4612,6 +4674,7 @@
         step((n) => { n.currentPlayerIndex = idx(me); n.turnPhase = 'main'; n.hasRolledThisTurn = true; n.dice = [3, 5]; });
         toast('Your turn. Build a city on your lone settlement to win and see the awards');
       }],
+      [9000, () => { if (state.phase === 'play' && isMyTurn()) showPoke({ type: 'poke', text: `👉 ${me.name}: khalesna!`, url: 'p:' + me.color, color: sam.color, name: sam.name }); }],
     ];
     let i = 0;
     const next = () => { if (!demoMode || i >= script.length) return; const [d, fn] = script[i++]; setTimeout(() => { if (!demoMode) return; try { fn(); } catch (e) { console.warn('showcase', e); } next(); }, d); };
