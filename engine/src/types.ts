@@ -96,6 +96,8 @@ export interface Player {
 export interface Tally {
   /** Cards the robber cost this player: cards stolen + production blocked by the robber. */
   robberCost: number;
+  /** Times someone stole a card from this player (7s and Knights). Robber magnet + the portrait tally. */
+  timesRobbed?: number;
   /** Rolls on which a number this player's buildings touch came up. */
   numbersHit: number;
   /** How many such hits are normal: per roll, the summed odds of this player's numbers. */

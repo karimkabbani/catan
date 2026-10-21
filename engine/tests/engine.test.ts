@@ -177,6 +177,8 @@ describe('turn mechanics', () => {
     const r2 = applyAction(st, { type: 'steal', victim: 'blue' }, 'red');
     if (!r2.ok) throw new Error(r2.error);
     expect(r2.state.tally.blue!.robberCost).toBe(before + 1);
+    expect(r2.state.tally.blue!.timesRobbed).toBe(1);   // the blocked production above isn't a robbery
+    expect(r.state.tally.red!.timesRobbed ?? 0).toBe(0);
   });
 
   it('only the current player may act', () => {

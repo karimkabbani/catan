@@ -487,7 +487,9 @@ export function applyAction(state: GameState, action: Action, byColor: PlayerCol
         const stolen = pool[pick.value];
         victim.resources[stolen]--;
         player.resources[stolen]++;
-        tallyOf(s, victim.color).robberCost++;
+        const vt = tallyOf(s, victim.color);
+        vt.robberCost++;
+        vt.timesRobbed = (vt.timesRobbed ?? 0) + 1;
         s.log.push(`${player.name} stole a card from ${victim.name}.`);
       }
       s.stealCandidates = [];
