@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v153';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v154';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -856,7 +856,7 @@
     robbedSeen[color] = n;
     // the corners repaint often mid-animation: resume the shake where it was (negative delay) instead of restarting it
     const since = Date.now() - (robbedBumpAt[color] || 0), bump = since < 700;
-    return `<span class="probbed${bump ? ' bump' : ''}"${bump ? ` style="animation-delay:-${since}ms"` : ''} title="Robbed ${n}×">🦹<b>${n}</b></span>`;
+    return `<span class="probbed${bump ? ' bump' : ''}"${bump ? ` style="animation-delay:-${since}ms"` : ''} title="Robbed ${n}×">${ASSETS.robber ? `<img src="${ASSETS.robber}" alt="">` : '🦹'}<b>${n}</b></span>`;   // the board's own robber figure
   }
   const HUD = ASSETS.hud || {};
   function resIc(r) { return (HUD.res && HUD.res[r]) ? `<img class="ri" src="${HUD.res[r]}" alt="${r}">` : ICON[r]; }

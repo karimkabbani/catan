@@ -135,16 +135,15 @@
   @keyframes hotglow{0%,100%{box-shadow:0 0 5px rgba(233,196,90,0.4);}50%{box-shadow:0 0 13px rgba(233,196,90,0.85);}}
   /* over 7 cards: at risk of discarding on a 7 — flag the count red */
   .pstat.over b{color:#ff5a4d; text-shadow:0 1px 1px #000, 0 0 4px rgba(255,40,30,0.5);}
-  /* times-robbed tag: hangs off the corner's inner edge over the sea (the flag owns the middle of that edge),
-     at the outer end — bottom of top corners, top of bottom corners. Covers nothing. */
-  .probbed{position:absolute; z-index:6; display:inline-flex; align-items:center; gap:2px; padding:1px 6px 1px 4px;
-    background:rgba(20,8,4,0.9); border:1px solid rgba(255,120,90,0.7); font-size:12px; line-height:16px; white-space:nowrap;
-    box-shadow:0 2px 5px rgba(0,0,0,0.55); pointer-events:none;}
-  .probbed b{color:#ffd9cc; font-weight:900; letter-spacing:1px; font-size:12.5px;}
-  .corner.tl .probbed, .corner.bl .probbed{left:calc(100% + 2px); border-radius:0 9px 9px 0; border-left:none;}
-  .corner.tr .probbed, .corner.br .probbed{right:calc(100% + 2px); border-radius:9px 0 0 9px; border-right:none; flex-direction:row-reverse; padding:1px 4px 1px 6px;}
-  .corner.tl .probbed, .corner.tr .probbed{bottom:6px;}
-  .corner.bl .probbed, .corner.br .probbed{top:6px;}
+  /* times-robbed tag: a free-standing dark-wood pill with the board's robber figure + count, a clear gap off the
+     corner's inner edge, level with the corner's bottom on every side (the middle of that edge is the flag's) */
+  .probbed{position:absolute; z-index:6; bottom:6px; display:flex; align-items:center; gap:4px; height:26px; padding:0 9px 0 5px;
+    border-radius:13px; background:linear-gradient(180deg, rgba(58,34,14,0.95), rgba(28,15,5,0.95)); border:1px solid var(--gold-edge);
+    box-shadow:0 3px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,220,170,0.18); pointer-events:none; white-space:nowrap;}
+  .probbed img{height:20px; width:auto; filter:drop-shadow(0 1px 1px rgba(0,0,0,0.6));}
+  .probbed b{font-family:-apple-system, system-ui, 'Segoe UI', Roboto, sans-serif; color:var(--gold); font-size:15px; font-weight:800; line-height:1; text-shadow:0 1px 2px #000; font-variant-numeric:lining-nums tabular-nums;}   /* the display font draws 1 like a Roman I */
+  .corner.tl .probbed, .corner.bl .probbed{left:calc(100% + 9px);}
+  .corner.tr .probbed, .corner.br .probbed{right:calc(100% + 9px);}
   .probbed.bump{animation:robbump .7s ease;}
   @keyframes robbump{0%{scale:1;} 25%{scale:1.45; rotate:-6deg;} 50%{scale:1.25; rotate:5deg;} 100%{scale:1; rotate:0deg;}}
   .pport{position:relative; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; gap:2px;}
