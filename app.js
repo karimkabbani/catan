@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v149';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v150';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -2080,6 +2080,7 @@
         <div class="winava" style="background:${PCOLOR[winner.color]}">${wav}</div></div>
       <h2>${escapeHtml(winner.name)} wins!</h2>
       ${domBadge}
+      <div id="ggrow">${ggHTML()}</div>
       <div style="margin:12px 0">${standings}</div>
       ${awardsHTML()}
       <div class="winrow"><button class="btn wood" onclick="CATAN.viewBoard()">🗺️ View board</button><button class="btn wood" onclick="CATAN.openDiceStats('victory')">📊 Dice stats</button></div>
@@ -2088,6 +2089,7 @@
           ? `<div id="rmpanel">${rematchPanelHTML()}</div><button class="btn wood full" onclick="CATAN.leaveEnded()">Back to lobby</button>`
           : `<button class="btn full" onclick="CATAN.confirmExit()">Back to lobby</button>`)   /* a watcher leaves for themselves — never resets the players' table */
         : `<button class="btn full" onclick="CATAN.restart()">New game</button>`}</div>`);
+    refreshGG();
     $('overlay').onclick = (e) => { if (e.target.id === 'overlay') CATAN.viewBoard(); };   // tap outside the card = look at the board
     if (quiet) return;
     spawnConfetti($('overlay'), domination ? 120 : 64);
@@ -2410,6 +2412,35 @@
     if (corner && corner.style.display !== 'none') showBroadcastBubble(msg, corner, pos);
     else showBroadcastBanner(msg);
   }
+  // ---- GG: say "good game" when it's over. Who said it lives in the finished game (state.gg), so
+  //      anyone opening the results later still sees it; each new GG floats up from that portrait.
+  const ggSeen = {};   // gameKey -> colours whose GG has already been animated here
+  function ggHTML() {
+    if (!online || !state || state.phase !== 'ended') return '';
+    const gg = state.gg || [];
+    const btn = myColor && !gg.includes(myColor) ? `<button class="btn ggbtn" onclick="CATAN.gg()">🤝 GG</button>` : '';
+    return btn + (gg.length ? `<div class="ggwho">🤝 GG from ${escapeHtml(nameList(gg))}</div>` : '');
+  }
+  function refreshGG() {
+    if (!state || state.phase !== 'ended') return;
+    const el = $('ggrow'); if (el) el.innerHTML = ggHTML();
+    const k = gameKey(), seen = (ggSeen[k] = ggSeen[k] || new Set());
+    (state.gg || []).forEach((c) => { if (!seen.has(c)) { seen.add(c); emojiBurst(c, 'GG', 3, 0); playSound('click', 0.4); } });
+  }
+  function sayGG() {
+    if (!online || !myColor || !state || state.phase !== 'ended' || (state.gg || []).includes(myColor)) return;
+    const me = myColor;
+    const mut = (s) => { if (s.phase !== 'ended') return false; s.gg = s.gg || []; if (s.gg.includes(me)) return false; s.gg.push(me); };
+    const s2 = JSON.parse(JSON.stringify(state)); if (mut(s2) === false) return;
+    state.gg = s2.gg; refreshGG();
+    if (demoMode) {   // the showcase bots GG back
+      state.players.filter((p) => p.color !== me).forEach((p, i) => setTimeout(() => {
+        if (state.phase === 'ended' && !(state.gg || []).includes(p.color)) { state.gg.push(p.color); refreshGG(); }
+      }, 1100 + i * 900));
+      return;
+    }
+    svUpdate(mut);
+  }
   // ---- rematch by unanimous vote ---------------------------------------------------------------
   // Lives in the finished game's state: state.rm = { id, by, votes: {color: 'y'}, no?: color, lapsed?: bool }
   // and state.left = [colors who walked away]. Anyone left -> no rematch. Every seat must say yes;
@@ -2446,6 +2477,7 @@
   // re-render just the panel (never the whole victory card: no fanfare, no scroll jump)
   function refreshRematch() {
     if (!state || state.phase !== 'ended') return;
+    refreshGG();
     const rm = state.rm;
     // a proposal I haven't answered while I'm studying the board -> bring the results back so I can vote
     if (rmPending(rm) && endView && myColor && !rm.votes[myColor] && !rmSeen[rm.id]) { endView = false; showVictory(true); }
@@ -2462,7 +2494,7 @@
   function rmWrite(mut) {
     const s2 = JSON.parse(JSON.stringify(state));
     if (mut(s2) === false) return;
-    state.rm = s2.rm; state.left = s2.left; refreshRematch();
+    state.rm = s2.rm; state.left = s2.left; state.gg = s2.gg; refreshRematch();
     if (!demoMode) svUpdate(mut);
   }
   function rmPropose() {
@@ -3112,6 +3144,7 @@
     openEmojiTray: () => openEmojiTray(),
     exitDemo: () => exitDemo(),
     rmPropose: () => rmPropose(),
+    gg: () => sayGG(),
     rmVote: (v) => rmVote(v),
     poke: () => poke(),
     emo: (e) => { sendEmoji(e); bumpTray(); },

@@ -253,6 +253,11 @@
   #countdown.hidden{display:none;}
   #countdown{flex-direction:column;}
   #countdown .cd-label{font-family:var(--serif); font-size:6vh; color:#f3e6c8; text-shadow:0 2px 8px #000; margin-bottom:-2vh;}
+  /* GG at the end of a game */
+  .ggbtn{display:block; margin:6px auto 2px; padding:8px 28px; font-size:16px; animation:ggpulse 1.8s ease-in-out infinite;}
+  @keyframes ggpulse{50%{box-shadow:0 0 0 6px rgba(233,196,90,0.25), 0 0 14px rgba(233,196,90,0.6);}}
+  .ggwho{text-align:center; color:#d9f5c9; font-weight:700; font-size:14px; margin:6px 0 2px; animation:ggin .25s ease;}
+  @keyframes ggin{0%{transform:scale(1.25); opacity:0.4;} 100%{transform:scale(1); opacity:1;}}
   /* rematch vote (victory screen) */
   .rmbox{padding:10px 12px; margin-bottom:9px; border-radius:12px; background:rgba(0,0,0,0.28); border:1px solid rgba(255,220,170,0.18);}
   .rmhead{display:flex; justify-content:space-between; align-items:center; font-family:var(--serif); color:var(--gold); font-size:17px; margin-bottom:8px;}
