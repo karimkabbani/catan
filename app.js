@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v154';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v155';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -849,14 +849,57 @@
 
   // times robbed, as a number on a tag hanging off the corner's inner edge (from the first robbery on)
   const robbedSeen = {}, robbedBumpAt = {};
+  // who robbed whom, read from the engine's log (every steal since the game began, so games started on an
+  // older version are complete too). One source for the pill, the sheet, dice stats, the award and the narrator.
+  let robMemo = { key: null, m: null };
+  function robberyMatrix(st) {
+    st = st || state;
+    const log = (st && st.log) || [], key = log.length + ':' + (log[0] || '') + ':' + st.players.map((p) => p.name).join(',');
+    if (robMemo.key === key) return robMemo.m;
+    const byName = {}; st.players.forEach((p) => { byName[p.name] = p.color; });
+    const m = {};   // victim -> thief -> times
+    log.forEach((l) => {
+      const x = l.match(/^(.*) stole a card from (.+)\.$/); if (!x) return;
+      const t = byName[x[1]], v = byName[x[2]]; if (!t || !v) return;
+      (m[v] = m[v] || {})[t] = (m[v][t] || 0) + 1;
+    });
+    robMemo = { key, m };
+    return m;
+  }
+  function robbedCount(color, st) { return Object.values(robberyMatrix(st)[color] || {}).reduce((a, b) => a + b, 0); }
+  function robberImg(cls) { return ASSETS.robber ? `<img class="${cls || ''}" src="${ASSETS.robber}" alt="">` : '🦹'; }
+  // tap a pill: who robbed whom this game (the tapped player first)
+  function openRobberies(focus) {
+    const P = state.players, m = robberyMatrix();
+    const dot = (c) => `<span class="dot" style="background:${PCOLOR[c]}"></span>`;
+    const nm = (c) => escapeHtml((P.find((p) => p.color === c) || {}).name || '?');
+    const victims = P.map((p) => ({ c: p.color, by: m[p.color] || {}, n: robbedCount(p.color) })).filter((v) => v.n)
+      .sort((a, b) => ((b.c === focus) - (a.c === focus)) || b.n - a.n);
+    if (!victims.length) { showOverlay(`<div class="robsheet"><h3>${robberImg()} Who robbed who</h3><p class="muted" style="text-align:center">Nobody has been robbed yet.</p><button class="btn full" onclick="CATAN.close()">Done</button></div>`); return; }
+    const thieves = P.map((p) => ({ c: p.color, n: victims.reduce((a, v) => a + (v.by[p.color] || 0), 0) })).sort((a, b) => b.n - a.n);
+    let pair = null;
+    victims.forEach((v) => Object.entries(v.by).forEach(([t, n]) => { if (!pair || n > pair.n) pair = { t, v: v.c, n }; }));
+    const heads = `<div class="rbheads">`
+      + (() => {   // a tie names everyone level at the top
+        const top = thieves.filter((t) => t.n === thieves[0].n && t.n > 0);
+        const who = top.length > 2 ? top.map((t) => dot(t.c)).join('') + `<span>${top.length}-way tie</span>` : top.map((t) => dot(t.c) + nm(t.c)).join(' & ');
+        return `<div class="rbhead"><span class="rbl">Top thief</span><b>${who}</b><span class="rbs">${thieves[0].n} robber${thieves[0].n === 1 ? 'y' : 'ies'}${top.length > 1 ? ' each' : ''}</span></div>`;
+      })()
+      + (pair && pair.n > 1 ? `<div class="rbhead"><span class="rbl">Rivalry</span><b>${dot(pair.t)}${nm(pair.t)} → ${dot(pair.v)}${nm(pair.v)}</b><span class="rbs">${pair.n} times</span></div>` : '')
+      + `</div>`;
+    const rows = victims.map((v) => `<div class="rbrow${v.c === focus ? ' focus' : ''}"><div class="rbwho">${dot(v.c)}<b>${nm(v.c)}</b><span>robbed ${v.n}×</span></div>`
+      + `<div class="rbby">by ${Object.entries(v.by).sort((a, b) => b[1] - a[1]).map(([t, n]) => `<span class="rbchip">${dot(t)}${nm(t)} ${n}</span>`).join('')}</div></div>`).join('');
+    showOverlay(`<div class="robsheet"><h3>${robberImg()} Who robbed who</h3>${heads}${rows}<button class="btn full" onclick="CATAN.close()">Done</button></div>`);
+    const o = $('overlay'); if (o) o.onclick = (e) => { if (e.target === o) CATAN.close(); };
+  }
   function robbedPill(color) {
-    const n = ((state.tally || {})[color] || {}).timesRobbed || 0;
+    const n = robbedCount(color);
     if (!n) { robbedSeen[color] = 0; return ''; }
     if (robbedSeen[color] != null && n > robbedSeen[color]) robbedBumpAt[color] = Date.now();   // went up -> shake it
     robbedSeen[color] = n;
     // the corners repaint often mid-animation: resume the shake where it was (negative delay) instead of restarting it
     const since = Date.now() - (robbedBumpAt[color] || 0), bump = since < 700;
-    return `<span class="probbed${bump ? ' bump' : ''}"${bump ? ` style="animation-delay:-${since}ms"` : ''} title="Robbed ${n}×">${ASSETS.robber ? `<img src="${ASSETS.robber}" alt="">` : '🦹'}<b>${n}</b></span>`;   // the board's own robber figure
+    return `<span class="probbed${bump ? ' bump' : ''}"${bump ? ` style="animation-delay:-${since}ms"` : ''} title="Robbed ${n}×" onclick="event.stopPropagation();CATAN.robberies('${color}')">${robberImg()}<b>${n}</b></span>`;   // the board's own robber figure; tap -> who robbed who
   }
   const HUD = ASSETS.hud || {};
   function resIc(r) { return (HUD.res && HUD.res[r]) ? `<img class="ri" src="${HUD.res[r]}" alt="${r}">` : ICON[r]; }
@@ -1771,7 +1814,7 @@
     const rows = state.players.filter((p) => T[p.color] && T[p.color].numbersNormal > 0).map((p) => {
       const t = T[p.color];
       return `<div class="ds-luck"><span class="dot" style="background:${PCOLOR[p.color]}"></span><b>${escapeHtml(p.name)}</b>`
-        + `<span>hit ${t.numbersHit}× · normal ${Math.round(t.numbersNormal)}${t.timesRobbed ? ` · 🦹${t.timesRobbed}` : ''}</span></div>`;
+        + `<span>hit ${t.numbersHit}× · normal ${Math.round(t.numbersNormal)}${robbedCount(p.color) ? ` · ${robberImg('rbi')}${robbedCount(p.color)}` : ''}</span></div>`;
     }).join('');
     return rows ? `<div class="ds-lucks">${rows}</div><div class="ds-lucknote">Hit = rolls that paid that player · normal = usual with fair dice</div>` : '';
   }
@@ -1782,7 +1825,7 @@
     const name = (c) => escapeHtml((state.players.find((p) => p.color === c) || {}).name || '?');
     const ent = state.players.map((p) => ({ c: p.color, t: T[p.color] })).filter((e) => e.t);
     const out = [];
-    const robbed = (e) => e.t.timesRobbed || 0;
+    const robbed = (e) => robbedCount(e.c);
     const rob = ent.slice().sort((a, b) => robbed(b) - robbed(a))[0];
     if (rob && robbed(rob) >= AWARD_MIN_ROBBED) out.push(['🦹', 'Robber magnet', `${name(rob.c)} got robbed ${robbed(rob)} times.`]);
     const gap = (e) => e.t.numbersHit - e.t.numbersNormal;
@@ -2549,7 +2592,7 @@
     });
     const T = s.tally || {};
     s.players.forEach((p) => {
-      const rc = (T[p.color] || {}).timesRobbed || 0, step = rc >= 5 ? 5 : rc >= 3 ? 3 : 0;
+      const rc = robbedCount(p.color, s), step = rc >= 5 ? 5 : rc >= 3 ? 3 : 0;
       if (step) lines.push([2, 'rob:' + p.color + ':' + step, `${p.name} has been robbed ${rc} times`]);
     });
     if (n > ((a.rolls || []).length)) {   // a roll just happened
@@ -3156,6 +3199,7 @@
     openEmojiTray: () => openEmojiTray(),
     exitDemo: () => exitDemo(),
     rmPropose: () => rmPropose(),
+    robberies: (c) => openRobberies(c),
     gg: () => sayGG(),
     rmVote: (v) => rmVote(v),
     poke: () => poke(),
@@ -3327,6 +3371,8 @@
     const tal = [{ robberCost: 3, timesRobbed: 1, numbersHit: 21, numbersNormal: 15.2 }, { robberCost: 11, timesRobbed: 4, numbersHit: 12, numbersNormal: 13.6 },
       { robberCost: 2, timesRobbed: 0, numbersHit: 7, numbersNormal: 12.4 }, { robberCost: 4, timesRobbed: 2, numbersHit: 10, numbersNormal: 9.8 }];
     s.tally = {}; s.players.forEach((p, i) => { s.tally[p.color] = tal[i]; });
+    const P = s.players, steal = (t, v) => { if (P[t] && P[v]) s.log.push(`${P[t].name} stole a card from ${P[v].name}.`); };
+    [[1, 0], [0, 1], [0, 1], [2, 1], [3, 1], [1, 3], [2, 3]].forEach(([t, v]) => steal(t, v));   // victims: Sam 4×, Jordan 2×, Karim 1×
     s.targetPoints = C.victoryPoints(s, me.color, true) + 1;   // whatever the table size, the one city wins
     // your turn, already rolled, in the build phase
     s.phase = 'play'; s.currentPlayerIndex = 0; s.turnPhase = 'main'; s.hasRolledThisTurn = true;

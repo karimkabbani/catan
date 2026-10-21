@@ -139,13 +139,30 @@
      corner's inner edge, level with the corner's bottom on every side (the middle of that edge is the flag's) */
   .probbed{position:absolute; z-index:6; bottom:6px; display:flex; align-items:center; gap:4px; height:26px; padding:0 9px 0 5px;
     border-radius:13px; background:linear-gradient(180deg, rgba(58,34,14,0.95), rgba(28,15,5,0.95)); border:1px solid var(--gold-edge);
-    box-shadow:0 3px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,220,170,0.18); pointer-events:none; white-space:nowrap;}
+    box-shadow:0 3px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,220,170,0.18); cursor:pointer; white-space:nowrap;}
   .probbed img{height:20px; width:auto; filter:drop-shadow(0 1px 1px rgba(0,0,0,0.6));}
   .probbed b{font-family:-apple-system, system-ui, 'Segoe UI', Roboto, sans-serif; color:var(--gold); font-size:15px; font-weight:800; line-height:1; text-shadow:0 1px 2px #000; font-variant-numeric:lining-nums tabular-nums;}   /* the display font draws 1 like a Roman I */
   .corner.tl .probbed, .corner.bl .probbed{left:calc(100% + 9px);}
   .corner.tr .probbed, .corner.br .probbed{right:calc(100% + 9px);}
   .probbed.bump{animation:robbump .7s ease;}
   @keyframes robbump{0%{scale:1;} 25%{scale:1.45; rotate:-6deg;} 50%{scale:1.25; rotate:5deg;} 100%{scale:1; rotate:0deg;}}
+  /* who-robbed-who sheet */
+  .robsheet{min-width:min(400px,86vw);}
+  .robsheet h3{display:flex; align-items:center; justify-content:center; gap:8px; font-family:var(--serif); color:var(--gold); font-size:20px; margin-bottom:10px;}
+  .robsheet h3 img{height:28px;}
+  .rbheads{display:flex; gap:8px; margin-bottom:10px;}
+  .rbhead{flex:1; display:flex; flex-direction:column; align-items:center; gap:2px; padding:7px 6px; border-radius:10px; background:rgba(0,0,0,0.28); border:1px solid rgba(255,220,170,0.16);}
+  .rbhead .rbl{font-size:11px; text-transform:uppercase; letter-spacing:0.6px; color:var(--muted);}
+  .rbhead b{display:flex; align-items:center; gap:4px; color:var(--ink); font-size:14px; white-space:nowrap;}
+  .rbhead .rbs{font-size:12px; color:var(--gold);}
+  .rbrow{padding:7px 8px; border-radius:9px; margin-bottom:5px; background:rgba(255,255,255,0.04);}
+  .rbrow.focus{background:rgba(233,196,90,0.12); border:1px solid rgba(233,196,90,0.35);}
+  .rbwho{display:flex; align-items:center; gap:6px; font-size:14px; color:var(--ink);}
+  .rbwho span:last-child{margin-left:auto; color:#ffcfbf; font-weight:800; font-size:13px;}
+  .rbby{display:flex; flex-wrap:wrap; align-items:center; gap:5px; margin-top:4px; font-size:12px; color:var(--muted);}
+  .rbchip{display:inline-flex; align-items:center; gap:4px; padding:1px 7px; border-radius:10px; background:rgba(0,0,0,0.3); color:var(--ink); font-weight:700;}
+  .robsheet .dot, .rbwho .dot{width:9px; height:9px; border-radius:50%; display:inline-block; flex:0 0 auto;}
+  .ds-luck .rbi{height:12px; vertical-align:-2px; margin:0 1px 0 2px;}
   .pport{position:relative; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; gap:2px;}
   .pava{position:relative; width:48px; height:56px; border-radius:7px; overflow:hidden; border:2px solid #0006;
     background:#3a2410; box-shadow:0 2px 5px rgba(0,0,0,0.5); display:flex; align-items:flex-end; justify-content:center;
