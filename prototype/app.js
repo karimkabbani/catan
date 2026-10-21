@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v148';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v149';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -329,7 +329,7 @@
   function isMyTurn() { return !online || (myColor && activeColor() === myColor); }
   function afterAction() {
     ui.mode = 'idle';
-    if (state.phase === 'ended') { recordResult(); render(); if (!endView) showVictory(); return; }
+    if (state.phase === 'ended') { recordResult(); render(); if (victoryShownFor !== gameKey()) { if (!endView) showVictory(); } else refreshRematch(); return; }
     if (ui.spinning) return;   // who-goes-first spinner playing — don't render over it / prompt yet
     // Hold off on prompts while an animation plays: the dice reveal, or one player's
     // discard fly. Each animation's end re-runs afterAction to advance the sequence —
@@ -902,13 +902,13 @@
   }
   function isFreshSetup() { return isFreshStart(state); }
   // big 3..2..1 countdown in the centre, then `done()` — runs on every screen at game start
-  function showCountdown(done) {
+  function showCountdown(done, from, label) {
     const el = $('countdown');
     if (!el) { if (done) done(); return; }
-    let n = 3;
+    let n = from || 3;
     (function step() {
       if (n <= 0) { el.classList.add('hidden'); el.innerHTML = ''; if (done) done(); return; }
-      el.innerHTML = `<div class="cd-num">${n}</div>`;   // re-set replays the pop animation
+      el.innerHTML = `${label ? `<div class="cd-label">${label}</div>` : ''}<div class="cd-num">${n}</div>`;   // re-set replays the pop animation
       el.classList.remove('hidden');
       playSound('click', 0.55);
       n--;
@@ -2058,6 +2058,7 @@
       `<div class="award"><span class="awic">${ic}</span><div><b>${t}</b><span>${why}</span></div></div>`).join('')}</div>`;
   }
   function showVictory(quiet) {   // quiet = returning from the dice stats: no fanfare/confetti replay
+    victoryShownFor = gameKey();
     if (!quiet) playSound('win', 0.8);
     STATS.loaded = false;   // a game just ended -> every client refetches stats on the next lobby visit
     const winner = state.players.find((p) => p.color === state.winner);
@@ -2082,9 +2083,9 @@
       <div style="margin:12px 0">${standings}</div>
       ${awardsHTML()}
       <div class="winrow"><button class="btn wood" onclick="CATAN.viewBoard()">🗺️ View board</button><button class="btn wood" onclick="CATAN.openDiceStats('victory')">📊 Dice stats</button></div>
-      ${demoMode ? `<button class="btn full" onclick="CATAN.exitDemo()">Exit showcase</button>` : online
+      ${demoMode ? `<div id="rmpanel">${rematchPanelHTML()}</div><button class="btn wood full" onclick="CATAN.exitDemo()">Exit showcase</button>` : online
         ? (myColor
-          ? `<button class="btn full" style="margin-bottom:9px" onclick="CATAN.rematch()">🔁 Rematch — same players</button><button class="btn wood full" onclick="CATAN.leaveEnded()">Back to lobby</button>`
+          ? `<div id="rmpanel">${rematchPanelHTML()}</div><button class="btn wood full" onclick="CATAN.leaveEnded()">Back to lobby</button>`
           : `<button class="btn full" onclick="CATAN.confirmExit()">Back to lobby</button>`)   /* a watcher leaves for themselves — never resets the players' table */
         : `<button class="btn full" onclick="CATAN.restart()">New game</button>`}</div>`);
     $('overlay').onclick = (e) => { if (e.target.id === 'overlay') CATAN.viewBoard(); };   // tap outside the card = look at the board
@@ -2409,6 +2410,86 @@
     if (corner && corner.style.display !== 'none') showBroadcastBubble(msg, corner, pos);
     else showBroadcastBanner(msg);
   }
+  // ---- rematch by unanimous vote ---------------------------------------------------------------
+  // Lives in the finished game's state: state.rm = { id, by, votes: {color: 'y'}, no?: color, lapsed?: bool }
+  // and state.left = [colors who walked away]. Anyone left -> no rematch. Every seat must say yes;
+  // one "not this time" or RM_MS without everyone ends it. All in -> a clear 5·4·3·2·1, then go.
+  const RM_MS = 30000, rmSeen = {}, rmStarted = {};
+  let victoryShownFor = null;
+  function gameKey() { return state && state.board ? state.board.hexes.map((h) => (h.terrain || '?')[0] + (h.token || '')).join('') + state.players.map((p) => p.color).join('') : ''; }
+  function nameList(cs) { const ns = cs.map(nameOf); return ns.length < 2 ? (ns[0] || '') : ns.slice(0, -1).join(', ') + ' & ' + ns[ns.length - 1]; }
+  function rmPending(rm) { return !!rm && !rm.no && !rm.lapsed; }
+  function rmAllIn(rm) { return rmPending(rm) && state.players.every((p) => rm.votes && rm.votes[p.color] === 'y'); }
+  function rematchPanelHTML() {
+    if (!online || !myColor || !state || state.phase !== 'ended') return '';
+    const left = state.left || [];
+    if (left.length) return `<div class="rmleft">🚪 ${escapeHtml(nameList(left))} ${left.length > 1 ? 'have' : 'has'} left. A rematch isn't possible.</div>`;
+    const rm = state.rm;
+    if (!rmPending(rm)) {
+      const note = rm && rm.no ? `<div class="rmnote">✗ ${escapeHtml(nameOf(rm.no))}: not this time</div>`
+        : rm && rm.lapsed ? `<div class="rmnote">The rematch lapsed. Not everyone answered.</div>` : '';
+      return note + `<button class="btn full" style="margin-bottom:9px" onclick="CATAN.rmPropose()">🔁 Rematch? Ask the table</button>`;
+    }
+    if (!rmSeen[rm.id]) rmSeen[rm.id] = Date.now();
+    const chips = state.players.map((p) => {
+      const yes = rm.votes[p.color] === 'y', off = !yes && !isPlayerOnline(p.color);
+      return `<span class="rmchip${yes ? ' yes' : ''}"><span class="dot" style="background:${PCOLOR[p.color]}"></span>${escapeHtml(p.name)} ${yes ? '✓' : off ? '💤' : '…'}</span>`;
+    }).join('');
+    if (rmAllIn(rm)) return `<div class="rmbox"><div class="rmhead">🔁 Everyone's in!</div><div class="rmchips">${chips}</div><div class="rmgo">Rematch starting…</div></div>`;
+    const secs = Math.max(0, Math.ceil((RM_MS - (Date.now() - rmSeen[rm.id])) / 1000));
+    const waiting = state.players.filter((p) => rm.votes[p.color] !== 'y').map((p) => p.color);
+    const act = rm.votes[myColor] === 'y'
+      ? `<div class="rmwait">Waiting for ${escapeHtml(nameList(waiting))}…</div>`
+      : `<div class="winrow"><button class="btn" onclick="CATAN.rmVote('y')">✓ I'm in</button><button class="btn wood" onclick="CATAN.rmVote('n')">✗ Not this time</button></div>`;
+    return `<div class="rmbox"><div class="rmhead">🔁 Rematch? <span class="rmsecs">0:${String(secs).padStart(2, '0')}</span></div><div class="rmchips">${chips}</div>${act}</div>`;
+  }
+  // re-render just the panel (never the whole victory card: no fanfare, no scroll jump)
+  function refreshRematch() {
+    if (!state || state.phase !== 'ended') return;
+    const rm = state.rm;
+    // a proposal I haven't answered while I'm studying the board -> bring the results back so I can vote
+    if (rmPending(rm) && endView && myColor && !rm.votes[myColor] && !rmSeen[rm.id]) { endView = false; showVictory(true); }
+    const fresh = rmPending(rm) && !rmSeen[rm.id];
+    const el = $('rmpanel'); if (el) el.innerHTML = rematchPanelHTML();
+    if (el && fresh && myColor && !rm.votes[myColor]) { try { el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (_) { } }   // a new question -> bring it into view
+    if (rmAllIn(rm) && !rmStarted[rm.id]) {
+      rmStarted[rm.id] = true;
+      if (demoMode) { setTimeout(() => showCountdown(() => showcase(), 5, 'Rematch in'), 700); return; }
+      setTimeout(() => { if (state && state.phase === 'ended') LOBBY.rematch(true); }, 700);   // every phone tries; the version guard lets one win
+    }
+  }
+  // write to the finished game: local echo now, shared via the version-guarded update
+  function rmWrite(mut) {
+    const s2 = JSON.parse(JSON.stringify(state));
+    if (mut(s2) === false) return;
+    state.rm = s2.rm; state.left = s2.left; refreshRematch();
+    if (!demoMode) svUpdate(mut);
+  }
+  function rmPropose() {
+    if (!online || !myColor || !state || state.phase !== 'ended') return;
+    const id = Math.random().toString(36).slice(2, 8), me = myColor;
+    rmWrite((s) => { if (s.phase !== 'ended' || (s.left && s.left.length) || rmPending(s.rm)) return false; s.rm = { id, by: me, votes: { [me]: 'y' } }; });
+    if (demoMode) state.players.filter((p) => p.color !== me).forEach((p, i) =>   // showcase bots say yes, one by one
+      setTimeout(() => { if (state.rm && state.rm.id === id) { state.rm.votes[p.color] = 'y'; refreshRematch(); } }, 1400 + i * 1300));
+  }
+  function rmVote(v) {
+    const rm = state && state.rm; if (!rmPending(rm) || !myColor) return;
+    const id = rm.id, me = myColor;
+    rmWrite((s) => { if (!s.rm || s.rm.id !== id || !rmPending(s.rm)) return false; if (v === 'y') s.rm.votes[me] = 'y'; else s.rm.no = me; });
+  }
+  // walking away from a finished game is recorded, so the table knows a rematch can't happen
+  function markLeft(color) {
+    if (!color || demoMode || !state || state.phase !== 'ended') return;
+    svUpdate((s) => { if (s.phase !== 'ended') return false; s.left = s.left || []; if (!s.left.includes(color)) s.left.push(color); });
+  }
+  // the 30s clock: keep the countdown ticking, and let any phone call time on an unanswered proposal
+  setInterval(() => {
+    if (!state || state.phase !== 'ended' || !online) return;
+    const rm = state.rm; if (!rmPending(rm) || rmAllIn(rm)) return;
+    if (!rmSeen[rm.id]) rmSeen[rm.id] = Date.now();
+    if (Date.now() - rmSeen[rm.id] > RM_MS) { const id = rm.id; rmWrite((s) => { if (!s.rm || s.rm.id !== id || !rmPending(s.rm) || rmAllIn(s.rm)) return false; s.rm.lapsed = true; }); return; }
+    const el = $('rmpanel'); if (el) el.innerHTML = rematchPanelHTML();
+  }, 1000);
   // ---- narrator: the game itself comments when something is worth a remark ----------------------
   // Built from shared state (rolls, tallies, public VP), so every phone says roughly the same thing.
   // At most one line every NARR_GAP_ROLLS rolls (a near-win call skips the wait), each said once.
@@ -3030,6 +3111,8 @@
     diceBack: () => showVictory(true),
     openEmojiTray: () => openEmojiTray(),
     exitDemo: () => exitDemo(),
+    rmPropose: () => rmPropose(),
+    rmVote: (v) => rmVote(v),
     poke: () => poke(),
     emo: (e) => { sendEmoji(e); bumpTray(); },
     emoMore: () => { closeEmojiTray(); openQuickChat(); },
@@ -3202,7 +3285,7 @@
     s.targetPoints = C.victoryPoints(s, me.color, true) + 1;   // whatever the table size, the one city wins
     // your turn, already rolled, in the build phase
     s.phase = 'play'; s.currentPlayerIndex = 0; s.turnPhase = 'main'; s.hasRolledThisTurn = true;
-    state = s; ui = { mode: 'idle', pending: null }; resetZoom(); renderedBoardKey = null;
+    state = s; ui = { mode: 'idle', pending: null }; resetZoom(); renderedBoardKey = null; victoryShownFor = null; endView = false;
     $('title').classList.add('hidden'); hideOverlay(); document.body.style.background = GAME_BG; render();
     const bd = $('board'); if (bd) bd.classList.add('enter');
     toast('RIGGED — you have 9 VP. Build a city (🏛️) on your settlement to win.');
@@ -3721,7 +3804,7 @@
       if (this.started) {
         myColor = seat ? seat.color : null;
         // a fresh game arriving while we're on an ended one = a rematch -> replay the 3·2·1 intro for everyone
-        if (isFreshStart(row.state) && state && state.phase === 'ended') { ui.svEnding = false; showCountdown(() => enterGame(row.state)); return; }
+        if (isFreshStart(row.state) && state && state.phase === 'ended') { ui.svEnding = false; showCountdown(() => enterGame(row.state), 5, 'Rematch in'); return; }
         applyRemoteState(row.state); return;   // already in -> just sync
       }
       // not in the game yet: seated players + anyone who chose Spectate enter now;
@@ -3901,7 +3984,7 @@
     },
     // rematch: start a fresh game with the SAME seated players + win target, straight from the
     // victory screen. Version-guarded so two people tapping it doesn't spawn two games.
-    async rematch() {
+    async rematch(quiet) {
       const c = NET.init(); if (!c || !NET.code) return;
       if (svEndTimer) { clearTimeout(svEndTimer); svEndTimer = null; }   // cancel the surrender auto-return-to-lobby
       const seats = (gameSeats || []).filter((s) => s && s.color);
@@ -3916,7 +3999,7 @@
         .update({ phase: 'playing', players, state: gstate, target_points: target, version: prevV + 1 })
         .eq('code', NET.code).eq('version', prevV).select('version');
       if (error) { toast('Rematch failed: ' + error.message); return; }
-      if (!data || !data.length) toast('Starting rematch…');   // someone else already tapped it — their write drives us in
+      if ((!data || !data.length) && !quiet) toast('Starting rematch…');   // someone else already tapped it — their write drives us in
     },
     leave() {
       const c = NET.init();
@@ -4405,6 +4488,7 @@
   };
   window.CATAN.confirmExit = async () => {
     hideOverlay();
+    const leaving = myColor;
     if (!online) { NET.started = false; startScreen(); return; }
     const wasSpectator = !myColor;
     // seated player quitting a LIVE game: hand the win to the leader + take a penalty, then leave the
@@ -4416,7 +4500,7 @@
     }
     NET.started = false; online = false; myColor = null; NET.version = 0;
     if (wasSpectator) { LOBBY.mode = 'idle'; LOBBY.inProgress = false; showLobby(); return; }   // watcher leaves -> lobby, game untouched
-    if (state && state.phase === 'ended') { LOBBY.toLobby(); return; }   // game's over -> just me; the others keep the final board
+    if (state && state.phase === 'ended') { markLeft(leaving); LOBBY.toLobby(); return; }   // game's over -> just me; the others keep the final board
     // seated player ending the game: idle the table FIRST, then re-enter the lobby —
     // otherwise re-subscribing reads the still-'playing' row and bounces us back in.
     try { await LOBBY.reset(); } catch (_) { }
@@ -4427,7 +4511,7 @@
   window.CATAN.tableReset = () => LOBBY.reset();
   // leave a FINISHED game: only this device goes back to the lobby — the row keeps the ended game for
   // whoever's still looking, and onRow won't pull me back in (a rematch / new game at the table still will)
-  window.CATAN.leaveEnded = () => { NET.started = false; NET.version = 0; online = false; myColor = null; LOBBY.toLobby(); };
+  window.CATAN.leaveEnded = () => { markLeft(myColor); NET.started = false; NET.version = 0; online = false; myColor = null; LOBBY.toLobby(); };
   window.CATAN.rematch = () => LOBBY.rematch();
 
   // ===== identity / PIN auth (persistent player + device auto-login) =========
