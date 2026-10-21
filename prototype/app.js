@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v157';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v158';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -2889,11 +2889,20 @@
     const c = myCorner(); if (!c || !c.el) return;
     lastChipAt = Date.now();
     hideChip();
-    const o = avatarCentre(c), top = c.pos[0] === 't', left = c.pos[1] === 'l';
+    // reads as a QUESTION, never as something sent: "😡 Send? ↗" in a dashed pill with a draining timer bar,
+    // off the corner's inner edge (away from the portrait, where real emoji float out). Tap -> solid, then it launches.
+    const left = c.pos[1] === 'l', r = c.el.getBoundingClientRect();
     const b = document.createElement('button');
-    b.id = 'reactchip'; b.textContent = emoji;
-    b.style.left = (o.x + (left ? 40 : -40) - 22) + 'px'; b.style.top = (o.y + (top ? 36 : -36) - 22) + 'px';
-    b.onclick = (e) => { e.stopPropagation(); sendEmoji(emoji, key); hideChip(); };
+    b.id = 'reactchip';
+    b.innerHTML = `<span class="e">${emoji}</span><span class="t">Send?</span><span class="arr">↗</span>`;
+    b.style.setProperty('--chipms', CHIP_MS + 'ms');
+    b.style.top = (r.top + 4) + 'px';
+    if (left) b.style.left = (r.right + 12) + 'px'; else b.style.right = (window.innerWidth - r.left + 12) + 'px';
+    b.onclick = (e) => {
+      e.stopPropagation(); clearTimeout(chipT);
+      b.classList.add('sent');   // solid for a beat: your suggestion just became a real message
+      setTimeout(() => { sendEmoji(emoji, key); hideChip(); }, 170);
+    };
     document.body.appendChild(b);
     requestAnimationFrame(() => b.classList.add('in'));
     chipT = setTimeout(hideChip, CHIP_MS);
