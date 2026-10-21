@@ -251,6 +251,21 @@
   /* game-start countdown: a big number pops over the lobby (above the menu, z>40), 3..2..1 */
   #countdown{position:fixed; inset:0; z-index:50; display:flex; align-items:center; justify-content:center; pointer-events:none;}
   #countdown.hidden{display:none;}
+  #countdown{flex-direction:column;}
+  #countdown .cd-label{font-family:var(--serif); font-size:6vh; color:#f3e6c8; text-shadow:0 2px 8px #000; margin-bottom:-2vh;}
+  /* rematch vote (victory screen) */
+  .rmbox{padding:10px 12px; margin-bottom:9px; border-radius:12px; background:rgba(0,0,0,0.28); border:1px solid rgba(255,220,170,0.18);}
+  .rmhead{display:flex; justify-content:space-between; align-items:center; font-family:var(--serif); color:var(--gold); font-size:17px; margin-bottom:8px;}
+  .rmsecs{font-family:inherit; font-size:14px; color:#ffd76b; font-variant-numeric:tabular-nums;}
+  .rmchips{display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin-bottom:9px;}
+  .rmchip{display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:14px; font-size:13px; font-weight:700;
+    color:var(--muted); background:rgba(255,255,255,0.06); border:1px solid rgba(255,220,170,0.14);}
+  .rmchip.yes{color:#d9f5c9; background:rgba(60,140,60,0.35); border-color:rgba(120,210,120,0.5);}
+  .rmchip .dot{width:9px; height:9px; border-radius:50%;}
+  .rmwait, .rmgo{text-align:center; color:var(--ink); font-size:13.5px;}
+  .rmgo{color:var(--gold); font-weight:800;}
+  .rmnote{text-align:center; color:var(--muted); font-size:13px; margin-bottom:7px;}
+  .rmleft{text-align:center; color:#ffd7ad; font-size:14px; padding:10px; margin-bottom:9px; border-radius:12px; background:rgba(0,0,0,0.28);}
   #countdown .cd-num{font-family:var(--serif); font-weight:800; font-size:42vh; line-height:1; color:var(--gold);
     text-shadow:0 6px 22px rgba(0,0,0,0.75), 0 0 50px rgba(233,196,90,0.55); animation:cdpop .9s ease both;}
   @keyframes cdpop{0%{transform:scale(.3);opacity:0} 22%{transform:scale(1.12);opacity:1} 68%{transform:scale(1);opacity:1} 100%{transform:scale(1.5);opacity:0}}
