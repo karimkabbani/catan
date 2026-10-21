@@ -330,7 +330,7 @@
   #dicetab:active{transform:scale(0.92);}
   #dicetab.hidden{display:none;}
   /* ---- express yourself: emoji tray, bursts, reaction pill, suggested chip ---- */
-  #emotray{position:fixed; z-index:34; display:flex; flex-wrap:wrap; gap:4px; padding:6px; border-radius:22px; width:310px; max-width:calc(100vw - 20px); box-sizing:border-box;
+  #emotray{position:fixed; z-index:34; display:flex; flex-wrap:wrap; gap:4px; padding:6px; border-radius:22px; width:392px; max-width:calc(100vw - 20px); box-sizing:border-box;
     background:linear-gradient(180deg, rgba(40,22,8,0.95), rgba(28,15,5,0.95)); border:1px solid var(--gold-edge);
     box-shadow:0 4px 14px rgba(0,0,0,0.55); opacity:0; transform:scale(0.6); transition:opacity .14s, transform .16s cubic-bezier(.3,1.5,.6,1);}
   #emotray.from-left{transform-origin:left center;} #emotray.from-right{transform-origin:right center;}
@@ -1288,7 +1288,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v146';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v147';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -3722,8 +3722,8 @@
   // url = 'r:<run id>|t:<tap offsets>|m:<moment key>' (m last: a v135 client then just skips the pill).
   // A run of taps streams out in ~0.5s chunks; each carries its taps' ms offsets from the run's first
   // tap, so other screens replay your real rhythm with the counter climbing, even if chunks clump.
-  // four rows of seven: faces; reactions; gestures + projectiles; animals + the five resources (⋯ "more" ends it)
-  const EMOJI_TRAY = ['🙂', '😂', '😮', '😖', '😞', '😭', '😡', '🤮', '😈', '💀', '🫠', '🔥', '🙏', '👀', '🤘', '🖕', '🍅', '💩', '💐', '🥕', '♞', '🐇', '🐑', '🪵', '🪨', '🧱', '🌾'];
+  // three rows of nine: faces; reactions, gestures + projectiles; then 💐 🥕 🐇 and the five resources (⋯ "more" ends it)
+  const EMOJI_TRAY = ['🙂', '😂', '😮', '😖', '😞', '😭', '😡', '🤮', '😈', '💀', '🫠', '🔥', '🙏', '👀', '🤘', '🖕', '🍅', '💩', '💐', '🥕', '🐇', '🐑', '🪵', '🪨', '🧱', '🌾'];
   const EMO_CHUNK_MS = 500, EMO_IDLE_MS = 700, EMO_MAX = 40, MOMENT_LIVE_MS = 8000, CHIP_MS = 4000, CHIP_GAP_MS = 10000;
   let emoRun = null, emoFlushT = null, emoIdleT = null, trayT = null, chipT = null, lastChipAt = 0, pillT = null;
   const emoPlay = {};   // incoming runs: run id -> { at: local time of its first tap, last: latest scheduled tap, n }
