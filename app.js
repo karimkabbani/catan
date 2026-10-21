@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v147';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v148';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -1335,6 +1335,7 @@
   // a "👉 khalesna" button; a poke buzzes the slow player and shows everyone who poked.
   const TURN_LIMIT_MS = 120000, POKE_AFTER_MS = 30000, POKE_GAP_MS = 20000;
   let turnKey = null, turnStart = 0, lastPokeAt = 0;
+  const POKE_MERGE_MS = 3000, pokePile = { at: 0, names: [] };
   function turnLimit() { return demoMode ? 20000 : TURN_LIMIT_MS; }   // the showcase runs a fast clock
   function pokeAfter() { return demoMode ? 6000 : POKE_AFTER_MS; }
   function turnElapsed() {
@@ -1385,7 +1386,13 @@
     try { if (navigator.vibrate) navigator.vibrate([120, 60, 120]); } catch (_) { }
     const c = cornerOf(myColor); if (c) { c.el.classList.remove('poked'); void c.el.offsetWidth; c.el.classList.add('poked'); }
     let n = $('pokenote'); if (!n) { n = document.createElement('div'); n.id = 'pokenote'; document.body.appendChild(n); }
-    n.textContent = `${msg.name || 'Someone'}: khalesna! 👉`;
+    // pokes landing within POKE_MERGE_MS of each other share one notice: "Sam & Alex: khalesna!"
+    const who = msg.name || 'Someone', now = Date.now();
+    if (now - pokePile.at > POKE_MERGE_MS) pokePile.names = [];
+    if (!pokePile.names.includes(who)) pokePile.names.push(who);
+    pokePile.at = now;
+    const ns = pokePile.names;
+    n.textContent = `${ns.length < 2 ? ns[0] : ns.slice(0, -1).join(', ') + ' & ' + ns[ns.length - 1]}: khalesna! 👉`;
     n.classList.remove('show'); void n.offsetWidth; n.classList.add('show');
     clearTimeout(n._t); n._t = setTimeout(() => n.classList.remove('show'), 2400);
   }
