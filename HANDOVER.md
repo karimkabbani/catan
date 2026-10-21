@@ -418,6 +418,27 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    Revisit if people keep asking "what just happened?" mid-game (→ a) or argue about how a game was
    won (→ b/c). Whatever is built first, start logging actions early: history only exists from then on.
 
+9. ☐ **Undo by unanimous vote — DESIGNED, promising, not built (2026-10-21).** For misclicks.
+   - **Scope:** only YOUR last action, only while nobody else has acted since. Chained actions undo as
+     one unit: Knight = play + robber move + steal; a 7 = robber move + steal.
+   - **Undoable:** end turn, build road/settlement/city, bank/port trade, player trade, Year of Plenty,
+     Road Building, steal, Monopoly, Knight (Karim's call: the group is trusted and the victim votes).
+   - **Never:** dice roll, buying a dev card, the game-winning move. (Seeded RNG means re-stealing from
+     the same victim yields the same card, so undo can't fish for a better card — only leak knowledge.)
+   - **Vote:** unanimous ✓ from every other seated player. One ✗ cancels. 30s with any non-answer
+     cancels (never auto-approves; just keeps the game from hanging). Requester can cancel. Game is
+     frozen while a vote is open. No per-game limit.
+   - **Entry point:** after an undoable move, an 8s bar bottom-centre above the hand, only for the actor:
+     "Ended your turn · ↩ Undo" (always names what will be undone). After it fades, a ↩ stays in the
+     radial menu while the undo is still valid. Not in the banner (crowded, shared space). Voters get a
+     top card "Kay wants to undo: Ended turn · ✓ Allow / ✗ No (0:27)"; the requester sees
+     "Waiting for Sam, Alex… · Cancel".
+   - **Build notes:** the writer of an undoable action stores the pre-action state in the row (minus the
+     board, which never changes, a few KB), cleared by the next action. Vote via the svUpdate /
+     surrender CAS pattern; the final approver restores. Mark the restore (`state.undone` nonce) so
+     applyRemoteState skips its fly/steal/robber detectors and just snaps back + toasts. Next player
+     rolling before the vote = undo gone (correct). Effort: medium.
+
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
