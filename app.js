@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v150';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v151';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -841,12 +841,24 @@
       const statusDot = online ? `<span class="pstatus ${off ? 'off' : 'on'}" title="${off ? 'Offline' : 'Online'}"></span>` : '';
       el.innerHTML = `${di}${tbadge}${chatBtn}${dot}
         <div class="pcol">${stat(bdg.res, cards, '🃏', 'Resource cards', false, cards > 7)}${stat(bdg.card, dev, '🎴', 'Development cards')}${stat(bdg.vp, vp, '⭐', 'Victory points')}${stat(bdg.army, p.playedKnights, '⚔️', 'Knights played', p.hasLargestArmy)}${stat(bdg.road, road, '🛣️', 'Longest road', p.hasLongestRoad)}</div>
-        <div class="pport"${tap}><div class="pava${flagged ? ' flagged' : ''}${off ? ' offline' : ''}" style="border-color:${PCOLOR[p.color]}">${av}${statusDot}</div><div class="pname">${escapeHtml(p.name)}</div></div>${flagged ? '<span class="pflag">🏳️</span>' : ''}`;
+        <div class="pport"${tap}><div class="pava${flagged ? ' flagged' : ''}${off ? ' offline' : ''}" style="border-color:${PCOLOR[p.color]}">${av}${statusDot}${robbedPill(p.color)}</div><div class="pname">${escapeHtml(p.name)}</div></div>${flagged ? '<span class="pflag">🏳️</span>' : ''}`;
     });
     const usedSeats = {}; state.players.forEach((_, i) => { usedSeats[seatKey(i)] = 1; });
     ['tl', 'tr', 'br', 'bl'].forEach((k) => { if (!usedSeats[k]) { const el = $('p-' + k); if (el) el.style.display = 'none'; } });
   }
 
+  // times robbed, as tally marks on the portrait (from the first robbery on): | || ||| |||| 卌 卌| … then a number
+  const robbedSeen = {}, robbedBumpAt = {};
+  function tallyMarks(n) { return n < 5 ? '|'.repeat(n) : n < 10 ? '卌' + '|'.repeat(n - 5) : String(n); }
+  function robbedPill(color) {
+    const n = ((state.tally || {})[color] || {}).timesRobbed || 0;
+    if (!n) { robbedSeen[color] = 0; return ''; }
+    if (robbedSeen[color] != null && n > robbedSeen[color]) robbedBumpAt[color] = Date.now();   // went up -> shake it
+    robbedSeen[color] = n;
+    // the corners repaint often mid-animation: resume the shake where it was (negative delay) instead of restarting it
+    const since = Date.now() - (robbedBumpAt[color] || 0), bump = since < 700;
+    return `<span class="probbed${bump ? ' bump' : ''}"${bump ? ` style="animation-delay:-${since}ms"` : ''} title="Robbed ${n}×">🦹<b>${tallyMarks(n)}</b></span>`;
+  }
   const HUD = ASSETS.hud || {};
   function resIc(r) { return (HUD.res && HUD.res[r]) ? `<img class="ri" src="${HUD.res[r]}" alt="${r}">` : ICON[r]; }
   function resOrb(r, n) {
@@ -1760,19 +1772,20 @@
     const rows = state.players.filter((p) => T[p.color] && T[p.color].numbersNormal > 0).map((p) => {
       const t = T[p.color];
       return `<div class="ds-luck"><span class="dot" style="background:${PCOLOR[p.color]}"></span><b>${escapeHtml(p.name)}</b>`
-        + `<span>hit ${t.numbersHit}× · normal ${Math.round(t.numbersNormal)}</span></div>`;
+        + `<span>hit ${t.numbersHit}× · normal ${Math.round(t.numbersNormal)}${t.timesRobbed ? ` · 🦹${t.timesRobbed}` : ''}</span></div>`;
     }).join('');
     return rows ? `<div class="ds-lucks">${rows}</div><div class="ds-lucknote">Hit = rolls that paid that player · normal = usual with fair dice</div>` : '';
   }
   // end-of-game awards (only the ones that clear their bar): Robber magnet + Blessed / Cursed by the dice
-  const AWARD_MIN_ROBBER = 5, AWARD_MIN_LUCK = 4;
+  const AWARD_MIN_ROBBED = 3, AWARD_MIN_LUCK = 4;
   function gameAwards() {
     const T = (state && state.tally) || {};
     const name = (c) => escapeHtml((state.players.find((p) => p.color === c) || {}).name || '?');
     const ent = state.players.map((p) => ({ c: p.color, t: T[p.color] })).filter((e) => e.t);
     const out = [];
-    const rob = ent.slice().sort((a, b) => b.t.robberCost - a.t.robberCost)[0];
-    if (rob && rob.t.robberCost >= AWARD_MIN_ROBBER) out.push(['🦹', 'Robber magnet', `The robber cost ${name(rob.c)} ${rob.t.robberCost} cards.`]);
+    const robbed = (e) => e.t.timesRobbed || 0;
+    const rob = ent.slice().sort((a, b) => robbed(b) - robbed(a))[0];
+    if (rob && robbed(rob) >= AWARD_MIN_ROBBED) out.push(['🦹', 'Robber magnet', `${name(rob.c)} got robbed ${robbed(rob)} times.`]);
     const gap = (e) => e.t.numbersHit - e.t.numbersNormal;
     const luck = ent.filter((e) => e.t.numbersNormal > 0).sort((a, b) => gap(b) - gap(a));
     const line = (e) => `${name(e.c)}'s numbers came up ${e.t.numbersHit} times. Normal is about ${Math.round(e.t.numbersNormal)}.`;
@@ -2537,8 +2550,8 @@
     });
     const T = s.tally || {};
     s.players.forEach((p) => {
-      const rc = (T[p.color] || {}).robberCost || 0, step = rc >= 10 ? 10 : rc >= 5 ? 5 : 0;
-      if (step) lines.push([2, 'rob:' + p.color + ':' + step, `The robber has cost ${p.name} ${rc} cards`]);
+      const rc = (T[p.color] || {}).timesRobbed || 0, step = rc >= 5 ? 5 : rc >= 3 ? 3 : 0;
+      if (step) lines.push([2, 'rob:' + p.color + ':' + step, `${p.name} has been robbed ${rc} times`]);
     });
     if (n > ((a.rolls || []).length)) {   // a roll just happened
       const last = rolls[n - 1];
@@ -3312,8 +3325,8 @@
     let rs = 2026; s.rolls = [];
     for (let i = 0; i < 72; i++) { const r = C.rollDice(rs); rs = r.state; s.rolls.push(r.dice[0] + r.dice[1]); }
     s.dice = [3, 5];
-    const tal = [{ robberCost: 3, numbersHit: 21, numbersNormal: 15.2 }, { robberCost: 11, numbersHit: 12, numbersNormal: 13.6 },
-      { robberCost: 2, numbersHit: 7, numbersNormal: 12.4 }, { robberCost: 4, numbersHit: 10, numbersNormal: 9.8 }];
+    const tal = [{ robberCost: 3, timesRobbed: 1, numbersHit: 21, numbersNormal: 15.2 }, { robberCost: 11, timesRobbed: 4, numbersHit: 12, numbersNormal: 13.6 },
+      { robberCost: 2, timesRobbed: 0, numbersHit: 7, numbersNormal: 12.4 }, { robberCost: 4, timesRobbed: 2, numbersHit: 10, numbersNormal: 9.8 }];
     s.tally = {}; s.players.forEach((p, i) => { s.tally[p.color] = tal[i]; });
     s.targetPoints = C.victoryPoints(s, me.color, true) + 1;   // whatever the table size, the one city wins
     // your turn, already rolled, in the build phase
@@ -4840,7 +4853,7 @@
         n.robberHex = myHex(); n.turnPhase = 'main';
         const mine = pl(n, me), res = ['sheep', 'brick', 'wood'].find((r) => mine.resources[r] > 0) || 'sheep';
         mine.resources[res] = Math.max(0, mine.resources[res] - 1); pl(n, sam).resources[res]++;
-        (n.tally[me.color] = n.tally[me.color] || { robberCost: 0, numbersHit: 0, numbersNormal: 0 }).robberCost++;
+        const mt = (n.tally[me.color] = n.tally[me.color] || { robberCost: 0, numbersHit: 0, numbersNormal: 0 }); mt.robberCost++; mt.timesRobbed = (mt.timesRobbed || 0) + 1;
         n.log.push(`${sam.name} stole a card from ${me.name}.`);
       })],
       [1600, () => react(alex, '😂', 6)], [700, () => react(jordan, '😂', 3)], [1300, () => react(sam, '😈', 2)],
