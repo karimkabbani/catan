@@ -330,7 +330,7 @@
   #dicetab:active{transform:scale(0.92);}
   #dicetab.hidden{display:none;}
   /* ---- express yourself: emoji tray, bursts, reaction pill, suggested chip ---- */
-  #emotray{position:fixed; z-index:34; display:flex; flex-wrap:wrap; gap:4px; padding:6px; border-radius:22px; width:392px; max-width:calc(100vw - 20px); box-sizing:border-box;
+  #emotray{position:fixed; z-index:34; display:flex; flex-wrap:wrap; gap:4px; padding:6px; border-radius:22px; width:310px; max-width:calc(100vw - 20px); box-sizing:border-box;
     background:linear-gradient(180deg, rgba(40,22,8,0.95), rgba(28,15,5,0.95)); border:1px solid var(--gold-edge);
     box-shadow:0 4px 14px rgba(0,0,0,0.55); opacity:0; transform:scale(0.6); transition:opacity .14s, transform .16s cubic-bezier(.3,1.5,.6,1);}
   #emotray.from-left{transform-origin:left center;} #emotray.from-right{transform-origin:right center;}
@@ -356,6 +356,8 @@
   #momentpill.bump{transform:translateX(-50%) scale(1.06);}
   #momentpill .mpt{color:var(--muted); overflow:hidden; text-overflow:ellipsis;}
   #momentpill .mpc{font-weight:800; color:#fff;}
+  /* text-symbol 'emoji' (♞) take the text colour: keep them light on the dark tray and over the sea */
+  .emobtn, .emofloat, .emothrow, .emosplat, .emoghost{color:#f3e6c8;}
   .emohint{flex-basis:100%; text-align:center; font-size:11px; color:var(--muted); padding:3px 0 1px;}
   .emoghost{position:fixed; z-index:41; font-size:38px; line-height:1; transform:translate(-50%,-70%); pointer-events:none; filter:drop-shadow(0 4px 6px rgba(0,0,0,0.5));}
   .emothrow{position:fixed; z-index:36; font-size:32px; line-height:1; pointer-events:none;}
