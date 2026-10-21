@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v144';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v145';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -2439,8 +2439,8 @@
   // url = 'r:<run id>|t:<tap offsets>|m:<moment key>' (m last: a v135 client then just skips the pill).
   // A run of taps streams out in ~0.5s chunks; each carries its taps' ms offsets from the run's first
   // tap, so other screens replay your real rhythm with the counter climbing, even if chunks clump.
-  // two rows of eleven: faces, then reactions + gestures + the five resources (⋯ "more" closes row two)
-  const EMOJI_TRAY = ['🙂', '😂', '😮', '😖', '😞', '😭', '😡', '🤮', '😈', '💀', '🫠', '🔥', '🙏', '👀', '🤘', '🖕', '🐑', '🪵', '🪨', '🧱', '🌾'];
+  // three rows of nine: faces; reactions, gestures + projectiles; then the five resources (⋯ "more" ends row three)
+  const EMOJI_TRAY = ['🙂', '😂', '😮', '😖', '😞', '😭', '😡', '🤮', '😈', '💀', '🫠', '🔥', '🙏', '👀', '🤘', '🖕', '🍅', '💩', '💐', '🐑', '🪵', '🪨', '🧱', '🌾'];
   const EMO_CHUNK_MS = 500, EMO_IDLE_MS = 700, EMO_MAX = 40, MOMENT_LIVE_MS = 8000, CHIP_MS = 4000, CHIP_GAP_MS = 10000;
   let emoRun = null, emoFlushT = null, emoIdleT = null, trayT = null, chipT = null, lastChipAt = 0, pillT = null;
   const emoPlay = {};   // incoming runs: run id -> { at: local time of its first tap, last: latest scheduled tap, n }
@@ -2477,10 +2477,15 @@
       document.body.appendChild(e);
       setTimeout(() => e.remove(), 1900 + i * 90);
     }
-    if (combo > 1) {
+    if (combo > 1) comboTag(color, emoji + ' ×' + combo);
+  }
+  function comboTag(color, label) {
+    const c = cornerOf(color); if (!c) return;
+    const o = avatarCentre(c), top = c.pos[0] === 't', left = c.pos[1] === 'l';
+    {
       const id = 'emocombo-' + color; let t = document.getElementById(id);
       if (!t) { t = document.createElement('span'); t.id = id; t.className = 'emocombo'; document.body.appendChild(t); }
-      t.textContent = emoji + ' ×' + combo;
+      t.textContent = label;
       const r = c.el.getBoundingClientRect();   // beside the corner, over the sea — never on its stats
       t.style.left = (left ? r.right + 34 : r.left - 34) + 'px'; t.style.top = o.y + 'px';
       const tray = color === myColor && $('emotray');   // my own tray is open there -> sit just above it
@@ -2488,6 +2493,38 @@
       t.classList.remove('pop'); void t.offsetWidth; t.classList.add('pop');
       clearTimeout(t._t); t._t = setTimeout(() => t.remove(), 1600);
     }
+  }
+  // a thrown emoji arcs (spinning) from the thrower's portrait to the target's, then splats and sticks
+  function emojiThrow(from, to, emoji) {
+    const a = cornerOf(from), b = cornerOf(to);
+    if (!a || !b || !document.body.animate) { emojiBurst(from, emoji, 1, 0); return; }
+    const o = avatarCentre(a), d = avatarCentre(b), dx = d.x - o.x, dy = d.y - o.y;
+    const lift = -Math.min(150, 60 + Math.abs(dx) * 0.18), spin = (Math.random() < 0.5 ? -1 : 1) * 360;
+    const e = document.createElement('span');
+    e.className = 'emothrow'; e.textContent = emoji; e.style.left = o.x + 'px'; e.style.top = o.y + 'px';
+    document.body.appendChild(e);
+    const anim = e.animate([
+      { transform: 'translate(-50%,-50%) translate(0px,0px) scale(0.7) rotate(0deg)' },
+      { transform: `translate(-50%,-50%) translate(${dx * 0.5}px,${dy * 0.5 + lift}px) scale(1.35) rotate(${spin / 2}deg)` },
+      { transform: `translate(-50%,-50%) translate(${dx}px,${dy}px) scale(1) rotate(${spin}deg)` },
+    ], { duration: 650, easing: 'cubic-bezier(.35,0,.65,1)' });
+    playSound('whoosh', 0.2);
+    let landed = false;   // land once: on the animation's end, or by timer if the browser never reports it (backgrounded tab)
+    const land = () => { if (landed) return; landed = true; e.remove(); splat(to, emoji); };
+    anim.onfinish = land; setTimeout(land, 720);
+  }
+  function splat(color, emoji) {
+    const c = cornerOf(color); if (!c) return;
+    const o = avatarCentre(c);
+    const old = document.querySelectorAll('.emosplat[data-c="' + color + '"]');
+    if (old.length >= 6) old[0].remove();   // a barrage keeps at most six stuck on a face
+    const s = document.createElement('span');
+    s.className = 'emosplat'; s.dataset.c = color; s.textContent = emoji;
+    s.style.left = (o.x + Math.random() * 18 - 9) + 'px'; s.style.top = (o.y + Math.random() * 18 - 9) + 'px';
+    document.body.appendChild(s);
+    setTimeout(() => s.remove(), 3200);
+    c.el.classList.remove('hit'); void c.el.offsetWidth; c.el.classList.add('hit');
+    playSound('click', color === myColor ? 0.6 : 0.35);
   }
   // a moment collects reactions from everyone: "Sam robbed Alex · 😂 3 😡 1" under the banner
   function addReaction(key, emoji, n) {
@@ -2505,14 +2542,16 @@
     clearTimeout(pillT); pillT = setTimeout(() => { el.classList.add('out'); setTimeout(() => el.classList.add('hidden'), 250); }, 6000);
   }
   // one tap = one emoji floating out right away; the run streams to the others in chunks (see above)
-  function sendEmoji(emoji, key) {
+  function sendEmoji(emoji, key, target) {
     if (!online || !myColor) return;
+    target = (target && target !== myColor) ? target : null;
     if (!key && liveMoment && moments[liveMoment] && Date.now() - moments[liveMoment].at < MOMENT_LIVE_MS) key = liveMoment;
-    if (emoRun && (emoRun.emoji !== emoji || emoRun.key !== key)) endEmojiRun();
-    if (!emoRun) emoRun = { id: Math.random().toString(36).slice(2, 8), emoji, key, t0: Date.now(), n: 0, taps: [] };
+    if (emoRun && (emoRun.emoji !== emoji || emoRun.key !== key || emoRun.target !== target)) endEmojiRun();
+    if (!emoRun) emoRun = { id: Math.random().toString(36).slice(2, 8), emoji, key, target, t0: Date.now(), n: 0, taps: [] };
     if (emoRun.n >= EMO_MAX) return;
     emoRun.n++; emoRun.taps.push(Date.now() - emoRun.t0);
-    emojiBurst(myColor, emoji, 1, emoRun.n);
+    if (target) { emojiThrow(myColor, target, emoji); if (emoRun.n > 1) comboTag(myColor, `${emoji} ×${emoRun.n} → ${nameOf(target)}`); }
+    else emojiBurst(myColor, emoji, 1, emoRun.n);
     if (key) addReaction(key, emoji, 1);
     if (!emoFlushT) emoFlushT = setTimeout(flushEmoji, EMO_CHUNK_MS);
     clearTimeout(emoIdleT); emoIdleT = setTimeout(endEmojiRun, EMO_IDLE_MS);
@@ -2522,7 +2561,7 @@
     const r = emoRun; if (!r || !r.taps.length) return;
     const taps = r.taps; r.taps = [];
     if (demoMode) return;
-    LOBBY.sendBroadcast({ type: 'emoji', text: r.emoji, dur: taps.length, url: `r:${r.id}|t:${taps.join(',')}` + (r.key ? '|m:' + r.key : ''),
+    LOBBY.sendBroadcast({ type: 'emoji', text: r.emoji, dur: taps.length, url: `r:${r.id}|t:${taps.join(',')}` + (r.target ? '|a:' + r.target : '') + (r.key ? '|m:' + r.key : ''),
       name: (AUTH.me && AUTH.me.name) || null, avatar: (AUTH.me && AUTH.me.avatar) || null, code: NET.code || LOBBY.table || null, color: myColor });
   }
   function endEmojiRun() {
@@ -2537,7 +2576,7 @@
     if (!emoji || !inGame()) return;
     const seg = {};
     String(msg.url || '').split('|').forEach((x) => { const i = x.indexOf(':'); if (i > 0) seg[x.slice(0, i)] = x.slice(i + 1); });
-    const key = seg.m || null, n = Math.max(1, Math.min(EMO_MAX, msg.dur || 1));
+    const key = seg.m || null, target = seg.a || null, n = Math.max(1, Math.min(EMO_MAX, msg.dur || 1));
     let taps = (seg.t || '').split(',').filter((x) => x !== '').map(Number).filter((x) => x >= 0);
     if (!taps.length) taps = Array.from({ length: n }, (_, i) => i * 110);   // older sender / showcase bots: a made-up rhythm
     const runId = seg.r || ('x' + Math.random()), now = Date.now();
@@ -2546,7 +2585,13 @@
     taps.slice(0, EMO_MAX).forEach((off) => {
       const when = Math.max(run.at + off, run.last + 70, now);
       run.last = when;
-      setTimeout(() => { if (!inGame()) return; run.n++; emojiBurst(msg.color, emoji, 1, run.n); if (key) addReaction(key, emoji, 1); }, when - now);
+      setTimeout(() => {
+        if (!inGame()) return;
+        run.n++;
+        if (target) { emojiThrow(msg.color, target, emoji); if (run.n > 1) comboTag(msg.color, `${emoji} ×${run.n} → ${nameOf(target)}`); }
+        else emojiBurst(msg.color, emoji, 1, run.n);
+        if (key) addReaction(key, emoji, 1);
+      }, when - now);
     });
     clearTimeout(run.gc); run.gc = setTimeout(() => { delete emoPlay[runId]; }, 15000);
   }
@@ -2558,8 +2603,11 @@
     const o = avatarCentre(c), left = c.pos[1] === 'l';
     const t = document.createElement('div');
     t.id = 'emotray'; t.className = left ? 'from-left' : 'from-right';
-    t.innerHTML = EMOJI_TRAY.map((e) => `<button class="emobtn" onclick="CATAN.emo('${e}')">${e}</button>`).join('')
-      + `<button class="emobtn more" onclick="CATAN.emoMore()" aria-label="More">⋯</button>`;
+    let hint = 0; try { hint = +localStorage.getItem('catanThrowHint') || 0; localStorage.setItem('catanThrowHint', hint + 1); } catch (_) { }
+    t.innerHTML = EMOJI_TRAY.map((e) => `<button class="emobtn" data-e="${e}">${e}</button>`).join('')
+      + `<button class="emobtn more" onclick="CATAN.emoMore()" aria-label="More">⋯</button>`
+      + (hint < 3 ? `<div class="emohint">Tap to react · drag onto a player to throw</div>` : '');
+    wireTrayDrag(t);
     const r = c.el.getBoundingClientRect(), top = c.pos[0] === 't';
     if (left) t.style.left = (r.right + 8) + 'px'; else t.style.right = (window.innerWidth - r.left + 8) + 'px';
     document.body.appendChild(t);
@@ -2568,6 +2616,37 @@
     t.style.top = Math.max(6, Math.min(window.innerHeight - h - 6, y)) + 'px';
     requestAnimationFrame(() => t.classList.add('in'));
     bumpTray();
+  }
+  function nameOf(color) { return ((state && state.players.find((p) => p.color === color)) || {}).name || ''; }
+  // which other player's portrait is under this point (null = nobody / yourself)
+  function throwTargetAt(x, y) {
+    const el = document.elementFromPoint(x, y), corner = el && el.closest && el.closest('.corner');
+    if (!corner || !state) return null;
+    const i = state.players.findIndex((_, k) => $('p-' + seatKey(k)) === corner);
+    const c = i >= 0 ? state.players[i].color : null;
+    return c && c !== myColor ? c : null;
+  }
+  function wireTrayDrag(t) {
+    t.querySelectorAll('.emobtn[data-e]').forEach((b) => {
+      b.addEventListener('pointerdown', (ev) => {
+        ev.preventDefault();
+        const e = b.dataset.e, sx = ev.clientX, sy = ev.clientY;
+        let ghost = null, over = null;
+        try { b.setPointerCapture(ev.pointerId); } catch (_) { }
+        const mark = (c) => { if (over === c) return; if (over && cornerOf(over)) cornerOf(over).el.classList.remove('throwtarget'); over = c; if (c && cornerOf(c)) cornerOf(c).el.classList.add('throwtarget'); };
+        const move = (m) => {
+          if (!ghost && Math.hypot(m.clientX - sx, m.clientY - sy) > 10) { ghost = document.createElement('span'); ghost.className = 'emoghost'; ghost.textContent = e; document.body.appendChild(ghost); }
+          if (ghost) { ghost.style.left = m.clientX + 'px'; ghost.style.top = m.clientY + 'px'; mark(throwTargetAt(m.clientX, m.clientY)); }
+        };
+        const up = (u) => {
+          b.removeEventListener('pointermove', move); b.removeEventListener('pointerup', up); b.removeEventListener('pointercancel', up);
+          if (ghost) { ghost.remove(); const tgt = u.type === 'pointerup' ? throwTargetAt(u.clientX, u.clientY) : null; mark(null); if (tgt) sendEmoji(e, null, tgt); }
+          else if (u.type === 'pointerup') sendEmoji(e);
+          bumpTray();
+        };
+        b.addEventListener('pointermove', move); b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up);
+      });
+    });
   }
   function bumpTray() { clearTimeout(trayT); trayT = setTimeout(closeEmojiTray, 6000); }
   function closeEmojiTray() { clearTimeout(trayT); const t = $('emotray'); if (t) t.remove(); }
@@ -4454,7 +4533,7 @@
   function exitGameUI() {
     ['leavetab', 'radialtab', 'settingstab', 'dicetab', 'trophytab', 'dicereveal', 'toast', 'confirmbar', 'countdown'].forEach((id) => { const e = $(id); if (e) e.classList.add('hidden'); });
     const rr = $('radialroot'); if (rr) { rr.classList.remove('open'); rr.classList.add('hidden'); }
-    document.querySelectorAll('.flyres, .robberdrag, .emofloat, .emocombo').forEach((el) => el.remove());
+    document.querySelectorAll('.flyres, .robberdrag, .emofloat, .emocombo, .emothrow, .emosplat, .emoghost').forEach((el) => el.remove());
     closeEmojiTray(); hideChip(); const mp = $('momentpill'); if (mp) mp.classList.add('hidden');
     document.body.classList.remove('ingame', 'trading', 'gameover');
     hideOverlay();
@@ -4641,6 +4720,7 @@
         n.log.push(`${sam.name} stole a card from ${me.name}.`);
       })],
       [1600, () => react(alex, '😂', 6)], [700, () => react(jordan, '😂', 3)], [1300, () => react(sam, '😈', 2)],
+      [1200, () => showBroadcast({ type: 'emoji', text: '🍅', dur: 4, url: ['a:' + sam.color, fresh()].filter(Boolean).join('|'), color: jordan.color, name: jordan.name })],
       [3200, () => step((n) => { n.longestRoadOwner = sam.color; n.players.forEach((p) => { p.hasLongestRoad = p.color === sam.color; }); })],
       [1500, () => react(sam, '💪', 4)], [900, () => react(jordan, '👀', 2)],
       [3500, () => step((n) => turn(n, alex))],
@@ -4682,6 +4762,10 @@
   }
   // in the demo, your emoji get a bot reply instead of going to the server
   function demoEcho(p) {
+    if (p.target) {   // you hit a bot -> it throws a tomato back
+      setTimeout(() => showBroadcast({ type: 'emoji', text: '🍅', dur: 2, url: 'a:' + myColor, color: p.target, name: nameOf(p.target) }), 1100);
+      return;
+    }
     const bots = state.players.filter((x) => x.color !== myColor), b = bots[(Math.random() * bots.length) | 0];
     const pick = ['😂', '🔥', '👀', '😭'][(Math.random() * 4) | 0];
     setTimeout(() => showBroadcast({ type: 'emoji', text: pick, dur: 1 + ((Math.random() * 4) | 0), url: p.key ? 'm:' + p.key : null, color: b.color, name: b.name }), 900 + Math.random() * 900);

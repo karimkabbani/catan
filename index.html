@@ -330,12 +330,12 @@
   #dicetab:active{transform:scale(0.92);}
   #dicetab.hidden{display:none;}
   /* ---- express yourself: emoji tray, bursts, reaction pill, suggested chip ---- */
-  #emotray{position:fixed; z-index:34; display:flex; flex-wrap:wrap; gap:4px; padding:6px; border-radius:22px; width:476px; max-width:calc(100vw - 20px); box-sizing:border-box;
+  #emotray{position:fixed; z-index:34; display:flex; flex-wrap:wrap; gap:4px; padding:6px; border-radius:22px; width:392px; max-width:calc(100vw - 20px); box-sizing:border-box;
     background:linear-gradient(180deg, rgba(40,22,8,0.95), rgba(28,15,5,0.95)); border:1px solid var(--gold-edge);
     box-shadow:0 4px 14px rgba(0,0,0,0.55); opacity:0; transform:scale(0.6); transition:opacity .14s, transform .16s cubic-bezier(.3,1.5,.6,1);}
   #emotray.from-left{transform-origin:left center;} #emotray.from-right{transform-origin:right center;}
   #emotray.in{opacity:1; transform:scale(1);}
-  .emobtn{width:38px; height:38px; border:none; border-radius:50%; background:rgba(255,255,255,0.06); font-size:23px; line-height:1;
+  .emobtn{width:38px; height:38px; border:none; border-radius:50%; background:rgba(255,255,255,0.06); font-size:23px; line-height:1; touch-action:none; -webkit-user-select:none; user-select:none;
     padding:0; cursor:pointer; transition:transform .08s;}
   .emobtn:active{transform:scale(1.3);}
   .emobtn.more{color:var(--gold); font-size:20px; font-weight:800; background:rgba(255,220,170,0.10);}
@@ -356,6 +356,15 @@
   #momentpill.bump{transform:translateX(-50%) scale(1.06);}
   #momentpill .mpt{color:var(--muted); overflow:hidden; text-overflow:ellipsis;}
   #momentpill .mpc{font-weight:800; color:#fff;}
+  .emohint{flex-basis:100%; text-align:center; font-size:11px; color:var(--muted); padding:3px 0 1px;}
+  .emoghost{position:fixed; z-index:41; font-size:38px; line-height:1; transform:translate(-50%,-70%); pointer-events:none; filter:drop-shadow(0 4px 6px rgba(0,0,0,0.5));}
+  .emothrow{position:fixed; z-index:36; font-size:32px; line-height:1; pointer-events:none;}
+  .emosplat{position:fixed; z-index:36; font-size:34px; line-height:1; pointer-events:none; animation:splat 3.2s ease forwards;}
+  @keyframes splat{0%{transform:translate(-50%,-50%) scale(1.9);} 8%{transform:translate(-50%,-50%) scale(0.85);} 14%{transform:translate(-50%,-50%) scale(1.05);}
+    20%,80%{transform:translate(-50%,-50%) scale(1); opacity:1;} 100%{transform:translate(-50%,-50%) scale(1); opacity:0;}}
+  .corner.hit{animation:hitwobble .45s ease;}
+  @keyframes hitwobble{0%,100%{rotate:0deg;} 25%{rotate:-4deg;} 50%{rotate:3deg;} 75%{rotate:-2deg;}}
+  .corner.throwtarget{outline:3px solid var(--gold); outline-offset:2px;}
   #reactchip{position:fixed; z-index:34; width:44px; height:44px; border-radius:50%; font-size:24px; line-height:1; padding:0; cursor:pointer;
     background:radial-gradient(circle at 40% 34%, #5a4326, #22140a); border:1.5px solid var(--gold); box-shadow:0 0 0 0 rgba(233,196,90,0.7);
     opacity:0; transform:scale(0.4); transition:opacity .15s, transform .2s cubic-bezier(.3,1.6,.6,1); animation:chippulse 1.2s ease-in-out infinite;}
@@ -1064,7 +1073,7 @@
   #rotate .r-land, #rotate .r-port{display:none;}
   @media (orientation:portrait) and (pointer:coarse){   /* in a game + portrait -> rotate to landscape */
     body.ingame #stage, body.ingame #overlay, body.ingame #confirmbar, body.ingame #radialroot,
-    body.ingame #radialtab, body.ingame #dicetab, body.ingame #trophytab, body.ingame #emotray, body.ingame #reactchip, body.ingame #settingstab, body.ingame #dicereveal, body.ingame #toast, body.ingame #tradeprompt{display:none !important;}
+    body.ingame #radialtab, body.ingame #dicetab, body.ingame #trophytab, body.ingame #emotray, body.ingame #reactchip, body.ingame .emoghost, body.ingame #settingstab, body.ingame #dicereveal, body.ingame #toast, body.ingame #tradeprompt{display:none !important;}
     body.ingame #rotate{display:flex !important; position:fixed; inset:0; z-index:200; flex-direction:column; align-items:center; justify-content:center;
       gap:16px; background:radial-gradient(120% 120% at 50% 40%, #1f4f74, #0a2336); text-align:center; padding:24px;}
     body.ingame #rotate .r-land{display:block;}
