@@ -439,7 +439,9 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
      applyRemoteState skips its fly/steal/robber detectors and just snaps back + toasts. Next player
      rolling before the vote = undo gone (correct). Effort: medium.
 
-10. ☐ **Rock-paper-scissors to decide who starts — DESIGNED, not built (2026-10-22).**
+10. ✅ **Rock-paper-scissors to decide who starts — BUILT v161 (2026-10-22).** Host-only lobby switch (guests
+   learn at the showdown: Karim declined the presence migration, kept as `server/migrate-whostarts.sql`,
+   NOT applied). `state.rps` + `rpsUpdate`/`syncRps`; engine refuses moves until done; demo: `?rpsdemo`.
    - **Lobby option** "Who starts: 🎲 Random / ✊ Rock-paper-scissors", default RPS. Online only
      (pass-and-play keeps the spinner, since picks would be visible). Also runs before rematches.
    - **Round:** everyone gets ✊ ✋ ✌️ + a 5s countdown; picks hidden until a simultaneous reveal over

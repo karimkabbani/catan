@@ -265,6 +265,7 @@ function stealCandidatesForHex(s: GameState, hex: number, robberColor: PlayerCol
 
 export function applyAction(state: GameState, action: Action, byColor: PlayerColor): ApplyResult {
   if (state.phase === 'ended') return err('The game is over.');
+  if (state.rps && !state.rps.done) return err('Deciding who starts…');
   const s = clone(state);
   const cur = currentColor(s);
 

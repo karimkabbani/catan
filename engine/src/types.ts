@@ -151,6 +151,10 @@ export interface GameState {
   /** Per-player running tallies for the end-of-game awards + the dice-stats luck line. */
   tally: Partial<Record<PlayerColor, Tally>>;
   robberHex: number;
+  /** Rock-paper-scissors to decide who starts (driven by the app; the engine only blocks moves until done). */
+  rps?: { done?: boolean; [k: string]: unknown } | null;
+  /** How this table decides who starts ('rps' | 'random'); rematches reuse it. */
+  whoStarts?: string;
   /** Who last moved the robber (7 or Knight) — it wears their face. null/absent = the classic robber. */
   robberBy?: PlayerColor | null;
   /** Whom they robbed with that move (null = nobody). */

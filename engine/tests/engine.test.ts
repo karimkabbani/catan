@@ -193,6 +193,15 @@ describe('turn mechanics', () => {
     expect(r.state.robberVictim).toBeNull();
   });
 
+  it('blocks every move until rock-paper-scissors has decided who starts', () => {
+    const s0 = createGame({ id: 'g5f', players: PLAYERS, seed: 3 });
+    const v = s0.board.vertices[0].id;
+    const blocked = applyAction({ ...s0, rps: { done: false } }, { type: 'buildSettlement', vertex: v }, currentColor(s0));
+    expect(blocked.ok).toBe(false);
+    const open = applyAction({ ...s0, rps: { done: true } }, { type: 'buildSettlement', vertex: v }, currentColor(s0));
+    expect(open.ok).toBe(true);
+  });
+
   it('only the current player may act', () => {
     const s = runSetup(createGame({ id: 'g6', players: PLAYERS, seed: 5 }));
     const wrong = applyAction(s, { type: 'rollDice' }, 'blue');
