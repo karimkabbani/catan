@@ -455,6 +455,27 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
      lapse passes, any phone resolves (CAS = once). Group is trusted, so picks in shared state are fine.
      Engine needs a helper to rotate `order`/`setupOrder` to the chosen first player before any setup move.
 
+11. ☐ **The robber wears the thief's face — liked, decisions pending (2026-10-22).** Whoever last moved
+   the robber (7 or Knight) is shown on it: their profile photo in a round token with a black bandit
+   eye-mask drawn over it (no photo -> initial on their colour, masked). Start of game = the normal robber
+   on the desert. Follows the robber everywhere (board, the fly animation, Who robbed who). Tap it:
+   "Sam put me here · robbed Karim". Profile photos already exist -> low cost.
+   - **Open decision:** replace the whole robber figure with the masked token, or keep the figure with
+     the masked photo as a badge on it.
+
+12. ☐ **Walkie-talkie (push-to-talk) — liked, decisions pending (2026-10-22).** A 🎙 next to your portrait:
+   tap to start talking (red "LIVE" ring on your portrait), tap to stop, auto-cut at 15s. Not hold-to-talk
+   (voice notes dropped press-and-hold in v87 because it was fragile on iOS). Speaker's portrait pulses
+   sound waves while their audio plays; two speakers at once both play. Settings toggle "Walkie-talkie
+   sound"; a muted player shows 🔇 so others know.
+   - **Engine options:** A) near-live: ~1s chunks uploaded while talking (reusing the voice-note storage +
+     messages plumbing) and auto-played as they land, ~1–2s delay — recommended start. B) true live
+     (WebRTC) needs a TURN/relay server for mobile networks — more setup + possible running cost.
+   - **Main risk:** iOS blocks audio that starts without a tap; the v131 audio-session keepalive should
+     allow auto-play, but test on real phones first.
+   - **Open decisions:** start with A? Auto-play incoming audio by default, or muted until each player
+     opts in?
+
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
