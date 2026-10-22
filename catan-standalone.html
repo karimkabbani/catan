@@ -1386,7 +1386,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v162';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v163';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -3915,9 +3915,10 @@
     if (!demoMode) svUpdate((s) => { if (!s.rps || s.rps.done || s.rps.round !== round) return false; s.rps.picks[me] = v; });
   }
   function rpsResolve() {
-    const R = state.rps, round = R.round;
-    if (rpsLocal.resolving[round]) return;
-    rpsLocal.resolving[round] = true;
+    const R = state.rps, round = R.round, k = gameKey() + ':' + round;
+    // one attempt in flight per GAME + round; a stalled attempt (network blip) is retried after 4s
+    if (rpsLocal.resolving[k] && Date.now() - rpsLocal.resolving[k] < 4000) return;
+    rpsLocal.resolving[k] = Date.now();
     rpsUpdate((s) => {
       const Q = s.rps; if (!Q || Q.done || Q.round !== round) return false;
       const full = {}, auto = [];
@@ -3938,8 +3939,8 @@
   }
   // showcase bots: everyone but Jordan picks at a random moment; Jordan never does (shows the 🎲 case)
   function rpsBots() {
-    const R = state.rps; if (!demoMode || !R || R.done || rpsLocal.bots[R.round]) return;
-    rpsLocal.bots[R.round] = true;
+    const R = state.rps, bk = gameKey() + ':' + (R && R.round); if (!demoMode || !R || R.done || rpsLocal.bots[bk]) return;
+    rpsLocal.bots[bk] = true;
     R.alive.forEach((c, i) => {
       if (c === myColor || i === 3) return;
       setTimeout(() => { const Q = state.rps; if (Q && Q.round === R.round && !Q.done) { Q.picks[c] = 'rps'[(Math.random() * 3) | 0]; syncRps(true); } }, 900 + Math.random() * 3000);
