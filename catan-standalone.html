@@ -180,6 +180,12 @@
   .rpsname{display:flex; align-items:center; gap:4px; font-size:13px; font-weight:700;}
   .rpsauto{font-size:11px; color:var(--muted);}
   .rpsline{font-size:15px; text-align:center;} .rpsline b{color:var(--gold);}
+  .rpspos{display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:8px; width:100%;}
+  .rpsposbtn{display:flex; flex-direction:column; align-items:center; gap:2px; padding:9px 6px; border-radius:12px; cursor:pointer;
+    border:1.5px solid rgba(233,196,90,0.55); background:rgba(255,255,255,0.06); color:var(--ink);}
+  .rpsposbtn b{font-family:-apple-system, system-ui, 'Segoe UI', Roboto, sans-serif; font-size:20px; color:var(--gold);}
+  .rpsposbtn span{font-size:11.5px; color:var(--muted);}
+  .rpsposbtn:active{transform:scale(0.96); background:rgba(233,196,90,0.22);}
   .rpswin{display:flex; align-items:center; gap:14px;}
   .rpswin img{width:70px; height:80px; border-radius:10px; object-fit:cover; border:3px solid var(--gold); box-shadow:0 0 22px rgba(233,196,90,0.7);}
   .rpswinner{font-family:var(--serif); font-size:26px; color:var(--gold);}
@@ -1403,7 +1409,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v165';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v166';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -3920,6 +3926,7 @@
   //   so once), filling silent players with a random hand marked 🎲. Exactly two shapes thrown -> those
   //   with the winning shape play on; all same / all three -> draw. 5 draws -> the game picks. The engine
   //   refuses every move until done; the winner is rotated to the front of the turn order.
+  const RPS_CHOOSE_MS = 20000;   // the winner's time to choose when to go
   const RPS_FIRST_MS = 10000, RPS_PICK_MS = 5000, RPS_REVEAL_MS = 3400, RPS_WIN_MS = 2800, RPS_MAX_ROUNDS = 5;   // round 1 is roomier: people are still settling in / turning their phone
   const RPS_HAND = { r: '✊', p: '✋', s: '✌️' }, RPS_BEATS = { r: 's', s: 'p', p: 'r' };
   const rpsLocal = { seen: {}, resolving: {}, winShown: {}, bots: {}, key: null };
@@ -3962,13 +3969,30 @@
       else if (round >= RPS_MAX_ROUNDS) { winners = [Q.alive[(Math.random() * Q.alive.length) | 0]]; tooMany = true; }
       Q.reveal = { round, picks: full, auto, winners, tooMany };
       const alive = winners.length ? winners : Q.alive;
-      if (alive.length === 1) {
-        Q.done = true; Q.winner = alive[0];
-        const at = s.order.indexOf(alive[0]);   // the winner goes first; the rest follow around the table
-        if (at > 0) s.order = s.order.slice(at).concat(s.order.slice(0, at));
-        s.currentPlayerIndex = 0;
-      } else { Q.round = round + 1; Q.alive = alive; Q.picks = {}; Q.deadline = Date.now() + RPS_REVEAL_MS + RPS_PICK_MS; }
+      if (alive.length === 1) { Q.winner = alive[0]; Q.chooseDeadline = Date.now() + RPS_REVEAL_MS + RPS_CHOOSE_MS; }   // they choose when to go
+      else { Q.round = round + 1; Q.alive = alive; Q.picks = {}; Q.deadline = Date.now() + RPS_REVEAL_MS + RPS_PICK_MS; }
     });
+  }
+  // the winner picks their position; everyone else keeps their place around the table, rotated to fit
+  function rpsChooseMut(k, auto) {
+    return (s) => {
+      const Q = s.rps; if (!Q || Q.done || !Q.winner) return false;
+      const seats = s.players.map((p) => p.color), n = seats.length, wi = seats.indexOf(Q.winner);
+      const first = ((wi - (k - 1)) % n + n) % n;
+      s.order = seats.slice(first).concat(seats.slice(0, first)); s.currentPlayerIndex = 0;
+      Q.position = k; Q.chooseAuto = !!auto; Q.done = true;
+    };
+  }
+  function rpsChoose(k) {
+    const R = state && state.rps; if (!R || R.done || !R.winner || myColor !== R.winner) return;
+    rpsUpdate(rpsChooseMut(k, false));
+  }
+  const ORD = ['1st', '2nd', '3rd', '4th'];
+  function rpsPosHint(k, n) {   // the setup snake: 1…n, then n…1
+    if (n === 1) return '';
+    if (k === 1) return 'first, and last in round 2';
+    if (k === n) return 'two settlements in a row';
+    return `${ORD[k - 1]} in round 1, ${ORD[n - k]} in round 2`;
   }
   // showcase bots: everyone but Jordan picks at a random moment; Jordan never does (shows the 🎲 case)
   function rpsBots() {
@@ -3991,13 +4015,14 @@
     if (R.done && rpsLocal.winShown[R.winner + ':' + gk] === 'gone') return 'gone';
     if (R.reveal && !rpsLocal.seen[gk + ':' + R.reveal.round]) rpsLocal.seen[gk + ':' + R.reveal.round] = now;
     if (R.reveal && now - rpsLocal.seen[gk + ':' + R.reveal.round] < RPS_REVEAL_MS) return 'reveal';
-    return R.done ? 'win' : 'pick';
+    return R.done ? 'win' : R.winner ? 'choose' : 'pick';
   }
   // the corners show the result: losers fade, winners glow (read by renderPanels on every redraw)
   function rpsCornerClass(color) {
-    const m = rpsMode(); if (m !== 'reveal' && m !== 'win') return '';
+    const m = rpsMode(); if (m !== 'reveal' && m !== 'win' && m !== 'choose') return '';
     const R = state.rps;
     if (m === 'win') return color === R.winner ? ' spin-win' : '';
+    if (m === 'choose') return color === R.winner ? ' rps-won' : '';
     const V = R.reveal; if (!V.winners.length && !V.tooMany) return '';   // a draw: nobody fades
     return V.winners.includes(color) ? ' rps-won' : ' rps-out';
   }
@@ -4020,7 +4045,7 @@
   function rpsCrown(color) {
     // placed once the corner's "goes first" glow has finished growing, right on top of the portrait
     setTimeout(() => {
-      const k = cornerOf(color); if (!k || rpsMode() !== 'win') return;
+      const k = cornerOf(color); if (!k || (rpsMode() !== 'win' && rpsMode() !== 'choose') || document.querySelector('.rpscrown')) return;
       const av = k.el.querySelector('.pava') || k.el, r = av.getBoundingClientRect(), el = document.createElement('div');
       el.className = 'rpscrown'; el.textContent = '👑';
       el.style.left = (r.left + r.width / 2) + 'px'; el.style.top = (r.top + 6) + 'px';
@@ -4068,11 +4093,36 @@
         const shapes = [...new Set(Object.values(V.picks))];
         setRpsBanner(V.tooMany ? `Too many draws. The game decides 🎲: ${escapeHtml(nameOf(V.winners[0]))}`
           : !V.winners.length ? 'Draw! Again'
-          : `${RPS_HAND[V.picks[V.winners[0]]]} beats ${RPS_HAND[shapes.find((x) => x !== V.picks[V.winners[0]])]} · ${escapeHtml(nameList(V.winners))} ${V.winners.length > 1 ? 'play on' : 'wins'}`);
+          : `${RPS_HAND[V.picks[V.winners[0]]]} beats ${RPS_HAND[shapes.find((x) => x !== V.picks[V.winners[0]])]} · ${escapeHtml(nameList(V.winners))} ${V.winners.length > 1 ? 'play on' : 'wins' + (V.auto.includes(V.winners[0]) ? ' (on a random pick 🎲)' : '')}`);
         if (rpsLocal.key !== key) {
           playSound('click', 0.6);
           if (myColor && V.auto.includes(myColor)) toast(`You didn't pick in time, so the game threw ${RPS_HAND[V.picks[myColor]]} for you`);
         }
+      }
+    } else if (mode === 'choose') {
+      const w = R.winner, mine = myColor === w, n = state.players.length;
+      const left = Math.max(0, Math.ceil((R.chooseDeadline - now) / 1000));
+      key = 'choose:' + w + ':' + mine;
+      if (key !== rpsLocal.key || force) {
+        rpsBoardClear(); renderPanels(); rpsCrown(w);
+        if (mine) {
+          let el = root;
+          if (!el) { el = document.createElement('div'); el.id = 'rpsroot'; document.body.appendChild(el); }
+          el.innerHTML = `<div class="rpscard"><div class="rpshead"><b>👑 You won! When do you go?</b><span class="rpstime" id="rps-t">0:${String(left).padStart(2, '0')}</span></div>`
+            + `<div class="rpspos">${Array.from({ length: n }, (_, i) => i + 1).map((k) => `<button class="rpsposbtn" onclick="CATAN.rpsChoose(${k})"><b>${ORD[k - 1]}</b><span>${rpsPosHint(k, n)}</span></button>`).join('')}</div>`
+            + `<div class="rpsnote">Everyone else keeps their place around the table. No choice in time: you go 1st.</div></div>`;
+          el.classList.remove('hidden');
+        } else hideCard();
+        setRpsBanner(`👑 ${escapeHtml(nameOf(w))} won · choosing when to go…`);
+      }
+      const t = $('rps-t'); if (t) t.textContent = '0:' + String(left).padStart(2, '0');
+      if (demoMode && !mine && !rpsLocal.bots[gk + ':choose']) {   // a showcase bot takes its pick
+        rpsLocal.bots[gk + ':choose'] = true;
+        setTimeout(() => { if (state.rps && !state.rps.done) rpsUpdate(rpsChooseMut(1 + ((Math.random() * n) | 0), false)); }, 2500);
+      }
+      if (now > R.chooseDeadline + 600) {   // no choice in time -> 1st (any phone, once)
+        const ck = gk + ':choose';
+        if (!rpsLocal.resolving[ck] || now - rpsLocal.resolving[ck] > 4000) { rpsLocal.resolving[ck] = now; rpsUpdate(rpsChooseMut(1, true)); }
       }
     } else {   // win
       const w = R.winner, wk = w + ':' + gk;
@@ -4080,8 +4130,9 @@
       if (key !== rpsLocal.key || force) {
         hideCard(); rpsBoardClear(); renderPanels();
         rpsCrown(w);
-        const V = R.reveal || {};
-        setRpsBanner(`👑 ${escapeHtml(nameOf(w))} goes first${V.auto && V.auto.includes(w) ? ' (on a random pick 🎲)' : ''}`);
+        const first = state.order[0];
+        setRpsBanner(R.chooseAuto ? `👑 ${escapeHtml(nameOf(w))} didn't choose, so goes 1st`
+          : `👑 ${escapeHtml(nameOf(w))} chose to go ${ORD[(R.position || 1) - 1]}${first !== w ? ` · ${escapeHtml(nameOf(first))} starts` : ''}`);
       }
       if (!rpsLocal.winShown[wk]) {
         rpsLocal.winShown[wk] = now;
@@ -4847,6 +4898,7 @@
     exitDemo: () => exitDemo(),
     rmPropose: () => rmPropose(),
     rps: (v) => rpsPick(v),
+    rpsChoose: (k) => rpsChoose(k),
     robberInfo: () => { const by = state && state.robberBy; if (!by) return; const v = state.robberVictim; toast(`${nameOf(by)} put the robber here${v ? ` and robbed ${nameOf(v)}` : ''}`); },
     robberies: (c) => openRobberies(c),
     gg: () => sayGG(),
