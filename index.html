@@ -1189,7 +1189,7 @@
   #rotate .r-land, #rotate .r-port{display:none;}
   @media (orientation:portrait) and (pointer:coarse){   /* in a game + portrait -> rotate to landscape */
     body.ingame #stage, body.ingame #overlay, body.ingame #confirmbar, body.ingame #radialroot,
-    body.ingame #radialtab, body.ingame #dicetab, body.ingame #trophytab, body.ingame #emotray, body.ingame #reactchip, body.ingame .emoghost, body.ingame #settingstab, body.ingame #dicereveal, body.ingame #toast, body.ingame #tradeprompt{display:none !important;}
+    body.ingame #radialtab, body.ingame #dicetab, body.ingame #trophytab, body.ingame #emotray, body.ingame #reactchip, body.ingame .emoghost, body.ingame #rpsroot, body.ingame .rpsb, body.ingame .rpscrown, body.ingame #settingstab, body.ingame #dicereveal, body.ingame #toast, body.ingame #tradeprompt{display:none !important;}
     body.ingame #rotate{display:flex !important; position:fixed; inset:0; z-index:200; flex-direction:column; align-items:center; justify-content:center;
       gap:16px; background:radial-gradient(120% 120% at 50% 40%, #1f4f74, #0a2336); text-align:center; padding:24px;}
     body.ingame #rotate .r-land{display:block;}
@@ -1373,6 +1373,7 @@
         roads: roads,
         avatars: ['assets/avatars/p1.png', 'assets/avatars/p2.png', 'assets/avatars/p3.png', 'assets/avatars/p4.png'],
         robber: 'assets/robber.png',
+        robberBody: 'assets/robber-body.png',   // the robber with head + hat cut away: the thief's face goes on top
         logo:   'assets/logo.png',
         sea:    'assets/sea.png',
         hud: {

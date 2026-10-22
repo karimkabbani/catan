@@ -1189,7 +1189,7 @@
   #rotate .r-land, #rotate .r-port{display:none;}
   @media (orientation:portrait) and (pointer:coarse){   /* in a game + portrait -> rotate to landscape */
     body.ingame #stage, body.ingame #overlay, body.ingame #confirmbar, body.ingame #radialroot,
-    body.ingame #radialtab, body.ingame #dicetab, body.ingame #trophytab, body.ingame #emotray, body.ingame #reactchip, body.ingame .emoghost, body.ingame #settingstab, body.ingame #dicereveal, body.ingame #toast, body.ingame #tradeprompt{display:none !important;}
+    body.ingame #radialtab, body.ingame #dicetab, body.ingame #trophytab, body.ingame #emotray, body.ingame #reactchip, body.ingame .emoghost, body.ingame #rpsroot, body.ingame .rpsb, body.ingame .rpscrown, body.ingame #settingstab, body.ingame #dicereveal, body.ingame #toast, body.ingame #tradeprompt{display:none !important;}
     body.ingame #rotate{display:flex !important; position:fixed; inset:0; z-index:200; flex-direction:column; align-items:center; justify-content:center;
       gap:16px; background:radial-gradient(120% 120% at 50% 40%, #1f4f74, #0a2336); text-align:center; padding:24px;}
     body.ingame #rotate .r-land{display:block;}
@@ -1373,6 +1373,7 @@
         roads: roads,
         avatars: ['assets/avatars/p1.png', 'assets/avatars/p2.png', 'assets/avatars/p3.png', 'assets/avatars/p4.png'],
         robber: 'assets/robber.png',
+        robberBody: 'assets/robber-body.png',   // the robber with head + hat cut away: the thief's face goes on top
         logo:   'assets/logo.png',
         sea:    'assets/sea.png',
         hud: {
@@ -1402,7 +1403,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v164';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v165';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -2513,42 +2514,58 @@
     return { x: s.x, y: s.y, scale: m.a };
   }
   // fly the robber piece from its old hex to the new one — runs on every screen
-  // ---- the robber wears the face of whoever last moved it: their photo (or seat portrait) in a red
-  //      ring with devil horns on top. Nothing is drawn over the face, so any photo works as it is.
-  //      It stays where the classic robber stands (hex centre, over the number), as before.
-  const HORN_L = 'M17,44 C9,30 7,14 14,1 C18,15 28,26 38,35 Z', HORN_R = 'M83,44 C91,30 93,14 86,1 C82,15 72,26 62,35 Z';
+  // ---- the robber wears the face of whoever last moved it: the robber's own body (head and hat cut away)
+  //      with their photo (or seat portrait) as a big round head. Nothing covers the face, so any photo
+  //      works as it is. It stands where the classic robber stands (hex centre, over the number), as before.
+  // Geometry in hex units around the hex centre: body box x ±0.39 from y -0.62 (0.78 wide, art 117×173),
+  // head circle r 0.31 centred 0.52 above the centre; the whole figure spans x ±0.39, y -0.83 … +0.53.
+  const ROB = { bx: -0.39, by: -0.62, bw: 0.78, bh: 0.78 * 173 / 117, hy: -0.52, hr: 0.31, top: -0.83, bot: 0.53 };
+  const robberBodyImg = new Image();
+  robberBodyImg.src = ASSETS.robberBody || 'assets/robber-body.png';
+  const robFaceImgs = {};   // preloaded faces, so the flying robber can be drawn the moment it moves
+  function robFace(src) { if (src && !robFaceImgs[src]) { const im = new Image(); im.src = src; robFaceImgs[src] = im; } return robFaceImgs[src]; }
   function robberTokenSVG(rb, p, tappable) {
-    const src = seatAvatarSrc(p, state.players.indexOf(p));
-    const cx = rb.cx, cy = rb.cy + 0.04, r = 0.33, hs = (2 * r) / 100;
-    const horns = `<g transform="translate(${cx - r} ${cy - r - 0.27}) scale(${hs})"><path d="${HORN_L}" fill="#d62a1e" stroke="#3a0503" stroke-width="2.4"/><path d="${HORN_R}" fill="#d62a1e" stroke="#3a0503" stroke-width="2.4"/></g>`;
+    const src = seatAvatarSrc(p, state.players.indexOf(p)); robFace(src);
+    const cx = rb.cx, cy = rb.cy, hx = cx, hy = cy + ROB.hy, r = ROB.hr;
     const face = src
-      ? `<image href="${src}" x="${cx - r}" y="${cy - r}" width="${2 * r}" height="${2 * r}" preserveAspectRatio="xMidYMid slice" clip-path="url(#robclip)"/>`
-      : `<text x="${cx}" y="${cy + 0.12}" text-anchor="middle" font-size="0.36" font-weight="800" fill="#fff">${escapeHtml((p.name || '?')[0])}</text>`;
+      ? `<image href="${src}" x="${hx - r}" y="${hy - r}" width="${2 * r}" height="${2 * r}" preserveAspectRatio="xMidYMid slice" clip-path="url(#robclip)"/>`
+      : `<text x="${hx}" y="${hy + 0.12}" text-anchor="middle" font-size="0.36" font-weight="800" fill="#fff">${escapeHtml((p.name || '?')[0])}</text>`;
     return `<g class="robtoken"${tappable ? ' onclick="CATAN.robberInfo()"' : ''}>`
-      + `<clipPath id="robclip"><circle cx="${cx}" cy="${cy}" r="${r}"/></clipPath>`
-      + `<circle cx="${cx}" cy="${cy}" r="${r + 0.09}" fill="rgba(214,42,30,0.35)"/>${horns}`
-      + `<circle cx="${cx}" cy="${cy}" r="${r + 0.03}" fill="#2a1a0a"/>${face}`
-      + `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#d62a1e" stroke-width="0.055"/></g>`;
+      + `<clipPath id="robclip"><circle cx="${hx}" cy="${hy}" r="${r}"/></clipPath>`
+      + `<image href="${ASSETS.robberBody || 'assets/robber-body.png'}" x="${cx + ROB.bx}" y="${cy + ROB.by}" width="${ROB.bw}" height="${ROB.bh}" preserveAspectRatio="xMidYMid meet"/>`
+      + `<circle cx="${hx}" cy="${hy}" r="${r + 0.025}" fill="#2a1a0a"/>${face}`
+      + `<circle cx="${hx}" cy="${hy}" r="${r}" fill="none" stroke="#3a1f10" stroke-width="0.03"/></g>`;
   }
-  // the same token as a standalone image for the flying robber. An uploaded photo (a data: URL) can be
-  // embedded; a built-in portrait file can't load inside an image, so those fly as the classic robber.
+  // the same figure drawn to an image for the flying robber (falls back to the classic robber until
+  // the body and face images have loaded)
   function robberFlySrc() {
     const p = state.robberBy && state.players.find((x) => x.color === state.robberBy);
-    const src = p && seatAvatarSrc(p, state.players.indexOf(p));
-    if (!src || !String(src).startsWith('data:')) return ASSETS.robber;
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 84 95"><defs><clipPath id="c"><circle cx="42" cy="59" r="33"/></clipPath></defs>`
-      + `<circle cx="42" cy="59" r="42" fill="rgba(214,42,30,0.35)"/><g transform="translate(9 0) scale(0.66)"><path d="${HORN_L}" fill="#d62a1e" stroke="#3a0503" stroke-width="2.4"/><path d="${HORN_R}" fill="#d62a1e" stroke="#3a0503" stroke-width="2.4"/></g>`
-      + `<circle cx="42" cy="59" r="36" fill="#2a1a0a"/><image href="${src}" x="9" y="26" width="66" height="66" preserveAspectRatio="xMidYMid slice" clip-path="url(#c)"/>`
-      + `<circle cx="42" cy="59" r="33" fill="none" stroke="#d62a1e" stroke-width="5.5"/></svg>`;
-    return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    const src = p && seatAvatarSrc(p, state.players.indexOf(p)), fi = robFace(src);
+    if (!fi || !fi.complete || !fi.naturalWidth || !robberBodyImg.complete || !robberBodyImg.naturalWidth) return null;
+    try {
+      const S = 140, W = (ROB.bw) * S, H = (ROB.bot - ROB.top) * S;
+      const cv = document.createElement('canvas'); cv.width = Math.round(W); cv.height = Math.round(H);
+      const g = cv.getContext('2d'), X = (u) => (u - ROB.bx) * S, Y = (v) => (v - ROB.top) * S;
+      g.drawImage(robberBodyImg, X(ROB.bx), Y(ROB.by), ROB.bw * S, ROB.bh * S);
+      g.beginPath(); g.arc(X(0), Y(ROB.hy), (ROB.hr + 0.025) * S, 0, Math.PI * 2); g.fillStyle = '#2a1a0a'; g.fill();
+      g.save(); g.beginPath(); g.arc(X(0), Y(ROB.hy), ROB.hr * S, 0, Math.PI * 2); g.clip();
+      const side = Math.min(fi.naturalWidth, fi.naturalHeight);   // centre-crop to a square (like "slice")
+      g.drawImage(fi, (fi.naturalWidth - side) / 2, (fi.naturalHeight - side) / 2, side, side, X(-ROB.hr), Y(ROB.hy - ROB.hr), 2 * ROB.hr * S, 2 * ROB.hr * S);
+      g.restore();
+      return cv.toDataURL('image/png');
+    } catch (_) { return null; }
   }
   function showRobberFly(fromHex, toHex) {
     const finish = () => { ui.robberFlying = false; afterAction(); render(); };
     const a = hexScreenXY(fromHex, -0.08), b = hexScreenXY(toHex, -0.08);
     if (!ASSETS.robber || !a || !b) { finish(); return; }
-    const w = 0.84 * a.scale, h = 0.95 * a.scale;   // match the on-board robber size
-    // everyone sees the robber lift off its hex, arc across the board, and land on the new one
-    flyImage(robberFlySrc(), a.x, a.y, b.x, b.y, 0, { w, h, arc: true });
+    // everyone sees the robber lift off its hex, arc across the board, and land on the new one —
+    // as the thief's figure when we can draw it, else the classic robber (sized like the one on the board)
+    const face = robberFlySrc();
+    if (face) {
+      const c = (ROB.top + ROB.bot) / 2, a2 = hexScreenXY(fromHex, c), b2 = hexScreenXY(toHex, c);
+      flyImage(face, a2.x, a2.y, b2.x, b2.y, 0, { w: ROB.bw * a.scale, h: (ROB.bot - ROB.top) * a.scale, arc: true });
+    } else flyImage(ASSETS.robber, a.x, a.y, b.x, b.y, 0, { w: 0.84 * a.scale, h: 0.95 * a.scale, arc: true });
     setTimeout(finish, aDur(1000));   // the arc animates ~0.95s, then the real piece settles at the new hex
   }
   function showResourceFly() {
@@ -3903,11 +3920,11 @@
   //   so once), filling silent players with a random hand marked 🎲. Exactly two shapes thrown -> those
   //   with the winning shape play on; all same / all three -> draw. 5 draws -> the game picks. The engine
   //   refuses every move until done; the winner is rotated to the front of the turn order.
-  const RPS_PICK_MS = 5000, RPS_REVEAL_MS = 3400, RPS_WIN_MS = 2800, RPS_MAX_ROUNDS = 5;
+  const RPS_FIRST_MS = 10000, RPS_PICK_MS = 5000, RPS_REVEAL_MS = 3400, RPS_WIN_MS = 2800, RPS_MAX_ROUNDS = 5;   // round 1 is roomier: people are still settling in / turning their phone
   const RPS_HAND = { r: '✊', p: '✋', s: '✌️' }, RPS_BEATS = { r: 's', s: 'p', p: 'r' };
   const rpsLocal = { seen: {}, resolving: {}, winShown: {}, bots: {}, key: null };
   function newRps(players, delayMs) {
-    return { round: 1, alive: players.map((p) => p.color), picks: {}, deadline: Date.now() + delayMs + RPS_PICK_MS };
+    return { round: 1, alive: players.map((p) => p.color), picks: {}, deadline: Date.now() + delayMs + RPS_FIRST_MS };
   }
   function rpsActive() { return !!(online && state && state.phase === 'setup' && state.rps); }
   // write to the shared game and apply the result here too (my own echo is deduped by version)
@@ -4016,6 +4033,7 @@
   function syncRps(force) {
     const root = $('rpsroot'), mode = rpsMode();
     const hideCard = () => { if (root) root.classList.add('hidden'); };
+    if (!document.body.classList.contains('ingame')) { hideCard(); return; }   // only once the board (and its rotate gate) is up
     if (mode === 'none' || mode === 'gone') { hideCard(); if (rpsLocal.key) { rpsBoardClear(); rpsLocal.key = null; rpsBanner = null; } return; }
     const R = state.rps, now = Date.now(), gk = gameKey();
     let key = '';
@@ -4032,13 +4050,13 @@
           const chips = R.alive.map((c) => rpsChip(c, R.picks[c] ? 'picked' : 'deciding…', R.picks[c] ? 'ok' : '')).join('');
           let el = root;
           if (!el) { el = document.createElement('div'); el.id = 'rpsroot'; document.body.appendChild(el); }
-          el.innerHTML = `<div class="rpscard"><div class="rpshead"><b>Who starts?</b>${R.round > 1 ? `<span class="rpsround">Round <span class="rpsn">${R.round}</span></span>` : ''}<span class="rpstime" id="rps-t">0:0${left}</span></div>${btns}`
+          el.innerHTML = `<div class="rpscard"><div class="rpshead"><b>Who starts?</b>${R.round > 1 ? `<span class="rpsround">Round <span class="rpsn">${R.round}</span></span>` : ''}<span class="rpstime" id="rps-t">0:${String(left).padStart(2, '0')}</span></div>${btns}`
             + `<div class="rpschips">${chips}</div><div class="rpsnote">Hidden until everyone's picked. You can change it until the timer runs out.</div></div>`;
           el.classList.remove('hidden');
         } else hideCard();   // out (or watching): follow it on the board, the banner says who's still in
         setRpsBanner(R.round > 1 ? `✊ ${escapeHtml(nameList(R.alive))} play round ${R.round}…` : null);
       }
-      const t = $('rps-t'); if (t) t.textContent = '0:0' + left;
+      const t = $('rps-t'); if (t) t.textContent = '0:' + String(left).padStart(2, '0');
       if (now > R.deadline + 600) rpsResolve();
     } else if (mode === 'reveal') {
       const V = R.reveal;
