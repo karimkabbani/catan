@@ -1,4 +1,4 @@
--- NOT APPLIED (Karim declined 2026-10-22; v161 ships host-only). Optional: lets guests see the host's
+-- APPLIED 2026-10-22 (by Karim in the Supabase SQL editor; used from v162). Lets guests see the host's
 -- "Who starts" choice in the lobby. Run once on the Catan Supabase project. Idempotent.
 -- The host's choice (rock-paper-scissors or random) rides presence like the win target does, so
 -- everyone at the table sees it before the game starts. Purely additive: older clients never send
