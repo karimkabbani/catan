@@ -185,6 +185,22 @@
   .rpswinner{font-family:var(--serif); font-size:26px; color:var(--gold);}
   .rpsorder{display:flex; flex-wrap:wrap; gap:6px; align-items:center; justify-content:center; font-size:13px; padding:7px 12px; border-radius:10px; background:rgba(0,0,0,0.3);}
   .rpsord{display:inline-flex; align-items:center; gap:4px; font-weight:700;} .rpsarr{color:var(--muted);}
+  /* the reveal happens on the board: hands beside each corner, losers fade, winners glow */
+  .rpsb{position:fixed; z-index:36; width:72px; height:72px; border-radius:20px; display:flex; align-items:center; justify-content:center;
+    background:rgba(40,22,8,0.92); border:1.5px solid rgba(255,255,255,0.3); box-shadow:0 6px 18px rgba(0,0,0,0.55); pointer-events:none;
+    animation:rpsthrow .45s cubic-bezier(.3,1.6,.6,1);}
+  @keyframes rpsthrow{0%{transform:scale(0.2) rotate(-25deg); opacity:0;} 100%{transform:scale(1) rotate(0); opacity:1;}}
+  .rpsbh{font-size:42px; line-height:1;}
+  .rpsb.won{border:2.5px solid var(--gold); background:rgba(74,46,18,0.95); box-shadow:0 0 20px rgba(233,196,90,0.7), 0 6px 18px rgba(0,0,0,0.55);}
+  .rpsb.lost{opacity:0.5; filter:grayscale(0.7);}
+  .rpsb.auto{border-style:dashed;}
+  .rpsb .rpsdice{position:absolute; right:-9px; top:-9px;}
+  .rpsbtag{position:absolute; bottom:-18px; left:50%; transform:translateX(-50%); font-size:11px; color:#f3e6c8; background:rgba(0,0,0,0.6); border-radius:7px; padding:0 6px; white-space:nowrap;}
+  .corner.rps-out{opacity:0.4 !important; filter:grayscale(0.8) !important;}
+  .corner.rps-won{box-shadow:0 0 0 2px var(--gold), 0 0 18px rgba(233,196,90,0.8);}
+  .rpscrown{position:fixed; z-index:36; font-size:34px; line-height:1; transform:translate(-50%,-100%); pointer-events:none; animation:crownpop .6s cubic-bezier(.3,1.7,.6,1);
+    filter:drop-shadow(0 3px 5px rgba(0,0,0,0.6));}
+  @keyframes crownpop{0%{transform:translate(-50%,-40%) scale(0.2); opacity:0;} 100%{transform:translate(-50%,-100%) scale(1); opacity:1;}}
   .lobws{display:flex; flex-direction:column; gap:6px; margin:4px 2px;}
   .lobwsseg{display:flex;} .lobwsseg button{flex:1;}
 

@@ -185,6 +185,22 @@
   .rpswinner{font-family:var(--serif); font-size:26px; color:var(--gold);}
   .rpsorder{display:flex; flex-wrap:wrap; gap:6px; align-items:center; justify-content:center; font-size:13px; padding:7px 12px; border-radius:10px; background:rgba(0,0,0,0.3);}
   .rpsord{display:inline-flex; align-items:center; gap:4px; font-weight:700;} .rpsarr{color:var(--muted);}
+  /* the reveal happens on the board: hands beside each corner, losers fade, winners glow */
+  .rpsb{position:fixed; z-index:36; width:72px; height:72px; border-radius:20px; display:flex; align-items:center; justify-content:center;
+    background:rgba(40,22,8,0.92); border:1.5px solid rgba(255,255,255,0.3); box-shadow:0 6px 18px rgba(0,0,0,0.55); pointer-events:none;
+    animation:rpsthrow .45s cubic-bezier(.3,1.6,.6,1);}
+  @keyframes rpsthrow{0%{transform:scale(0.2) rotate(-25deg); opacity:0;} 100%{transform:scale(1) rotate(0); opacity:1;}}
+  .rpsbh{font-size:42px; line-height:1;}
+  .rpsb.won{border:2.5px solid var(--gold); background:rgba(74,46,18,0.95); box-shadow:0 0 20px rgba(233,196,90,0.7), 0 6px 18px rgba(0,0,0,0.55);}
+  .rpsb.lost{opacity:0.5; filter:grayscale(0.7);}
+  .rpsb.auto{border-style:dashed;}
+  .rpsb .rpsdice{position:absolute; right:-9px; top:-9px;}
+  .rpsbtag{position:absolute; bottom:-18px; left:50%; transform:translateX(-50%); font-size:11px; color:#f3e6c8; background:rgba(0,0,0,0.6); border-radius:7px; padding:0 6px; white-space:nowrap;}
+  .corner.rps-out{opacity:0.4 !important; filter:grayscale(0.8) !important;}
+  .corner.rps-won{box-shadow:0 0 0 2px var(--gold), 0 0 18px rgba(233,196,90,0.8);}
+  .rpscrown{position:fixed; z-index:36; font-size:34px; line-height:1; transform:translate(-50%,-100%); pointer-events:none; animation:crownpop .6s cubic-bezier(.3,1.7,.6,1);
+    filter:drop-shadow(0 3px 5px rgba(0,0,0,0.6));}
+  @keyframes crownpop{0%{transform:translate(-50%,-40%) scale(0.2); opacity:0;} 100%{transform:translate(-50%,-100%) scale(1); opacity:1;}}
   .lobws{display:flex; flex-direction:column; gap:6px; margin:4px 2px;}
   .lobwsseg{display:flex;} .lobwsseg button{flex:1;}
 
@@ -1386,7 +1402,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v163';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v164';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -2180,7 +2196,7 @@
     state.players.forEach((p, i) => {
       const el = $('p-' + seatKey(i)); el.style.display = 'flex';
       // during the who-goes-first spinner, no corner shows .active (it would pre-reveal the result)
-      el.className = 'corner ' + seatKey(i) + (!ui.spinning && p.color === activeColor() ? ' active' : '');
+      el.className = 'corner ' + seatKey(i) + (!ui.spinning && p.color === activeColor() ? ' active' : '') + rpsCornerClass(p.color);
       // tint the panel with the player's colour
       const pc = PCOLOR[p.color];
       el.style.background = `linear-gradient(${hexA(pc, 0.92)}, ${hexA(pc, 0.62)}), var(--wood-tex)`;
@@ -2790,7 +2806,7 @@
     if (state.phase === 'ended') return `🏆 Game over — ${escapeHtml(state.players.find((p) => p.color === state.winner).name)} wins<span class="bmore">Results ›</span>${watchingTag()}`;
     // a game event just happened -> show it here (it reverts to the turn indicator when the feed clears)
     if (announceCur) return `<span class="bevent">${escapeHtml(announceCur)}</span>${watchingTag()}`;
-    if (state.rps && !state.rps.done) return `✊ Deciding who starts…${watchingTag()}`;   // no turn, clock or poke until it's settled
+    if (state.rps && (!state.rps.done || rpsBanner)) return `${rpsBanner || '✊ Deciding who starts…'}${watchingTag()}`;   // no turn, clock or poke until it's settled
     const p = activePlayer();
     if (online && !myColor) return `<span class="bdot" style="background:${PCOLOR[p.color]}"></span> 👁 Spectating — ${escapeHtml(p.name)}'s turn${clockHTML()}${watchingTag()}`;
     const phase = state.phase === 'setup' ? 'Setup' : (isMyTurn() ? 'your turn' : 'to play');
@@ -3949,27 +3965,78 @@
   function rpsChip(c, label, cls) {
     return `<span class="rpschip ${cls || ''}"><span class="dot" style="background:${PCOLOR[c]}"></span>${escapeHtml(nameOf(c))}<em>${label}</em></span>`;
   }
-  // draws whichever moment we're in; only rebuilds the card when what it shows changes (taps survive)
-  function syncRps(force) {
-    const root = $('rpsroot');
-    if (!rpsActive() || (state.rps.done && rpsLocal.winShown[state.rps.winner + ':' + gameKey()] === 'gone')) { if (root) root.classList.add('hidden'); return; }
+  // where the showdown is right now, on this phone's timeline:
+  //   'pick' (the private card) -> 'reveal' (hands beside each corner on the board) -> next round, or 'win'
+  //   (the winner's corner glows and gets a crown, then setup starts right there) -> 'gone'.
+  function rpsMode() {
+    if (!rpsActive()) return 'none';
     const R = state.rps, now = Date.now(), gk = gameKey();
+    if (R.done && rpsLocal.winShown[R.winner + ':' + gk] === 'gone') return 'gone';
     if (R.reveal && !rpsLocal.seen[gk + ':' + R.reveal.round]) rpsLocal.seen[gk + ':' + R.reveal.round] = now;
-    const revealAt = R.reveal ? rpsLocal.seen[gk + ':' + R.reveal.round] : 0;
-    let mode = 'pick', html = '', key = '';
-    if (R.reveal && now - revealAt < RPS_REVEAL_MS) mode = 'reveal';
-    else if (R.done) mode = 'win';
+    if (R.reveal && now - rpsLocal.seen[gk + ':' + R.reveal.round] < RPS_REVEAL_MS) return 'reveal';
+    return R.done ? 'win' : 'pick';
+  }
+  // the corners show the result: losers fade, winners glow (read by renderPanels on every redraw)
+  function rpsCornerClass(color) {
+    const m = rpsMode(); if (m !== 'reveal' && m !== 'win') return '';
+    const R = state.rps;
+    if (m === 'win') return color === R.winner ? ' spin-win' : '';
+    const V = R.reveal; if (!V.winners.length && !V.tooMany) return '';   // a draw: nobody fades
+    return V.winners.includes(color) ? ' rps-won' : ' rps-out';
+  }
+  function rpsBoardClear() { document.querySelectorAll('.rpsb, .rpscrown').forEach((el) => el.remove()); }
+  // each player's hand pops out beside their own corner (over the sea), all at once
+  function rpsBoardHands(V) {
+    rpsBoardClear();
+    Object.keys(V.picks).forEach((c) => {
+      const k = cornerOf(c); if (!k) return;
+      const r = k.el.getBoundingClientRect(), left = k.pos[1] === 'l';
+      const won = V.winners.includes(c) || (!V.winners.length && !V.tooMany), auto = V.auto.includes(c);
+      const el = document.createElement('div');
+      el.className = 'rpsb' + (won ? ' won' : ' lost') + (auto ? ' auto' : '');
+      el.innerHTML = `<span class="rpsbh">${RPS_HAND[V.picks[c]]}</span>${auto ? '<span class="rpsdice">🎲</span><span class="rpsbtag">random</span>' : ''}`;
+      el.style.top = (avatarCentre(k).y - 36) + 'px';   // level with the player's own portrait
+      if (left) el.style.left = (r.right + 12) + 'px'; else el.style.right = (window.innerWidth - r.left + 12) + 'px';
+      document.body.appendChild(el);
+    });
+  }
+  function rpsCrown(color) {
+    // placed once the corner's "goes first" glow has finished growing, right on top of the portrait
+    setTimeout(() => {
+      const k = cornerOf(color); if (!k || rpsMode() !== 'win') return;
+      const av = k.el.querySelector('.pava') || k.el, r = av.getBoundingClientRect(), el = document.createElement('div');
+      el.className = 'rpscrown'; el.textContent = '👑';
+      el.style.left = (r.left + r.width / 2) + 'px'; el.style.top = (r.top + 6) + 'px';
+      document.body.appendChild(el);
+    }, 550);
+  }
+  let rpsBanner = null;   // the banner's line while the showdown runs (null = "Deciding who starts…")
+  function setRpsBanner(line) { if (rpsBanner !== line) { rpsBanner = line; renderBanner(); } }
+  // draws whichever moment we're in; only rebuilds what changed (so taps on the card survive)
+  function syncRps(force) {
+    const root = $('rpsroot'), mode = rpsMode();
+    const hideCard = () => { if (root) root.classList.add('hidden'); };
+    if (mode === 'none' || mode === 'gone') { hideCard(); if (rpsLocal.key) { rpsBoardClear(); rpsLocal.key = null; rpsBanner = null; } return; }
+    const R = state.rps, now = Date.now(), gk = gameKey();
+    let key = '';
     if (mode === 'pick') {
       rpsBots();
       const left = Math.max(0, Math.ceil((R.deadline - now) / 1000));
       const inGame = !!myColor && R.alive.includes(myColor), mine = inGame ? R.picks[myColor] : null;
       key = 'pick:' + R.round + ':' + mine + ':' + R.alive.map((c) => c + (R.picks[c] ? 1 : 0)).join(',');
       if (key !== rpsLocal.key || force) {
-        const btns = inGame ? `<div class="rpsbtns">${'rps'.split('').map((v) => `<button class="rpsbtn${mine === v ? ' on' : ''}" onclick="CATAN.rps('${v}')" aria-label="${{ r: 'Rock', p: 'Paper', s: 'Scissors' }[v]}">${RPS_HAND[v]}</button>`).join('')}</div>`
-          : `<div class="rpsnote">${myColor ? "You're out this round. Watch the rest play it out." : 'Watching the showdown…'}</div>`;
-        const chips = state.players.map((p) => R.alive.includes(p.color) ? rpsChip(p.color, R.picks[p.color] ? 'picked' : 'deciding…', R.picks[p.color] ? 'ok' : '') : rpsChip(p.color, 'out', 'out')).join('');
-        html = `<div class="rpshead"><b>Who starts?</b>${R.round > 1 ? `<span class="rpsround">Round <span class="rpsn">${R.round}</span></span>` : ''}<span class="rpstime" id="rps-t">0:0${left}</span></div>${btns}`
-          + `<div class="rpschips">${chips}</div>${inGame ? `<div class="rpsnote">Hidden until everyone's picked. You can change it until the timer runs out.</div>` : ''}`;
+        rpsBoardClear();
+        if (rpsLocal.key && rpsLocal.key.startsWith('reveal')) renderPanels();   // un-fade the corners
+        if (inGame) {
+          const btns = `<div class="rpsbtns">${'rps'.split('').map((v) => `<button class="rpsbtn${mine === v ? ' on' : ''}" onclick="CATAN.rps('${v}')" aria-label="${{ r: 'Rock', p: 'Paper', s: 'Scissors' }[v]}">${RPS_HAND[v]}</button>`).join('')}</div>`;
+          const chips = R.alive.map((c) => rpsChip(c, R.picks[c] ? 'picked' : 'deciding…', R.picks[c] ? 'ok' : '')).join('');
+          let el = root;
+          if (!el) { el = document.createElement('div'); el.id = 'rpsroot'; document.body.appendChild(el); }
+          el.innerHTML = `<div class="rpscard"><div class="rpshead"><b>Who starts?</b>${R.round > 1 ? `<span class="rpsround">Round <span class="rpsn">${R.round}</span></span>` : ''}<span class="rpstime" id="rps-t">0:0${left}</span></div>${btns}`
+            + `<div class="rpschips">${chips}</div><div class="rpsnote">Hidden until everyone's picked. You can change it until the timer runs out.</div></div>`;
+          el.classList.remove('hidden');
+        } else hideCard();   // out (or watching): follow it on the board, the banner says who's still in
+        setRpsBanner(R.round > 1 ? `✊ ${escapeHtml(nameList(R.alive))} play round ${R.round}…` : null);
       }
       const t = $('rps-t'); if (t) t.textContent = '0:0' + left;
       if (now > R.deadline + 600) rpsResolve();
@@ -3977,41 +4044,36 @@
       const V = R.reveal;
       key = 'reveal:' + V.round;
       if (key !== rpsLocal.key || force) {
-        const hands = Object.keys(V.picks).map((c) => {
-          const won = V.winners.includes(c) || (!V.winners.length && !V.tooMany), auto = V.auto.includes(c);
-          return `<div class="rpshand${won ? ' won' : ' lost'}${auto ? ' auto' : ''}"><div class="rpsbig">${RPS_HAND[V.picks[c]]}${auto ? '<span class="rpsdice">🎲</span>' : ''}</div>`
-            + `<div class="rpsname"><span class="dot" style="background:${PCOLOR[c]}"></span>${escapeHtml(nameOf(c))}</div>${auto ? `<div class="rpsauto">didn't pick: random</div>` : ''}</div>`;
-        }).join('');
+        hideCard();
+        renderPanels();   // fade losers / glow winners
+        rpsBoardHands(V);
         const shapes = [...new Set(Object.values(V.picks))];
-        const line = V.tooMany ? `Too many draws. The game decides 🎲: <b>${escapeHtml(nameOf(V.winners[0]))}</b>`
-          : !V.winners.length ? `Draw! <b>Again</b>`
-          : `${RPS_HAND[V.picks[V.winners[0]]]} beats ${RPS_HAND[shapes.find((x) => x !== V.picks[V.winners[0]])]} · <b>${escapeHtml(nameList(V.winners))}</b> ${V.winners.length > 1 ? 'play on' : 'wins'}`;
-        const mine = myColor && V.auto.includes(myColor) ? `<div class="rpsnote">You didn't pick in time, so the game threw ${RPS_HAND[V.picks[myColor]]} for you.</div>` : '';
-        html = `<div class="rpshead"><b>Round <span class="rpsn">${V.round}</span></b></div><div class="rpshands">${hands}</div><div class="rpsline">${line}</div>${mine}`;
-        if (rpsLocal.key !== key) playSound('click', 0.6);
+        setRpsBanner(V.tooMany ? `Too many draws. The game decides 🎲: ${escapeHtml(nameOf(V.winners[0]))}`
+          : !V.winners.length ? 'Draw! Again'
+          : `${RPS_HAND[V.picks[V.winners[0]]]} beats ${RPS_HAND[shapes.find((x) => x !== V.picks[V.winners[0]])]} · ${escapeHtml(nameList(V.winners))} ${V.winners.length > 1 ? 'play on' : 'wins'}`);
+        if (rpsLocal.key !== key) {
+          playSound('click', 0.6);
+          if (myColor && V.auto.includes(myColor)) toast(`You didn't pick in time, so the game threw ${RPS_HAND[V.picks[myColor]]} for you`);
+        }
       }
-    } else {
+    } else {   // win
       const w = R.winner, wk = w + ':' + gk;
       key = 'win:' + w;
+      if (key !== rpsLocal.key || force) {
+        hideCard(); rpsBoardClear(); renderPanels();
+        rpsCrown(w);
+        const V = R.reveal || {};
+        setRpsBanner(`👑 ${escapeHtml(nameOf(w))} goes first${V.auto && V.auto.includes(w) ? ' (on a random pick 🎲)' : ''}`);
+      }
       if (!rpsLocal.winShown[wk]) {
         rpsLocal.winShown[wk] = now;
         playSound('win', 0.7);
-        setTimeout(() => { rpsLocal.winShown[wk] = 'gone'; const r2 = $('rpsroot'); if (r2) r2.classList.add('hidden'); ui.spinning = false; afterAction(); render();
-          if (demoMode) toast('Showcase: that is the start. The bots do not play setup, so exit with the ← menu'); }, RPS_WIN_MS);
+        setTimeout(() => {
+          rpsLocal.winShown[wk] = 'gone'; rpsBoardClear(); rpsBanner = null; rpsLocal.key = null;
+          ui.spinning = false; afterAction(); render();   // setup begins at the winner's corner
+          if (demoMode) toast('Showcase: that is the start. The bots do not play setup, so exit with the ← menu');
+        }, RPS_WIN_MS);
       }
-      if (key !== rpsLocal.key || force) {
-        const V = R.reveal || {}, onRandom = V.auto && V.auto.includes(w);
-        const i = state.players.findIndex((p) => p.color === w), src = i >= 0 ? seatAvatarSrc(state.players[i], i) : '';
-        const order = state.order.map((c) => `<span class="rpsord"><span class="dot" style="background:${PCOLOR[c]}"></span>${escapeHtml(nameOf(c))}</span>`).join('<span class="rpsarr">→</span>');
-        html = `<div class="rpswin">${src ? `<img src="${src}" alt="">` : ''}<div><div class="rpswinner">${escapeHtml(nameOf(w))} goes first</div>`
-          + `${onRandom ? '<div class="rpsnote">on a random pick 🎲</div>' : ''}</div></div><div class="rpsorder">${order}</div>`;
-      }
-    }
-    if (html) {
-      let el = root;
-      if (!el) { el = document.createElement('div'); el.id = 'rpsroot'; document.body.appendChild(el); }
-      el.innerHTML = `<div class="rpscard">${html}</div>`;
-      el.classList.remove('hidden');
     }
     rpsLocal.key = key;
   }
@@ -6292,7 +6354,7 @@
     ['leavetab', 'radialtab', 'settingstab', 'dicetab', 'trophytab', 'dicereveal', 'toast', 'confirmbar', 'countdown'].forEach((id) => { const e = $(id); if (e) e.classList.add('hidden'); });
     const rr = $('radialroot'); if (rr) { rr.classList.remove('open'); rr.classList.add('hidden'); }
     document.querySelectorAll('.flyres, .robberdrag, .emofloat, .emocombo, .emothrow, .emosplat, .emoghost').forEach((el) => el.remove());
-    closeEmojiTray(); hideChip(); const mp = $('momentpill'); if (mp) mp.classList.add('hidden'); const rpr = $('rpsroot'); if (rpr) rpr.classList.add('hidden');
+    closeEmojiTray(); hideChip(); const mp = $('momentpill'); if (mp) mp.classList.add('hidden'); const rpr = $('rpsroot'); if (rpr) rpr.classList.add('hidden'); rpsBoardClear();
     document.body.classList.remove('ingame', 'trading', 'gameover');
     hideOverlay();
   }
