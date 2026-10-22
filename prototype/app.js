@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v158';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v159';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -885,7 +885,7 @@
         const who = top.length > 2 ? top.map((t) => dot(t.c)).join('') + `<span>${top.length}-way tie</span>` : top.map((t) => dot(t.c) + nm(t.c)).join(' & ');
         return `<div class="rbhead"><span class="rbl">Top thief</span><b>${who}</b><span class="rbs">${thieves[0].n} robber${thieves[0].n === 1 ? 'y' : 'ies'}${top.length > 1 ? ' each' : ''}</span></div>`;
       })()
-      + (pair && pair.n > 1 ? `<div class="rbhead"><span class="rbl">Rivalry</span><b>${dot(pair.t)}${nm(pair.t)} → ${dot(pair.v)}${nm(pair.v)}</b><span class="rbs">${pair.n} times</span></div>` : '')
+      + (pair && pair.n > 1 ? `<div class="rbhead"><span class="rbl">Picked on most</span><b>${dot(pair.v)}${nm(pair.v)}</b><span class="rbs">by ${nm(pair.t)} · ${pair.n} times</span></div>` : '')
       + `</div>`;
     const rows = victims.map((v) => `<div class="rbrow${v.c === focus ? ' focus' : ''}"><div class="rbwho">${dot(v.c)}<b>${nm(v.c)}</b><span>robbed ${v.n}×</span></div>`
       + `<div class="rbby">by ${Object.entries(v.by).sort((a, b) => b[1] - a[1]).map(([t, n]) => `<span class="rbchip">${dot(t)}${nm(t)} ${n}</span>`).join('')}</div></div>`).join('');
