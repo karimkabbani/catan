@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v161';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v162';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -4157,7 +4157,7 @@
     // changed it at the table, else their profile preference. undefined = no override in play.
     // effective color preference: the table-session override if set, else the profile default
     myPref() { return this.prefGame !== undefined ? this.prefGame : ((AUTH.me && AUTH.me.prefColor) || null); },
-    myPayload() { return { id: AUTH.me.id, name: AUTH.me.name, avatar: AUTH.me.avatar || null, pref: this.myPref(), mode: this.mode, readyAt: this.readyAt, table: this.table || null, created: this.created || null, target: this.targetPoints || null }; },
+    myPayload() { return { id: AUTH.me.id, name: AUTH.me.name, avatar: AUTH.me.avatar || null, pref: this.myPref(), mode: this.mode, readyAt: this.readyAt, table: this.table || null, created: this.created || null, target: this.targetPoints || null, ws: this.whoStarts }; },
     // announce my state: heartbeat row on the server + an optimistic local echo so my own UI updates
     // instantly (the poll confirms it a few seconds later)
     track() {
@@ -4194,7 +4194,7 @@
       this.liveIds = new Set();
       rows.forEach((r) => {
         if (!r || !r.id || r.mode === 'gone') return;   // 'gone' = logged out on purpose
-        const m = { id: r.id, name: r.name, avatar: r.avatar, pref: r.pref, mode: r.mode, readyAt: Number(r.ready_at) || 0, table: r.table_code || null, created: r.created || null, target: r.target || null };
+        const m = { id: r.id, name: r.name, avatar: r.avatar, pref: r.pref, mode: r.mode, readyAt: Number(r.ready_at) || 0, table: r.table_code || null, created: r.created || null, target: r.target || null, ws: r.ws || null };
         const age = Number(r.age_s) || 0;
         if (age < 18) { this.liveIds.add(r.id); live[r.id] = m; }               // fresh heartbeat (5s cadence + slack)
         else live[r.id] = Object.assign(m, { away: true });                     // phone asleep — keep in the roster, dimmed
@@ -4604,7 +4604,7 @@
     const all = LOBBY.online();
     // sig over the whole presence (table memberships + modes) so any change re-renders
     const sig = JSON.stringify([LOBBY.table, LOBBY.inProgress, LOBBY.mode, LOBBY.targetPoints,
-      all.map((p) => p.id + ':' + (p.table || '') + ':' + pmode(p) + ':' + p.name + ':' + (p.readyAt || 0) + ':' + (p.target || '') + ':' + (p.created || '') + ':' + (p.pref || '') + ':' + (p.away ? 'a' : '')).sort()]);
+      all.map((p) => p.id + ':' + (p.table || '') + ':' + pmode(p) + ':' + p.name + ':' + (p.readyAt || 0) + ':' + (p.target || '') + ':' + (p.ws || '') + ':' + (p.created || '') + ':' + (p.pref || '') + ':' + (p.away ? 'a' : '')).sort(), LOBBY.whoStarts]);
     if (sig === lobbySig) return;
     lobbySig = sig;
     dynEl.innerHTML = LOBBY.table ? atTableHTML(all) : tableListHTML(all);   // footer frame untouched
@@ -4669,7 +4669,7 @@
       : (iAmReady ? `<div class="lobstatus">${ready.length < 2 ? 'Waiting for more players…' : 'Waiting for ' + hostName + ' to start…'}</div>` : '');
     const targetRow = iAmHost
       ? `<div class="lobtgt"><span class="lobtgt-lbl">Win at <b id="tgt-val">${tgt}</b> pts</span><input class="lobtgt-slider" type="range" min="9" max="15" step="1" value="${tgt}" oninput="var e=document.getElementById('tgt-val');if(e)e.textContent=this.value" onchange="CATAN.lobbyTarget(this.value)"></div>`
-      : `<div class="lobtgt muted">Win at ${tgt} pts</div>`;
+      : `<div class="lobtgt muted">Win at ${tgt} pts${host && host.ws ? ` · Who starts: <b>${host.ws === 'rps' ? '✊ Rock-paper-scissors' : '🎲 Random'}</b>` : ''}</div>`;   // the host's choice (older hosts don't send it)
     // your color for THIS game: the table-session override if set, else your profile preference
     const myPref = LOBBY.prefGame !== undefined ? LOBBY.prefGame : (AUTH.me.prefColor || null);
     const prefRow = `<div class="lobprefrow"><span class="lobtgt-lbl">Your color</span>
@@ -4715,7 +4715,7 @@
   // both guard exits rebuild the lobby shell — the guard card replaced it (titleCard swaps the whole card)
   window.CATAN.guardJoin = (code) => { lobbyShell(); LOBBY.enterTable(code); };
   window.CATAN.newTableGo = () => { const code = genCode(); LOBBY.created = code; lobbyShell(); LOBBY.enterTable(code); };
-  window.CATAN.lobbyWhoStarts = (v) => { LOBBY.whoStarts = v === 'rps' ? 'rps' : 'random'; try { localStorage.setItem('catanWhoStarts', LOBBY.whoStarts); } catch (_) { } lobbySig = null; renderLobby(); };
+  window.CATAN.lobbyWhoStarts = (v) => { LOBBY.whoStarts = v === 'rps' ? 'rps' : 'random'; try { localStorage.setItem('catanWhoStarts', LOBBY.whoStarts); } catch (_) { } LOBBY.track(); lobbySig = null; renderLobby(); };
   window.CATAN.lobbyTarget = (v) => { LOBBY.targetPoints = Math.max(9, Math.min(15, parseInt(v, 10) || 13)); LOBBY.track(); lobbySig = null; renderLobby(); };
   window.CATAN.joinTable = (code) => LOBBY.enterTable(code);
   window.CATAN.leaveTable = () => LOBBY.leaveTable();
