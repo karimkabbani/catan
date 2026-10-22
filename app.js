@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v160';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v161';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -1409,6 +1409,7 @@
     if (state.phase === 'ended') return `🏆 Game over — ${escapeHtml(state.players.find((p) => p.color === state.winner).name)} wins<span class="bmore">Results ›</span>${watchingTag()}`;
     // a game event just happened -> show it here (it reverts to the turn indicator when the feed clears)
     if (announceCur) return `<span class="bevent">${escapeHtml(announceCur)}</span>${watchingTag()}`;
+    if (state.rps && !state.rps.done) return `✊ Deciding who starts…${watchingTag()}`;   // no turn, clock or poke until it's settled
     const p = activePlayer();
     if (online && !myColor) return `<span class="bdot" style="background:${PCOLOR[p.color]}"></span> 👁 Spectating — ${escapeHtml(p.name)}'s turn${clockHTML()}${watchingTag()}`;
     const phase = state.phase === 'setup' ? 'Setup' : (isMyTurn() ? 'your turn' : 'to play');
@@ -1425,7 +1426,7 @@
   function pokeAfter() { return demoMode ? 6000 : POKE_AFTER_MS; }
   function turnElapsed() {
     if (!state || (state.phase !== 'play' && state.phase !== 'setup')) return null;
-    const k = state.phase + ':' + state.currentPlayerIndex + ':' + (state.phase === 'setup' ? state.setupIndex : '');
+    const k = state.phase + ':' + state.currentPlayerIndex + ':' + (state.phase === 'setup' ? state.setupIndex : '') + ':' + (state.rps ? (state.rps.done ? 'd' : 'p') : '');   // the clock starts once who-starts is settled
     if (k !== turnKey) { turnKey = k; turnStart = Date.now(); }
     return Date.now() - turnStart;
   }
@@ -2498,6 +2499,149 @@
     if (corner && corner.style.display !== 'none') showBroadcastBubble(msg, corner, pos);
     else showBroadcastBanner(msg);
   }
+  // ---- rock-paper-scissors decides who starts (online, when the host picked it in the lobby) ----
+  // Lives in the shared state: state.rps = { round, alive:[colors], picks:{color:'r'|'p'|'s'}, deadline,
+  //   reveal:{round, picks, auto:[colors], winners:[colors], tooMany}, done, winner }. Each phone writes its
+  //   own pick (changeable until the deadline); after it, any phone resolves the round (version-guarded,
+  //   so once), filling silent players with a random hand marked 🎲. Exactly two shapes thrown -> those
+  //   with the winning shape play on; all same / all three -> draw. 5 draws -> the game picks. The engine
+  //   refuses every move until done; the winner is rotated to the front of the turn order.
+  const RPS_PICK_MS = 5000, RPS_REVEAL_MS = 3400, RPS_WIN_MS = 2800, RPS_MAX_ROUNDS = 5;
+  const RPS_HAND = { r: '✊', p: '✋', s: '✌️' }, RPS_BEATS = { r: 's', s: 'p', p: 'r' };
+  const rpsLocal = { seen: {}, resolving: {}, winShown: {}, bots: {}, key: null };
+  function newRps(players, delayMs) {
+    return { round: 1, alive: players.map((p) => p.color), picks: {}, deadline: Date.now() + delayMs + RPS_PICK_MS };
+  }
+  function rpsActive() { return !!(online && state && state.phase === 'setup' && state.rps); }
+  // write to the shared game and apply the result here too (my own echo is deduped by version)
+  async function rpsUpdate(mut) {
+    if (demoMode) { const s2 = JSON.parse(JSON.stringify(state)); if (mut(s2) === false) return; state = s2; syncRps(); return; }
+    const c = NET.init(); if (!c || !NET.code) return;
+    for (let i = 0; i < 6; i++) {
+      const { data, error } = await c.from('games').select('state,version').eq('code', NET.code).maybeSingle();
+      if (error || !data || !data.state) return;
+      const s2 = JSON.parse(JSON.stringify(data.state));
+      if (mut(s2) === false) { if (data.version > NET.version) { NET.version = data.version; applyRemoteState(data.state); } return; }
+      const { data: upd } = await c.from('games').update({ state: s2, version: data.version + 1 }).eq('code', NET.code).eq('version', data.version).select('version');
+      if (upd && upd.length) { NET.version = data.version + 1; applyRemoteState(s2); return; }
+      await new Promise((r) => setTimeout(r, 80));
+    }
+  }
+  function rpsPick(v) {
+    const R = state && state.rps; if (!R || R.done || !myColor || !R.alive.includes(myColor) || Date.now() > R.deadline) return;
+    const round = R.round, me = myColor;
+    R.picks[me] = v; syncRps(true);   // local echo; the last tap before the deadline counts
+    if (!demoMode) svUpdate((s) => { if (!s.rps || s.rps.done || s.rps.round !== round) return false; s.rps.picks[me] = v; });
+  }
+  function rpsResolve() {
+    const R = state.rps, round = R.round;
+    if (rpsLocal.resolving[round]) return;
+    rpsLocal.resolving[round] = true;
+    rpsUpdate((s) => {
+      const Q = s.rps; if (!Q || Q.done || Q.round !== round) return false;
+      const full = {}, auto = [];
+      Q.alive.forEach((c) => { let v = Q.picks[c]; if (!v) { v = 'rps'[(Math.random() * 3) | 0]; auto.push(c); } full[c] = v; });
+      const shapes = [...new Set(Object.values(full))];
+      let winners = [], tooMany = false;
+      if (shapes.length === 2) { const w = RPS_BEATS[shapes[0]] === shapes[1] ? shapes[0] : shapes[1]; winners = Q.alive.filter((c) => full[c] === w); }
+      else if (round >= RPS_MAX_ROUNDS) { winners = [Q.alive[(Math.random() * Q.alive.length) | 0]]; tooMany = true; }
+      Q.reveal = { round, picks: full, auto, winners, tooMany };
+      const alive = winners.length ? winners : Q.alive;
+      if (alive.length === 1) {
+        Q.done = true; Q.winner = alive[0];
+        const at = s.order.indexOf(alive[0]);   // the winner goes first; the rest follow around the table
+        if (at > 0) s.order = s.order.slice(at).concat(s.order.slice(0, at));
+        s.currentPlayerIndex = 0;
+      } else { Q.round = round + 1; Q.alive = alive; Q.picks = {}; Q.deadline = Date.now() + RPS_REVEAL_MS + RPS_PICK_MS; }
+    });
+  }
+  // showcase bots: everyone but Jordan picks at a random moment; Jordan never does (shows the 🎲 case)
+  function rpsBots() {
+    const R = state.rps; if (!demoMode || !R || R.done || rpsLocal.bots[R.round]) return;
+    rpsLocal.bots[R.round] = true;
+    R.alive.forEach((c, i) => {
+      if (c === myColor || i === 3) return;
+      setTimeout(() => { const Q = state.rps; if (Q && Q.round === R.round && !Q.done) { Q.picks[c] = 'rps'[(Math.random() * 3) | 0]; syncRps(true); } }, 900 + Math.random() * 3000);
+    });
+  }
+  function rpsChip(c, label, cls) {
+    return `<span class="rpschip ${cls || ''}"><span class="dot" style="background:${PCOLOR[c]}"></span>${escapeHtml(nameOf(c))}<em>${label}</em></span>`;
+  }
+  // draws whichever moment we're in; only rebuilds the card when what it shows changes (taps survive)
+  function syncRps(force) {
+    const root = $('rpsroot');
+    if (!rpsActive() || (state.rps.done && rpsLocal.winShown[state.rps.winner + ':' + gameKey()] === 'gone')) { if (root) root.classList.add('hidden'); return; }
+    const R = state.rps, now = Date.now(), gk = gameKey();
+    if (R.reveal && !rpsLocal.seen[gk + ':' + R.reveal.round]) rpsLocal.seen[gk + ':' + R.reveal.round] = now;
+    const revealAt = R.reveal ? rpsLocal.seen[gk + ':' + R.reveal.round] : 0;
+    let mode = 'pick', html = '', key = '';
+    if (R.reveal && now - revealAt < RPS_REVEAL_MS) mode = 'reveal';
+    else if (R.done) mode = 'win';
+    if (mode === 'pick') {
+      rpsBots();
+      const left = Math.max(0, Math.ceil((R.deadline - now) / 1000));
+      const inGame = !!myColor && R.alive.includes(myColor), mine = inGame ? R.picks[myColor] : null;
+      key = 'pick:' + R.round + ':' + mine + ':' + R.alive.map((c) => c + (R.picks[c] ? 1 : 0)).join(',');
+      if (key !== rpsLocal.key || force) {
+        const btns = inGame ? `<div class="rpsbtns">${'rps'.split('').map((v) => `<button class="rpsbtn${mine === v ? ' on' : ''}" onclick="CATAN.rps('${v}')" aria-label="${{ r: 'Rock', p: 'Paper', s: 'Scissors' }[v]}">${RPS_HAND[v]}</button>`).join('')}</div>`
+          : `<div class="rpsnote">${myColor ? "You're out this round. Watch the rest play it out." : 'Watching the showdown…'}</div>`;
+        const chips = state.players.map((p) => R.alive.includes(p.color) ? rpsChip(p.color, R.picks[p.color] ? 'picked' : 'deciding…', R.picks[p.color] ? 'ok' : '') : rpsChip(p.color, 'out', 'out')).join('');
+        html = `<div class="rpshead"><b>Who starts?</b>${R.round > 1 ? `<span class="rpsround">Round <span class="rpsn">${R.round}</span></span>` : ''}<span class="rpstime" id="rps-t">0:0${left}</span></div>${btns}`
+          + `<div class="rpschips">${chips}</div>${inGame ? `<div class="rpsnote">Hidden until everyone's picked. You can change it until the timer runs out.</div>` : ''}`;
+      }
+      const t = $('rps-t'); if (t) t.textContent = '0:0' + left;
+      if (now > R.deadline + 600) rpsResolve();
+    } else if (mode === 'reveal') {
+      const V = R.reveal;
+      key = 'reveal:' + V.round;
+      if (key !== rpsLocal.key || force) {
+        const hands = Object.keys(V.picks).map((c) => {
+          const won = V.winners.includes(c) || (!V.winners.length && !V.tooMany), auto = V.auto.includes(c);
+          return `<div class="rpshand${won ? ' won' : ' lost'}${auto ? ' auto' : ''}"><div class="rpsbig">${RPS_HAND[V.picks[c]]}${auto ? '<span class="rpsdice">🎲</span>' : ''}</div>`
+            + `<div class="rpsname"><span class="dot" style="background:${PCOLOR[c]}"></span>${escapeHtml(nameOf(c))}</div>${auto ? `<div class="rpsauto">didn't pick: random</div>` : ''}</div>`;
+        }).join('');
+        const shapes = [...new Set(Object.values(V.picks))];
+        const line = V.tooMany ? `Too many draws. The game decides 🎲: <b>${escapeHtml(nameOf(V.winners[0]))}</b>`
+          : !V.winners.length ? `Draw! <b>Again</b>`
+          : `${RPS_HAND[V.picks[V.winners[0]]]} beats ${RPS_HAND[shapes.find((x) => x !== V.picks[V.winners[0]])]} · <b>${escapeHtml(nameList(V.winners))}</b> ${V.winners.length > 1 ? 'play on' : 'wins'}`;
+        const mine = myColor && V.auto.includes(myColor) ? `<div class="rpsnote">You didn't pick in time, so the game threw ${RPS_HAND[V.picks[myColor]]} for you.</div>` : '';
+        html = `<div class="rpshead"><b>Round <span class="rpsn">${V.round}</span></b></div><div class="rpshands">${hands}</div><div class="rpsline">${line}</div>${mine}`;
+        if (rpsLocal.key !== key) playSound('click', 0.6);
+      }
+    } else {
+      const w = R.winner, wk = w + ':' + gk;
+      key = 'win:' + w;
+      if (!rpsLocal.winShown[wk]) {
+        rpsLocal.winShown[wk] = now;
+        playSound('win', 0.7);
+        setTimeout(() => { rpsLocal.winShown[wk] = 'gone'; const r2 = $('rpsroot'); if (r2) r2.classList.add('hidden'); ui.spinning = false; afterAction(); render();
+          if (demoMode) toast('Showcase: that is the start. The bots do not play setup, so exit with the ← menu'); }, RPS_WIN_MS);
+      }
+      if (key !== rpsLocal.key || force) {
+        const V = R.reveal || {}, onRandom = V.auto && V.auto.includes(w);
+        const i = state.players.findIndex((p) => p.color === w), src = i >= 0 ? seatAvatarSrc(state.players[i], i) : '';
+        const order = state.order.map((c) => `<span class="rpsord"><span class="dot" style="background:${PCOLOR[c]}"></span>${escapeHtml(nameOf(c))}</span>`).join('<span class="rpsarr">→</span>');
+        html = `<div class="rpswin">${src ? `<img src="${src}" alt="">` : ''}<div><div class="rpswinner">${escapeHtml(nameOf(w))} goes first</div>`
+          + `${onRandom ? '<div class="rpsnote">on a random pick 🎲</div>' : ''}</div></div><div class="rpsorder">${order}</div>`;
+      }
+    }
+    if (html) {
+      let el = root;
+      if (!el) { el = document.createElement('div'); el.id = 'rpsroot'; document.body.appendChild(el); }
+      el.innerHTML = `<div class="rpscard">${html}</div>`;
+      el.classList.remove('hidden');
+    }
+    rpsLocal.key = key;
+  }
+  setInterval(() => { if (rpsActive()) syncRps(); }, 250);
+  // DEMO: ?rpsdemo — a fresh 4-player online-style start decided by rock-paper-scissors against bots
+  function rpsDemo() {
+    const players = Array.from({ length: 4 }, (_, i) => ({ color: SEAT_COLORS[i], name: DEFAULT_NAMES[i] }));
+    const s = C.createGame({ id: 'rps-demo', players, seed: (Math.random() * 1e9) | 0, randomFirst: true });
+    s.whoStarts = 'rps'; s.rps = newRps(s.players, 1500);
+    demoMode = true; online = true; myColor = s.players[0].color; gameSeats = null;
+    enterGame(s);
+  }
   // ---- GG: say "good game" when it's over. Who said it lives in the finished game (state.gg), so
   //      anyone opening the results later still sees it; each new GG floats up from that portrait.
   const ggSeen = {};   // gameKey -> colours whose GG has already been animated here
@@ -3157,6 +3301,7 @@
     // the "show game map" roll prompt only belongs in your own pre-roll phase
     if (!(state.phase === 'play' && tp === 'roll' && isMyTurn())) hideRollPrompt();
     startMusic();       // keep the playlist going in-game (no-op if off / already playing)
+    if (rpsActive()) syncRps();
   }
 
   // the radial cluster: five actions arranged around a centre close button
@@ -3239,6 +3384,7 @@
     openEmojiTray: () => openEmojiTray(),
     exitDemo: () => exitDemo(),
     rmPropose: () => rmPropose(),
+    rps: (v) => rpsPick(v),
     robberInfo: () => { const by = state && state.robberBy; if (!by) return; const v = state.robberVictim; toast(`${nameOf(by)} put the robber here${v ? ` and robbed ${nameOf(v)}` : ''}`); },
     robberies: (c) => openRobberies(c),
     gg: () => sayGG(),
@@ -3789,6 +3935,7 @@
     const bd = $('board'); if (bd) bd.classList.add('enter');
     // the 3·2·1 countdown already ran over the lobby; on the island we go straight to
     // the who-goes-first spin, then begin setup
+    if (isFreshSetup() && s.rps && !s.rps.done && online) { syncRps(true); return; }   // rock-paper-scissors decides who starts
     if (isFreshSetup()) showFirstPlayerSpin(() => { afterAction(); render(); });
     else { afterAction(); render(); }
   }
@@ -3987,6 +4134,7 @@
   const PRESENCE_GRACE = 22000;   // keep a briefly-vanished member visible this long (rides out phone sleep/background)
   const LOBBY = {
     channel: null, presence: {}, mode: 'idle', readyAt: 0, inProgress: false, lastRow: null, table: null, created: null, targetPoints: null,
+    whoStarts: (function () { try { return localStorage.getItem('catanWhoStarts') === 'random' ? 'random' : 'rps'; } catch (_) { return 'rps'; } })(),   // host's lobby choice (default: rock-paper-scissors)
     lastSeen: {},          // id -> last time seen live (ms) — powers the grace window
     lastPayload: {},       // id -> last-known presence payload (kept so a grace member keeps its name/avatar)
     liveIds: new Set(),    // ids present RIGHT NOW (no grace) — used for AFK/skip detection
@@ -4082,6 +4230,8 @@
       let gstate;
       try { gstate = C.createGame({ id: 'table', players: players.map((p) => ({ color: p.color, name: p.name })), seed: (Math.random() * 1e9) | 0, targetPoints: target, randomFirst: true }); }
       catch (e) { toast('Start failed: ' + e.message); return; }
+      gstate.whoStarts = this.whoStarts;
+      if (this.whoStarts === 'rps') gstate.rps = newRps(gstate.players, 4500);   // the 3·2·1 countdown runs first
       const c = NET.init();
       // never start OVER a live game — a stale ready-screen (slow fetch, resumed PWA) must not
       // clobber a match in progress on this code. Check the row right before writing.
@@ -4126,6 +4276,8 @@
       let gstate;
       try { gstate = C.createGame({ id: 'table', players: players.map((p) => ({ color: p.color, name: p.name })), seed: (Math.random() * 1e9) | 0, targetPoints: target, randomFirst: true }); }
       catch (e) { toast('Rematch failed: ' + e.message); return; }
+      gstate.whoStarts = (state && state.whoStarts) || 'random';   // a rematch keeps the table's choice
+      if (gstate.whoStarts === 'rps') gstate.rps = newRps(gstate.players, 6500);   // after the 5·4·3·2·1
       const prevV = NET.version || 1;
       const { data, error } = await c.from('games')
         .update({ phase: 'playing', players, state: gstate, target_points: target, version: prevV + 1 })
@@ -4513,7 +4665,7 @@
     const iAmReady = LOBBY.mode === 'ready';
     const startBtn = iAmHost
       ? (!hostReady ? '' : ready.length < 2 ? `<div class="lobstatus">Waiting for more players to ready up…</div>`
-        : `<button class="btn full" onclick="CATAN.lobbyStart()">Start · ${seatN}p (${tgt} pts)</button>`)
+        : `<button class="btn full" onclick="CATAN.lobbyStart()">Start · ${seatN}p (${tgt} pts)${LOBBY.whoStarts === 'rps' ? ' · ✊ who starts' : ''}</button>`)
       : (iAmReady ? `<div class="lobstatus">${ready.length < 2 ? 'Waiting for more players…' : 'Waiting for ' + hostName + ' to start…'}</div>` : '');
     const targetRow = iAmHost
       ? `<div class="lobtgt"><span class="lobtgt-lbl">Win at <b id="tgt-val">${tgt}</b> pts</span><input class="lobtgt-slider" type="range" min="9" max="15" step="1" value="${tgt}" oninput="var e=document.getElementById('tgt-val');if(e)e.textContent=this.value" onchange="CATAN.lobbyTarget(this.value)"></div>`
@@ -4529,7 +4681,7 @@
     const specLink = `<button class="linkbtn" onclick="CATAN.lobbySpectate()">${LOBBY.mode === 'spectate' ? '✓ Spectating — tap to stop' : '👁 Spectate instead'}</button>`;
     return `<p class="muted small" style="text-align:center">${members.length} here · ${ready.length} ready</p>
       <div class="loblist">${rows}</div>
-      <div class="lobsetup">${targetRow}${prefRow}</div>
+      <div class="lobsetup">${targetRow}${iAmHost ? `<div class="lobws"><span class="lobtgt-lbl">Who starts</span><div class="seg lobwsseg"><button class="${LOBBY.whoStarts === 'rps' ? 'on' : ''}" onclick="CATAN.lobbyWhoStarts('rps')">✊ Rock-paper-scissors</button><button class="${LOBBY.whoStarts !== 'rps' ? 'on' : ''}" onclick="CATAN.lobbyWhoStarts('random')">🎲 Random</button></div></div>` : ''}${prefRow}</div>
       ${readyBtn}
       ${startBtn}
       ${specLink}
@@ -4563,6 +4715,7 @@
   // both guard exits rebuild the lobby shell — the guard card replaced it (titleCard swaps the whole card)
   window.CATAN.guardJoin = (code) => { lobbyShell(); LOBBY.enterTable(code); };
   window.CATAN.newTableGo = () => { const code = genCode(); LOBBY.created = code; lobbyShell(); LOBBY.enterTable(code); };
+  window.CATAN.lobbyWhoStarts = (v) => { LOBBY.whoStarts = v === 'rps' ? 'rps' : 'random'; try { localStorage.setItem('catanWhoStarts', LOBBY.whoStarts); } catch (_) { } lobbySig = null; renderLobby(); };
   window.CATAN.lobbyTarget = (v) => { LOBBY.targetPoints = Math.max(9, Math.min(15, parseInt(v, 10) || 13)); LOBBY.track(); lobbySig = null; renderLobby(); };
   window.CATAN.joinTable = (code) => LOBBY.enterTable(code);
   window.CATAN.leaveTable = () => LOBBY.leaveTable();
@@ -4757,7 +4910,7 @@
     ['leavetab', 'radialtab', 'settingstab', 'dicetab', 'trophytab', 'dicereveal', 'toast', 'confirmbar', 'countdown'].forEach((id) => { const e = $(id); if (e) e.classList.add('hidden'); });
     const rr = $('radialroot'); if (rr) { rr.classList.remove('open'); rr.classList.add('hidden'); }
     document.querySelectorAll('.flyres, .robberdrag, .emofloat, .emocombo, .emothrow, .emosplat, .emoghost').forEach((el) => el.remove());
-    closeEmojiTray(); hideChip(); const mp = $('momentpill'); if (mp) mp.classList.add('hidden');
+    closeEmojiTray(); hideChip(); const mp = $('momentpill'); if (mp) mp.classList.add('hidden'); const rpr = $('rpsroot'); if (rpr) rpr.classList.add('hidden');
     document.body.classList.remove('ingame', 'trading', 'gameover');
     hideOverlay();
   }
@@ -5001,6 +5154,7 @@
     const m = location.href.match(/[?#&]rig(?:=(\d))?\b/);   // ?rig -> 4 players, ?rig=2 -> 2, etc.
     if (m) { rigNearWin(m[1] ? parseInt(m[1], 10) : 4); return; }
     if (/[?#&]showcase\b/.test(location.href)) { showcase(); return; }
+    if (/[?#&]rpsdemo\b/.test(location.href)) { rpsDemo(); return; }
     AUTH.start();
   }
   document.addEventListener('DOMContentLoaded', boot);

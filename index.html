@@ -147,6 +147,47 @@
   .probbed.bump{animation:robbump .7s ease;}
   @keyframes robbump{0%{scale:1;} 25%{scale:1.45; rotate:-6deg;} 50%{scale:1.25; rotate:5deg;} 100%{scale:1; rotate:0deg;}}
   .robtoken{cursor:pointer;}
+  /* rock-paper-scissors: who starts */
+  #rpsroot{position:fixed; inset:0; z-index:37; display:flex; align-items:center; justify-content:center; background:rgba(4,10,20,0.45);}
+  #rpsroot.hidden{display:none;}
+  .rpscard{width:min(470px,92vw); box-sizing:border-box; padding:16px 18px 14px; border-radius:16px; border:1.5px solid var(--gold);
+    background:linear-gradient(180deg, rgba(74,46,18,0.97), rgba(36,20,7,0.97)); box-shadow:0 10px 34px rgba(0,0,0,0.6); color:var(--ink);
+    display:flex; flex-direction:column; align-items:center; gap:10px;}
+  .rpshead{width:100%; display:flex; align-items:center; gap:10px;}
+  .rpshead b{font-family:var(--serif); font-size:21px; color:var(--gold); flex:1;}
+  .rpsn{font-family:-apple-system, system-ui, 'Segoe UI', Roboto, sans-serif; font-weight:800;}   /* the display font draws 1 like a Roman I */
+  .rpsround{font-size:12px; letter-spacing:1px; text-transform:uppercase; color:var(--muted);}
+  .rpstime{font-weight:800; font-size:15px; color:#ffd76b; background:rgba(0,0,0,0.35); border-radius:12px; padding:3px 10px; font-variant-numeric:tabular-nums;}
+  .rpsbtns{display:flex; gap:12px;}
+  .rpsbtn{width:92px; height:92px; border-radius:20px; border:1.5px solid rgba(233,196,90,0.55); background:rgba(255,255,255,0.06); font-size:48px; line-height:1; cursor:pointer; transition:transform .08s;}
+  .rpsbtn:active{transform:scale(0.94);}
+  .rpsbtn.on{border:3px solid var(--gold); background:rgba(233,196,90,0.22); box-shadow:0 0 18px rgba(233,196,90,0.55);}
+  .rpschips{display:flex; flex-wrap:wrap; gap:6px; justify-content:center;}
+  .rpschip{display:inline-flex; align-items:center; gap:5px; padding:3px 9px; border-radius:12px; font-size:12.5px; font-weight:700; background:rgba(255,255,255,0.06); border:1px solid rgba(255,220,170,0.14);}
+  .rpschip em{font-style:normal; font-weight:600; color:var(--muted);}
+  .rpschip.ok em{color:#a8e09a;} .rpschip.out{opacity:0.45;}
+  .rpschip .dot, .rpsname .dot, .rpsord .dot{width:9px; height:9px; border-radius:50%; display:inline-block;}
+  .rpsnote{font-size:12.5px; color:var(--muted); text-align:center;}
+  .rpshands{display:flex; gap:10px; justify-content:center; flex-wrap:wrap;}
+  .rpshand{display:flex; flex-direction:column; align-items:center; gap:4px; width:92px;}
+  .rpsbig{position:relative; width:70px; height:70px; border-radius:18px; display:flex; align-items:center; justify-content:center; font-size:40px;
+    background:rgba(255,255,255,0.06); border:1.5px solid rgba(255,255,255,0.25); animation:rpsin .35s cubic-bezier(.3,1.6,.6,1);}
+  @keyframes rpsin{from{transform:scale(0.3) rotate(-20deg); opacity:0;} to{transform:scale(1); opacity:1;}}
+  .rpshand.won .rpsbig{border:2.5px solid var(--gold); background:rgba(233,196,90,0.2); box-shadow:0 0 16px rgba(233,196,90,0.6);}
+  .rpshand.lost{opacity:0.5; filter:grayscale(0.6);}
+  .rpshand.auto .rpsbig{border-style:dashed;}
+  .rpsdice{position:absolute; right:-9px; top:-9px; width:26px; height:26px; border-radius:50%; background:#3a2410; border:1.5px solid var(--gold); display:flex; align-items:center; justify-content:center; font-size:14px;}
+  .rpsname{display:flex; align-items:center; gap:4px; font-size:13px; font-weight:700;}
+  .rpsauto{font-size:11px; color:var(--muted);}
+  .rpsline{font-size:15px; text-align:center;} .rpsline b{color:var(--gold);}
+  .rpswin{display:flex; align-items:center; gap:14px;}
+  .rpswin img{width:70px; height:80px; border-radius:10px; object-fit:cover; border:3px solid var(--gold); box-shadow:0 0 22px rgba(233,196,90,0.7);}
+  .rpswinner{font-family:var(--serif); font-size:26px; color:var(--gold);}
+  .rpsorder{display:flex; flex-wrap:wrap; gap:6px; align-items:center; justify-content:center; font-size:13px; padding:7px 12px; border-radius:10px; background:rgba(0,0,0,0.3);}
+  .rpsord{display:inline-flex; align-items:center; gap:4px; font-weight:700;} .rpsarr{color:var(--muted);}
+  .lobws{display:flex; flex-direction:column; gap:6px; margin:4px 2px;}
+  .lobwsseg{display:flex;} .lobwsseg button{flex:1;}
+
   /* who-robbed-who sheet */
   .robsheet{min-width:min(400px,86vw);}
   .robsheet h3{display:flex; align-items:center; justify-content:center; gap:8px; font-family:var(--serif); color:var(--gold); font-size:20px; margin-bottom:10px;}
