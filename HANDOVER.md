@@ -455,7 +455,9 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
      lapse passes, any phone resolves (CAS = once). Group is trusted, so picks in shared state are fine.
      Engine needs a helper to rotate `order`/`setupOrder` to the chosen first player before any setup move.
 
-11. ☐ **The robber wears the thief's face — liked, decisions pending (2026-10-22).** Whoever last moved
+11. ✅ **The robber wears the thief's face — BUILT v160 (2026-10-22): full horned token.** (`state.robberBy` /
+   `robberVictim` in the engine; `robberTokenSVG` on the board; `robberFlySrc` flies it for uploaded photos only,
+   built-in portrait files fly as the classic robber; tap -> toast "X put the robber here and robbed Y".) Whoever last moved
    the robber (7 or Knight) is shown on it: their profile photo in a round token with a black bandit
    eye-mask drawn over it (no photo -> initial on their colour, masked). Start of game = the normal robber
    on the desert. Follows the robber everywhere (board, the fly animation, Who robbed who). Tap it:

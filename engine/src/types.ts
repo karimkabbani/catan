@@ -151,6 +151,10 @@ export interface GameState {
   /** Per-player running tallies for the end-of-game awards + the dice-stats luck line. */
   tally: Partial<Record<PlayerColor, Tally>>;
   robberHex: number;
+  /** Who last moved the robber (7 or Knight) — it wears their face. null/absent = the classic robber. */
+  robberBy?: PlayerColor | null;
+  /** Whom they robbed with that move (null = nobody). */
+  robberVictim?: PlayerColor | null;
 
   /** Bank supply remaining per resource. */
   bank: Record<Resource, number>;

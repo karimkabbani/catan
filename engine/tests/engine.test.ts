@@ -178,7 +178,19 @@ describe('turn mechanics', () => {
     if (!r2.ok) throw new Error(r2.error);
     expect(r2.state.tally.blue!.robberCost).toBe(before + 1);
     expect(r2.state.tally.blue!.timesRobbed).toBe(1);   // the blocked production above isn't a robbery
+    expect(r2.state.robberVictim).toBe('blue');
     expect(r.state.tally.red!.timesRobbed ?? 0).toBe(0);
+  });
+
+  it('remembers who moved the robber (it wears their face) and resets the victim', () => {
+    const s0 = runSetup(createGame({ id: 'g5e', players: PLAYERS, seed: 8 }));
+    expect(s0.robberBy ?? null).toBeNull();   // the classic robber until someone moves it
+    const hex = s0.board.hexes.find((h) => h.id !== s0.robberHex)!.id;
+    const s = { ...s0, turnPhase: 'moveRobber' as const, robberVictim: 'blue' as PlayerColor };
+    const r = applyAction(s, { type: 'moveRobber', hex }, 'red');
+    if (!r.ok) throw new Error(r.error);
+    expect(r.state.robberBy).toBe('red');
+    expect(r.state.robberVictim).toBeNull();
   });
 
   it('only the current player may act', () => {

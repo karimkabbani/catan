@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v159';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v160';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -598,7 +598,9 @@
     const rb = state.board.hexes[state.robberHex];
     // just the transparent sprite (matches the flying robber); the drawn silhouette is
     // only a fallback when no art is supplied.
-    if (ASSETS.robber) P.push(`<image href="${ASSETS.robber}" x="${rb.cx - 0.42}" y="${rb.cy - 0.55}" width="0.84" height="0.95" preserveAspectRatio="xMidYMid meet"/>`);
+    const rbBy = state.robberBy && state.players.find((p) => p.color === state.robberBy);
+    if (rbBy) P.push(robberTokenSVG(rb, rbBy, ui.mode === 'idle'));   // it wears the face of whoever last moved it
+    else if (ASSETS.robber) P.push(`<image href="${ASSETS.robber}" x="${rb.cx - 0.42}" y="${rb.cy - 0.55}" width="0.84" height="0.95" preserveAspectRatio="xMidYMid meet"/>`);
     else P.push(`<g filter="url(#soft)"><ellipse cx="${rb.cx}" cy="${rb.cy + 0.34}" rx="0.18" ry="0.05" fill="#000" opacity="0.3"/><path d="M ${rb.cx} ${rb.cy - 0.34} q 0.2 0 0.2 0.28 l 0.05 0.34 q 0 0.08 -0.1 0.08 l -0.3 0 q -0.1 0 -0.1 -0.08 l 0.05 -0.34 q 0 -0.28 0.2 -0.28 z" fill="#33312f" stroke="#111" stroke-width="0.02"/><circle cx="${rb.cx}" cy="${rb.cy - 0.28}" r="0.11" fill="#33312f" stroke="#111" stroke-width="0.02"/></g>`);
     }
 
@@ -1114,13 +1116,42 @@
     return { x: s.x, y: s.y, scale: m.a };
   }
   // fly the robber piece from its old hex to the new one — runs on every screen
+  // ---- the robber wears the face of whoever last moved it: their photo (or seat portrait) in a red
+  //      ring with devil horns on top. Nothing is drawn over the face, so any photo works as it is.
+  //      It stays where the classic robber stands (hex centre, over the number), as before.
+  const HORN_L = 'M17,44 C9,30 7,14 14,1 C18,15 28,26 38,35 Z', HORN_R = 'M83,44 C91,30 93,14 86,1 C82,15 72,26 62,35 Z';
+  function robberTokenSVG(rb, p, tappable) {
+    const src = seatAvatarSrc(p, state.players.indexOf(p));
+    const cx = rb.cx, cy = rb.cy + 0.04, r = 0.33, hs = (2 * r) / 100;
+    const horns = `<g transform="translate(${cx - r} ${cy - r - 0.27}) scale(${hs})"><path d="${HORN_L}" fill="#d62a1e" stroke="#3a0503" stroke-width="2.4"/><path d="${HORN_R}" fill="#d62a1e" stroke="#3a0503" stroke-width="2.4"/></g>`;
+    const face = src
+      ? `<image href="${src}" x="${cx - r}" y="${cy - r}" width="${2 * r}" height="${2 * r}" preserveAspectRatio="xMidYMid slice" clip-path="url(#robclip)"/>`
+      : `<text x="${cx}" y="${cy + 0.12}" text-anchor="middle" font-size="0.36" font-weight="800" fill="#fff">${escapeHtml((p.name || '?')[0])}</text>`;
+    return `<g class="robtoken"${tappable ? ' onclick="CATAN.robberInfo()"' : ''}>`
+      + `<clipPath id="robclip"><circle cx="${cx}" cy="${cy}" r="${r}"/></clipPath>`
+      + `<circle cx="${cx}" cy="${cy}" r="${r + 0.09}" fill="rgba(214,42,30,0.35)"/>${horns}`
+      + `<circle cx="${cx}" cy="${cy}" r="${r + 0.03}" fill="#2a1a0a"/>${face}`
+      + `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#d62a1e" stroke-width="0.055"/></g>`;
+  }
+  // the same token as a standalone image for the flying robber. An uploaded photo (a data: URL) can be
+  // embedded; a built-in portrait file can't load inside an image, so those fly as the classic robber.
+  function robberFlySrc() {
+    const p = state.robberBy && state.players.find((x) => x.color === state.robberBy);
+    const src = p && seatAvatarSrc(p, state.players.indexOf(p));
+    if (!src || !String(src).startsWith('data:')) return ASSETS.robber;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 84 95"><defs><clipPath id="c"><circle cx="42" cy="59" r="33"/></clipPath></defs>`
+      + `<circle cx="42" cy="59" r="42" fill="rgba(214,42,30,0.35)"/><g transform="translate(9 0) scale(0.66)"><path d="${HORN_L}" fill="#d62a1e" stroke="#3a0503" stroke-width="2.4"/><path d="${HORN_R}" fill="#d62a1e" stroke="#3a0503" stroke-width="2.4"/></g>`
+      + `<circle cx="42" cy="59" r="36" fill="#2a1a0a"/><image href="${src}" x="9" y="26" width="66" height="66" preserveAspectRatio="xMidYMid slice" clip-path="url(#c)"/>`
+      + `<circle cx="42" cy="59" r="33" fill="none" stroke="#d62a1e" stroke-width="5.5"/></svg>`;
+    return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  }
   function showRobberFly(fromHex, toHex) {
     const finish = () => { ui.robberFlying = false; afterAction(); render(); };
     const a = hexScreenXY(fromHex, -0.08), b = hexScreenXY(toHex, -0.08);
     if (!ASSETS.robber || !a || !b) { finish(); return; }
     const w = 0.84 * a.scale, h = 0.95 * a.scale;   // match the on-board robber size
     // everyone sees the robber lift off its hex, arc across the board, and land on the new one
-    flyImage(ASSETS.robber, a.x, a.y, b.x, b.y, 0, { w, h, arc: true });
+    flyImage(robberFlySrc(), a.x, a.y, b.x, b.y, 0, { w, h, arc: true });
     setTimeout(finish, aDur(1000));   // the arc animates ~0.95s, then the real piece settles at the new hex
   }
   function showResourceFly() {
@@ -3208,6 +3239,7 @@
     openEmojiTray: () => openEmojiTray(),
     exitDemo: () => exitDemo(),
     rmPropose: () => rmPropose(),
+    robberInfo: () => { const by = state && state.robberBy; if (!by) return; const v = state.robberVictim; toast(`${nameOf(by)} put the robber here${v ? ` and robbed ${nameOf(v)}` : ''}`); },
     robberies: (c) => openRobberies(c),
     gg: () => sayGG(),
     rmVote: (v) => rmVote(v),
@@ -4904,7 +4936,7 @@
       [2500, () => { toast('Showcase: bots are playing. Tap 💬 on your portrait to react anytime'); step((n) => turn(n, sam)); }],
       [2500, () => step((n) => { n.dice = [3, 4]; n.rolls.push(7); n.hasRolledThisTurn = true; n.turnPhase = 'moveRobber'; n.log.push(`${sam.name} rolled 7.`, 'Rolled a 7 — robber activates.'); })],
       [2800, () => step((n) => {   // Sam robs you
-        n.robberHex = myHex(); n.turnPhase = 'main';
+        n.robberHex = myHex(); n.turnPhase = 'main'; n.robberBy = sam.color; n.robberVictim = me.color;
         const mine = pl(n, me), res = ['sheep', 'brick', 'wood'].find((r) => mine.resources[r] > 0) || 'sheep';
         mine.resources[res] = Math.max(0, mine.resources[res] - 1); pl(n, sam).resources[res]++;
         const mt = (n.tally[me.color] = n.tally[me.color] || { robberCost: 0, numbersHit: 0, numbersNormal: 0 }); mt.robberCost++; mt.timesRobbed = (mt.timesRobbed || 0) + 1;

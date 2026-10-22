@@ -460,6 +460,8 @@ export function applyAction(state: GameState, action: Action, byColor: PlayerCol
       if (s.turnPhase !== 'moveRobber') return err('Not time to move the robber.');
       if (action.hex === s.robberHex) return err('Robber must move to a different hex.');
       s.robberHex = action.hex;
+      s.robberBy = cur;
+      s.robberVictim = null;
       const candidates = stealCandidatesForHex(s, action.hex, cur);
       if (candidates.length === 0) {
         s.turnPhase = s.hasRolledThisTurn ? 'main' : 'roll';
@@ -487,6 +489,7 @@ export function applyAction(state: GameState, action: Action, byColor: PlayerCol
         const stolen = pool[pick.value];
         victim.resources[stolen]--;
         player.resources[stolen]++;
+        s.robberVictim = victim.color;
         const vt = tallyOf(s, victim.color);
         vt.robberCost++;
         vt.timesRobbed = (vt.timesRobbed ?? 0) + 1;
