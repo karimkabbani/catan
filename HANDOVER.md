@@ -439,6 +439,22 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
      applyRemoteState skips its fly/steal/robber detectors and just snaps back + toasts. Next player
      rolling before the vote = undo gone (correct). Effort: medium.
 
+10. ☐ **Rock-paper-scissors to decide who starts — DESIGNED, not built (2026-10-22).**
+   - **Lobby option** "Who starts: 🎲 Random / ✊ Rock-paper-scissors", default RPS. Online only
+     (pass-and-play keeps the spinner, since picks would be visible). Also runs before rematches.
+   - **Round:** everyone gets ✊ ✋ ✌️ + a 5s countdown; picks hidden until a simultaneous reveal over
+     each portrait ("Rock… paper… scissors… shoot!"). Exactly two shapes thrown -> the winning shape's
+     players survive, the rest grey out. All same or all three shapes -> "Again!" with the same players.
+     Survivors replay until one remains; they go first and turn order continues around the table.
+     4 players resolve about half of rounds -> expect 2–3 rounds, ~15–20s.
+   - **No pick in 5s:** the game throws a random hand for them (never eliminates), and makes it obvious:
+     auto hand shown faded with a 🎲 badge + "Kay didn't pick: random ✋"; their own screen says "You
+     didn't pick in time, so the game threw ✊ for you"; if it wins: "Kay goes first (on a random pick 🎲)".
+   - **Build notes:** a pre-setup `state.rps = { round, alive: [colors], picks: {color: 'r'|'p'|'s'} }`
+     via the svUpdate CAS pattern; each phone writes its own pick; once all alive picked or the 5s
+     lapse passes, any phone resolves (CAS = once). Group is trusted, so picks in shared state are fine.
+     Engine needs a helper to rotate `order`/`setupOrder` to the chosen first player before any setup move.
+
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
