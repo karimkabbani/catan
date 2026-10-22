@@ -441,7 +441,9 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
 
 10. ✅ **Rock-paper-scissors to decide who starts — BUILT v161 (2026-10-22).** Lobby switch for the host; since v162
    guests see it too ("Win at 11 pts · Who starts: ✊ …") via `lobby_presence.ws` (`server/migrate-whostarts.sql`,
-   applied by Karim in the SQL editor 2026-10-22). `state.rps` + `rpsUpdate`/`syncRps`; engine refuses moves until done; demo: `?rpsdemo`.
+   applied by Karim in the SQL editor 2026-10-22).
+   v164: the reveal is on the board (hands beside corners). v165: 10s first round. v166: the winner CHOOSES their
+   position (1st–4th, 20s, default 1st); others keep table order, rotated to fit (`rpsChooseMut`). `state.rps` + `rpsUpdate`/`syncRps`; engine refuses moves until done; demo: `?rpsdemo`.
    - **Lobby option** "Who starts: 🎲 Random / ✊ Rock-paper-scissors", default RPS. Online only
      (pass-and-play keeps the spinner, since picks would be visible). Also runs before rematches.
    - **Round:** everyone gets ✊ ✋ ✌️ + a 5s countdown; picks hidden until a simultaneous reveal over
