@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v166';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v167';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -2586,9 +2586,9 @@
   const ORD = ['1st', '2nd', '3rd', '4th'];
   function rpsPosHint(k, n) {   // the setup snake: 1…n, then n…1
     if (n === 1) return '';
-    if (k === 1) return 'first, and last in round 2';
-    if (k === n) return 'two settlements in a row';
-    return `${ORD[k - 1]} in round 1, ${ORD[n - k]} in round 2`;
+    if (k === 1) return 'first pick, last back';
+    if (k === n) return 'two in a row';
+    return `${ORD[k - 1]}, then ${ORD[n - k]} back`;
   }
   // showcase bots: everyone but Jordan picks at a random moment; Jordan never does (shows the 🎲 case)
   function rpsBots() {
@@ -2671,6 +2671,7 @@
           const chips = R.alive.map((c) => rpsChip(c, R.picks[c] ? 'picked' : 'deciding…', R.picks[c] ? 'ok' : '')).join('');
           let el = root;
           if (!el) { el = document.createElement('div'); el.id = 'rpsroot'; document.body.appendChild(el); }
+          el.classList.remove('strip');
           el.innerHTML = `<div class="rpscard"><div class="rpshead"><b>Who starts?</b>${R.round > 1 ? `<span class="rpsround">Round <span class="rpsn">${R.round}</span></span>` : ''}<span class="rpstime" id="rps-t">0:${String(left).padStart(2, '0')}</span></div>${btns}`
             + `<div class="rpschips">${chips}</div><div class="rpsnote">Hidden until everyone's picked. You can change it until the timer runs out.</div></div>`;
           el.classList.remove('hidden');
@@ -2704,9 +2705,9 @@
         if (mine) {
           let el = root;
           if (!el) { el = document.createElement('div'); el.id = 'rpsroot'; document.body.appendChild(el); }
-          el.innerHTML = `<div class="rpscard"><div class="rpshead"><b>👑 You won! When do you go?</b><span class="rpstime" id="rps-t">0:${String(left).padStart(2, '0')}</span></div>`
-            + `<div class="rpspos">${Array.from({ length: n }, (_, i) => i + 1).map((k) => `<button class="rpsposbtn" onclick="CATAN.rpsChoose(${k})"><b>${ORD[k - 1]}</b><span>${rpsPosHint(k, n)}</span></button>`).join('')}</div>`
-            + `<div class="rpsnote">Everyone else keeps their place around the table. No choice in time: you go 1st.</div></div>`;
+          el.innerHTML = `<div class="rpscard"><div class="rpshead"><b>👑 You won!<br>When do you go?</b><span class="rpstime" id="rps-t">0:${String(left).padStart(2, '0')}</span></div>`
+            + `<div class="rpspos">${Array.from({ length: n }, (_, i) => i + 1).map((k) => `<button class="rpsposbtn" onclick="CATAN.rpsChoose(${k})"><b>${ORD[k - 1]}</b><span>${rpsPosHint(k, n)}</span></button>`).join('')}</div><div class="rpsnote">no pick in time: 1st</div></div>`;
+          el.classList.add('strip');   // docked at the bottom, no dim: the winner reads the map while choosing
           el.classList.remove('hidden');
         } else hideCard();
         setRpsBanner(`👑 ${escapeHtml(nameOf(w))} won · choosing when to go…`);
