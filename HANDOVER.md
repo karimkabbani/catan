@@ -450,6 +450,12 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    - **No pick in 5s:** the game throws a random hand for them (never eliminates), and makes it obvious:
      auto hand shown faded with a 🎲 badge + "Kay didn't pick: random ✋"; their own screen says "You
      didn't pick in time, so the game threw ✊ for you"; if it wins: "Kay goes first (on a random pick 🎲)".
+   - **Decided 2026-10-22:** you can change your pick until the 5s end (last tap counts); the game's
+     creator sets it next to the points target ("Who starts: ✊ Rock-paper-scissors | 🎲 Random", others see
+     it read-only, the Start button reads "· ✊ who starts"); rematches keep their 5·4·3 countdown and then
+     run RPS; 5 tied rounds -> the game picks at random among survivors ("too many draws, the game
+     decides 🎲"); spectators watch the reveal; turn order goes around from the winner, setup snakes as
+     usual. Lobby mockups on the canvas above.
    - **Build notes:** a pre-setup `state.rps = { round, alive: [colors], picks: {color: 'r'|'p'|'s'} }`
      via the svUpdate CAS pattern; each phone writes its own pick; once all alive picked or the 5s
      lapse passes, any phone resolves (CAS = once). Group is trusted, so picks in shared state are fine.
