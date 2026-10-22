@@ -463,7 +463,8 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
      lapse passes, any phone resolves (CAS = once). Group is trusted, so picks in shared state are fine.
      Engine needs a helper to rotate `order`/`setupOrder` to the chosen first player before any setup move.
 
-11. ✅ **The robber wears the thief's face — BUILT v160 (2026-10-22): full horned token.** (`state.robberBy` /
+11. ✅ **The robber wears the thief's face — BUILT v160, reworked v165 (2026-10-22): the robber's own body
+   (`assets/robber-body.png`, head + hat cut away) with the thief's face as a big round head, no horns.** (`state.robberBy` /
    `robberVictim` in the engine; `robberTokenSVG` on the board; `robberFlySrc` flies it for uploaded photos only,
    built-in portrait files fly as the classic robber; tap -> toast "X put the robber here and robbed Y".) Whoever last moved
    the robber (7 or Knight) is shown on it: their profile photo in a round token with a black bandit
