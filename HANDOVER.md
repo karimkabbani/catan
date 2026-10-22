@@ -460,8 +460,12 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    eye-mask drawn over it (no photo -> initial on their colour, masked). Start of game = the normal robber
    on the desert. Follows the robber everywhere (board, the fly animation, Who robbed who). Tap it:
    "Sam put me here · robbed Karim". Profile photos already exist -> low cost.
-   - **Open decision:** replace the whole robber figure with the masked token, or keep the figure with
-     the masked photo as a badge on it.
+   - **Update 2026-10-22 (mockups: claude.ai/artifact/NRTc83WMEbQWPfp2UtYmNB):** the eye-mask was dropped,
+     since it can't line up reliably on real photos. Direction is **option C: nothing on the face**. The
+     photo sits untouched in a red ring with **devil horns** on top (cheeky, works on any photo, no setup).
+     The robber keeps its current spot at the hex centre, covering the number as today (Karim: keep it).
+     Photo size isn't a concern (avatars are already-loaded ~10–40 KB squares).
+   - **Open decision:** full horned token replacing the robber, or a horned badge on the classic figure.
 
 12. ☐ **Walkie-talkie (push-to-talk) — liked, decisions pending (2026-10-22).** A 🎙 next to your portrait:
    tap to start talking (red "LIVE" ring on your portrait), tap to stop, auto-cut at 15s. Not hold-to-talk
