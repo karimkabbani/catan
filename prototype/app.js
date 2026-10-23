@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v175';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v176';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -4857,7 +4857,7 @@
     if (LV.tab === 'play' && LOBBY.table) return `<button class="lobback" data-nav="back" aria-label="Back">←</button><div class="lvttl">${escapeHtml(lvRoomName())}</div>${av}`;
     if (LV.tab === 'chat') return `<div class="lvttl">Chat</div><span class="lvon">● ${LOBBY.online().length} online</span>${av}`;
     if (LV.tab === 'stats') return `<div class="lvttl">Stats</div>${av}`;
-    return `<div class="lvlogo">CATAN</div>${av}`;
+    return `<div class="lvlogo">CATAN<span class="lvflag" aria-label="Lebanon">🇱🇧</span></div>${av}`;
   }
   function lvTabsHTML() {
     const u = lvUnread();
