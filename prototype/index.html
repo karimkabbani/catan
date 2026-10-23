@@ -249,6 +249,9 @@
   .lvseat.mine{cursor:pointer; background:rgba(233,196,90,0.08);}
   .lvseat.away{opacity:0.6;}
   .lvseat.empty{border:2px dashed rgba(233,196,90,0.4); background:rgba(0,0,0,0.12); color:#a8957a; font-weight:700; font-size:13px;}
+  .lvgo{position:absolute; left:50%; top:-12px; transform:translateX(-50%); padding:3px 10px; border-radius:12px; background:#ffd76b; color:#3a2400; font-size:12.5px; font-weight:800; white-space:nowrap; box-shadow:0 3px 10px rgba(0,0,0,0.4); animation:lvgo .5s cubic-bezier(.3,1.6,.6,1); z-index:2;}
+  @keyframes lvgo{from{transform:translateX(-50%) scale(0.3); opacity:0;} to{transform:translateX(-50%) scale(1); opacity:1;}}
+  .btn.lvgobtn{font-size:20px; letter-spacing:1px;}
   .lvplus{font-size:24px; color:var(--gold); line-height:1;}
   .lvcrown{position:absolute; left:10px; top:6px; font-size:19px;}
   .lvcd{position:absolute; right:10px; top:10px; width:16px; height:16px; border-radius:50%; border:2px solid var(--ink);}
