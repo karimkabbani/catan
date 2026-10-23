@@ -444,6 +444,9 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    applied by Karim in the SQL editor 2026-10-22).
    v164: the reveal is on the board (hands beside corners). v165: 10s first round. v166: the winner CHOOSES their
    position (1st–4th, 20s, default 1st); others keep table order, rotated to fit (`rpsChooseMut`). `state.rps` + `rpsUpdate`/`syncRps`; engine refuses moves until done; demo: `?rpsdemo`.
+   v171: once every player has picked, the round reveals after a 1s beat (`RPS_ALLIN_MS`) instead of waiting out the
+   clock; picks lock at that point (you can change yours until the last person picks). 2-player games get the same
+   "When do you go?" choice (1st / 2nd).
    - **Lobby option** "Who starts: 🎲 Random / ✊ Rock-paper-scissors", default RPS. Online only
      (pass-and-play keeps the spinner, since picks would be visible). Also runs before rematches.
    - **Round:** everyone gets ✊ ✋ ✌️ + a 5s countdown; picks hidden until a simultaneous reveal over
