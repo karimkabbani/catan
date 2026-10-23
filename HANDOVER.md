@@ -541,6 +541,8 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
 16. ✅ **Everyone in the lobby — v173 (2026-10-23).** The Play tab's "Friends · N online" grid shows every registered
    player (`AUTH.list()` = the `player_list` RPC, refetched at most every 2 min into `LV.roster`): online ones first
    with what they're doing, the rest greyed out as "offline". Matched to presence by name (the RPC returns no id).
+   v174: tap any face -> that player's Stats page (`CATAN.lvStatsFor`, by id, else by name; no games -> toast).
+   Stats "Head to head" now carries a note: who finished higher, in every game you both played (any size, all time).
 
 ### Also shipped since multiplayer (2026-06)
 
