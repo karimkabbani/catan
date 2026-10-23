@@ -493,6 +493,20 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    - **Open decisions:** start with A? Auto-play incoming audio by default, or muted until each player
      opts in?
 
+13. ✅ **Quick tournament ("cup") — BUILT v169 (2026-10-23). Series format only** (Karim: heats/king-of-the-table
+   won't be used; mockups of all three on the canvas). Host picks Format "One game | 🏆 Tournament" at the table,
+   games (default 3, 2–9) and each game's target (slider goes down to 6 in cup mode). Rides presence as `ws = 'cup:N'`
+   (no schema change); guests see "🏆 Tournament · 3 games, each to 7 pts".
+   - `state.cup = { name: "<host>'s Cup", games, n, host: playerId, hist: [{place, vp, robbed}], stop }`, carried game to
+     game by `LOBBY.rematch`. Points per finish 3·2·1·0 (3p: 3·1·0, 2p: 3·0). Ties: games won, then total VP.
+   - RPS decides who starts every game. Between games the rematch vote becomes "✓ Ready for game N": no time limit,
+     the cup waits for everyone. Mid-game drop-outs: the game just waits (existing behaviour).
+   - "Step away" from the between-games screen doesn't mark you as left; the table lobby then offers
+     "🏆 Back to <cup> · game N next" (`LOBBY.cupRow`, `CATAN.cupRejoin`). Host (or anyone, if the host is offline)
+     can "End the cup now": standings so far are final. Starting a new game over a paused cup needs a second tap.
+   - In game: 🏆 points beside every corner + a "game 2 of 3" pill. Final: champion screen with per-game medals,
+     tie-break line, cup-long awards (Robber magnet, Most points scored), "Rematch the cup".
+
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
