@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v169';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v170';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -4238,9 +4238,10 @@
     if (placed && !robberMoved && !rolled) cinematicPlace(placed.kind, placed.id, false);   // observer: gentle pan to the new piece
   }
   function genCode() { const a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s = ''; for (let i = 0; i < 4; i++) s += a[(Math.random() * a.length) | 0]; return s; }
-  // The group's standing table: always exists, pinned at the top of the lobby, and where a fresh
-  // login lands. No creator — the first player to ready up hosts (startTable/atTableHTML fall back
-  // to ready[0]). 5 chars so a random 4-char genCode can never collide with it.
+  // The group's standing table: "Start a game" uses it whenever nobody's there, so most games share
+  // one code. Whoever starts it is its creator (host); with no creator present the first seated
+  // player hosts (startTable/lvRoomHost fall back to ready[0]). 5 chars so a random 4-char genCode
+  // can never collide with it.
   const HOME_CODE = 'TABLE';
 
   const NET = {
@@ -4405,7 +4406,7 @@
     // changed it at the table, else their profile preference. undefined = no override in play.
     // effective color preference: the table-session override if set, else the profile default
     myPref() { return this.prefGame !== undefined ? this.prefGame : ((AUTH.me && AUTH.me.prefColor) || null); },
-    myPayload() { return { id: AUTH.me.id, name: AUTH.me.name, avatar: AUTH.me.avatar || null, pref: this.myPref(), mode: this.mode, readyAt: this.readyAt, table: this.table || null, created: this.created || null, target: this.targetPoints || null, ws: this.cup ? 'cup:' + this.cup : this.whoStarts }; },
+    myPayload() { return { id: AUTH.me.id, name: AUTH.me.name, avatar: AUTH.me.avatar || null, pref: this.myPref(), mode: this.mode, readyAt: this.readyAt, table: this.table || null, created: this.created || null, target: this.targetPoints || null, ws: this.cup ? 'cup:' + this.cup + ':' + (this.whoStarts === 'rps' ? 'r' : 'x') : this.whoStarts }; },
     // announce my state: heartbeat row on the server + an optimistic local echo so my own UI updates
     // instantly (the poll confirms it a few seconds later)
     track() {
@@ -4479,7 +4480,7 @@
       try { gstate = C.createGame({ id: 'table', players: players.map((p) => ({ color: p.color, name: p.name })), seed: (Math.random() * 1e9) | 0, targetPoints: target, randomFirst: true }); }
       catch (e) { toast('Start failed: ' + e.message); return; }
       gstate.whoStarts = this.whoStarts;
-      if (this.cup) { gstate.cup = { name: host.name + "'s Cup", games: this.cup, n: 1, host: host.id, hist: [] }; gstate.whoStarts = 'rps'; }   // a cup: rock-paper-scissors every game
+      if (this.cup) gstate.cup = { id: Math.random().toString(36).slice(2, 10), name: host.name + "'s Cup", games: this.cup, n: 1, host: host.id, hist: [] };
       if (gstate.whoStarts === 'rps') gstate.rps = newRps(gstate.players, 4500);   // the 3·2·1 countdown runs first
       const c = NET.init();
       // never start OVER a live game — a stale ready-screen (slow fetch, resumed PWA) must not
@@ -4529,8 +4530,7 @@
       gstate.whoStarts = (state && state.whoStarts) || 'random';   // a rematch keeps the table's choice
       if (state && state.cup) {   // next game of the cup carries the results so far; after the final, "rematch the cup" starts a fresh one
         const fin = cupFinal(state);
-        gstate.cup = Object.assign({}, state.cup, { n: fin ? 1 : state.cup.n + 1, hist: fin ? [] : cupHist(state), stop: false });
-        gstate.whoStarts = 'rps';
+        gstate.cup = Object.assign({}, state.cup, { n: fin ? 1 : state.cup.n + 1, hist: fin ? [] : cupHist(state), stop: false }, fin ? { id: Math.random().toString(36).slice(2, 10) } : {});
       }
       if (gstate.whoStarts === 'rps') gstate.rps = newRps(gstate.players, 6500);   // after the 5·4·3·2·1
       const prevV = NET.version || 1;
@@ -4565,24 +4565,6 @@
   document.addEventListener('visibilitychange', onWake);
   window.addEventListener('focus', onWake);
   window.addEventListener('online', onWake);
-  function rankMode(p) { const m = pmode(p); return m === 'ready' ? 3 : m === 'playing' ? 2 : m === 'spectate' ? 1 : 0; }
-  function lobbyRows(list, ready, creatorId) {
-    if (!list.length) return `<p class="muted" style="text-align:center;margin:8px 0">Nobody online yet.</p>`;
-    return list.slice().sort((a, b) => (rankMode(b) - rankMode(a)) || String(a.name).localeCompare(b.name)).map((p) => {
-      const m = pmode(p), ri = ready.findIndex((r) => r.id === p.id), isHost = creatorId && p.id === creatorId;
-      let tag;
-      if (p.away) tag = `<span class="t-pend">away…</span>`;   // briefly dropped from presence (phone asleep) — grace window
-      else if (m === 'spectate') tag = `<span class="t-pend">spectating</span>`;
-      else if (m === 'playing') tag = `<span class="t-pend">in game</span>`;
-      else if (m === 'ready') tag = ri >= 4 ? `<span class="t-pend">ready · spectating (full)</span>` : `<span class="t-acc">${isHost ? 'Host · ready' : 'ready'}</span>`;
-      else tag = isHost ? `<span class="t-acc">Host · not ready</span>` : `<span class="muted">not ready</span>`;
-      // preferred-color dot beside the name (what they'll ask for when the game starts).
-      // My own dot reads LOCAL state — the presence echo can lag or hold a stale meta.
-      const pref = p.id === AUTH.me.id ? LOBBY.myPref() : p.pref;
-      const pd = (pref && PCOLOR[pref]) ? `<span class="lobprefdot" style="background:${PCOLOR[pref]}" title="wants ${pref}"></span>` : '';
-      return `<div class="lobrow${p.away ? ' away' : ''}"><span class="tnm">${faceHTML(p.name, p.avatar, 'sm')}<span>${escapeHtml(p.name)}${p.id === AUTH.me.id ? ' (you)' : ''}</span>${pd}</span>${tag}</div>`;
-    }).join('');
-  }
   // ===== lobby chat — ONE continuous group conversation shown in BOTH the games list and the
   // table lobby (messages table, fixed code 'LOBBY'; polled — same reliable transport as in-game
   // chat). 48h retention server-side.
@@ -4614,29 +4596,19 @@
     if (error) { toast('Message failed'); lchatDraft = text; renderLobbyChat(); return; }
     if (data) { LCHAT.msgs.push(data); LCHAT.lastId = Math.max(LCHAT.lastId, data.id || 0); renderLobbyChat(); }
   }
-  // the shared chat block — identical in the games list and the table lobby
-  function lobbyChatHTML() {
-    return `<div class="lchat">
-      <div class="lchatlist" id="lchatlist"></div>
-      <div class="lchatin">
-        <input id="lchatIn" maxlength="200" placeholder="Message the group…" autocomplete="off"
-          value="${escapeHtml(lchatDraft)}" oninput="CATAN.lchatKeep(this.value)"
-          onkeydown="if(event.key==='Enter'){event.preventDefault();CATAN.lchatSend();}">
-        <button class="btn lchatgo" onclick="CATAN.lchatSend()">Send</button>
-      </div>
-    </div>`;
-  }
   function renderLobbyChat() {
+    lvFillPeek(); if (lvOn()) lvChrome();
     const el = $('lchatlist'); if (!el) return;
+    if (LV.tab === 'chat') { lvMarkSeen(); lvChrome(); }
     const mineId = AUTH.me && AUTH.me.id;
     el.innerHTML = LCHAT.msgs.length
-      ? LCHAT.msgs.slice().reverse().map((m) => {   // newest first
-        const t = m.created_at ? relTime(new Date(m.created_at).getTime()) : '';
-        return `<div class="lcrow"><b class="lcname${m.sender === mineId ? ' me' : ''}">${escapeHtml(m.name || '?')}</b>` +
-          `<span class="lctxt">${escapeHtml(m.body || '')}</span><span class="lctime">${t}</span></div>`;
+      ? LCHAT.msgs.map((m) => {   // oldest first, newest at the bottom (like any messenger)
+        const t = m.created_at ? relTime(new Date(m.created_at).getTime()) : '', mine = m.sender === mineId;
+        return `<div class="lvmsg${mine ? ' mine' : ''}">${mine ? '' : faceHTML(m.name, m.avatar, 'sm')}<div class="lvbub">${mine ? '' : `<b class="lvwho">${escapeHtml(m.name || '?')}</b>`}`
+          + `${escapeHtml(m.body || '')}<span class="lvt">${t}</span></div></div>`;
       }).join('')
-      : (LCHAT.loaded ? '<p class="lcempty">Say hi — everyone in the lobby sees this.</p>' : '<p class="lcempty">Loading…</p>');
-    el.scrollTop = 0;   // newest message sits at the top, in view
+      : (LCHAT.loaded ? '<p class="lcempty">Say hi. Everyone in the group sees this.</p>' : '<p class="lcempty">Loading…</p>');
+    el.scrollTop = el.scrollHeight;
   }
   let lobbySig = null;
   // Menu navigation (Switch player / Change PIN / Back to players / Back to lobby) fires on
@@ -4655,6 +4627,7 @@
     else if (a === 'profback') CATAN.manageProfile();
     else if (a === 'stats') CATAN.openStats();
     else if (a === 'back') CATAN.lobbyBack();
+    else if (a.startsWith('tab:')) CATAN.lvTab(a.slice(4));
   }, true);
   // ---- Stats — real data from public.game_results (one row written per finished game) ----
   // In-memory game shape: { date:'Jun 29', ym:'2026-06', standings:[{n,pts,lr,la}] } (index 0 = winner).
@@ -4676,7 +4649,7 @@
           STATS.games = ((!error && data) ? data : []).filter((r) => Array.isArray(r.standings) && r.standings.length).map((r) => {
             const d = new Date(r.finished_at), mo = d.getMonth();
             return { date: MONTH_ABBR[mo] + ' ' + d.getDate() + ', ' + d.getFullYear(), ym: d.getFullYear() + '-' + String(mo + 1).padStart(2, '0'),
-              standings: r.standings.map((s) => ({ id: s.id || null, n: s.name, pts: s.pts, lr: s.lr ? 1 : 0, la: s.la ? 1 : 0, pen: s.penalty ? 1 : 0 })) };
+              standings: r.standings.map((s) => ({ id: s.id || null, n: s.name, pts: s.pts, lr: s.lr ? 1 : 0, la: s.la ? 1 : 0, pen: s.penalty ? 1 : 0, cup: s.cup || null })) };
           });
           // Resolve the LATEST display name per identity key (games are newest-first, so the first
           // name seen for a key wins). Keying on the persistent player id means a rename never
@@ -4718,6 +4691,15 @@
         g.standings.forEach((s, i) => { const ok = pkey(s); if (ok === key) return; const o = (h[ok] = h[ok] || { w: 0, l: 0, name: STATS.nameFor(ok) }); if (me < i) o.w++; else o.l++; }); });
       return h;
     },
+    // every cup, newest first: its final standings are the rows of its latest recorded game
+    cups() {
+      const by = {};
+      STATS.games.forEach((g) => {
+        const c = g.standings[0] && g.standings[0].cup; if (!c || !c.id) return;
+        if (!by[c.id] || c.n > by[c.id].n) by[c.id] = { id: c.id, name: c.name, n: c.n, of: c.of, date: (by[c.id] && by[c.id].date) || g.date, rows: g.standings.filter((x) => x.cup).slice().sort((a, b) => a.cup.cr - b.cup.cr) };
+      });
+      return Object.values(by);
+    },
     detail(key) { const a = STATS.board(STATS.games).find((p) => p.key === key); return a ? { ...a, ...STATS.streak(key), h2h: STATS.h2h(key) } : null; },
   };
   // Write one row when a game ends. Every seated client attempts it; a board-fingerprint game_id
@@ -4729,9 +4711,12 @@
     (gameSeats || []).forEach((s) => { if (s && s.color) seatId[s.color] = s.playerId || null; });
     const quitter = state.quitBy || null;
     const rows = finishOrder(state);   // winner 1st, a mid-game quitter last, the rest by VP
+    // a cup game also carries the cup's running standings (cp points, cr rank): its latest game = the final table
+    const cupRank = {}; if (state.cup) cupTable(state).forEach((r, i) => { cupRank[r.p.color] = { cp: r.pts, cr: i + 1 }; });
     const standings = rows.map(({ p, vp }, i) => {
       const s = { id: seatId[p.color] || null, name: p.name, color: p.color, pts: vp, place: i + 1, lr: p.hasLongestRoad ? 1 : 0, la: p.hasLargestArmy ? 1 : 0 };
       if (p.color === quitter) s.penalty = 1;   // quit mid-game -> flagged (shown in the Penalties column)
+      if (cupRank[p.color]) s.cup = Object.assign({ id: state.cup.id || ((state.cup.host || '') + ':' + state.cup.name), name: state.cup.name, n: state.cup.n, of: state.cup.games }, cupRank[p.color]);
       return s;
     });
     const fp = ((state.board && state.board.hexes) || []).map((h) => ((h.terrain || '?')[0]) + (h.token || '')).join('');
@@ -4754,10 +4739,25 @@
         `<span class="rgfield">${others}</span><span class="rgdate">${g.standings.length}p · ${g.date}</span></div>`;
     }).join('');
   }
+  // the stats screens draw into the Stats tab when the lobby frame is up, else as their own card
+  function statsOut(html) {
+    if (lvOn()) { LV.tab = 'stats'; LV.sheet = null; const sh = $('lv-sheet'); if (sh) sh.innerHTML = ''; const d = $('lobby-dyn'); if (d) d.innerHTML = `<div class="lvstats">${html}</div>`; lvChrome(); return; }
+    titleCard(html);
+  }
+  // cups, rebuilt from the tagged game rows (latest game of each cup = its final standings)
+  function cupsHTML() {
+    const cups = STATS.cups(); if (!cups.length) return '';
+    const wins = {};
+    cups.forEach((c) => { const k = pkey(c.rows[0]); wins[k] = (wins[k] || 0) + 1; });
+    const champs = Object.keys(wins).sort((a, b) => wins[b] - wins[a]).map((k) => `<span class="cupchamp">🏆 ${escapeHtml(STATS.nameFor(k))} <b>${wins[k]}</b></span>`).join('');
+    const list = cups.slice(0, 6).map((c) => `<div class="rgrow"><span class="rgwin">🏆 ${escapeHtml(STATS.nameFor(pkey(c.rows[0])))}</span>`
+      + `<span class="rgfield">${escapeHtml(c.name)} · ${c.n < c.of ? c.n + ' of ' + c.of + ' games' : c.of + ' games'}</span><span class="rgdate">${c.date}</span></div>`).join('');
+    return `<h4 class="stsub" style="margin-top:0">Cups · all time</h4><div class="cupchamps">${champs}</div><div class="rglist">${list}</div>`;
+  }
   function statsScreen() {
-    const back = `<div class="lobhead"><button class="lobback" onclick="CATAN.showLobby()" title="Back to lobby">←</button><h3>🏆 Stats</h3></div>`;
-    if (!STATS.loaded) { titleCard(`${back}<p class="muted" style="text-align:center;padding:26px 0">Loading…</p>`); STATS.load().then(() => statsScreen()); return; }
-    if (!STATS.games.length) { titleCard(`${back}<p class="muted" style="text-align:center;padding:22px 8px;line-height:1.5">No games recorded yet.<br>Finish an online game and it'll show up here.</p>`); return; }
+    const back = lvOn() ? '' : `<div class="lobhead"><button class="lobback" onclick="CATAN.showLobby()" title="Back to lobby">←</button><h3>🏆 Stats</h3></div>`;
+    if (!STATS.loaded) { statsOut(`${back}<p class="muted" style="text-align:center;padding:26px 0">Loading…</p>`); STATS.load().then(() => statsScreen()); return; }
+    if (!STATS.games.length) { statsOut(`${back}<p class="muted" style="text-align:center;padding:22px 8px;line-height:1.5">No games recorded yet.<br>Finish an online game and it'll show up here.</p>`); return; }
     // statsSeason: 'all' = all-time · null = default (latest month) · else a specific 'YYYY-MM'
     const isAll = statsSeason === 'all';
     let season = isAll ? 'all' : (statsSeason || STATS.curSeason());
@@ -4801,7 +4801,8 @@
          <h4 class="stsub">Games${selLbl ? ' · ' + selLbl : ''}${sizeLbl}</h4>
          <div class="rglist tall">${recentRowsHTML(games)}</div>`
       : `<p class="muted" style="text-align:center;padding:22px 8px">No ${statsCount ? statsCount + '-player ' : ''}games ${isAll ? 'recorded' : 'in ' + selLbl} yet.</p>`;
-    titleCard(`${back}
+    statsOut(`${back}
+      ${cupsHTML()}
       ${seasonSeg}
       ${countSeg}
       ${body}`);
@@ -4818,131 +4819,266 @@
   function statsPlayerScreen(key) {
     const d = STATS.detail(key);
     if (!d) { statsScreen(); return; }
-    const chips = [['Games', d.gp], ['Wins', d.w], ['Win%', d.winpct + '%'], ['Avg place', d.avg.toFixed(1)], ['Streak', d.cur + ' · best ' + d.best]];
+    const cups = STATS.cups(), cupsIn = cups.filter((c) => c.rows.some((r) => pkey(r) === key)), cupsWon = cupsIn.filter((c) => pkey(c.rows[0]) === key).length;
+    const chips = [['Games', d.gp], ['Wins', d.w], ['Win%', d.winpct + '%'], ['Avg place', d.avg.toFixed(1)], ['Streak', d.cur + ' · best ' + d.best]].concat(cupsIn.length ? [['Cups won', cupsWon + ' of ' + cupsIn.length]] : []);
     const chipHTML = chips.map((c) => `<div class="stchip"><span class="stcv">${c[1]}</span><span class="stcl">${c[0]}</span></div>`).join('');
     const h2hHTML = Object.keys(d.h2h).map((ok) => { const r = d.h2h[ok], lead = r.w > r.l ? 'stpos' : (r.w < r.l ? 'stneg' : '');
       return `<div class="h2hrow"><span class="h2hn">vs ${escapeHtml(r.name)}</span><span class="h2hr ${lead}">${r.w}–${r.l}</span></div>`; }).join('');
     const roadIco = ROAD_ICO ? `<img src="${ROAD_ICO}" class="stbonico" alt="">` : '🛤';
-    titleCard(`<div class="lobhead"><button class="lobback" onclick="CATAN.openStats()" title="Back to stats">←</button><h3>${escapeHtml(d.name)}</h3></div>
+    statsOut(`<div class="lobhead"><button class="lobback" onclick="CATAN.openStats()" title="Back to stats">←</button><h3>${escapeHtml(d.name)}</h3></div>
       <div class="stchips">${chipHTML}</div>
       <h4 class="stsub">Head to head</h4>
       <div class="h2hlist">${h2hHTML}</div>
       <h4 class="stsub">Bonuses held</h4>
       <div class="stbon"><span>${roadIco} Longest Road ×${d.lr}</span><span><span class="stbonemo">⚔</span> Largest Army ×${d.la}</span></div>`);
   }
-  // Build the static lobby frame (title + dyn slot + footer) ONCE per entry. Only an
-  // explicit showLobby() ever calls this; background ticks never rebuild the frame.
+  // ===== Lobby (v170): three tabs (Play · Chat · Stats) over the SAME tables/presence plumbing.
+  // Play shows one card for what's happening now; a table is a "room" of four seats. Taking a seat
+  // is the old "ready" (enterTable + ready in one tap); the host is whoever started the room.
+  const LV = {
+    tab: 'play',     // 'play' | 'chat' | 'stats'
+    sheet: null,     // bottom sheet: 'settings' | 'colour' | 'guard:<code>'
+    last: null,      // { at, code, text } the game I just left, shown in its room for a while
+    chatSeen: (function () { try { return +localStorage.getItem('catanChatSeen') || 0; } catch (_) { return 0; } })(),
+  };
+  // Build the frame (header · body · tabs · sheet slot) ONCE per entry. Only an explicit
+  // showLobby() calls this; background ticks only refill its parts.
   function lobbyShell() {
-    // back arrow (top-left, goes back one level) + subtle right-hand tools (avatar -> profile, stats)
-    const back = `<button class="lobback" id="lobback" data-nav="back" title="Back">←</button>`;
-    const tools = `<div class="lobtools">` +
-      `<button class="lobtool lobav" data-nav="profile" title="Manage profile">${faceHTML(AUTH.me.name, AUTH.me.avatar, 'sm')}</button>` +
-      `<button class="lobtool" data-nav="stats" title="Stats & leaderboard">🏆</button></div>`;
-    titleCard(`<div class="lobhead">${back}<h3 id="lob-title">Lobby</h3>${tools}</div><div id="lobby-dyn"></div>`);
-    lobbySig = null;
+    const t = $('title');
+    t.innerHTML = `<div class="lv" id="lv-root"><div class="lvhdr" id="lv-hdr"></div><div class="lvbody" id="lobby-dyn"></div><nav class="lvtabs" id="lv-tabs"></nav><div id="lv-sheet"></div></div>`;
+    t.classList.remove('hidden'); hideOverlay(); stopMusic(); document.body.classList.remove('ingame');
+    lobbySig = null; LV.hdrHTML = LV.tabsHTML = null;
+  }
+  function lvOn() { const t = $('title'); return !!(AUTH.me && t && !t.classList.contains('hidden') && $('lv-root')); }
+  // the host's choices ride presence in `ws`: 'rps' | 'random' | 'cup:N' (v169) | 'cup:N:r' / 'cup:N:x'
+  function wsInfo(ws) {
+    const s = String(ws || '');
+    if (s.startsWith('cup:')) { const p = s.split(':'); return { cup: parseInt(p[1], 10) || 3, rps: p[2] !== 'x' }; }
+    return { cup: 0, rps: s !== 'random' };
+  }
+  function namesAnd(ns) { return ns.length < 2 ? (ns[0] || '') : ns.slice(0, -1).join(', ') + ' and ' + ns[ns.length - 1]; }
+  // every OTHER table, grouped from presence: who's there, who's seated, who hosts
+  function lvTables() {
+    const tables = {};
+    LOBBY.online().forEach((p) => { if (p.table && p.id !== AUTH.me.id) (tables[p.table] = tables[p.table] || []).push(p); });
+    return Object.keys(tables).map((code) => {
+      const m = tables[code], playing = m.some((p) => pmode(p) === 'playing');
+      const ready = m.filter((p) => pmode(p) === 'ready').sort((a, b) => a.readyAt - b.readyAt);
+      const host = m.find((p) => p.created === code) || ready[0] || m[0];
+      return { code, m, playing, ready, host };
+    });
+  }
+  function lvGathering() { return lvTables().filter((t) => !t.playing).sort((a, b) => b.m.length - a.m.length); }
+  function lvTableName(t) { return t.host ? t.host.name + "'s game" : 'A game'; }
+  function lvRoomHost() {
+    const members = LOBBY.tableMembers(), ready = LOBBY.readyList();
+    return members.find((p) => p.created === LOBBY.table) || ready[0] || null;
+  }
+  function lvRoomName() {
+    if (LOBBY.cupRow) return LOBBY.cupRow.state.cup.name;
+    const h = lvRoomHost();
+    if (!h && LOBBY.inProgress) return 'Live game';
+    return !h ? 'Game room' : h.id === AUTH.me.id ? 'Your game' : h.name + "'s game";
+  }
+  // one line that says how the game is set up (host's live choices; guests read them off presence)
+  function lvSettingsLine(host, n) {
+    const isMe = host && host.id === AUTH.me.id;
+    const tgt = isMe ? LOBBY.targetPoints : (host ? host.target : null);
+    const w = isMe ? { cup: LOBBY.cup, rps: LOBBY.whoStarts === 'rps' } : wsInfo(host && host.ws);
+    const pts = tgt != null ? tgt : (n >= 2 ? targetForN(n) + ' (auto)' : 'auto');
+    return (w.cup ? `🏆 Tournament · ${w.cup} games to ${pts}` : `🎯 Win at ${pts} · One game`) + (w.rps ? ' · ✊ Who starts' : ' · 🎲 Random start');
+  }
+  function lvMini(p, crown) {
+    return `<div class="lvmini">${crown ? '<span class="lvminicrown">👑</span>' : ''}${faceHTML(p.name, p.avatar, 'md' + (crown ? ' hostring' : ''))}<span class="lvmn">${escapeHtml(p.name)}</span></div>`;
+  }
+  const LV_OPEN = `<div class="lvmini"><span class="lvopen">+</span><span class="lvmn muted">Open</span></div>`;
+
+  // ---- Play tab, not in a room: one card for what's happening now ----
+  function lvPlayHTML() {
+    const tabs = lvTables(), others = LOBBY.online().filter((p) => p.id !== AUTH.me.id);
+    const gathering = tabs.filter((t) => !t.playing).sort((a, b) => b.m.length - a.m.length);
+    const live = tabs.filter((t) => t.playing);
+    let hero, more = [];
+    if (gathering.length) {
+      const g = gathering[0], seated = g.ready.slice(0, 4), full = g.ready.length >= 4;
+      const nobodyHosts = !g.m.some((p) => p.created === g.code) && !g.ready.length;
+      const who = nobodyHosts ? 'Friends are gathering' : `${escapeHtml(g.host.name)} is getting a game going`;
+      const idle = g.m.filter((p) => pmode(p) !== 'ready' && pmode(p) !== 'playing');
+      hero = `<div class="lvhero hot"><div class="lvkick"><span class="lvlive"></span>STARTING SOON</div><div class="lvh1">${who}</div>
+        <div class="lvminis">${seated.map((p) => lvMini(p, p.id === g.host.id)).join('')}${LV_OPEN.repeat(Math.max(0, 4 - seated.length))}</div>
+        ${idle.length ? `<div class="lvsub small">Also here: ${escapeHtml(namesAnd(idle.map((p) => p.name)))}</div>` : ''}
+        <div class="lvchip">${lvSettingsLine(g.host, Math.min(4, Math.max(2, g.m.filter((p) => pmode(p) !== 'spectate').length + 1)))}</div>
+        <button class="btn full lvbig" onclick="CATAN.lvJoin('${g.code}')">${full ? 'Join · first in line' : seated.length === 3 ? 'Join · last seat' : 'Join'}</button>
+        <button class="linkbtn" onclick="CATAN.lvWatchJoin('${g.code}')">Just watch</button></div>`;
+      more = gathering.slice(1).map((t) => `<button class="lvrowg" onclick="CATAN.lvJoin('${t.code}')"><span><b>${escapeHtml(lvTableName(t))}</b> · ${t.ready.length} seated</span><b class="gold">Join ›</b></button>`)
+        .concat(live.map((t) => `<button class="lvrowg" onclick="CATAN.lvWatchJoin('${t.code}')"><span><span class="lvrec"></span> <b>${escapeHtml(namesAnd(t.m.filter((p) => pmode(p) === 'playing').map((p) => p.name)))}</b> playing</span><b class="gold">Watch ›</b></button>`));
+      more.push(`<button class="linkbtn" onclick="CATAN.lvStartGo()">Start a separate game instead</button>`);
+    } else if (live.length) {
+      const t = live[0], players = t.m.filter((p) => pmode(p) === 'playing');
+      hero = `<div class="lvhero"><div class="lvkick"><span class="lvrec"></span>LIVE NOW</div><div class="lvh1">${escapeHtml(namesAnd(players.map((p) => p.name)))} ${players.length > 1 ? 'are' : 'is'} playing</div>
+        <div class="lvminis left">${players.map((p) => lvMini(p, false)).join('')}</div>
+        <button class="btn full lvbig" onclick="CATAN.lvWatchJoin('${t.code}')">👁 Watch</button></div>`;
+      more = live.slice(1).map((x) => `<button class="lvrowg" onclick="CATAN.lvWatchJoin('${x.code}')"><span><span class="lvrec"></span> <b>${escapeHtml(namesAnd(x.m.filter((p) => pmode(p) === 'playing').map((p) => p.name)))}</b> playing</span><b class="gold">Watch ›</b></button>`);
+      const free = others.filter((p) => !p.table).length;
+      more.push(`<button class="btn wood full" onclick="CATAN.lvStart()">${free ? 'Start a game with the others' : 'Start another game'}</button>`);
+    } else {
+      const n = others.length;
+      hero = `<div class="lvhero"><div class="lvkick">TONIGHT</div><div class="lvh1">Nobody's playing yet</div>
+        <div class="lvsub">${n ? `${n} friend${n > 1 ? 's are' : ' is'} online. Start a game and they'll see it right here.` : `Nobody else is online right now. Start a game and friends will see it when they open the app.`}</div>
+        <button class="btn full lvbig" onclick="CATAN.lvStart()">Start a game</button></div>`;
+    }
+    const faces = others.map((p) => {
+      const st = p.away ? 'away' : !p.table ? 'online' : pmode(p) === 'playing' ? 'playing' : 'in a room';
+      return `<div class="lvface${p.away ? ' away' : ''}">${faceHTML(p.name, p.avatar, 'md')}<span class="lvdot${p.away || p.table ? ' busy' : ''}"></span><b>${escapeHtml(p.name)}</b><span class="lvfst">${st}</span></div>`;
+    }).join('');
+    return `${hero}${more.join('')}
+      ${others.length ? `<div class="lvsect">ONLINE NOW · ${others.length}</div><div class="lvfaces">${faces}</div>` : ''}
+      <div id="lv-peek"></div>
+      <button class="linkbtn lvoff" onclick="CATAN.playOffline()">📱 Play on one phone</button>`;
+  }
+
+  // ---- Play tab, in a room: four seats, the settings line, one primary action ----
+  function lvSeat(p, isHost) {
+    const mine = p.id === AUTH.me.id, pref = mine ? LOBBY.myPref() : p.pref, col = pref && PCOLOR[pref];
+    return `<div class="lvseat${isHost ? ' host' : ''}${mine ? ' mine' : ''}${p.away ? ' away' : ''}"${mine ? ` onclick="CATAN.lvSheet('colour')"` : ''}>`
+      + `${isHost ? '<span class="lvcrown">👑</span>' : ''}<span class="lvcd${col ? '' : ' any'}"${col ? ` style="background:${col}"` : ''}></span>`
+      + `${faceHTML(p.name, p.avatar, 'xl')}<b>${escapeHtml(p.name)}${mine ? ' (you)' : ''}</b>${mine ? '<span class="lvhint">tap for colour</span>' : p.away ? '<span class="lvhint">away…</span>' : ''}</div>`;
+  }
+  function lvRoomHTML() {
+    // a cup paused between games that I'm in: the whole tab is the cup
+    if (LOBBY.cupRow) {
+      const s = LOBBY.cupRow.state, k = s.cup, T = cupTable(s), rm = s.rm, votes = (rm && !rm.no && !rm.lapsed && rm.votes) || {};
+      const rows = T.map((r, i) => `<div class="lvcuprow${i === 0 ? ' lead' : ''}"><b class="lvrk">${i + 1}</b><span class="dot" style="background:${PCOLOR[r.p.color]}"></span><b class="nm">${escapeHtml(r.p.name)}</b>`
+        + `<span class="lvrdy${votes[r.p.color] === 'y' ? ' ok' : ''}">${votes[r.p.color] === 'y' ? '✓ ready' : '…'}</span><b class="lvcpts">${r.pts}</b></div>`).join('');
+      return `<div class="lvhero hot"><div class="lvkick">🏆 ${escapeHtml(k.name.toUpperCase())} · GAME ${k.n + 1} OF ${k.games} NEXT</div><div class="lvh1">Waiting for you</div>
+        <div class="lvcup">${rows}</div>
+        <button class="btn full lvbig" onclick="CATAN.cupRejoin()">🏆 Back to the cup</button></div>
+        <div class="lvsub small" style="text-align:center">The cup waits for everyone.</div>`;
+    }
+    if (LOBBY.inProgress) {
+      return `<div class="lvhero"><div class="lvkick"><span class="lvrec"></span>LIVE NOW</div><div class="lvh1">A game is on at this table</div>
+        <button class="btn full lvbig" onclick="CATAN.lobbyWatch()">👁 Watch</button></div>`;
+    }
+    const members = LOBBY.tableMembers(), ready = LOBBY.readyList(), host = lvRoomHost(), iAmHost = !!host && host.id === AUTH.me.id;
+    const seated = ready.slice(0, 4), line = ready.slice(4);
+    const iSeated = seated.some((p) => p.id === AUTH.me.id), inLine = line.some((p) => p.id === AUTH.me.id);
+    const idle = members.filter((p) => pmode(p) === 'idle' && p.id !== AUTH.me.id), watching = members.filter((p) => pmode(p) === 'spectate');
+    const playerN = Math.min(4, members.filter((m) => pmode(m) !== 'spectate').length) || seated.length;
+    const seats = seated.map((p) => lvSeat(p, host && p.id === host.id)).join('')
+      + `<div class="lvseat empty"><span class="lvplus">+</span>Open seat</div>`.repeat(Math.max(0, 4 - seated.length));
+    const extras = [];
+    if (line.length) extras.push(`<div class="lvline">⏳ <span><b>${escapeHtml(namesAnd(line.map((p) => p.name)))}</b> · first in line if a seat opens</span></div>`);
+    if (idle.length) extras.push(`<div class="lvline">💤 <span><b>${escapeHtml(namesAnd(idle.map((p) => p.name)))}</b> · here, not seated</span></div>`);
+    if (watching.length) extras.push(`<div class="lvline">👁 <span><b>${escapeHtml(namesAnd(watching.map((p) => p.name)))}</b> · watching</span></div>`);
+    const last = LV.last && LV.last.code === LOBBY.table && Date.now() - LV.last.at < 1800000 ? `<div class="lvlast">🏆 Last game: ${escapeHtml(LV.last.text)}</div>` : '';
+    const setl = `<${iAmHost ? 'button' : 'div'} class="lvsetl"${iAmHost ? ` onclick="CATAN.lvSheet('settings')"` : ''}><span>${lvSettingsLine(host || { id: AUTH.me.id }, playerN)}</span>${iAmHost ? '<b class="gold">Edit ›</b>' : ''}</${iAmHost ? 'button' : 'div'}>`;
+    let act;
+    if (iSeated && iAmHost) {
+      act = ready.length < 2 ? `<div class="lvstatus">Waiting for at least 1 more player…</div>`
+        : `<button class="btn full lvbig" onclick="CATAN.lobbyStart()">${LOBBY.cup ? `🏆 Start ${escapeHtml(AUTH.me.name)}'s Cup · ${seated.length} players` : `Start · ${seated.length} players`}</button>`;
+      act += `<button class="linkbtn" onclick="CATAN.lobbyReady()">Leave seat</button>`;
+    } else if (iSeated) {
+      act = `<div class="lvstatus">⏳ Waiting for ${escapeHtml(host ? host.name : 'the host')} to start</div><button class="linkbtn" onclick="CATAN.lobbyReady()">Leave seat</button>`;
+    } else if (inLine) {
+      act = `<div class="lvstatus">You're first in line for a seat</div><button class="linkbtn" onclick="CATAN.lobbyReady()">Leave the line</button>`;
+    } else if (LOBBY.mode === 'spectate') {
+      act = `<button class="btn full lvbig" onclick="CATAN.lobbyReady()">Take a seat</button><button class="linkbtn" onclick="CATAN.lobbySpectate()">Stop watching</button>`;
+    } else {
+      act = `<button class="btn full lvbig" onclick="CATAN.lobbyReady()">${seated.length >= 4 ? 'Get in line' : 'Take a seat'}</button><button class="linkbtn" onclick="CATAN.lobbySpectate()">Just watch</button>`;
+    }
+    return `${last}<div class="lvseats">${seats}</div>${extras.join('')}${setl}<div class="lvact">${act}</div>`;
+  }
+
+  // ---- sheets ----
+  function lvSheetHTML() {
+    const s = LV.sheet; if (!s) return '';
+    let body = '';
+    if (s === 'settings') {
+      const n = Math.min(4, LOBBY.tableMembers().filter((m) => pmode(m) !== 'spectate').length);
+      const cup = LOBBY.cup, tgt = LOBBY.targetPoints, nums = [];
+      for (let v = cup ? 6 : 9; v <= 15; v++) nums.push(v);
+      body = `<div class="lvst">Game settings</div>
+        <div><div class="lvlbl">Format</div><div class="seg lvseg"><button class="${!cup ? 'on' : ''}" onclick="CATAN.lobbyCup(0)">One game</button><button class="${cup ? 'on' : ''}" onclick="CATAN.lobbyCup(3)">🏆 Tournament</button></div></div>
+        ${cup ? `<div class="lvrowc"><div><div class="lvlbl">Games in the cup</div><div class="lvstep"><button onclick="CATAN.lobbyCup(${cup - 1})" aria-label="Fewer">−</button><b>${cup}</b><button onclick="CATAN.lobbyCup(${cup + 1})" aria-label="More">+</button></div></div>`
+          + `<div class="lvsub small" style="text-align:right">${n === 3 ? '3 · 1 · 0' : n === 2 ? '3 · 0' : '3 · 2 · 1 · 0'} pts<br>per finish</div></div>` : ''}
+        <div><div class="lvlbl">${cup ? 'Each game to' : 'Points to win'}</div>
+          <div class="lvpts"><button class="auto${tgt == null ? ' on' : ''}" onclick="CATAN.lobbyTargetAuto()">Auto · ${n >= 2 ? targetForN(n) + ' for ' + n + ' players' : 'by player count'}</button></div>
+          <div class="lvpts nums">${nums.map((v) => `<button class="${tgt === v ? 'on' : ''}" onclick="CATAN.lobbyTarget(${v})">${v}</button>`).join('')}</div></div>
+        <div><div class="lvlbl">Who starts</div><div class="seg lvseg"><button class="${LOBBY.whoStarts === 'rps' ? 'on' : ''}" onclick="CATAN.lobbyWhoStarts('rps')">✊ Rock-paper-scissors</button><button class="${LOBBY.whoStarts !== 'rps' ? 'on' : ''}" onclick="CATAN.lobbyWhoStarts('random')">🎲 Random</button></div></div>`;
+    } else if (s === 'colour') {
+      const mine = LOBBY.myPref(), others = LOBBY.tableMembers().filter((p) => p.id !== AUTH.me.id && pmode(p) === 'ready');
+      body = `<div class="lvst">Your colour this game</div>
+        <div class="lvsw">${SEAT_COLORS.map((c) => { const w = others.find((p) => p.pref === c);
+          return `<button class="lvswb${mine === c ? ' on' : ''}" onclick="CATAN.lobbyPref('${c}')"><i style="background:${PCOLOR[c]}">${w ? faceHTML(w.name, w.avatar, 'xs') : ''}</i><span>${w ? escapeHtml(w.name) + ' wants' : c[0].toUpperCase() + c.slice(1)}</span></button>`; }).join('')}
+          <button class="lvswb${!mine ? ' on' : ''}" onclick="CATAN.lobbyPref(null)"><i class="any">Any</i><span>No pref</span></button></div>
+        <div class="lvsub small">If two people want the same colour, the game settles it at random when it starts. Your default lives in your profile.</div>`;
+    } else if (s.startsWith('guard:')) {
+      const code = s.slice(6), g = lvTables().find((t) => t.code === code);
+      if (!g) { LV.sheet = null; return ''; }
+      const seated = g.ready.slice(0, 4);
+      body = `<div class="lvst">${escapeHtml(lvTableName(g))} already has ${g.m.length} waiting</div>
+        <div class="lvsub">Starting your own splits the group.</div>
+        <div class="lvminis">${seated.map((p) => lvMini(p, p.id === g.host.id)).join('')}${LV_OPEN.repeat(Math.max(0, 4 - seated.length))}</div>
+        <button class="btn full lvbig" onclick="CATAN.lvJoin('${code}')">Join ${escapeHtml(lvTableName(g))}</button>
+        <button class="btn wood full" onclick="CATAN.lvStartGo()">Start a separate game anyway</button>`;
+      return `<div class="lvdim" onclick="CATAN.lvSheet(null)"></div><div class="lvsheet"><div class="lvgrab"></div>${body}</div>`;
+    }
+    return `<div class="lvdim" onclick="CATAN.lvSheet(null)"></div><div class="lvsheet"><div class="lvgrab"></div>${body}<button class="btn full lvbig" onclick="CATAN.lvSheet(null)">Done</button></div>`;
+  }
+
+  // ---- Chat tab ----
+  function lvChatHTML() {
+    const g = !LOBBY.table && lvGathering()[0];
+    const strip = LOBBY.table ? `<button class="lvstrip" data-nav="tab:play">⚔️ <span>Back to <b>${escapeHtml(lvRoomName())}</b></span><b class="gold">›</b></button>`
+      : g ? `<button class="lvstrip" onclick="CATAN.lvJoin('${g.code}')">⚔️ <span><b>${escapeHtml(lvTableName(g))}</b> · ${Math.min(4, g.ready.length)} of 4 in</span><b class="gold">Join ›</b></button>` : '';
+    return `${strip}<div class="lvchat"><div class="lvmsgs" id="lchatlist"></div>
+      <div class="lvinp"><input id="lchatIn" maxlength="200" placeholder="Message the group…" autocomplete="off" value="${escapeHtml(lchatDraft)}" oninput="CATAN.lchatKeep(this.value)"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();CATAN.lchatSend();}"><button class="lvsend" onclick="CATAN.lchatSend()" aria-label="Send">↑</button></div></div>`;
+  }
+  function lvUnread() { const me = AUTH.me && AUTH.me.id; return LCHAT.msgs.filter((m) => m.id > LV.chatSeen && m.sender !== me).length; }
+  function lvMarkSeen() { if (LCHAT.lastId > LV.chatSeen) { LV.chatSeen = LCHAT.lastId; try { localStorage.setItem('catanChatSeen', String(LV.chatSeen)); } catch (_) { } } }
+  function lvFillPeek() {
+    const el = $('lv-peek'); if (!el) return;
+    const m = LCHAT.msgs[LCHAT.msgs.length - 1];
+    el.innerHTML = m ? `<button class="lvpeek" data-nav="tab:chat">${faceHTML(m.name, m.avatar, 'sm')}<span class="lvpk"><span><b>${escapeHtml(m.name || '?')}</b> ${escapeHtml(m.body || '')}</span><span class="lvpt">${m.created_at ? relTime(new Date(m.created_at).getTime()) : ''} · open chat</span></span><b class="muted">›</b></button>` : '';
+  }
+  // header + tabs refresh cheaply on every tick (only rewritten when they actually change)
+  function lvHeaderHTML() {
+    const av = `<button class="lvme" data-nav="profile" aria-label="Profile">${faceHTML(AUTH.me.name, AUTH.me.avatar, 'sm')}</button>`;
+    if (LV.tab === 'play' && LOBBY.table) return `<button class="lobback" data-nav="back" aria-label="Back">←</button><div class="lvttl">${escapeHtml(lvRoomName())}</div>${av}`;
+    if (LV.tab === 'chat') return `<div class="lvttl">Chat</div><span class="lvon">● ${LOBBY.online().length} online</span>${av}`;
+    if (LV.tab === 'stats') return `<div class="lvttl">Stats</div>${av}`;
+    return `<div class="lvlogo">CATAN</div>${av}`;
+  }
+  function lvTabsHTML() {
+    const u = lvUnread();
+    const t = (k, ico, lbl, extra) => `<button class="lvtab${LV.tab === k ? ' on' : ''}" data-nav="tab:${k}"><i>${ico}${extra || ''}</i>${lbl}</button>`;
+    return t('play', '⚔️', 'Play') + t('chat', '💬', 'Chat', u && LV.tab !== 'chat' ? `<span class="lvbadge">${u > 9 ? '9+' : u}</span>` : '') + t('stats', '🏆', 'Stats');
+  }
+  function lvChrome() {
+    const h = $('lv-hdr'), tb = $('lv-tabs'); if (!h || !tb) return;
+    const hh = lvHeaderHTML(), th = lvTabsHTML();   // compare with what WE last wrote (the DOM's innerHTML is normalised)
+    if (LV.hdrHTML !== hh) { LV.hdrHTML = hh; h.innerHTML = hh; }
+    if (LV.tabsHTML !== th) { LV.tabsHTML = th; tb.innerHTML = th; }
   }
   function renderLobby() {
     if (NET.started || !AUTH.me) return;
     document.body.classList.remove('ingame');   // lobby is a menu -> the rotate gate must never cover it
     const dynEl = $('lobby-dyn'), t = $('title');
-    if (!dynEl || !t || t.classList.contains('hidden')) return;   // not the visible screen -> never clobber it
+    if (!dynEl || !t || t.classList.contains('hidden') || !$('lv-root')) return;   // not the visible screen -> never clobber it
+    lvChrome();
+    if (LV.tab === 'stats') { if (!dynEl.firstChild) statsScreen(); return; }   // the stats screens draw themselves
     const all = LOBBY.online();
-    // sig over the whole presence (table memberships + modes) so any change re-renders
-    const sig = JSON.stringify([LOBBY.table, LOBBY.inProgress, LOBBY.mode, LOBBY.targetPoints,
-      all.map((p) => p.id + ':' + (p.table || '') + ':' + pmode(p) + ':' + p.name + ':' + (p.readyAt || 0) + ':' + (p.target || '') + ':' + (p.ws || '') + ':' + (p.created || '') + ':' + (p.pref || '') + ':' + (p.away ? 'a' : '')).sort(), LOBBY.whoStarts, LOBBY.cup, LOBBY.cupRow && LOBBY.cupRow.version]);
+    // the chat tab only re-renders when its join strip changes (a rebuild would steal the keyboard)
+    const g = LV.tab === 'chat' && lvGathering()[0];
+    const live = LV.tab === 'chat' ? [LOBBY.table, g ? g.code + ':' + g.ready.length : '']
+      : all.map((p) => p.id + ':' + (p.table || '') + ':' + pmode(p) + ':' + p.name + ':' + (p.readyAt || 0) + ':' + (p.target || '') + ':' + (p.ws || '') + ':' + (p.created || '') + ':' + (p.pref || '') + ':' + (p.away ? 'a' : '') + ':' + (p.avatar ? 1 : 0)).sort();
+    const sig = JSON.stringify([LV.tab, LV.sheet, LOBBY.table, LOBBY.inProgress, LOBBY.mode, LOBBY.targetPoints, LOBBY.whoStarts, LOBBY.cup, LOBBY.cupRow && LOBBY.cupRow.version, LOBBY.prefGame, LV.last && LV.last.at, live]);
     if (sig === lobbySig) return;
     lobbySig = sig;
-    dynEl.innerHTML = LOBBY.table ? atTableHTML(all) : tableListHTML(all);   // footer frame untouched
-    renderLobbyChat();   // the full re-render just rebuilt the chat shell — refill it
-    const tt = $('lob-title'); if (tt) tt.textContent = LOBBY.table ? LOBBY.gameName(LOBBY.table) : 'Lobby';   // "<creator>'s Game" at a table
-    const bk = $('lobback'); if (bk) bk.title = LOBBY.table ? 'Back to games' : 'Switch player';   // back arrow goes back one level
-    scheduleFit();   // content height just changed (players joined/readied) -> rescale now + across font-load/frames so the card never overflows
-  }
-  // browsing: a list of active tables to join, plus "New table"
-  function tableListHTML(all) {
-    const me = escapeHtml(AUTH.me.name);
-    const tables = {};
-    all.forEach((p) => { if (p.table) (tables[p.table] = tables[p.table] || []).push(p); });
-    const codes = Object.keys(tables).filter((c) => c !== HOME_CODE).sort();   // the standing table renders pinned, above
-    const browsing = all.filter((p) => !p.table).length;
-    const rowFor = (code, m) => {
-      const home = code === HOME_CODE, inGame = m.some((p) => pmode(p) === 'playing');
-      const creator = m.find((p) => p.created === code);
-      const cupOn = m.some((p) => String(p.ws || '').startsWith('cup:'));
-      const gname = (home ? '🏠 Main Game' : creator ? escapeHtml(creator.name) + "'s Game" : 'Game') + (cupOn ? ' · 🏆 Cup' : '');
-      const names = m.map((p) => escapeHtml(p.name)).join(', ');
-      return `<button class="tablerow${home ? ' home' : ''}" onclick="CATAN.joinTable('${code}')"><span class="trow-main"><span class="tgname">${gname}</span><span class="tgwho">${names || (home ? 'Empty — gather here' : 'Empty')}</span></span>` +
-        `<span class="${inGame ? 't-pend' : 't-acc'}">${inGame ? '🔴 watch' : m.length ? m.length + ' here' : 'join'}</span></button>`;
-    };
-    const rows = rowFor(HOME_CODE, tables[HOME_CODE] || []) + codes.map((code) => rowFor(code, tables[code])).join('');
-    return `<p class="muted small" style="text-align:center">${me} · ${all.length} online${browsing ? ' · ' + browsing + ' browsing' : ''}</p>
-      <div class="loblist">${rows}</div>
-      <button class="btn ghost full" onclick="CATAN.newTable()">+ New separate game</button>
-      ${lobbyChatHTML()}
-      <div class="rgsec">
-        <div class="rghead"><span>Recent games</span><button class="rglink" data-nav="stats">Full stats →</button></div>
-        <div class="rglist">${STATS.games.length ? recentRowsHTML(STATS.games, 8) : `<p class="muted small" style="text-align:center;padding:8px 0">${STATS.loaded ? 'No games recorded yet.' : 'Loading…'}</p>`}</div>
-      </div>`;
-  }
-  // sitting at a table: the ready/spectate/start lobby, scoped to this table's members
-  function atTableHTML(all) {
-    const members = all.filter((p) => (p.table || null) === LOBBY.table);
-    const ready = LOBBY.readyList();
-    const creator = members.find((p) => p.created === LOBBY.table);
-    const rows = lobbyRows(members, ready, creator ? creator.id : null);
-    // no in-card "back to games" button — the top-left ← in the header handles leaving
-    if (LOBBY.cupRow) {   // my cup is paused between games here -> straight back to it
-      const k = LOBBY.cupRow.state.cup;
-      return `<p class="muted small" style="text-align:center">${members.length} here</p>
-        <div class="loblist">${rows}</div>
-        <button class="btn full" onclick="CATAN.cupRejoin()">🏆 Back to ${escapeHtml(k.name)} · game ${k.n + 1} of ${k.games} next</button>
-        ${lobbyChatHTML()}`;
-    }
-    if (LOBBY.inProgress) {
-      return `<p class="muted small" style="text-align:center">${members.length} here</p>
-        <div class="loblist">${rows}</div>
-        <button class="btn wood full" onclick="CATAN.lobbyWatch()">🔴 Game in progress · Watch</button>`;
-    }
-    // the game's CREATOR starts it (fallback: first-ready, if the creator has left the table)
-    const host = creator || ready[0], iAmHost = host && host.id === AUTH.me.id;
-    const hostReady = host && ready.some((r) => r.id === host.id);
-    const seatN = Math.min(4, ready.length);
-    // the win target follows PLAYERS AT THE TABLE (spectators excluded), so it updates as people join — not only once they ready up
-    const playerN = Math.min(4, members.filter((m) => pmode(m) !== 'spectate').length) || seatN;
-    const chosen = iAmHost ? LOBBY.targetPoints : (host ? host.target : null);   // host may be first-ready (standing table has no creator)
-    // host's pick if set; else the count default for 2+ players (2p15 · 3p13 · 4p11); else the general 13
-    const tgt = (chosen != null ? chosen : (playerN >= 2 ? targetForN(playerN) : 13));
-    const hostName = escapeHtml((host && host.name) || 'the host');
-    // ONE gold primary at a time: "I'm ready" until you're ready; then (host) Start goes gold.
-    // Everything passive is a STATUS LINE, never a disabled button.
-    const iAmReady = LOBBY.mode === 'ready';
-    const startBtn = iAmHost
-      ? (!hostReady ? '' : ready.length < 2 ? `<div class="lobstatus">Waiting for more players to ready up…</div>`
-        : LOBBY.cup ? `<button class="btn full" onclick="CATAN.lobbyStart()">🏆 Start ${escapeHtml(AUTH.me.name)}'s Cup · ${seatN}p · ${LOBBY.cup} games (${tgt} pts)</button>`
-        : `<button class="btn full" onclick="CATAN.lobbyStart()">Start · ${seatN}p (${tgt} pts)${LOBBY.whoStarts === 'rps' ? ' · ✊ who starts' : ''}</button>`)
-      : (iAmReady ? `<div class="lobstatus">${ready.length < 2 ? 'Waiting for more players…' : 'Waiting for ' + hostName + ' to start…'}</div>` : '');
-    const targetRow = iAmHost
-      ? `<div class="lobtgt"><span class="lobtgt-lbl">${LOBBY.cup ? 'Each game to' : 'Win at'} <b id="tgt-val">${tgt}</b> pts</span><input class="lobtgt-slider" type="range" min="${LOBBY.cup ? 6 : 9}" max="15" step="1" value="${tgt}" oninput="var e=document.getElementById('tgt-val');if(e)e.textContent=this.value" onchange="CATAN.lobbyTarget(this.value)"></div>`
-      : host && String(host.ws || '').startsWith('cup:')
-        ? `<div class="lobtgt muted"><b>🏆 Tournament</b> · ${parseInt(host.ws.slice(4), 10) || 3} games, each to ${tgt} pts · ✊ every game</div>`
-        : `<div class="lobtgt muted">Win at ${tgt} pts${host && host.ws ? ` · Who starts: <b>${host.ws === 'rps' ? '✊ Rock-paper-scissors' : '🎲 Random'}</b>` : ''}</div>`;   // the host's choice (older hosts don't send it)
-    // your color for THIS game: the table-session override if set, else your profile preference
-    const myPref = LOBBY.prefGame !== undefined ? LOBBY.prefGame : (AUTH.me.prefColor || null);
-    const prefRow = `<div class="lobprefrow"><span class="lobtgt-lbl">Your color</span>
-      ${SEAT_COLORS.map((c) => `<button class="prefsw sm${myPref === c ? ' on' : ''}" style="background:${PCOLOR[c]}" onclick="CATAN.lobbyPref('${c}')" aria-label="${c}"></button>`).join('')}
-      <button class="prefnone sm${!myPref ? ' on' : ''}" onclick="CATAN.lobbyPref(null)">Any</button></div>`;
-    const readyBtn = iAmReady
-      ? `<button class="btn wood full" onclick="CATAN.lobbyReady()">✓ Ready — tap to sit out</button>`
-      : `<button class="btn full" onclick="CATAN.lobbyReady()">I'm ready</button>`;
-    const specLink = `<button class="linkbtn" onclick="CATAN.lobbySpectate()">${LOBBY.mode === 'spectate' ? '✓ Spectating — tap to stop' : '👁 Spectate instead'}</button>`;
-    return `<p class="muted small" style="text-align:center">${members.length} here · ${ready.length} ready</p>
-      <div class="loblist">${rows}</div>
-      <div class="lobsetup">${iAmHost ? `<div class="lobws"><span class="lobtgt-lbl">Format</span><div class="seg lobwsseg"><button class="${!LOBBY.cup ? 'on' : ''}" onclick="CATAN.lobbyCup(0)">One game</button><button class="${LOBBY.cup ? 'on' : ''}" onclick="CATAN.lobbyCup(3)">🏆 Tournament</button></div></div>`
-        + (LOBBY.cup ? `<div class="lobcup"><span class="lobtgt-lbl">Games</span><button class="cupstep" onclick="CATAN.lobbyCup(${LOBBY.cup - 1})" aria-label="Fewer">−</button><b>${LOBBY.cup}</b><button class="cupstep" onclick="CATAN.lobbyCup(${LOBBY.cup + 1})" aria-label="More">+</button><span class="lobcupnote">${seatN === 3 ? '3 · 1 · 0' : seatN === 2 ? '3 · 0' : '3 · 2 · 1 · 0'} pts per finish · ✊ every game</span></div>` : '') : ''}${targetRow}${iAmHost && !LOBBY.cup ? `<div class="lobws"><span class="lobtgt-lbl">Who starts</span><div class="seg lobwsseg"><button class="${LOBBY.whoStarts === 'rps' ? 'on' : ''}" onclick="CATAN.lobbyWhoStarts('rps')">✊ Rock-paper-scissors</button><button class="${LOBBY.whoStarts !== 'rps' ? 'on' : ''}" onclick="CATAN.lobbyWhoStarts('random')">🎲 Random</button></div></div>` : ''}${prefRow}</div>
-      ${readyBtn}
-      ${startBtn}
-      ${specLink}
-      ${lobbyChatHTML()}`;
+    if (LV.tab === 'chat') { dynEl.innerHTML = lvChatHTML(); renderLobbyChat(); }
+    else { dynEl.innerHTML = LOBBY.table ? lvRoomHTML() : lvPlayHTML(); lvFillPeek(); }
+    const sh = $('lv-sheet'); if (sh) sh.innerHTML = lvSheetHTML();
   }
   window.CATAN.openStats = () => statsScreen();
   window.CATAN.statsSeason = (s) => { statsSeason = s; statsScreen(); };
@@ -4950,28 +5086,35 @@
   window.CATAN.statsCount = (n) => { statsCount = n; statsScreen(); };
   window.CATAN.statsPlayer = (n) => statsPlayerScreen(decodeURIComponent(n));
   window.CATAN.lobbyBack = () => { if (LOBBY.table) CATAN.leaveTable(); else CATAN.lobbyLogout(); };
-  window.CATAN.newTable = () => {
-    // creation guard: if friends are already gathered somewhere waiting to play, joining them is
-    // almost always what you meant — creating a second table splits the group.
-    const tables = {};
-    LOBBY.online().forEach((p) => { if (p.table) (tables[p.table] = tables[p.table] || []).push(p); });
-    const waiting = Object.keys(tables)
-      .filter((code) => !tables[code].some((p) => pmode(p) === 'playing'))   // a table already mid-game can't be joined anyway
-      .sort((a, b) => tables[b].length - tables[a].length)[0];
-    if (waiting && tables[waiting].length) {
-      const m = tables[waiting];
-      const names = m.map((p) => escapeHtml(p.name)).join(', ');
-      titleCard(`<div class="lobhead"><button class="lobback" data-nav="lobby" title="Back">←</button><h3>Friends are gathering</h3></div>
-        <p class="muted" style="text-align:center;margin:10px 0 14px"><b style="color:var(--gold)">${escapeHtml(LOBBY.gameName(waiting))}</b> already has ${m.length} waiting: ${names}</p>
-        <button class="btn full" onclick="CATAN.guardJoin('${waiting}')">Join them</button>
-        <button class="linkbtn" onclick="CATAN.newTableGo()">Create a separate game anyway</button>`);
-      return;
-    }
-    CATAN.newTableGo();
+  window.CATAN.lvTab = (t) => {
+    LV.tab = t === 'chat' || t === 'stats' ? t : 'play'; LV.sheet = null; lobbySig = null;
+    const d = $('lobby-dyn'); if (d) d.innerHTML = '';
+    if (LV.tab === 'chat') lvMarkSeen();
+    renderLobby();
+    if (LV.tab === 'stats') statsScreen();
   };
-  // both guard exits rebuild the lobby shell — the guard card replaced it (titleCard swaps the whole card)
-  window.CATAN.guardJoin = (code) => { lobbyShell(); LOBBY.enterTable(code); };
-  window.CATAN.newTableGo = () => { const code = genCode(); LOBBY.created = code; lobbyShell(); LOBBY.enterTable(code); };
+  window.CATAN.lvSheet = (k) => { LV.sheet = k || null; lobbySig = null; renderLobby(); };
+  // one tap = into the room AND seated (the old enter-table + "I'm ready")
+  window.CATAN.lvJoin = (code) => {
+    LV.sheet = null; LV.tab = 'play';
+    LOBBY.enterTable(code); LOBBY.mode = 'ready'; LOBBY.readyAt = Date.now(); LOBBY.track(); lobbySig = null; renderLobby();
+  };
+  // watch: into the room as a spectator; a running game takes spectators straight in (NET.onRow)
+  window.CATAN.lvWatchJoin = (code) => {
+    LV.sheet = null; LV.tab = 'play';
+    LOBBY.enterTable(code); LOBBY.mode = 'spectate'; LOBBY.track(); lobbySig = null; renderLobby();
+  };
+  // "Start a game": friends already gathering -> offer their room first (the old creation guard)
+  window.CATAN.lvStart = () => { const g = lvGathering()[0]; if (g) CATAN.lvSheet('guard:' + g.code); else lvStartGo(); };
+  // a new room, me seated as host: the standing table when nobody's using it, else a fresh code
+  function lvStartGo() {
+    const homeBusy = LOBBY.online().some((p) => p.id !== AUTH.me.id && p.table === HOME_CODE);
+    const code = homeBusy ? genCode() : HOME_CODE;
+    LV.sheet = null; LV.tab = 'play'; LOBBY.created = code;
+    LOBBY.enterTable(code); LOBBY.mode = 'ready'; LOBBY.readyAt = Date.now(); LOBBY.track(); lobbySig = null; renderLobby();
+  }
+  window.CATAN.lvStartGo = () => lvStartGo();
+  window.CATAN.lobbyTargetAuto = () => { LOBBY.targetPoints = null; LOBBY.track(); lobbySig = null; renderLobby(); };
   window.CATAN.lobbyWhoStarts = (v) => { LOBBY.whoStarts = v === 'rps' ? 'rps' : 'random'; try { localStorage.setItem('catanWhoStarts', LOBBY.whoStarts); } catch (_) { } LOBBY.track(); lobbySig = null; renderLobby(); };
   window.CATAN.lobbyTarget = (v) => { LOBBY.targetPoints = Math.max(LOBBY.cup ? 6 : 9, Math.min(15, parseInt(v, 10) || 13)); LOBBY.track(); lobbySig = null; renderLobby(); };
   window.CATAN.joinTable = (code) => LOBBY.enterTable(code);
@@ -5053,7 +5196,9 @@
   window.CATAN.tableReset = () => LOBBY.reset();
   // leave a FINISHED game: only this device goes back to the lobby — the row keeps the ended game for
   // whoever's still looking, and onRow won't pull me back in (a rematch / new game at the table still will)
-  window.CATAN.leaveEnded = () => { markLeft(myColor); NET.started = false; NET.version = 0; online = false; myColor = null; LOBBY.toLobby(); };
+  window.CATAN.leaveEnded = () => {
+    try { const r = finishOrder(state); LV.last = { at: Date.now(), code: NET.code, text: `${r[0].p.name} won, ${r[0].vp} to ${r[1] ? r[1].vp : 0}` }; } catch (_) { }
+    markLeft(myColor); NET.started = false; NET.version = 0; online = false; myColor = null; LOBBY.toLobby(); };
   window.CATAN.rematch = () => LOBBY.rematch();
   // back into a cup paused between games: the finished game's screen, to ready up for the next one
   window.CATAN.cupRejoin = () => {
@@ -5197,7 +5342,7 @@
     exitGameUI();      // clear any lingering game layer before the lobby paints
     lobbyShell();      // build the frame (title + footer + empty dyn slot) once
     LOBBY.join();
-    renderLobby();     // fill the dynamic half (lands at the games list; Main Game is the pinned row)
+    renderLobby();     // fill the tabs (Play lands on what's happening now)
     STATS.load().then(() => { if (!NET.started && !LOBBY.table && $('lobby-dyn')) { lobbySig = null; renderLobby(); } });   // fill the recent-games strip once results load
     purgeStaleGames();   // auto-clean abandoned/idle games whenever someone opens the lobby
     lastRecorded = null;   // a fresh lobby visit re-arms the one-shot result writer for the next game
@@ -5251,7 +5396,8 @@
         <button class="prefnone${!AUTH.me.prefColor ? ' on' : ''}" onclick="CATAN.setPrefColor(null)">No preference</button>
       </div>
       <button class="btn wood full" onclick="CATAN.manageQuick('profile')">💬 Quick messages</button>
-      <button class="btn wood full" data-nav="changepin">🔒 Change PIN</button>`);
+      <button class="btn wood full" data-nav="changepin">🔒 Change PIN</button>
+      <button class="btn ghost full" data-nav="logout">Switch player</button>`);
   }
   window.CATAN.manageProfile = () => manageProfile();
   window.CATAN.setPrefColor = async (c) => {
