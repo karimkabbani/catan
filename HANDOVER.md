@@ -550,6 +550,13 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    + `rpsBots`, `demoMode`, `exitDemo`). If the server can't be reached, sign-in now says so instead of falling back
    to offline play. The in-game `online` checks stay (they're woven through shared code). app.js 5,628 -> ~5,310 lines.
 
+18. ✅ **No more ghost "playing" — v177 (2026-10-23).** Seen live: Lapen sat on a results screen for 14 min, then
+   backgrounded, and kept showing as "playing". Presence `mode` now follows the game (`afterAction`): `'results'` on
+   the results screen ("just finished"), back to `'playing'` on a rematch. `lvTables()` only treats a table as live
+   if a `playing` member isn't away (heartbeat < 18s), and drops tables with nobody actually in the room, so
+   just-finished / gone-quiet tables get no card. Rooms show "🏁 X · still on the last game's results". The 5-min
+   presence drop-off is unchanged (shorter would flicker people mid-game). Old clients read 'results' as not playing.
+
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
