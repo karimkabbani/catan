@@ -531,6 +531,13 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    - **Stats** tab: the existing stats screens draw into the tab via `statsOut()`.
    - Old renderers removed: `tableListHTML`, `atTableHTML`, `lobbyRows`, `lobbyChatHTML`, `CATAN.newTable`/`guardJoin`.
 
+15. ✅ **Quits made clear — v172 (2026-10-23).** Stats column "Pen" renamed "Quits" with a note under the table
+   (walked out mid-game: the game ends, the quitter is counted last as a loss, the points leader gets the win; the
+   number itself doesn't change any ranking). The quit dialog names who will win ("Sam wins as the points leader
+   (7 VP)", button "Quit · finish last"); the results screen shows a 🚪 note and lists the quitter last (`finishOrder`,
+   `quitLeader`, `quitNoteHTML`). Also fixed: the Domination badge showed after any quit and in every game to under
+   10 points; it now needs a real win in a game to 10+.
+
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
