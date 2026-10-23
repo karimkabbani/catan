@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v179';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v180';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -2192,14 +2192,16 @@
         <div class="winava" style="background:${PCOLOR[winner.color]}">${wav}</div></div>
       <h2>${escapeHtml(winner.name)} wins!</h2>
       ${quitNoteHTML()}
+      ${myColor ? `<div id="rmpanel">${rematchPanelHTML()}</div>` : ''}
       ${domBadge}
       <div id="ggrow">${ggHTML()}</div>
       <div style="margin:12px 0">${standings}</div>
       ${awardsHTML()}
       <div class="winrow"><button class="btn wood" onclick="CATAN.viewBoard()">🗺️ View board</button><button class="btn wood" onclick="CATAN.openDiceStats('victory')">📊 Dice stats</button></div>
       ${myColor
-          ? `<div id="rmpanel">${rematchPanelHTML()}</div><button class="btn wood full" onclick="CATAN.leaveEnded()">Back to lobby</button>`
-          : `<button class="btn full" onclick="CATAN.confirmExit()">Back to lobby</button>`}</div>`);   /* a watcher leaves for themselves — never resets the players' table */
+          ? `<button class="btn wood full" onclick="CATAN.leaveEnded()">Back to lobby</button>`
+          : `<button class="btn full" onclick="CATAN.confirmExit()">Back to lobby</button>`}</div>`);
+    syncRmBar();   /* a watcher leaves for themselves — never resets the players' table */
     refreshGG();
     $('overlay').onclick = (e) => { if (e.target.id === 'overlay') CATAN.viewBoard(); };   // tap outside the card = look at the board
     if (quiet) return;
@@ -2213,18 +2215,19 @@
     const src = seatAvatarSrc(hero, state.players.indexOf(hero));
     const title = fin ? `🏆 ${escapeHtml(hero.name)} wins ${escapeHtml(k.name)}!` : `${escapeHtml(hero.name)} wins game <span class="rpsn">${k.n}</span>`;
     const sub = fin ? `<div class="cupsub">${T[0].pts} pts · won ${T[0].wins} of ${T[0].places.length} game${T[0].places.length > 1 ? 's' : ''}${k.stop && k.n < k.games ? ' · ended early' : ''}</div>` : '';
-    const btns = myColor ? `<div id="rmpanel">${rematchPanelHTML()}</div><button class="btn wood full" onclick="CATAN.leaveEnded()">${fin ? 'Back to lobby' : 'Step away · come back later'}</button>`
+    const btns = myColor ? `<button class="btn wood full" onclick="CATAN.leaveEnded()">${fin ? 'Back to lobby' : 'Step away · come back later'}</button>`
       : `<button class="btn full" onclick="CATAN.confirmExit()">Back to lobby</button>`;
     showOverlay(`<div class="winwrap${fin ? ' cupfinal' : ''}">
       <div class="winhead"><div class="winrays"></div><img class="crown" src="assets/hud/crown.png" alt="">
         <div class="winava" style="background:${PCOLOR[hero.color]}">${src ? `<img src="${src}" alt="">` : ''}</div>${fin ? '<span class="cuptrophy">🏆</span>' : ''}</div>
       <h2>${title}</h2>${sub}${quitNoteHTML()}
+      ${myColor ? `<div id="rmpanel">${rematchPanelHTML()}</div>` : ''}
       <div id="ggrow">${ggHTML()}</div>
       ${cupStandingsHTML()}
       ${fin ? cupAwardsHTML() : awardsHTML()}
       <div class="winrow"><button class="btn wood" onclick="CATAN.viewBoard()">🗺️ View board</button><button class="btn wood" onclick="CATAN.openDiceStats('victory')">📊 Dice stats</button></div>
       ${btns}</div>`);
-    refreshGG();
+    refreshGG(); syncRmBar();
     $('overlay').onclick = (e) => { if (e.target.id === 'overlay') CATAN.viewBoard(); };
     if (quiet) return;
     spawnConfetti($('overlay'), fin ? 140 : 50);
@@ -2876,23 +2879,12 @@
     if (vp) out.push(`<span class="cupaw"><b>⭐ Most points scored</b> · ${escapeHtml(vp.p.name)}, ${vp.vp} VP</span>`);
     return out.length ? `<div class="cupaws">${out.join('')}</div>` : '';
   }
-  // between games: everyone readies up for the next one (no time limit, the cup waits for everyone)
+  // between games: readying up lives in the pinned bar; the card keeps the host's way out
   function cupReadyHTML() {
-    const k = state.cup, rm = state.rm, next = k.n + 1;
+    const k = state.cup;
     const hostHere = state.players.some((p) => gameSeatId(p.color) === k.host && isPlayerOnline(p.color));
     const canStop = AUTH.me && (AUTH.me.id === k.host || !hostHere);   // the host can end it; anyone can if the host has gone
-    const stop = canStop ? `<button class="linkbtn" onclick="CATAN.cupStop()">End the cup now</button>` : '';
-    if (!rmPending(rm)) return `<button class="btn full" style="margin-bottom:6px" onclick="CATAN.rmPropose()">✓ Ready for game ${next}</button>${stop}`;
-    const chips = state.players.map((p) => {
-      const yes = rm.votes[p.color] === 'y', off = !yes && !isPlayerOnline(p.color);
-      return `<span class="rmchip${yes ? ' yes' : ''}"><span class="dot" style="background:${PCOLOR[p.color]}"></span>${escapeHtml(p.name)} ${yes ? '✓' : off ? '💤' : '…'}</span>`;
-    }).join('');
-    if (rmAllIn(rm)) return `<div class="rmbox"><div class="rmhead">🏆 Everyone's ready!</div><div class="rmchips">${chips}</div><div class="rmgo">Game ${next} starting…</div></div>`;
-    const waiting = state.players.filter((p) => rm.votes[p.color] !== 'y');
-    const act = rm.votes[myColor] === 'y'
-      ? `<div class="rmwait">Waiting for ${escapeHtml(nameList(waiting.map((p) => p.color)))}…</div>`
-      : `<button class="btn full" onclick="CATAN.rmVote('y')">✓ Ready for game ${next}</button>`;
-    return `<div class="rmbox"><div class="rmhead">🏆 Game ${next} of ${k.games}</div><div class="rmchips">${chips}</div>${act}</div>${stop}`;
+    return canStop ? `<button class="linkbtn" onclick="CATAN.cupStop()">End the cup now</button>` : '';
   }
   function gameSeatId(color) { const s = (gameSeats || []).find((x) => x && x.color === color); return (s && s.playerId) || null; }
   function rmAllIn(rm) { return rmPending(rm) && state.players.every((p) => rm.votes && rm.votes[p.color] === 'y'); }
@@ -2908,17 +2900,55 @@
       return note + `<button class="btn full" style="margin-bottom:9px" onclick="CATAN.rmPropose()">🔁 ${state.cup ? 'Rematch the cup' : 'Rematch'}? Ask the table</button>`;
     }
     if (!rmSeen[rm.id]) rmSeen[rm.id] = Date.now();
-    const chips = state.players.map((p) => {
-      const yes = rm.votes[p.color] === 'y', off = !yes && !isPlayerOnline(p.color);
-      return `<span class="rmchip${yes ? ' yes' : ''}"><span class="dot" style="background:${PCOLOR[p.color]}"></span>${escapeHtml(p.name)} ${yes ? '✓' : off ? '💤' : '…'}</span>`;
+    return `<div class="rmnote">🔁 Rematch asked. Answer in the bar at the top ↑</div>`;
+  }
+  // ---- the pinned rematch bar: slides down over the results AND the board, so nobody misses a vote ----
+  const rmChimed = {}, rmEndSeen = {};
+  function rmChips(rm) {
+    return state.players.map((p) => {
+      const yes = !!(rm && rm.votes && rm.votes[p.color] === 'y'), off = !yes && !isPlayerOnline(p.color);
+      return `<span class="rmbchip${yes ? ' y' : ''}"><span class="dot" style="background:${PCOLOR[p.color]}"></span>${escapeHtml(p.name)} ${yes ? '✓' : off ? '💤' : '…'}</span>`;
     }).join('');
-    if (rmAllIn(rm)) return `<div class="rmbox"><div class="rmhead">🔁 Everyone's in!</div><div class="rmchips">${chips}</div><div class="rmgo">Rematch starting…</div></div>`;
-    const secs = Math.max(0, Math.ceil((RM_MS - (Date.now() - rmSeen[rm.id])) / 1000));
-    const waiting = state.players.filter((p) => rm.votes[p.color] !== 'y').map((p) => p.color);
-    const act = rm.votes[myColor] === 'y'
-      ? `<div class="rmwait">Waiting for ${escapeHtml(nameList(waiting))}…</div>`
-      : `<div class="winrow"><button class="btn" onclick="CATAN.rmVote('y')">✓ I'm in</button><button class="btn wood" onclick="CATAN.rmVote('n')">✗ Not this time</button></div>`;
-    return `<div class="rmbox"><div class="rmhead">🔁 ${state.cup ? 'Rematch the cup' : 'Rematch'}? <span class="rmsecs">0:${String(secs).padStart(2, '0')}</span></div><div class="rmchips">${chips}</div>${act}</div>`;
+  }
+  // returns { cls, html } for the bar, or null when there's nothing to ask
+  function rmBarModel() {
+    if (!online || !myColor || !state || state.phase !== 'ended') return null;
+    const rm = state.rm, pend = rmPending(rm), P = state.players;
+    const waitFor = () => nameList(P.filter((p) => !(rm.votes && rm.votes[p.color] === 'y')).map((p) => p.color));
+    if (cupBetween(state)) {   // a cup: ready up for the next game (no timer, no "no")
+      const k = state.cup, next = k.n + 1, mine = pend && rm.votes[myColor] === 'y';
+      if (pend && rmAllIn(rm)) return { cls: 'go', html: `<div class="rmbt"><div class="rmbh">🏆 Everyone's ready! Game ${next} starting…</div><div class="rmbchips">${rmChips(rm)}</div></div>` };
+      return { cls: '', html: `<div class="rmbt"><div class="rmbh">🏆 ${escapeHtml(k.name)} · <b>game ${next} of ${k.games}</b></div><div class="rmbchips">${rmChips(pend ? rm : null)}</div></div>`
+        + (mine ? `<div class="rmbwait">⏳ Waiting for ${escapeHtml(waitFor())}…</div>` : `<button class="btn rmbyes" onclick="CATAN.${pend ? "rmVote('y')" : 'rmPropose()'}">✓ Ready for game ${next}</button>`) };
+    }
+    if (!rm || (state.left || []).length) return null;
+    if (!pend) {   // said no / ran out: say so for a few seconds, then slide away
+      const t0 = rmEndSeen[rm.id] || (rmEndSeen[rm.id] = Date.now());
+      if (Date.now() - t0 > 4000) return null;
+      return { cls: 'no', html: `<div class="rmbt"><div class="rmbh">${rm.no ? `✗ <b>${escapeHtml(nameOf(rm.no))}</b>: not this time` : 'Not everyone answered'}</div><div class="rmbsub">No rematch.</div></div>` };
+    }
+    if (rmAllIn(rm)) return { cls: 'go', html: `<div class="rmbt"><div class="rmbh">🔁 Everyone's in! Rematch starting…</div><div class="rmbchips">${rmChips(rm)}</div></div>` };
+    const mine = rm.votes[myColor] === 'y';
+    const head = mine ? `🔁 Rematch · you're in` : `🔁 <b>${escapeHtml(nameOf(rm.by))}</b> wants ${state.cup ? 'to rematch the cup' : 'a rematch'}`;
+    return { cls: '', timer: true, html: `<div class="rmbt"><div class="rmbh">${head}<span class="rmbtm" id="rmbsecs"></span></div><div class="rmbchips">${rmChips(rm)}</div></div>`
+      + (mine ? `<div class="rmbwait">⏳ Waiting for ${escapeHtml(waitFor())}…</div>`
+        : `<button class="btn rmbyes" onclick="CATAN.rmVote('y')">✓ I'm in</button><button class="btn wood rmbno" onclick="CATAN.rmVote('n')">Not this time</button>`) };
+  }
+  // draw it (only rewritten when its content changes, so a tap never lands on a vanishing button)
+  function syncRmBar() {
+    const m = rmBarModel(); let el = $('rmbar');
+    if (!m) { if (el) el.classList.remove('show'); return; }
+    if (!el) { el = document.createElement('div'); el.id = 'rmbar'; document.body.appendChild(el); }
+    const k = m.cls + '|' + m.html;
+    if (el._k !== k) { el._k = k; el.innerHTML = m.html; }
+    el.className = 'show' + (m.cls ? ' ' + m.cls : '');
+    const t = $('rmbsecs'), rm = state.rm;
+    if (t && m.timer && rm) { if (!rmSeen[rm.id]) rmSeen[rm.id] = Date.now(); t.textContent = '0:' + String(Math.max(0, Math.ceil((RM_MS - (Date.now() - rmSeen[rm.id])) / 1000))).padStart(2, '0'); }
+    // somebody else just asked and I haven't answered -> chime + buzz, once per question
+    if (rm && rmPending(rm) && rm.by !== myColor && !(rm.votes[myColor] === 'y') && !rmChimed[rm.id]) {
+      rmChimed[rm.id] = true; playSound('trade', 0.8);
+      try { if (navigator.vibrate) navigator.vibrate([120, 60, 120]); } catch (_) { }
+    }
   }
   // re-render just the panel (never the whole victory card: no fanfare, no scroll jump)
   function refreshRematch() {
@@ -2926,11 +2956,8 @@
     if (state.cup && cupFinal(state) !== victoryFinal && !endView) { showVictory(); return; }   // the cup was just ended -> the champion screen
     refreshGG();
     const rm = state.rm;
-    // a proposal I haven't answered while I'm studying the board -> bring the results back so I can vote
-    if (rmPending(rm) && endView && myColor && !rm.votes[myColor] && !rmSeen[rm.id]) { endView = false; showVictory(true); }
-    const fresh = rmPending(rm) && !rmSeen[rm.id];
     const el = $('rmpanel'); if (el) el.innerHTML = rematchPanelHTML();
-    if (el && fresh && myColor && !rm.votes[myColor]) { try { el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (_) { } }   // a new question -> bring it into view
+    syncRmBar();   // the vote itself: pinned at the top, over the results or the board
     if (rmAllIn(rm) && !rmStarted[rm.id]) {
       rmStarted[rm.id] = true;
       setTimeout(() => { if (state && state.phase === 'ended') LOBBY.rematch(true); }, 700);   // every phone tries; the version guard lets one win
@@ -2960,7 +2987,8 @@
   }
   // the 30s clock: keep the countdown ticking, and let any phone call time on an unanswered proposal
   setInterval(() => {
-    if (!state || state.phase !== 'ended' || !online) return;
+    if (!state || state.phase !== 'ended' || !online) { const b = $('rmbar'); if (b) b.classList.remove('show'); return; }
+    syncRmBar();
     const rm = state.rm; if (!rmPending(rm) || rmAllIn(rm) || cupBetween(state)) return;   // the cup's ready-up never lapses
     if (!rmSeen[rm.id]) rmSeen[rm.id] = Date.now();
     if (Date.now() - rmSeen[rm.id] > RM_MS) { const id = rm.id; rmWrite((s) => { if (!s.rm || s.rm.id !== id || !rmPending(s.rm) || rmAllIn(s.rm)) return false; s.rm.lapsed = true; }); return; }
@@ -5191,7 +5219,7 @@
   function exitGameUI() {
     ['leavetab', 'radialtab', 'settingstab', 'dicetab', 'trophytab', 'dicereveal', 'toast', 'confirmbar', 'countdown'].forEach((id) => { const e = $(id); if (e) e.classList.add('hidden'); });
     const rr = $('radialroot'); if (rr) { rr.classList.remove('open'); rr.classList.add('hidden'); }
-    document.querySelectorAll('.flyres, .robberdrag, .emofloat, .emocombo, .emothrow, .emosplat, .emoghost, #cuppill').forEach((el) => el.remove());
+    document.querySelectorAll('.flyres, .robberdrag, .emofloat, .emocombo, .emothrow, .emosplat, .emoghost, #cuppill, #rmbar').forEach((el) => el.remove());
     closeEmojiTray(); hideChip(); const mp = $('momentpill'); if (mp) mp.classList.add('hidden'); const rpr = $('rpsroot'); if (rpr) rpr.classList.add('hidden'); rpsBoardClear();
     document.body.classList.remove('ingame', 'trading', 'gameover');
     hideOverlay();
