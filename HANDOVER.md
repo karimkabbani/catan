@@ -538,6 +538,10 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    `quitLeader`, `quitNoteHTML`). Also fixed: the Domination badge showed after any quit and in every game to under
    10 points; it now needs a real win in a game to 10+.
 
+16. ✅ **Everyone in the lobby — v173 (2026-10-23).** The Play tab's "Friends · N online" grid shows every registered
+   player (`AUTH.list()` = the `player_list` RPC, refetched at most every 2 min into `LV.roster`): online ones first
+   with what they're doing, the rest greyed out as "offline". Matched to presence by name (the RPC returns no id).
+
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
