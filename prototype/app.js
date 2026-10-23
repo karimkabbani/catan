@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v178';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v179';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -4777,7 +4777,8 @@
     }).join('') + offline.map((r) => `<button class="lvface off" onclick="CATAN.lvStatsFor('${lvArg(r.name)}','')">${faceHTML(r.name, r.avatar, 'md')}<span class="lvdot off"></span><b>${escapeHtml(r.name)}</b><span class="lvfst">offline</span></button>`).join('');
     return `${hero}${more.join('')}
       ${faces ? `<div class="lvsect">FRIENDS · ${others.length} ONLINE</div><div class="lvfaces">${faces}</div>` : ''}
-      <div id="lv-peek"></div>`;
+      <div id="lv-peek"></div>
+      <p class="lvver">Catan · ${APP_VERSION}</p>`;
   }
 
   // ---- Play tab, in a room: four seats, the settings line, one primary action ----
