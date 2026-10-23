@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v173';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v174';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -4846,6 +4846,7 @@
     statsOut(`<div class="lobhead"><button class="lobback" onclick="CATAN.openStats()" title="Back to stats">←</button><h3>${escapeHtml(d.name)}</h3></div>
       <div class="stchips">${chipHTML}</div>
       <h4 class="stsub">Head to head</h4>
+      <div class="stnote">Who finished higher, in every game you both played (any table size, all time).</div>
       <div class="h2hlist">${h2hHTML}</div>
       <h4 class="stsub">Bonuses held</h4>
       <div class="stbon"><span>${roadIco} Longest Road ×${d.lr}</span><span><span class="stbonemo">⚔</span> Largest Army ×${d.la}</span></div>`);
@@ -4881,6 +4882,7 @@
     if (s.startsWith('cup:')) { const p = s.split(':'); return { cup: parseInt(p[1], 10) || 3, rps: p[2] !== 'x' }; }
     return { cup: 0, rps: s !== 'random' };
   }
+  function lvArg(v) { return encodeURIComponent(String(v || '')).replace(/'/g, '%27'); }   // safe inside onclick='…'
   function namesAnd(ns) { return ns.length < 2 ? (ns[0] || '') : ns.slice(0, -1).join(', ') + ' and ' + ns[ns.length - 1]; }
   // every OTHER table, grouped from presence: who's there, who's seated, who hosts
   function lvTables() {
@@ -4957,8 +4959,8 @@
     const offline = LV.roster.filter((r) => r && r.name && !onNames.has(String(r.name).toLowerCase())).sort((a, b) => String(a.name).localeCompare(b.name));
     const faces = others.map((p) => {
       const st = p.away ? 'away' : !p.table ? 'online' : pmode(p) === 'playing' ? 'playing' : 'in a room';
-      return `<div class="lvface${p.away ? ' away' : ''}">${faceHTML(p.name, p.avatar, 'md')}<span class="lvdot${p.away || p.table ? ' busy' : ''}"></span><b>${escapeHtml(p.name)}</b><span class="lvfst">${st}</span></div>`;
-    }).join('') + offline.map((r) => `<div class="lvface off">${faceHTML(r.name, r.avatar, 'md')}<span class="lvdot off"></span><b>${escapeHtml(r.name)}</b><span class="lvfst">offline</span></div>`).join('');
+      return `<button class="lvface${p.away ? ' away' : ''}" onclick="CATAN.lvStatsFor('${lvArg(p.name)}','${lvArg(p.id)}')">${faceHTML(p.name, p.avatar, 'md')}<span class="lvdot${p.away || p.table ? ' busy' : ''}"></span><b>${escapeHtml(p.name)}</b><span class="lvfst">${st}</span></button>`;
+    }).join('') + offline.map((r) => `<button class="lvface off" onclick="CATAN.lvStatsFor('${lvArg(r.name)}','')">${faceHTML(r.name, r.avatar, 'md')}<span class="lvdot off"></span><b>${escapeHtml(r.name)}</b><span class="lvfst">offline</span></button>`).join('');
     return `${hero}${more.join('')}
       ${faces ? `<div class="lvsect">FRIENDS · ${others.length} ONLINE</div><div class="lvfaces">${faces}</div>` : ''}
       <div id="lv-peek"></div>
@@ -5143,6 +5145,17 @@
     LOBBY.enterTable(code); LOBBY.mode = 'ready'; LOBBY.readyAt = Date.now(); LOBBY.track(); lobbySig = null; renderLobby();
   }
   window.CATAN.lvStartGo = () => lvStartGo();
+  // tap a face in the lobby -> that player's Stats page (by player id, else by name for the offline list)
+  window.CATAN.lvStatsFor = (name, id) => {
+    name = decodeURIComponent(name || ''); id = decodeURIComponent(id || '');
+    const go = () => {
+      const board = STATS.board(STATS.games);
+      const hit = (id && board.find((p) => p.key === id)) || board.find((p) => String(p.name).toLowerCase() === name.toLowerCase());
+      LV.tab = 'stats'; LV.sheet = null; lobbySig = null; renderLobby();
+      if (hit) statsPlayerScreen(hit.key); else { statsScreen(); toast(`No games recorded for ${name} yet`); }
+    };
+    if (STATS.loaded) go(); else STATS.load().then(go);
+  };
   window.CATAN.lobbyTargetAuto = () => { LOBBY.targetPoints = null; LOBBY.track(); lobbySig = null; renderLobby(); };
   window.CATAN.lobbyWhoStarts = (v) => { LOBBY.whoStarts = v === 'rps' ? 'rps' : 'random'; try { localStorage.setItem('catanWhoStarts', LOBBY.whoStarts); } catch (_) { } LOBBY.track(); lobbySig = null; renderLobby(); };
   window.CATAN.lobbyTarget = (v) => { LOBBY.targetPoints = Math.max(LOBBY.cup ? 6 : 9, Math.min(15, parseInt(v, 10) || 13)); LOBBY.track(); lobbySig = null; renderLobby(); };
