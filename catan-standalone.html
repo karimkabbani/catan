@@ -53,7 +53,6 @@
     background:repeating-linear-gradient(0deg, rgba(255,255,255,0.03) 0 2px, transparent 2px 6px);}
   /* optional sea image overlay; empty/missing -> the gradient above shows */
   /* old flat-water layer replaced by the water-hex grid in the board SVG */
-  #seaimg{display:none;}
 
   /* board */
   /* touch-action:none lets us own pinch/drag instead of the browser zooming the
@@ -241,7 +240,6 @@
   .lvpk{flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; font-size:13.5px;}
   .lvpk > span:first-child{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .lvpt{font-size:11.5px; color:#a8957a;}
-  .lvoff{margin-top:auto;}
   .lvlast{padding:8px 12px; border-radius:12px; background:rgba(233,196,90,0.12); border:1px solid rgba(233,196,90,0.35); font-size:13px;}
   .lvseats{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
   .lvseat{position:relative; min-height:132px; border-radius:18px; background:rgba(0,0,0,0.28); border:1.5px solid rgba(255,220,170,0.16); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; font-size:14.5px; padding:10px 6px;}
@@ -1448,30 +1446,8 @@
   .t-card .authlist .btn{padding:22px 16px;}   /* taller player tiles fill the landscape height */
   .t-card .seg{margin-bottom:8px;}
   .t-card .seg button{padding:7px;}
-  .t-seat{display:flex; align-items:center; gap:9px; padding:3px 0; border-bottom:1px solid rgba(0,0,0,0.3);}
-  .t-seat .medal{width:30px;height:30px;border-radius:50%;flex:0 0 auto;overflow:hidden;border:2px solid var(--gold-edge);
-    box-shadow:0 2px 5px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;background:#3a2410;}
-  .t-seat .medal img{width:100%;height:100%;object-fit:cover;}
-  .t-seat .cdot{width:12px;height:12px;border-radius:50%;border:1px solid #000;flex:0 0 auto;}
-  .t-seat input{flex:1;background:rgba(0,0,0,0.32);border:1px solid var(--wood-edge);border-radius:8px;
-    color:var(--ink);padding:7px 8px;font-size:14px;font-family:var(--serif);}
   .t-card .btn.full{margin-top:8px;}
   /* ===== New Game (pass & play) setup — big, readable; Demo tucked in the corner ===== */
-  .t-card.newgame{position:relative;}
-  .demobtn{position:absolute; top:9px; right:10px; z-index:2; padding:7px 13px; border-radius:9px; cursor:pointer;
-    background:rgba(0,0,0,0.32); border:1px solid var(--wood-edge); color:#e7d3a3; font-size:14px; font-weight:700;
-    font-family:var(--serif); opacity:0.8;}
-  .demobtn:active{transform:scale(0.94);}
-  .t-card.newgame h3{font-size:26px; margin-bottom:16px;}
-  .t-card.newgame .seg{margin-bottom:16px; gap:10px;}
-  .t-card.newgame .seg button{padding:16px 8px; font-size:20px; border-radius:12px;}
-  .t-card.newgame .t-seats{margin-bottom:6px;}
-  .t-card.newgame .t-seat{gap:14px; padding:10px 0;}
-  .t-card.newgame .t-seat .medal{width:48px; height:48px;}
-  .t-card.newgame .t-seat .cdot{width:15px; height:15px;}
-  .t-card.newgame .t-seat input{padding:15px 14px; font-size:21px; border-radius:10px;}
-  .t-card.newgame .btn.full{padding:18px; font-size:20px;}
-  .t-card.newgame .btn.ghost.full{padding:11px; font-size:15px; margin-top:10px;}
   /* low-key secondary action: a small muted link, not a full button */
   .verline{margin:14px 0 2px; text-align:center; color:var(--muted); opacity:0.6; font-size:12px; letter-spacing:0.4px;}
   /* tertiary action: a quiet text link (same voice as the login screen's offline link) */
@@ -1485,17 +1461,12 @@
   .lobsetup{border:1px solid rgba(255,220,170,0.14); border-radius:12px; padding:10px 12px; margin:10px 0 4px;
     display:flex; flex-direction:column; gap:8px;}
   .lobsetup .lobtgt, .lobsetup .lobprefrow{margin:0;}
-  .t-card .offline-link{display:block; width:fit-content; margin:14px auto 2px; padding:4px 8px;
-    background:none; border:none; box-shadow:none; color:var(--muted); opacity:0.55;
-    font-size:13px; font-weight:600; cursor:pointer; text-decoration:underline; text-underline-offset:3px;}
-  .t-card .offline-link:active{opacity:0.8;}
   .t-card .small{margin-top:6px !important;}
 </style>
 </head>
 <body>
   <div id="app">
     <div id="stage">
-      <div id="seaimg"></div>
       <div id="banner" onclick="CATAN.bannerTap()"></div>
       <div id="momentpill" class="hidden"></div>
       <div class="corner tl" id="p-tl"></div>
@@ -1595,7 +1566,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v174';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v175';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -1900,7 +1871,7 @@
     if (robberMoved) ui.robberFlying = true;
     // queue the server sync BEFORE afterAction — afterAction can chain a follow-up action
     // (e.g. the auto-steal after the robber moves), and the syncs must persist in that order.
-    if (online && !demoMode) NET.syncAction(action, actor);
+    if (online) NET.syncAction(action, actor);
     // hold card counts behind the transfer flies so the numbers tick with the animation, not before it
     if (steal) { lagOut(steal.victim, steal.res, 1); lagIn(steal.thief, steal.res, 1); }
     if (trade) lagTrade(trade.a, trade.b, trade.give, trade.want);
@@ -3035,8 +3006,8 @@
   const TURN_LIMIT_MS = 60000, POKE_AFTER_MS = 30000, POKE_GAP_MS = 20000;
   let turnKey = null, turnStart = 0, lastPokeAt = 0;
   const POKE_MERGE_MS = 3000, pokePile = { at: 0, names: [] };
-  function turnLimit() { return demoMode ? 20000 : TURN_LIMIT_MS; }   // the showcase runs a fast clock
-  function pokeAfter() { return demoMode ? 6000 : POKE_AFTER_MS; }
+  function turnLimit() { return TURN_LIMIT_MS; }
+  function pokeAfter() { return POKE_AFTER_MS; }
   function turnElapsed() {
     if (!state || (state.phase !== 'play' && state.phase !== 'setup')) return null;
     const k = state.phase + ':' + state.currentPlayerIndex + ':' + (state.phase === 'setup' ? state.setupIndex : '') + ':' + (state.rps ? (state.rps.done ? 'd' : 'p') : '');   // the clock starts once who-starts is settled
@@ -3069,10 +3040,7 @@
     const msg = { type: 'poke', text: `👉 ${tname}: khalesna!`, url: 'p:' + target, color: myColor,
       name: (AUTH.me && AUTH.me.name) || (state.players.find((p) => p.color === myColor) || {}).name || null,
       avatar: (AUTH.me && AUTH.me.avatar) || null, code: NET.code || LOBBY.table || null };
-    if (demoMode) {   // the showcase bot grumbles back
-      const who = state.players.find((p) => p.color === target);
-      setTimeout(() => showBroadcast({ type: 'emoji', text: '😤', dur: 3, color: target, name: who && who.name }), 1300);
-    } else LOBBY.sendBroadcast(msg);
+    LOBBY.sendBroadcast(msg);
     showPoke(msg);
     renderBanner();
   }
@@ -3098,7 +3066,7 @@
   function renderBanner() { const b = $('banner'); if (b && state) b.innerHTML = banner(); }   // live count refresh from presence
 
   function actionsBar() {
-    if (state.phase === 'ended') return `<button class="btn full" onclick="CATAN.restart()">New game</button>`;
+    if (state.phase === 'ended') return '';   // the results reopen from the 🏆 tab
     const tp = state.turnPhase, p = activePlayer();
     if (state.phase === 'setup') return `<div class="hint">Tap the board to ${tp === 'placeSettlement' ? 'place a settlement' : 'place a road'}.</div>`;
     if (tp === 'roll') {
@@ -3785,11 +3753,9 @@
       <div style="margin:12px 0">${standings}</div>
       ${awardsHTML()}
       <div class="winrow"><button class="btn wood" onclick="CATAN.viewBoard()">🗺️ View board</button><button class="btn wood" onclick="CATAN.openDiceStats('victory')">📊 Dice stats</button></div>
-      ${demoMode ? `<div id="rmpanel">${rematchPanelHTML()}</div><button class="btn wood full" onclick="CATAN.exitDemo()">Exit showcase</button>` : online
-        ? (myColor
+      ${myColor
           ? `<div id="rmpanel">${rematchPanelHTML()}</div><button class="btn wood full" onclick="CATAN.leaveEnded()">Back to lobby</button>`
-          : `<button class="btn full" onclick="CATAN.confirmExit()">Back to lobby</button>`)   /* a watcher leaves for themselves — never resets the players' table */
-        : `<button class="btn full" onclick="CATAN.restart()">New game</button>`}</div>`);
+          : `<button class="btn full" onclick="CATAN.confirmExit()">Back to lobby</button>`}</div>`);   /* a watcher leaves for themselves — never resets the players' table */
     refreshGG();
     $('overlay').onclick = (e) => { if (e.target.id === 'overlay') CATAN.viewBoard(); };   // tap outside the card = look at the board
     if (quiet) return;
@@ -3803,8 +3769,7 @@
     const src = seatAvatarSrc(hero, state.players.indexOf(hero));
     const title = fin ? `🏆 ${escapeHtml(hero.name)} wins ${escapeHtml(k.name)}!` : `${escapeHtml(hero.name)} wins game <span class="rpsn">${k.n}</span>`;
     const sub = fin ? `<div class="cupsub">${T[0].pts} pts · won ${T[0].wins} of ${T[0].places.length} game${T[0].places.length > 1 ? 's' : ''}${k.stop && k.n < k.games ? ' · ended early' : ''}</div>` : '';
-    const btns = demoMode ? `<div id="rmpanel">${rematchPanelHTML()}</div><button class="btn wood full" onclick="CATAN.exitDemo()">Exit showcase</button>`
-      : myColor ? `<div id="rmpanel">${rematchPanelHTML()}</div><button class="btn wood full" onclick="CATAN.leaveEnded()">${fin ? 'Back to lobby' : 'Step away · come back later'}</button>`
+    const btns = myColor ? `<div id="rmpanel">${rematchPanelHTML()}</div><button class="btn wood full" onclick="CATAN.leaveEnded()">${fin ? 'Back to lobby' : 'Step away · come back later'}</button>`
       : `<button class="btn full" onclick="CATAN.confirmExit()">Back to lobby</button>`;
     showOverlay(`<div class="winwrap${fin ? ' cupfinal' : ''}">
       <div class="winhead"><div class="winrays"></div><img class="crown" src="assets/hud/crown.png" alt="">
@@ -4148,7 +4113,7 @@
   const RPS_CHOOSE_MS = 20000;   // the winner's time to choose when to go
   const RPS_FIRST_MS = 10000, RPS_PICK_MS = 5000, RPS_REVEAL_MS = 3400, RPS_WIN_MS = 4500, RPS_MAX_ROUNDS = 5;   // round 1 is roomier: people are still settling in / turning their phone
   const RPS_HAND = { r: '✊', p: '✋', s: '✌️' }, RPS_BEATS = { r: 's', s: 'p', p: 'r' };
-  const rpsLocal = { seen: {}, resolving: {}, winShown: {}, bots: {}, allIn: {}, key: null };
+  const rpsLocal = { seen: {}, resolving: {}, winShown: {}, allIn: {}, key: null };
   const RPS_ALLIN_MS = 1000;   // everyone's picked -> reveal after this beat instead of waiting out the clock
   function newRps(players, delayMs) {
     return { round: 1, alive: players.map((p) => p.color), picks: {}, deadline: Date.now() + delayMs + RPS_FIRST_MS };
@@ -4156,7 +4121,6 @@
   function rpsActive() { return !!(online && state && state.phase === 'setup' && state.rps); }
   // write to the shared game and apply the result here too (my own echo is deduped by version)
   async function rpsUpdate(mut) {
-    if (demoMode) { const s2 = JSON.parse(JSON.stringify(state)); if (mut(s2) === false) return; state = s2; syncRps(); return; }
     const c = NET.init(); if (!c || !NET.code) return;
     for (let i = 0; i < 6; i++) {
       const { data, error } = await c.from('games').select('state,version').eq('code', NET.code).maybeSingle();
@@ -4174,7 +4138,7 @@
     if (allIn(R)) return;   // everyone's picked: hands are locked, the reveal is coming
     const round = R.round, me = myColor;
     R.picks[me] = v; syncRps(true);   // local echo; you can change it until the last person picks
-    if (!demoMode) svUpdate((s) => { if (!s.rps || s.rps.done || s.rps.round !== round || allIn(s.rps)) return false; s.rps.picks[me] = v; });
+    svUpdate((s) => { if (!s.rps || s.rps.done || s.rps.round !== round || allIn(s.rps)) return false; s.rps.picks[me] = v; });
   }
   function rpsResolve() {
     const R = state.rps, round = R.round, k = gameKey() + ':' + round;
@@ -4215,15 +4179,6 @@
     if (k === 1) return 'first pick, last back';
     if (k === n) return 'two in a row';
     return `${ORD[k - 1]}, then ${ORD[n - k]} back`;
-  }
-  // showcase bots: everyone but Jordan picks at a random moment; Jordan never does (shows the 🎲 case)
-  function rpsBots() {
-    const R = state.rps, bk = gameKey() + ':' + (R && R.round); if (!demoMode || !R || R.done || rpsLocal.bots[bk]) return;
-    rpsLocal.bots[bk] = true;
-    R.alive.forEach((c, i) => {
-      if (c === myColor || i === 3) return;
-      setTimeout(() => { const Q = state.rps; if (Q && Q.round === R.round && !Q.done) { Q.picks[c] = 'rps'[(Math.random() * 3) | 0]; syncRps(true); } }, 900 + Math.random() * 3000);
-    });
   }
   function rpsChip(c, label, cls) {
     return `<span class="rpschip ${cls || ''}"><span class="dot" style="background:${PCOLOR[c]}"></span>${escapeHtml(nameOf(c))}<em>${label}</em></span>`;
@@ -4285,7 +4240,6 @@
     const R = state.rps, now = Date.now(), gk = gameKey();
     let key = '';
     if (mode === 'pick') {
-      rpsBots();
       const left = Math.max(0, Math.ceil((R.deadline - now) / 1000));
       const inGame = !!myColor && R.alive.includes(myColor), mine = inGame ? R.picks[myColor] : null;
       key = 'pick:' + R.round + ':' + mine + ':' + R.alive.map((c) => c + (R.picks[c] ? 1 : 0)).join(',');
@@ -4343,10 +4297,6 @@
         setRpsBanner(`👑 ${escapeHtml(nameOf(w))} won · choosing when to go…`);
       }
       const t = $('rps-t'); if (t) t.textContent = '0:' + String(left).padStart(2, '0');
-      if (demoMode && !mine && !rpsLocal.bots[gk + ':choose']) {   // a showcase bot takes its pick
-        rpsLocal.bots[gk + ':choose'] = true;
-        setTimeout(() => { if (state.rps && !state.rps.done) rpsUpdate(rpsChooseMut(1 + ((Math.random() * n) | 0), false)); }, 2500);
-      }
       if (now > R.chooseDeadline + 600) {   // no choice in time -> 1st (any phone, once)
         const ck = gk + ':choose';
         if (!rpsLocal.resolving[ck] || now - rpsLocal.resolving[ck] > 4000) { rpsLocal.resolving[ck] = now; rpsUpdate(rpsChooseMut(1, true)); }
@@ -4381,21 +4331,12 @@
         setTimeout(() => {
           rpsLocal.winShown[wk] = 'gone'; rpsBoardClear(); rpsBanner = null; rpsLocal.key = null;
           ui.spinning = false; afterAction(); render();   // setup begins at the winner's corner
-          if (demoMode) toast('Showcase: that is the start. The bots do not play setup, so exit with the ← menu');
         }, RPS_WIN_MS);
       }
     }
     rpsLocal.key = key;
   }
   setInterval(() => { if (rpsActive()) syncRps(); }, 250);
-  // DEMO: ?rpsdemo — a fresh 4-player online-style start decided by rock-paper-scissors against bots
-  function rpsDemo() {
-    const players = Array.from({ length: 4 }, (_, i) => ({ color: SEAT_COLORS[i], name: DEFAULT_NAMES[i] }));
-    const s = C.createGame({ id: 'rps-demo', players, seed: (Math.random() * 1e9) | 0, randomFirst: true });
-    s.whoStarts = 'rps'; s.rps = newRps(s.players, 1500);
-    demoMode = true; online = true; myColor = s.players[0].color; gameSeats = null;
-    enterGame(s);
-  }
   // ---- GG: say "good game" when it's over. Who said it lives in the finished game (state.gg), so
   //      anyone opening the results later still sees it; each new GG floats up from that portrait.
   const ggSeen = {};   // gameKey -> colours whose GG has already been animated here
@@ -4417,12 +4358,6 @@
     const mut = (s) => { if (s.phase !== 'ended') return false; s.gg = s.gg || []; if (s.gg.includes(me)) return false; s.gg.push(me); };
     const s2 = JSON.parse(JSON.stringify(state)); if (mut(s2) === false) return;
     state.gg = s2.gg; refreshGG();
-    if (demoMode) {   // the showcase bots GG back
-      state.players.filter((p) => p.color !== me).forEach((p, i) => setTimeout(() => {
-        if (state.phase === 'ended' && !(state.gg || []).includes(p.color)) { state.gg.push(p.color); refreshGG(); }
-      }, 1100 + i * 900));
-      return;
-    }
     svUpdate(mut);
   }
   // ---- rematch by unanimous vote ---------------------------------------------------------------
@@ -4554,7 +4489,6 @@
     if (el && fresh && myColor && !rm.votes[myColor]) { try { el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (_) { } }   // a new question -> bring it into view
     if (rmAllIn(rm) && !rmStarted[rm.id]) {
       rmStarted[rm.id] = true;
-      if (demoMode) { setTimeout(() => showCountdown(() => showcase(), 5, 'Rematch in'), 700); return; }
       setTimeout(() => { if (state && state.phase === 'ended') LOBBY.rematch(true); }, 700);   // every phone tries; the version guard lets one win
     }
   }
@@ -4563,14 +4497,12 @@
     const s2 = JSON.parse(JSON.stringify(state));
     if (mut(s2) === false) return;
     state.rm = s2.rm; state.left = s2.left; state.gg = s2.gg; if (s2.cup) state.cup = s2.cup; refreshRematch();
-    if (!demoMode) svUpdate(mut);
+    svUpdate(mut);
   }
   function rmPropose() {
     if (!online || !myColor || !state || state.phase !== 'ended') return;
     const id = Math.random().toString(36).slice(2, 8), me = myColor;
     rmWrite((s) => { if (s.phase !== 'ended' || (s.left && s.left.length && !cupBetween(s)) || rmPending(s.rm)) return false; s.rm = { id, by: me, votes: { [me]: 'y' } }; });
-    if (demoMode) state.players.filter((p) => p.color !== me).forEach((p, i) =>   // showcase bots say yes, one by one
-      setTimeout(() => { if (state.rm && state.rm.id === id) { state.rm.votes[p.color] = 'y'; refreshRematch(); } }, 1400 + i * 1300));
   }
   function rmVote(v) {
     const rm = state && state.rm; if (!rmPending(rm) || !myColor) return;
@@ -4579,7 +4511,7 @@
   }
   // walking away from a finished game is recorded, so the table knows a rematch can't happen
   function markLeft(color) {
-    if (!color || demoMode || !state || state.phase !== 'ended' || cupBetween(state)) return;   // a cup waits for whoever stepped away
+    if (!color || !state || state.phase !== 'ended' || cupBetween(state)) return;   // a cup waits for whoever stepped away
     svUpdate((s) => { if (s.phase !== 'ended') return false; s.left = s.left || []; if (!s.left.includes(color)) s.left.push(color); });
   }
   // the 30s clock: keep the countdown ticking, and let any phone call time on an unanswered proposal
@@ -4748,15 +4680,13 @@
     clearTimeout(emoFlushT); emoFlushT = null;
     const r = emoRun; if (!r || !r.taps.length) return;
     const taps = r.taps; r.taps = [];
-    if (demoMode) return;
     LOBBY.sendBroadcast({ type: 'emoji', text: r.emoji, dur: taps.length, url: `r:${r.id}|t:${taps.join(',')}` + (r.target ? '|a:' + r.target : '') + (r.key ? '|m:' + r.key : ''),
       name: (AUTH.me && AUTH.me.name) || null, avatar: (AUTH.me && AUTH.me.avatar) || null, code: NET.code || LOBBY.table || null, color: myColor });
   }
   function endEmojiRun() {
     clearTimeout(emoIdleT); emoIdleT = null;
     flushEmoji();
-    const r = emoRun; emoRun = null;
-    if (r && demoMode) demoEcho(r);
+    emoRun = null;
   }
   // replay a chunk at the sender's rhythm; a late (clumped) chunk still climbs, just a touch faster
   function showEmojiMsg(msg) {
@@ -5225,12 +5155,10 @@
       else if (k === 'end') window.CATAN.endTurn();
     },
     close: () => { hideOverlay(); render(); },
-    restart: () => startScreen(),
     openDiceStats: (from) => openDiceStats(from),
     diceDetail: (t) => diceDetail(t),
     diceBack: () => showVictory(true),
     openEmojiTray: () => openEmojiTray(),
-    exitDemo: () => exitDemo(),
     rmPropose: () => rmPropose(),
     rps: (v) => rpsPick(v),
     rpsChoose: (k) => rpsChoose(k),
@@ -5244,7 +5172,6 @@
     viewBoard: () => { endView = true; hideOverlay(); render(); },   // dismiss the victory to study the final board
     showResults: () => { if (state && state.phase === 'ended') showVictory(true); },
     bannerTap: () => { if (state && state.phase === 'ended' && $('overlay').classList.contains('hidden')) showVictory(true); },
-    rig: (n) => rigNearWin(n),
     dev: (c) => { hideOverlay(); if (c === 'knight') dispatch({ type: 'playKnight' }); else if (c === 'road_building') dispatch({ type: 'playRoadBuilding' }); else if (c === 'year_of_plenty') openYoP(); else if (c === 'monopoly') openMonopoly(); },
     // dev-cards carousel
     devTap: (act) => devAct(act),
@@ -5298,7 +5225,6 @@
     _boardSVG: () => boardSVG(),
   };
 
-  const DEFAULT_NAMES = ['Karim', 'Sam', 'Alex', 'Jordan'];
   const SEAT_COLORS = ['red', 'blue', 'green', 'yellow'];
   // Seat-color assignment honouring player preferences (profile -> presence `pref`).
   // Each contested color goes to ONE random claimant; everyone else draws from the
@@ -5358,181 +5284,6 @@
   // against an unsettled viewport (card scaled too small -> wood shows below it). Watch
   // the title box and re-fit the moment iOS settles it to the real viewport size.
   if (window.ResizeObserver) { try { new ResizeObserver(() => fitTitle()).observe($('title')); } catch (_) {} }
-
-  // ---- DEBUG: rig a near-win game so you can preview the victory experience ---
-  // Trigger by opening the page with ?rig (e.g. index.html?rig) or calling
-  // CATAN.rig() from the console. You start on YOUR turn with 9 VP — tap the
-  // build-city button (🏛️) and tap your lone settlement to upgrade it and win.
-  function rigNearWin(count) {
-    count = Math.max(2, Math.min(4, count || 4));
-    const players = Array.from({ length: count }, (_, i) => ({ color: SEAT_COLORS[i], name: DEFAULT_NAMES[i] }));
-    const s = C.createGame({ id: 'rig-local', players, seed: 1337 });
-    const V = s.board.vertices.length;
-    // Place a building on a vertex that obeys the distance rule: the vertex must
-    // be empty AND none of its neighbours may hold a building. Scan from a moving
-    // cursor (stride 7) so placements spread across the board instead of clumping.
-    let cursor = 0;
-    const legalVertex = () => {
-      for (let tries = 0; tries < V; tries++) {
-        const v = ((cursor % V) + V) % V; cursor += 7;
-        if (s.settlements[v]) continue;
-        if (s.board.vertices[v].neighbors.some((n) => s.settlements[n])) continue;
-        return v;
-      }
-      return -1; // board saturated (won't happen for the handful we place)
-    };
-    const place = (owner, type) => { const v = legalVertex(); if (v >= 0) s.settlements[v] = { type, owner }; return v; };
-
-    // YOU (seat 0): 3 cities + 1 settlement (7 VP) + largest army (2) = 9 VP.
-    const me = s.players[0];
-    place(me.color, 'city'); place(me.color, 'city'); place(me.color, 'city');
-    place(me.color, 'settlement');   // <- the lone settlement you'll upgrade to win
-    me.citiesLeft = 1;            // 3 placed, one left for the winning upgrade
-    me.settlementsLeft = 4;
-    me.playedKnights = 3; me.hasLargestArmy = true; s.largestArmyOwner = me.color;
-    me.devCards = ['knight', 'road_building', 'year_of_plenty', 'monopoly'];   // sample hand (no VP card, so playing a card doesn't instantly win)
-    me.resources = { brick: 2, wood: 2, sheep: 2, wheat: 5, ore: 6 };   // covers the final city + spare
-
-    // opponents: a few buildings each so the board + score panels look like a real late game
-    for (let pi = 1; pi < s.players.length; pi++) {
-      const c = s.players[pi].color;
-      place(c, 'city'); place(c, 'settlement'); place(c, 'settlement');
-      s.players[pi].resources = { brick: 1, wood: 1, sheep: 2, wheat: 1, ore: 1 };
-    }
-
-    // a late-game roll history (seeded, so the same every time) so the dice stats have something to show
-    let rs = 2026; s.rolls = [];
-    for (let i = 0; i < 72; i++) { const r = C.rollDice(rs); rs = r.state; s.rolls.push(r.dice[0] + r.dice[1]); }
-    s.dice = [3, 5];
-    const tal = [{ robberCost: 3, timesRobbed: 1, numbersHit: 21, numbersNormal: 15.2 }, { robberCost: 11, timesRobbed: 4, numbersHit: 12, numbersNormal: 13.6 },
-      { robberCost: 2, timesRobbed: 0, numbersHit: 7, numbersNormal: 12.4 }, { robberCost: 4, timesRobbed: 2, numbersHit: 10, numbersNormal: 9.8 }];
-    s.tally = {}; s.players.forEach((p, i) => { s.tally[p.color] = tal[i]; });
-    const P = s.players, steal = (t, v) => { if (P[t] && P[v]) s.log.push(`${P[t].name} stole a card from ${P[v].name}.`); };
-    [[1, 0], [0, 1], [0, 1], [2, 1], [3, 1], [1, 3], [2, 3]].forEach(([t, v]) => steal(t, v));   // victims: Sam 4×, Jordan 2×, Karim 1×
-    s.targetPoints = C.victoryPoints(s, me.color, true) + 1;   // whatever the table size, the one city wins
-    // your turn, already rolled, in the build phase
-    s.phase = 'play'; s.currentPlayerIndex = 0; s.turnPhase = 'main'; s.hasRolledThisTurn = true;
-    state = s; ui = { mode: 'idle', pending: null }; resetZoom(); renderedBoardKey = null; victoryShownFor = null; endView = false;
-    $('title').classList.add('hidden'); hideOverlay(); document.body.style.background = GAME_BG; render();
-    const bd = $('board'); if (bd) bd.classList.add('enter');
-    toast('RIGGED — you have 9 VP. Build a city (🏛️) on your settlement to win.');
-  }
-
-  function startScreen() {
-    if (ASSETS.sea) { const si = document.getElementById('seaimg'); if (si) si.style.backgroundImage = `url("${ASSETS.sea}")`; }
-    hideOverlay();
-    document.body.style.background = MENU_BG;   // wood canvas behind the offline title
-    $('leavetab').classList.add('hidden'); $('radialtab').classList.add('hidden'); $('settingstab').classList.add('hidden'); $('dicetab').classList.add('hidden'); $('trophytab').classList.add('hidden');
-    const title = $('title'); title.classList.remove('hidden'); stopMusic(); document.body.classList.remove('ingame');   // pre-game: portrait allowed
-    let count = 4;
-    const banner = ASSETS.logo
-      ? `<div class="t-banner"><img src="${ASSETS.logo}" alt="CATAN"></div>`
-      : `<div class="t-banner"><h2 style="color:#e9c45a;text-align:center;line-height:30vh;font-family:var(--serif)">CATAN</h2></div>`;
-    const render2 = () => {
-      const seats = Array.from({ length: count }, (_, i) => {
-        const c = SEAT_COLORS[i];
-        const medal = (ASSETS.avatars && ASSETS.avatars[i]) ? `<img src="${ASSETS.avatars[i]}" alt="">` : '';
-        return `<div class="t-seat"><span class="medal">${medal}</span><span class="cdot" style="background:${PCOLOR[c]}"></span><input id="pn${i}" value="${DEFAULT_NAMES[i]}" maxlength="14"/></div>`;
-      }).join('');
-      const backNav = AUTH.me ? 'lobby' : (window.SUPA ? 'players' : '');
-      title.innerHTML = `${banner}<div class="t-body"><div class="t-card newgame">
-        <button class="demobtn" onclick="CATAN.demo()" title="Jump into a mid-game (testing)">🎲 Demo</button>
-        <div class="lobhead">${backNav ? `<button class="lobback" data-nav="${backNav}" title="Back">←</button>` : ''}<h3 style="margin-bottom:0">New Game</h3></div>
-        <div class="seg">${[2, 3, 4].map((n) => `<button class="${n === count ? 'on' : ''}" onclick="CATAN._setCount(${n})">${n} players</button>`).join('')}</div>
-        <div class="t-seats">${seats}</div>
-        <button class="btn full" onclick="CATAN._start()">Start game</button>
-        <p class="verline">Catan · ${APP_VERSION}</p>
-      </div></div>`;
-      scheduleFit();
-    };
-    window.CATAN._setCount = (n) => { count = n; render2(); };
-    const myName = () => { const el = $('pn0'); return (el && el.value || DEFAULT_NAMES[0]).trim(); };
-    window.CATAN._start = () => {
-      gameSeats = null;   // offline pass & play uses the default seat avatars
-      const players = Array.from({ length: count }, (_, i) => ({ color: SEAT_COLORS[i], name: ($('pn' + i).value || DEFAULT_NAMES[i]).trim() }));
-      state = C.createGame({ id: 'local-' + Date.now(), players, seed: (Math.random() * 1e9) | 0, randomFirst: true });
-      // 3·2·1 over the setup screen, then drop into the island + who-goes-first spin
-      showCountdown(() => {
-        ui = { mode: 'idle', pending: null }; resetZoom(); renderedBoardKey = null; title.classList.add('hidden'); hideOverlay(); document.body.style.background = GAME_BG;
-        ui.spinning = true; render();
-        const bd = $('board'); if (bd) bd.classList.add('enter');
-        showFirstPlayerSpin(() => { afterAction(); render(); });
-      });
-    };
-    // jump straight into a believable mid-game (skips setup) — for quick testing
-    window.CATAN.demo = () => {
-      gameSeats = null;
-      const players = Array.from({ length: count }, (_, i) => ({ color: SEAT_COLORS[i], name: ($('pn' + i).value || DEFAULT_NAMES[i]).trim() }));
-      const s = C.createGame({ id: 'demo-' + Date.now(), players, seed: (Math.random() * 1e9) | 0, randomFirst: true });
-      const V = s.board.vertices.length;
-      let cursor = (Math.random() * V) | 0;
-      const legalVertex = () => {   // distance rule: empty + no neighbour built
-        for (let t = 0; t < V; t++) {
-          const v = ((cursor % V) + V) % V; cursor += 5 + ((Math.random() * 6) | 0);
-          if (s.settlements[v]) continue;
-          if (s.board.vertices[v].neighbors.some((n) => s.settlements[n])) continue;
-          return v;
-        }
-        return -1;
-      };
-      const placeBuilding = (owner, type) => { const v = legalVertex(); if (v >= 0) s.settlements[v] = { type, owner }; return v; };
-      const placeRoadNear = (owner, v) => { if (v < 0) return; for (const e of s.board.vertices[v].edges) { if (!s.roads[e]) { s.roads[e] = owner; return; } } };
-      const ri = (a, b) => a + ((Math.random() * (b - a + 1)) | 0);
-      s.players.forEach((p) => {
-        const c = p.color;
-        const a = placeBuilding(c, Math.random() < 0.45 ? 'city' : 'settlement');   // 1st spot (sometimes a city)
-        const b = placeBuilding(c, 'settlement');                                    // 2nd spot
-        placeRoadNear(c, a); placeRoadNear(c, a); placeRoadNear(c, b);               // a few roads
-        p.resources = { brick: ri(0, 3), wood: ri(0, 3), sheep: ri(0, 3), wheat: ri(0, 4), ore: ri(0, 3) };
-        // everyone holds a Knight so the start-of-turn "play knight or roll?" question shows
-        p.devCards = ['knight'];
-        if (Math.random() < 0.5) p.devCards.push(['road_building', 'year_of_plenty', 'monopoly'][ri(0, 2)]);
-        if (Math.random() < 0.5) p.playedKnights = ri(0, 2);
-      });
-      // the first-to-play player gets 2 of every dev card so all the flows are testable
-      const first = s.players.find((p) => p.color === s.order[0]);
-      if (first) {
-        first.devCards = ['knight', 'knight', 'year_of_plenty', 'year_of_plenty', 'road_building', 'road_building', 'monopoly', 'monopoly', 'victory_point', 'victory_point'];
-        // set the first player up to trigger EVERY announcement quickly:
-        first.resources = { brick: 6, wood: 6, sheep: 5, wheat: 5, ore: 5 };   // plenty to buy dev cards + build roads
-        first.playedKnights = 2;                                                // one more Knight -> Largest Army 🎉
-        // give them a clean length-4 road chain so building one more road wins the Longest Road
-        const firstC = first.color;
-        Object.keys(s.roads).forEach((e) => { if (s.roads[e] === firstC) delete s.roads[e]; });   // clear their scattered demo roads
-        const fv = +Object.keys(s.settlements).find((v) => s.settlements[v].owner === firstC);
-        if (fv >= 0) {
-          let v = fv, made = 0, guard = 0; const seen = new Set([fv]);
-          while (made < 4 && guard++ < 40) {
-            let picked = -1, nextV = -1;
-            for (const e of s.board.vertices[v].edges) {
-              if (s.roads[e] != null) continue;
-              const vs = s.board.edges[e].v, other = vs[0] === v ? vs[1] : vs[0];
-              if (seen.has(other) || s.settlements[other]) continue;   // simple path, don't route through a building
-              picked = e; nextV = other; break;
-            }
-            if (picked < 0) break;
-            s.roads[picked] = firstC; seen.add(nextV); v = nextV; made++;
-          }
-        }
-      }
-      // recompute supply from what's on the board so builds stay valid
-      s.players.forEach((p) => {
-        const mine = Object.values(s.settlements).filter((x) => x.owner === p.color);
-        p.settlementsLeft = 5 - mine.filter((x) => x.type === 'settlement').length;
-        p.citiesLeft = 4 - mine.filter((x) => x.type === 'city').length;
-        p.roadsLeft = 15 - Object.values(s.roads).filter((o) => o === p.color).length;
-      });
-      try { C.updateLongestRoad(s); } catch (_) { }
-      // start at the roll phase (not yet rolled) so the Knight question fires right away
-      s.phase = 'play'; s.currentPlayerIndex = 0; s.turnPhase = 'roll'; s.hasRolledThisTurn = false; s.hasPlayedDevCardThisTurn = false;
-      state = s; ui = { mode: 'idle', pending: null }; resetZoom(); renderedBoardKey = null;
-      title.classList.add('hidden'); hideOverlay(); document.body.style.background = GAME_BG;
-      afterAction(); render();
-      const bd = $('board'); if (bd) bd.classList.add('enter');
-      toast('Demo: roll, then buy/play dev cards, play a Knight for Largest Army, or build 1 road for Longest Road — watch the top banner');
-    };
-    render2();
-  }
 
   // ---- board zoom (pinch / drag / wheel / double-tap) ----------------------
   // Only the island (#board-area) is transformed; every HUD layer is a sibling,
@@ -6553,8 +6304,7 @@
     }).join('') + offline.map((r) => `<button class="lvface off" onclick="CATAN.lvStatsFor('${lvArg(r.name)}','')">${faceHTML(r.name, r.avatar, 'md')}<span class="lvdot off"></span><b>${escapeHtml(r.name)}</b><span class="lvfst">offline</span></button>`).join('');
     return `${hero}${more.join('')}
       ${faces ? `<div class="lvsect">FRIENDS · ${others.length} ONLINE</div><div class="lvfaces">${faces}</div>` : ''}
-      <div id="lv-peek"></div>
-      <button class="linkbtn lvoff" onclick="CATAN.playOffline()">📱 Play on one phone</button>`;
+      <div id="lv-peek"></div>`;
   }
 
   // ---- Play tab, in a room: four seats, the settings line, one primary action ----
@@ -6778,7 +6528,6 @@
   window.CATAN.raiseFlag = () => { hideOverlay(); raiseFlag(); };
   window.CATAN.lowerFlag = () => { hideOverlay(); lowerFlag(); };
   window.CATAN.exitGame = () => {
-    if (demoMode) { exitDemo(); return; }
     // ensure no higher layer (radial root sits at z-31, above the overlay) eats taps
     const rr = $('radialroot'); if (rr) { rr.classList.remove('open'); rr.classList.add('hidden'); }
     const spectator = online && !myColor;   // a watcher: leaving just returns them to the lobby
@@ -6806,7 +6555,7 @@
   window.CATAN.confirmExit = async () => {
     hideOverlay();
     const leaving = myColor;
-    if (!online) { NET.started = false; startScreen(); return; }
+    if (!online) { NET.started = false; showLobby(); return; }
     const wasSpectator = !myColor;
     // seated player quitting a LIVE game: hand the win to the leader + take a penalty, then leave the
     // table WITHOUT wiping the game row, so the others receive the ended state and record it too.
@@ -6846,7 +6595,7 @@
     const mut = (s) => { if (!cupBetween(s)) return false; s.cup.stop = true; s.rm = null; };
     const s2 = JSON.parse(JSON.stringify(state)); if (mut(s2) === false) return;
     state.cup = s2.cup; state.rm = null; showVictory();
-    if (!demoMode) svUpdate(mut);
+    svUpdate(mut);
   };
   window.CATAN.lobbyCup = (n) => {
     LOBBY.cup = n ? Math.max(2, Math.min(9, n | 0)) : 0;
@@ -6914,7 +6663,7 @@
       return r;
     },
     async start() {
-      if (!NET.init()) { startScreen(); return; }   // online not configured -> offline pass & play
+      if (!NET.init()) { titleCard(`<h3>Catan</h3><p class="muted" style="text-align:center;margin:10px 0">Can't reach the game server. Check your connection and reopen the app.</p>`); return; }
       titleCard(`<h3>Catan</h3><p class="muted small" style="text-align:center">Connecting…</p>`);
       if (await this.resume()) showLobby(); else showIdentity();
     },
@@ -6940,8 +6689,7 @@
         : `<p class="muted" style="text-align:center;margin:8px 0">No players yet — create one.</p>`;
       titleCard(`<div class="lobhead"><h3>Login</h3><div class="lobtools"><button class="lobtool" data-nav="stats" title="Stats & leaderboard">🏆</button></div></div>
         <div class="authlist">${list}</div>
-        <button class="btn wood full" onclick="CATAN.authNew()">+ New player</button>
-        <button class="offline-link" onclick="CATAN.playOffline()">Pass &amp; play offline</button>`);
+        <button class="btn wood full" onclick="CATAN.authNew()">+ New player</button>`);
     } else if (mode === 'new') {
       titleCard(`<div class="lobhead"><button class="lobback" onclick="CATAN.authBack()" title="Back">←</button><h3>New player</h3></div>
         <input id="auName" class="authin" placeholder="Your name" maxlength="20" autocomplete="off"/>
@@ -6994,7 +6742,6 @@
   window.CATAN.authCreate = async () => { const r = await AUTH.create(($('auName') || {}).value, ($('auPin') || {}).value); if (r.ok) showLobby(); else { const e = $('auErr'); if (e) e.textContent = r.error; } };
   window.CATAN.authLogin = async (n) => { const r = await AUTH.login(decodeURIComponent(n), ($('auPin') || {}).value); if (r.ok) showLobby(); else { const e = $('auErr'); if (e) e.textContent = r.error; } };
   window.CATAN.authLogout = () => { LOBBY.leave(); AUTH.clear(); showIdentity('list'); };
-  window.CATAN.playOffline = () => { LOBBY.leave(); startScreen(); };
   window.CATAN.showLobby = () => showLobby();
   window.CATAN.authChangePin = () => {
     titleCard(`<div class="lobhead"><button class="lobback" data-nav="profback" title="Back">←</button><h3>Change PIN</h3></div>
@@ -7117,100 +6864,9 @@
     if (r && r.ok) { LOBBY.track(); manageProfile(); } else { manageProfile(); toast((r && r.error) || 'Upload failed'); }
   };
 
-  // ---- DEMO: ?showcase — a scripted solo "online" table to see the social features in action ----
-  // Three bots rob you, roll big, take Longest Road, play Monopoly and react; the narrator and the
-  // suggested chips fire for real. Bot moves are crafted states fed through applyRemoteState (the
-  // same path real remote moves take). demoMode keeps it offline: no game sync, no chat rows.
-  let demoMode = false;
-  function showcase() {
-    rigNearWin(4);
-    demoMode = true; online = true; myColor = state.players[0].color;
-    render();
-    const P = state.players, idx = (p) => P.findIndex((x) => x.color === p.color);
-    const [me, sam, alex, jordan] = P;
-    const pl = (n, p) => n.players.find((x) => x.color === p.color);
-    const step = (fn) => { const n = JSON.parse(JSON.stringify(state)); fn(n); applyRemoteState(n); };
-    const fresh = () => (liveMoment && moments[liveMoment] && Date.now() - moments[liveMoment].at < MOMENT_LIVE_MS) ? 'm:' + liveMoment : null;   // same 8s rule as real taps
-    const react = (who, e, k) => showBroadcast({ type: 'emoji', text: e, dur: k, url: fresh(), color: who.color, name: who.name });
-    const turn = (n, p) => { n.currentPlayerIndex = idx(p); n.turnPhase = 'roll'; n.hasRolledThisTurn = false; };
-    const myHex = () => {   // a numbered hex touching one of my settlements (the robber's target)
-      for (const [vid, b] of Object.entries(state.settlements)) {
-        if (b.owner !== me.color) continue;
-        const h = state.board.vertices[+vid].hexes.map((x) => state.board.hexes[x]).find((x) => x.token && x.id !== state.robberHex);
-        if (h) return h.id;
-      }
-      return state.robberHex;
-    };
-    const script = [
-      [2500, () => { toast('Showcase: bots are playing. Tap 💬 on your portrait to react anytime'); step((n) => turn(n, sam)); }],
-      [2500, () => step((n) => { n.dice = [3, 4]; n.rolls.push(7); n.hasRolledThisTurn = true; n.turnPhase = 'moveRobber'; n.log.push(`${sam.name} rolled 7.`, 'Rolled a 7 — robber activates.'); })],
-      [2800, () => step((n) => {   // Sam robs you
-        n.robberHex = myHex(); n.turnPhase = 'main'; n.robberBy = sam.color; n.robberVictim = me.color;
-        const mine = pl(n, me), res = ['sheep', 'brick', 'wood'].find((r) => mine.resources[r] > 0) || 'sheep';
-        mine.resources[res] = Math.max(0, mine.resources[res] - 1); pl(n, sam).resources[res]++;
-        const mt = (n.tally[me.color] = n.tally[me.color] || { robberCost: 0, numbersHit: 0, numbersNormal: 0 }); mt.robberCost++; mt.timesRobbed = (mt.timesRobbed || 0) + 1;
-        n.log.push(`${sam.name} stole a card from ${me.name}.`);
-      })],
-      [1600, () => react(alex, '😂', 6)], [700, () => react(jordan, '😂', 3)], [1300, () => react(sam, '😈', 2)],
-      [1200, () => showBroadcast({ type: 'emoji', text: '🍅', dur: 4, url: ['a:' + sam.color, fresh()].filter(Boolean).join('|'), color: jordan.color, name: jordan.name })],
-      [3200, () => step((n) => { n.longestRoadOwner = sam.color; n.players.forEach((p) => { p.hasLongestRoad = p.color === sam.color; }); })],
-      [1500, () => react(sam, '💪', 4)], [900, () => react(jordan, '👀', 2)],
-      [3500, () => step((n) => turn(n, alex))],
-      [2200, () => step((n) => {   // Alex's big payday on an 8, after a long dry spell of 6s (narrator)
-        n.dice = [4, 4]; n.hasRolledThisTurn = true; n.turnPhase = 'main';
-        n.rolls = n.rolls.concat([6, 4, 9, 5, 10, 3, 9, 4, 11, 5, 10, 9, 4, 3, 5, 8]);
-        const a = pl(n, alex); a.resources.wheat += 3; a.resources.ore += 2;
-        n.log.push(`${alex.name} rolled 8.`);
-      })],
-      [1800, () => react(alex, '🤑', 8)], [900, () => react(sam, '😭', 3)],
-      [5000, () => step((n) => turn(n, jordan))],
-      [2200, () => step((n) => { n.dice = [2, 3]; n.rolls.push(5); n.hasRolledThisTurn = true; n.turnPhase = 'main'; n.log.push(`${jordan.name} rolled 5.`); })],
-      [3000, () => step((n) => {   // Jordan's Monopoly on sheep hits everyone (you included)
-        let took = 0;
-        n.players.forEach((p) => { if (p.color !== jordan.color) { took += p.resources.sheep; p.resources.sheep = 0; } });
-        if (!took) { took = 2; }
-        pl(n, jordan).resources.sheep += took;
-        n.log.push(`${jordan.name} monopolised sheep (+${took}).`);
-      })],
-      [1700, () => react(alex, '😡', 3)], [800, () => react(sam, '😡', 2)], [900, () => react(jordan, '😈', 5)],
-      [4000, () => step((n) => turn(n, sam))],
-      [2000, () => step((n) => { n.dice = [5, 5]; n.rolls.push(10); n.hasRolledThisTurn = true; n.turnPhase = 'main'; n.log.push(`${sam.name} rolled 10.`); })],
-      [2500, () => step((n) => {   // Sam builds up to one point from the win (narrator calls it)
-        const need = (n.targetPoints || 11) - 1;
-        const free = n.board.vertices.filter((v) => !n.settlements[v.id] && v.neighbors.every((x) => !n.settlements[x]));
-        for (const v of free) { if (C.victoryPoints(n, sam.color, false) >= need) break; n.settlements[v.id] = { type: 'settlement', owner: sam.color }; }
-        n.log.push(`${sam.name} built a settlement.`);
-      })],
-      [1800, () => react(sam, '🔥', 6)], [800, () => react(alex, '👀', 3)],
-      [4500, () => {
-        step((n) => { n.currentPlayerIndex = idx(me); n.turnPhase = 'main'; n.hasRolledThisTurn = true; n.dice = [3, 5]; });
-        toast('Your turn. Build a city on your lone settlement to win and see the awards');
-      }],
-      [9000, () => { if (state.phase === 'play' && isMyTurn()) showPoke({ type: 'poke', text: `👉 ${me.name}: khalesna!`, url: 'p:' + me.color, color: sam.color, name: sam.name }); }],
-    ];
-    let i = 0;
-    const next = () => { if (!demoMode || i >= script.length) return; const [d, fn] = script[i++]; setTimeout(() => { if (!demoMode) return; try { fn(); } catch (e) { console.warn('showcase', e); } next(); }, d); };
-    next();
-  }
-  // in the demo, your emoji get a bot reply instead of going to the server
-  function demoEcho(p) {
-    if (p.target) {   // you hit a bot -> it throws a tomato back
-      setTimeout(() => showBroadcast({ type: 'emoji', text: '🍅', dur: 2, url: 'a:' + myColor, color: p.target, name: nameOf(p.target) }), 1100);
-      return;
-    }
-    const bots = state.players.filter((x) => x.color !== myColor), b = bots[(Math.random() * bots.length) | 0];
-    const pick = ['😂', '🔥', '👀', '😭'][(Math.random() * 4) | 0];
-    setTimeout(() => showBroadcast({ type: 'emoji', text: pick, dur: 1 + ((Math.random() * 4) | 0), url: p.key ? 'm:' + p.key : null, color: b.color, name: b.name }), 900 + Math.random() * 900);
-  }
-  function exitDemo() { demoMode = false; online = false; myColor = null; location.href = location.pathname; }
-
   function boot() {
     const rv = document.getElementById('radialver'); if (rv) rv.textContent = APP_VERSION;   // in-game: shown in the radial menu
     initBoardZoom();
-    const m = location.href.match(/[?#&]rig(?:=(\d))?\b/);   // ?rig -> 4 players, ?rig=2 -> 2, etc.
-    if (m) { rigNearWin(m[1] ? parseInt(m[1], 10) : 4); return; }
-    if (/[?#&]showcase\b/.test(location.href)) { showcase(); return; }
-    if (/[?#&]rpsdemo\b/.test(location.href)) { rpsDemo(); return; }
     AUTH.start();
   }
   document.addEventListener('DOMContentLoaded', boot);

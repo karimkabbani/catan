@@ -53,7 +53,6 @@
     background:repeating-linear-gradient(0deg, rgba(255,255,255,0.03) 0 2px, transparent 2px 6px);}
   /* optional sea image overlay; empty/missing -> the gradient above shows */
   /* old flat-water layer replaced by the water-hex grid in the board SVG */
-  #seaimg{display:none;}
 
   /* board */
   /* touch-action:none lets us own pinch/drag instead of the browser zooming the
@@ -241,7 +240,6 @@
   .lvpk{flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; font-size:13.5px;}
   .lvpk > span:first-child{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .lvpt{font-size:11.5px; color:#a8957a;}
-  .lvoff{margin-top:auto;}
   .lvlast{padding:8px 12px; border-radius:12px; background:rgba(233,196,90,0.12); border:1px solid rgba(233,196,90,0.35); font-size:13px;}
   .lvseats{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
   .lvseat{position:relative; min-height:132px; border-radius:18px; background:rgba(0,0,0,0.28); border:1.5px solid rgba(255,220,170,0.16); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; font-size:14.5px; padding:10px 6px;}
@@ -1448,30 +1446,8 @@
   .t-card .authlist .btn{padding:22px 16px;}   /* taller player tiles fill the landscape height */
   .t-card .seg{margin-bottom:8px;}
   .t-card .seg button{padding:7px;}
-  .t-seat{display:flex; align-items:center; gap:9px; padding:3px 0; border-bottom:1px solid rgba(0,0,0,0.3);}
-  .t-seat .medal{width:30px;height:30px;border-radius:50%;flex:0 0 auto;overflow:hidden;border:2px solid var(--gold-edge);
-    box-shadow:0 2px 5px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;background:#3a2410;}
-  .t-seat .medal img{width:100%;height:100%;object-fit:cover;}
-  .t-seat .cdot{width:12px;height:12px;border-radius:50%;border:1px solid #000;flex:0 0 auto;}
-  .t-seat input{flex:1;background:rgba(0,0,0,0.32);border:1px solid var(--wood-edge);border-radius:8px;
-    color:var(--ink);padding:7px 8px;font-size:14px;font-family:var(--serif);}
   .t-card .btn.full{margin-top:8px;}
   /* ===== New Game (pass & play) setup — big, readable; Demo tucked in the corner ===== */
-  .t-card.newgame{position:relative;}
-  .demobtn{position:absolute; top:9px; right:10px; z-index:2; padding:7px 13px; border-radius:9px; cursor:pointer;
-    background:rgba(0,0,0,0.32); border:1px solid var(--wood-edge); color:#e7d3a3; font-size:14px; font-weight:700;
-    font-family:var(--serif); opacity:0.8;}
-  .demobtn:active{transform:scale(0.94);}
-  .t-card.newgame h3{font-size:26px; margin-bottom:16px;}
-  .t-card.newgame .seg{margin-bottom:16px; gap:10px;}
-  .t-card.newgame .seg button{padding:16px 8px; font-size:20px; border-radius:12px;}
-  .t-card.newgame .t-seats{margin-bottom:6px;}
-  .t-card.newgame .t-seat{gap:14px; padding:10px 0;}
-  .t-card.newgame .t-seat .medal{width:48px; height:48px;}
-  .t-card.newgame .t-seat .cdot{width:15px; height:15px;}
-  .t-card.newgame .t-seat input{padding:15px 14px; font-size:21px; border-radius:10px;}
-  .t-card.newgame .btn.full{padding:18px; font-size:20px;}
-  .t-card.newgame .btn.ghost.full{padding:11px; font-size:15px; margin-top:10px;}
   /* low-key secondary action: a small muted link, not a full button */
   .verline{margin:14px 0 2px; text-align:center; color:var(--muted); opacity:0.6; font-size:12px; letter-spacing:0.4px;}
   /* tertiary action: a quiet text link (same voice as the login screen's offline link) */
@@ -1485,17 +1461,12 @@
   .lobsetup{border:1px solid rgba(255,220,170,0.14); border-radius:12px; padding:10px 12px; margin:10px 0 4px;
     display:flex; flex-direction:column; gap:8px;}
   .lobsetup .lobtgt, .lobsetup .lobprefrow{margin:0;}
-  .t-card .offline-link{display:block; width:fit-content; margin:14px auto 2px; padding:4px 8px;
-    background:none; border:none; box-shadow:none; color:var(--muted); opacity:0.55;
-    font-size:13px; font-weight:600; cursor:pointer; text-decoration:underline; text-underline-offset:3px;}
-  .t-card .offline-link:active{opacity:0.8;}
   .t-card .small{margin-top:6px !important;}
 </style>
 </head>
 <body>
   <div id="app">
     <div id="stage">
-      <div id="seaimg"></div>
       <div id="banner" onclick="CATAN.bannerTap()"></div>
       <div id="momentpill" class="hidden"></div>
       <div class="corner tl" id="p-tl"></div>
