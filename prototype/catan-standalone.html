@@ -1567,7 +1567,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v176';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v177';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -1891,6 +1891,11 @@
   function isMyTurn() { return !online || (myColor && activeColor() === myColor); }
   function afterAction() {
     ui.mode = 'idle';
+    // my lobby status follows the game: on the results screen I'm "just finished", not "playing"
+    if (online && NET.started && myColor) {
+      const want = state.phase === 'ended' ? 'results' : 'playing';
+      if ((LOBBY.mode === 'playing' || LOBBY.mode === 'results') && LOBBY.mode !== want) { LOBBY.mode = want; LOBBY.track(); }
+    }
     if (state.phase === 'ended') { recordResult(); render(); if (victoryShownFor !== gameKey()) { if (!endView) showVictory(); } else refreshRematch(); return; }
     if (ui.spinning) return;   // who-goes-first spinner playing — don't render over it / prompt yet
     // Hold off on prompts while an animation plays: the dice reveal, or one player's
@@ -6231,11 +6236,13 @@
     const tables = {};
     LOBBY.online().forEach((p) => { if (p.table && p.id !== AUTH.me.id) (tables[p.table] = tables[p.table] || []).push(p); });
     return Object.keys(tables).map((code) => {
-      const m = tables[code], playing = m.some((p) => pmode(p) === 'playing');
+      const m = tables[code], here = m.filter((p) => !p.away);
+      const playing = here.some((p) => pmode(p) === 'playing');   // a game is live only if a player's phone is still answering
+      const room = here.some((p) => ['ready', 'idle', 'spectate'].includes(pmode(p)));   // someone's actually in the room
       const ready = m.filter((p) => pmode(p) === 'ready').sort((a, b) => a.readyAt - b.readyAt);
       const host = m.find((p) => p.created === code) || ready[0] || m[0];
-      return { code, m, playing, ready, host };
-    });
+      return { code, m, playing, room, ready, host };
+    }).filter((t) => t.playing || t.room);   // just-finished or gone-quiet tables don't get a card
   }
   function lvGathering() { return lvTables().filter((t) => !t.playing).sort((a, b) => b.m.length - a.m.length); }
   function lvTableName(t) { return t.host ? t.host.name + "'s game" : 'A game'; }
@@ -6272,7 +6279,7 @@
       const g = gathering[0], seated = g.ready.slice(0, 4), full = g.ready.length >= 4;
       const nobodyHosts = !g.m.some((p) => p.created === g.code) && !g.ready.length;
       const who = nobodyHosts ? 'Friends are gathering' : `${escapeHtml(g.host.name)} is getting a game going`;
-      const idle = g.m.filter((p) => pmode(p) !== 'ready' && pmode(p) !== 'playing');
+      const idle = g.m.filter((p) => !p.away && (pmode(p) === 'idle' || pmode(p) === 'spectate'));
       hero = `<div class="lvhero hot"><div class="lvkick"><span class="lvlive"></span>STARTING SOON</div><div class="lvh1">${who}</div>
         <div class="lvminis">${seated.map((p) => lvMini(p, p.id === g.host.id)).join('')}${LV_OPEN.repeat(Math.max(0, 4 - seated.length))}</div>
         ${idle.length ? `<div class="lvsub small">Also here: ${escapeHtml(namesAnd(idle.map((p) => p.name)))}</div>` : ''}
@@ -6300,7 +6307,7 @@
     const onNames = new Set(LOBBY.online().map((p) => String(p.name || '').toLowerCase()));
     const offline = LV.roster.filter((r) => r && r.name && !onNames.has(String(r.name).toLowerCase())).sort((a, b) => String(a.name).localeCompare(b.name));
     const faces = others.map((p) => {
-      const st = p.away ? 'away' : !p.table ? 'online' : pmode(p) === 'playing' ? 'playing' : 'in a room';
+      const st = p.away ? 'away' : !p.table ? 'online' : pmode(p) === 'playing' ? 'playing' : pmode(p) === 'results' ? 'just finished' : 'in a room';
       return `<button class="lvface${p.away ? ' away' : ''}" onclick="CATAN.lvStatsFor('${lvArg(p.name)}','${lvArg(p.id)}')">${faceHTML(p.name, p.avatar, 'md')}<span class="lvdot${p.away || p.table ? ' busy' : ''}"></span><b>${escapeHtml(p.name)}</b><span class="lvfst">${st}</span></button>`;
     }).join('') + offline.map((r) => `<button class="lvface off" onclick="CATAN.lvStatsFor('${lvArg(r.name)}','')">${faceHTML(r.name, r.avatar, 'md')}<span class="lvdot off"></span><b>${escapeHtml(r.name)}</b><span class="lvfst">offline</span></button>`).join('');
     return `${hero}${more.join('')}
@@ -6341,6 +6348,8 @@
     if (line.length) extras.push(`<div class="lvline">⏳ <span><b>${escapeHtml(namesAnd(line.map((p) => p.name)))}</b> · first in line if a seat opens</span></div>`);
     if (idle.length) extras.push(`<div class="lvline">💤 <span><b>${escapeHtml(namesAnd(idle.map((p) => p.name)))}</b> · here, not seated</span></div>`);
     if (watching.length) extras.push(`<div class="lvline">👁 <span><b>${escapeHtml(namesAnd(watching.map((p) => p.name)))}</b> · watching</span></div>`);
+    const onResults = members.filter((p) => pmode(p) === 'results' && p.id !== AUTH.me.id);
+    if (onResults.length) extras.push(`<div class="lvline">🏁 <span><b>${escapeHtml(namesAnd(onResults.map((p) => p.name)))}</b> · still on the last game's results</span></div>`);
     const last = LV.last && LV.last.code === LOBBY.table && Date.now() - LV.last.at < 1800000 ? `<div class="lvlast">🏆 Last game: ${escapeHtml(LV.last.text)}</div>` : '';
     const setl = `<${iAmHost ? 'button' : 'div'} class="lvsetl"${iAmHost ? ` onclick="CATAN.lvSheet('settings')"` : ''}><span>${lvSettingsLine(host || { id: AUTH.me.id }, playerN)}</span>${iAmHost ? '<b class="gold">Edit ›</b>' : ''}</${iAmHost ? 'button' : 'div'}>`;
     let act;
