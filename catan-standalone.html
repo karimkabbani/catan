@@ -252,6 +252,7 @@
   .lvgo{position:absolute; left:50%; top:-12px; transform:translateX(-50%); padding:3px 10px; border-radius:12px; background:#ffd76b; color:#3a2400; font-size:12.5px; font-weight:800; white-space:nowrap; box-shadow:0 3px 10px rgba(0,0,0,0.4); animation:lvgo .5s cubic-bezier(.3,1.6,.6,1); z-index:2;}
   @keyframes lvgo{from{transform:translateX(-50%) scale(0.3); opacity:0;} to{transform:translateX(-50%) scale(1); opacity:1;}}
   .btn.lvgobtn{font-size:20px; letter-spacing:1px;}
+  .lvver{margin-top:auto; padding-top:10px; text-align:center; font-size:11px; color:rgba(205,181,145,0.55);}
   .lvplus{font-size:24px; color:var(--gold); line-height:1;}
   .lvcrown{position:absolute; left:10px; top:6px; font-size:19px;}
   .lvcd{position:absolute; right:10px; top:10px; width:16px; height:16px; border-radius:50%; border:2px solid var(--ink);}
@@ -1570,7 +1571,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v178';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v179';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -6342,7 +6343,8 @@
     }).join('') + offline.map((r) => `<button class="lvface off" onclick="CATAN.lvStatsFor('${lvArg(r.name)}','')">${faceHTML(r.name, r.avatar, 'md')}<span class="lvdot off"></span><b>${escapeHtml(r.name)}</b><span class="lvfst">offline</span></button>`).join('');
     return `${hero}${more.join('')}
       ${faces ? `<div class="lvsect">FRIENDS · ${others.length} ONLINE</div><div class="lvfaces">${faces}</div>` : ''}
-      <div id="lv-peek"></div>`;
+      <div id="lv-peek"></div>
+      <p class="lvver">Catan · ${APP_VERSION}</p>`;
   }
 
   // ---- Play tab, in a room: four seats, the settings line, one primary action ----
