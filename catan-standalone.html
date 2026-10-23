@@ -1589,7 +1589,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v170';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v171';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -4142,7 +4142,8 @@
   const RPS_CHOOSE_MS = 20000;   // the winner's time to choose when to go
   const RPS_FIRST_MS = 10000, RPS_PICK_MS = 5000, RPS_REVEAL_MS = 3400, RPS_WIN_MS = 4500, RPS_MAX_ROUNDS = 5;   // round 1 is roomier: people are still settling in / turning their phone
   const RPS_HAND = { r: '✊', p: '✋', s: '✌️' }, RPS_BEATS = { r: 's', s: 'p', p: 'r' };
-  const rpsLocal = { seen: {}, resolving: {}, winShown: {}, bots: {}, key: null };
+  const rpsLocal = { seen: {}, resolving: {}, winShown: {}, bots: {}, allIn: {}, key: null };
+  const RPS_ALLIN_MS = 1000;   // everyone's picked -> reveal after this beat instead of waiting out the clock
   function newRps(players, delayMs) {
     return { round: 1, alive: players.map((p) => p.color), picks: {}, deadline: Date.now() + delayMs + RPS_FIRST_MS };
   }
@@ -4163,9 +4164,11 @@
   }
   function rpsPick(v) {
     const R = state && state.rps; if (!R || R.done || !myColor || !R.alive.includes(myColor) || Date.now() > R.deadline) return;
+    const allIn = (Q) => Q.alive.every((c) => Q.picks[c]);
+    if (allIn(R)) return;   // everyone's picked: hands are locked, the reveal is coming
     const round = R.round, me = myColor;
-    R.picks[me] = v; syncRps(true);   // local echo; the last tap before the deadline counts
-    if (!demoMode) svUpdate((s) => { if (!s.rps || s.rps.done || s.rps.round !== round) return false; s.rps.picks[me] = v; });
+    R.picks[me] = v; syncRps(true);   // local echo; you can change it until the last person picks
+    if (!demoMode) svUpdate((s) => { if (!s.rps || s.rps.done || s.rps.round !== round || allIn(s.rps)) return false; s.rps.picks[me] = v; });
   }
   function rpsResolve() {
     const R = state.rps, round = R.round, k = gameKey() + ':' + round;
@@ -4290,12 +4293,16 @@
           if (!el) { el = document.createElement('div'); el.id = 'rpsroot'; document.body.appendChild(el); }
           el.classList.remove('strip');
           el.innerHTML = `<div class="rpscard"><div class="rpshead"><b>Who starts?</b>${R.round > 1 ? `<span class="rpsround">Round <span class="rpsn">${R.round}</span></span>` : ''}<span class="rpstime" id="rps-t">0:${String(left).padStart(2, '0')}</span></div>${btns}`
-            + `<div class="rpschips">${chips}</div><div class="rpsnote">Hidden until everyone's picked. You can change it until the timer runs out.</div></div>`;
+            + `<div class="rpschips">${chips}</div><div class="rpsnote">Hidden until everyone's picked. You can change it until the last person picks.</div></div>`;
           el.classList.remove('hidden');
         } else hideCard();   // out (or watching): follow it on the board, the banner says who's still in
         setRpsBanner(R.round > 1 ? `✊ ${escapeHtml(nameList(R.alive))} play round ${R.round}…` : null);
       }
       const t = $('rps-t'); if (t) t.textContent = '0:' + String(left).padStart(2, '0');
+      // everyone's picked -> reveal after a 1s beat (lets the last pick land everywhere); the clock is the backstop
+      const ak = gk + ':' + R.round;
+      if (R.alive.every((c) => R.picks[c])) { if (!rpsLocal.allIn[ak]) rpsLocal.allIn[ak] = now; if (now - rpsLocal.allIn[ak] > RPS_ALLIN_MS) rpsResolve(); }
+      else delete rpsLocal.allIn[ak];
       if (now > R.deadline + 600) rpsResolve();
     } else if (mode === 'reveal') {
       const V = R.reveal;
