@@ -24,7 +24,7 @@ real-time multiplayer. Deploy via Lovable publish or Netlify.
 | Area | State |
 |------|-------|
 | Rules engine (base 3–4 player Catan) | **Done, 19 passing tests** |
-| Playable UI (pass-and-play, one device) | **Done** — landscape, classic-style skin |
+| Playable UI (pass-and-play, one device) | **Removed in v175** — online only now |
 | Drop-in art system (tiles, tokens, ports, pieces, icons, avatars, robber, sea, logo) | **Done and wired** |
 | Art skinned from the official Catan iOS app | **Done (2026-06-17)** — Mayfair terrain, ripped pieces/ports/robber/avatars/logo/sea. Player colours switched to red/blue/green/yellow to match authentic art. Tokens use drawn discs (see ASSETS-CHECKLIST). Re-rip via `source material catan ipa/Catan_assets/tools/slice_for_webapp.py`. |
 | Authentic HUD pass | **Done (2026-06-17)** — Fertigo Pro font, wood-textured panels/dock/overlays/buttons, real resource-orb bar, red dice faces, framed build-menu buttons, dev-card faces, stat badges (longest road / largest army / VP). HUD sprites in `assets/hud/`, ripped via `tools/slice_hud.py`. iOS CgBI-format loose buttons can't be read by PIL (skipped; styled with wood texture instead). |
@@ -544,6 +544,12 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    v174: tap any face -> that player's Stats page (`CATAN.lvStatsFor`, by id, else by name; no games -> toast).
    Stats "Head to head" now carries a note: who finished higher, in every game you both played (any size, all time).
 
+17. ✅ **One-phone play and demos removed — v175 (2026-10-23).** Karim: not needed. Gone: the "Play on one phone"
+   link, "Pass & play offline" on sign-in, the offline New Game screen (`startScreen`, `CATAN._start/_setCount/demo`),
+   `CATAN.restart`, and every demo (`?rig` / `rigNearWin`, `?showcase` / `showcase` + `demoEcho`, `?rpsdemo` / `rpsDemo`
+   + `rpsBots`, `demoMode`, `exitDemo`). If the server can't be reached, sign-in now says so instead of falling back
+   to offline play. The in-game `online` checks stay (they're woven through shared code). app.js 5,628 -> ~5,310 lines.
+
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
@@ -714,9 +720,13 @@ live. This is the current reality (last refreshed 2026-06-22).
 - **UI verification (the established pattern):** headless Chrome against
   `catan-standalone.html` with an injected driver script that drives `CATAN.*`,
   asserts with a `mark(text, ok)` banner, and screenshots the result line. Use
-  `CATAN.rig(n)` / `CATAN.demo()` to jump straight into a game state, and
   `--virtual-time-budget` to let async settle. For online-only flows, inject a fake
   `window.supabase` before load.
+  - **Since v175 there are no demo modes** (`?rig`, `?showcase`, `?rpsdemo`, `CATAN.rig/demo` are gone). To reach a
+    game state, patch a LOCAL copy of the standalone: replace `window.CATAN = {` with `window.CATAN = { _st: () => state,
+    _sv: (q) => showVictory(q), _game: (n, rps) => {…C.createGame(…); online = true; myColor = …; enterGame(s); },` —
+    inside the IIFE that hook sees every closure variable. Never ship the hook. Headless Chrome won't go narrower than
+    500px, so phone screenshots are laid out at 500 wide.
 
 ### What's next
 Pick from the backlog in **section 8** ("Feature ideas"). The two natural clusters:
