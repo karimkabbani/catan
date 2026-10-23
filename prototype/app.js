@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v168';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v169';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -796,6 +796,7 @@
   function seatPlayerId(color) { const s = (gameSeats || []).find((x) => x && x.color === color); return s ? s.playerId : null; }
   function isPlayerOnline(color) { const id = seatPlayerId(color); if (!id) return true; return LOBBY.liveIds.has(id) || !!LOBBY.presence[id]; }
   function renderPanels() {
+    const cupPts = state.cup ? Object.fromEntries(cupTable(state).map((r) => [r.p.color, r.pts])) : null;   // cup points so far, on every corner
     state.players.forEach((p, i) => {
       const el = $('p-' + seatKey(i)); el.style.display = 'flex';
       // during the who-goes-first spinner, no corner shows .active (it would pre-reveal the result)
@@ -843,8 +844,14 @@
       const statusDot = online ? `<span class="pstatus ${off ? 'off' : 'on'}" title="${off ? 'Offline' : 'Online'}"></span>` : '';
       el.innerHTML = `${di}${tbadge}${chatBtn}${dot}
         <div class="pcol">${stat(bdg.res, cards, '🃏', 'Resource cards', false, cards > 7)}${stat(bdg.card, dev, '🎴', 'Development cards')}${stat(bdg.vp, vp, '⭐', 'Victory points')}${stat(bdg.army, p.playedKnights, '⚔️', 'Knights played', p.hasLargestArmy)}${stat(bdg.road, road, '🛣️', 'Longest road', p.hasLongestRoad)}</div>
-        <div class="pport"${tap}><div class="pava${flagged ? ' flagged' : ''}${off ? ' offline' : ''}" style="border-color:${PCOLOR[p.color]}">${av}${statusDot}</div><div class="pname">${escapeHtml(p.name)}</div></div>${flagged ? '<span class="pflag">🏳️</span>' : ''}${robbedPill(p.color)}`;
+        <div class="pport"${tap}><div class="pava${flagged ? ' flagged' : ''}${off ? ' offline' : ''}" style="border-color:${PCOLOR[p.color]}">${av}${statusDot}</div><div class="pname">${escapeHtml(p.name)}</div></div>${flagged ? '<span class="pflag">🏳️</span>' : ''}${robbedPill(p.color)}${cupPts ? `<span class="pcup" title="Cup points">🏆<b>${cupPts[p.color]}</b></span>` : ''}`;
     });
+    // which game of the cup this is, under the banner
+    let pill = $('cuppill');
+    if (state.cup && state.phase !== 'ended') {
+      if (!pill) { pill = document.createElement('div'); pill.id = 'cuppill'; document.body.appendChild(pill); }
+      pill.innerHTML = `🏆 ${escapeHtml(state.cup.name)} · game <span class="rpsn">${state.cup.n}</span> of <span class="rpsn">${state.cup.games}</span>`;
+    } else if (pill) pill.remove();
     const usedSeats = {}; state.players.forEach((_, i) => { usedSeats[seatKey(i)] = 1; });
     ['tl', 'tr', 'br', 'bl'].forEach((k) => { if (!usedSeats[k]) { const el = $('p-' + k); if (el) el.style.display = 'none'; } });
   }
@@ -2161,8 +2168,9 @@
       `<div class="award"><span class="awic">${ic}</span><div><b>${t}</b><span>${why}</span></div></div>`).join('')}</div>`;
   }
   function showVictory(quiet) {   // quiet = returning from the dice stats: no fanfare/confetti replay
-    victoryShownFor = gameKey();
+    victoryShownFor = gameKey(); victoryFinal = cupFinal(state);
     if (!quiet) playSound('win', 0.8);
+    if (state.cup) { showCupVictory(quiet); return; }
     STATS.loaded = false;   // a game just ended -> every client refetches stats on the next lobby visit
     const winner = state.players.find((p) => p.color === state.winner);
     const wi = state.players.indexOf(winner);
@@ -2197,6 +2205,31 @@
     if (quiet) return;
     spawnConfetti($('overlay'), domination ? 120 : 64);
     if (domination) setTimeout(() => playSound('win', 0.55), 500);   // a second flourish for the blowout
+  }
+  // the game-over screen inside a cup: this game's winner + the standings (between games), or the champion
+  function showCupVictory(quiet) {
+    const k = state.cup, fin = cupFinal(state), T = cupTable(state);
+    const hero = fin ? T[0].p : state.players.find((p) => p.color === state.winner);
+    const src = seatAvatarSrc(hero, state.players.indexOf(hero));
+    const title = fin ? `🏆 ${escapeHtml(hero.name)} wins ${escapeHtml(k.name)}!` : `${escapeHtml(hero.name)} wins game <span class="rpsn">${k.n}</span>`;
+    const sub = fin ? `<div class="cupsub">${T[0].pts} pts · won ${T[0].wins} of ${T[0].places.length} game${T[0].places.length > 1 ? 's' : ''}${k.stop && k.n < k.games ? ' · ended early' : ''}</div>` : '';
+    const btns = demoMode ? `<div id="rmpanel">${rematchPanelHTML()}</div><button class="btn wood full" onclick="CATAN.exitDemo()">Exit showcase</button>`
+      : myColor ? `<div id="rmpanel">${rematchPanelHTML()}</div><button class="btn wood full" onclick="CATAN.leaveEnded()">${fin ? 'Back to lobby' : 'Step away · come back later'}</button>`
+      : `<button class="btn full" onclick="CATAN.confirmExit()">Back to lobby</button>`;
+    showOverlay(`<div class="winwrap${fin ? ' cupfinal' : ''}">
+      <div class="winhead"><div class="winrays"></div><img class="crown" src="assets/hud/crown.png" alt="">
+        <div class="winava" style="background:${PCOLOR[hero.color]}">${src ? `<img src="${src}" alt="">` : ''}</div>${fin ? '<span class="cuptrophy">🏆</span>' : ''}</div>
+      <h2>${title}</h2>${sub}
+      <div id="ggrow">${ggHTML()}</div>
+      ${cupStandingsHTML()}
+      ${fin ? cupAwardsHTML() : awardsHTML()}
+      <div class="winrow"><button class="btn wood" onclick="CATAN.viewBoard()">🗺️ View board</button><button class="btn wood" onclick="CATAN.openDiceStats('victory')">📊 Dice stats</button></div>
+      ${btns}</div>`);
+    refreshGG();
+    $('overlay').onclick = (e) => { if (e.target.id === 'overlay') CATAN.viewBoard(); };
+    if (quiet) return;
+    spawnConfetti($('overlay'), fin ? 140 : 50);
+    if (fin) setTimeout(() => playSound('win', 0.6), 600);
   }
   // confetti uses the real ripped gold-star sprite, mixed with player-colour flecks
   function spawnConfetti(host, n) {
@@ -2800,20 +2833,103 @@
   // and state.left = [colors who walked away]. Anyone left -> no rematch. Every seat must say yes;
   // one "not this time" or RM_MS without everyone ends it. All in -> a clear 5·4·3·2·1, then go.
   const RM_MS = 30000, rmSeen = {}, rmStarted = {};
-  let victoryShownFor = null;
+  let victoryShownFor = null, victoryFinal = false;
   function gameKey() { return state && state.board ? state.board.hexes.map((h) => (h.terrain || '?')[0] + (h.token || '')).join('') + state.players.map((p) => p.color).join('') : ''; }
   function nameList(cs) { const ns = cs.map(nameOf); return ns.length < 2 ? (ns[0] || '') : ns.slice(0, -1).join(', ') + ' & ' + ns[ns.length - 1]; }
   function rmPending(rm) { return !!rm && !rm.no && !rm.lapsed; }
+  // ---- quick tournament ("cup"): a series of games at one table, points for every finish -------
+  // Lives on the game state (state.cup) and rides from game to game through the rematch write.
+  //   cup = { name, games, n (this game's number), host (playerId), hist: [past games], stop }
+  //   each past game = { place: {color: 1..n}, vp: {color: VP}, robbed: {color: times robbed} }
+  // Between games everyone readies up (the rematch vote, never lapsing); the next game waits for all.
+  const CUP_PTS = { 2: [3, 0], 3: [3, 1, 0], 4: [3, 2, 1, 0] };
+  // finishing order: the actual winner is ALWAYS 1st (a surrender winner may not lead on VP), a
+  // mid-game quitter always last, everyone else by VP
+  function finishOrder(s) {
+    const win = s.winner, quitter = s.quitBy || null;
+    return s.players.map((p) => ({ p, vp: C.victoryPoints(s, p.color, true) }))
+      .sort((a, b) => {
+        const aq = a.p.color === quitter, bq = b.p.color === quitter;
+        if (aq !== bq) return aq ? 1 : -1;
+        const aw = a.p.color === win, bw = b.p.color === win;
+        if (aw !== bw) return aw ? -1 : 1;
+        return b.vp - a.vp;
+      });
+  }
+  function cupRecord(s) {
+    const g = { place: {}, vp: {}, robbed: {} };
+    finishOrder(s).forEach(({ p, vp }, i) => { g.place[p.color] = i + 1; g.vp[p.color] = vp; g.robbed[p.color] = robbedCount(p.color, s); });
+    return g;
+  }
+  function cupFinal(s) { return !!(s && s.cup && s.phase === 'ended' && (s.cup.stop || s.cup.n >= s.cup.games)); }
+  function cupBetween(s) { return !!(s && s.cup && s.phase === 'ended' && !cupFinal(s)); }
+  function cupHist(s) { return (s.cup.hist || []).concat(s.phase === 'ended' && s.winner ? [cupRecord(s)] : []); }
+  // the standings: cup points, then games won, then total VP across the cup
+  function cupTable(s) {
+    const H = cupHist(s), pts = CUP_PTS[s.players.length] || CUP_PTS[4];
+    return s.players.map((p) => {
+      const c = p.color, places = H.map((g) => g.place[c] || 0);
+      return { p, places, pts: places.reduce((a, pl) => a + (pl ? pts[pl - 1] || 0 : 0), 0), wins: places.filter((x) => x === 1).length,
+        vp: H.reduce((a, g) => a + (g.vp[c] || 0), 0), robbed: H.reduce((a, g) => a + (g.robbed[c] || 0), 0) };
+    }).sort((a, b) => b.pts - a.pts || b.wins - a.wins || b.vp - a.vp);
+  }
+  const MEDAL = ['🥇', '🥈', '🥉'];
+  function placeIc(pl) { return pl ? (MEDAL[pl - 1] || ORD[pl - 1]) : '–'; }
+  function cupGain(s, color) { const pl = cupRecord(s).place[color]; const v = (CUP_PTS[s.players.length] || CUP_PTS[4])[pl - 1] || 0; return v ? '+' + v : ''; }
+  // the standings card on the game-over screen: between games (this game's finish + running total) or final (every game)
+  function cupStandingsHTML() {
+    const s = state, k = s.cup, T = cupTable(s), fin = cupFinal(s);
+    const head = fin ? `<div class="cuprow cuphd"><span></span><span>${escapeHtml(k.name)}</span>${T[0].places.map((_, i) => `<span class="cupc">G${i + 1}</span>`).join('')}<span class="cupc">Pts</span></div>`
+      : `<div class="cuprow cuphd"><span></span><span>${escapeHtml(k.name)} · after game <span class="rpsn">${k.n}</span> of <span class="rpsn">${k.games}</span></span><span class="cupc">This game</span><span class="cupc">Pts</span></div>`;
+    const cols = fin ? `22px minmax(0,1fr) ${T[0].places.map(() => '34px').join(' ')} 44px` : '22px minmax(0,1fr) 92px 44px';
+    const rows = T.map((r, i) => `<div class="cuprow${i === 0 ? ' lead' : ''}" style="grid-template-columns:${cols}"><span class="cuprk">${i + 1}</span>`
+      + `<span class="nm"><span class="dot" style="background:${PCOLOR[r.p.color]}"></span>${escapeHtml(r.p.name)}${fin && i === 0 ? ' 👑' : ''}</span>`
+      + (fin ? r.places.map((pl) => `<span class="cupc">${placeIc(pl)}</span>`).join('')
+        : `<span class="cupc">${placeIc(r.places[r.places.length - 1])} <b class="cupgain">${cupGain(s, r.p.color)}</b></span>`)
+      + `<span class="cupc cuppts">${r.pts}</span></div>`).join('');
+    const tie = fin && T.length > 1 && T[0].pts === T[1].pts
+      ? `<div class="cupnote">${escapeHtml(T[0].p.name)} and ${escapeHtml(T[1].p.name)} tied on ${T[0].pts}. ${T[0].wins !== T[1].wins ? 'Most games won' : 'Most points scored'} breaks it.</div>` : '';
+    return `<div class="cupbox">${head.replace('class="cuprow cuphd"', `class="cuprow cuphd" style="grid-template-columns:${cols}"`)}${rows}${tie}</div>`;
+  }
+  // cup-long awards on the champion screen
+  function cupAwardsHTML() {
+    const T = cupTable(state), out = [];
+    const rob = T.slice().sort((a, b) => b.robbed - a.robbed)[0];
+    if (rob && rob.robbed) out.push(`<span class="cupaw"><b>${robberImg('cupawimg')} Robber magnet</b> · ${escapeHtml(rob.p.name)}, robbed ${rob.robbed}× in the cup</span>`);
+    const vp = T.slice().sort((a, b) => b.vp - a.vp)[0];
+    if (vp) out.push(`<span class="cupaw"><b>⭐ Most points scored</b> · ${escapeHtml(vp.p.name)}, ${vp.vp} VP</span>`);
+    return out.length ? `<div class="cupaws">${out.join('')}</div>` : '';
+  }
+  // between games: everyone readies up for the next one (no time limit, the cup waits for everyone)
+  function cupReadyHTML() {
+    const k = state.cup, rm = state.rm, next = k.n + 1;
+    const hostHere = state.players.some((p) => gameSeatId(p.color) === k.host && isPlayerOnline(p.color));
+    const canStop = AUTH.me && (AUTH.me.id === k.host || !hostHere);   // the host can end it; anyone can if the host has gone
+    const stop = canStop ? `<button class="linkbtn" onclick="CATAN.cupStop()">End the cup now</button>` : '';
+    if (!rmPending(rm)) return `<button class="btn full" style="margin-bottom:6px" onclick="CATAN.rmPropose()">✓ Ready for game ${next}</button>${stop}`;
+    const chips = state.players.map((p) => {
+      const yes = rm.votes[p.color] === 'y', off = !yes && !isPlayerOnline(p.color);
+      return `<span class="rmchip${yes ? ' yes' : ''}"><span class="dot" style="background:${PCOLOR[p.color]}"></span>${escapeHtml(p.name)} ${yes ? '✓' : off ? '💤' : '…'}</span>`;
+    }).join('');
+    if (rmAllIn(rm)) return `<div class="rmbox"><div class="rmhead">🏆 Everyone's ready!</div><div class="rmchips">${chips}</div><div class="rmgo">Game ${next} starting…</div></div>`;
+    const waiting = state.players.filter((p) => rm.votes[p.color] !== 'y');
+    const act = rm.votes[myColor] === 'y'
+      ? `<div class="rmwait">Waiting for ${escapeHtml(nameList(waiting.map((p) => p.color)))}…</div>`
+      : `<button class="btn full" onclick="CATAN.rmVote('y')">✓ Ready for game ${next}</button>`;
+    return `<div class="rmbox"><div class="rmhead">🏆 Game ${next} of ${k.games}</div><div class="rmchips">${chips}</div>${act}</div>${stop}`;
+  }
+  function gameSeatId(color) { const s = (gameSeats || []).find((x) => x && x.color === color); return (s && s.playerId) || null; }
   function rmAllIn(rm) { return rmPending(rm) && state.players.every((p) => rm.votes && rm.votes[p.color] === 'y'); }
   function rematchPanelHTML() {
     if (!online || !myColor || !state || state.phase !== 'ended') return '';
+    if (cupBetween(state)) return cupReadyHTML();
     const left = state.left || [];
     if (left.length) return `<div class="rmleft">🚪 ${escapeHtml(nameList(left))} ${left.length > 1 ? 'have' : 'has'} left. A rematch isn't possible.</div>`;
     const rm = state.rm;
     if (!rmPending(rm)) {
       const note = rm && rm.no ? `<div class="rmnote">✗ ${escapeHtml(nameOf(rm.no))}: not this time</div>`
         : rm && rm.lapsed ? `<div class="rmnote">The rematch lapsed. Not everyone answered.</div>` : '';
-      return note + `<button class="btn full" style="margin-bottom:9px" onclick="CATAN.rmPropose()">🔁 Rematch? Ask the table</button>`;
+      return note + `<button class="btn full" style="margin-bottom:9px" onclick="CATAN.rmPropose()">🔁 ${state.cup ? 'Rematch the cup' : 'Rematch'}? Ask the table</button>`;
     }
     if (!rmSeen[rm.id]) rmSeen[rm.id] = Date.now();
     const chips = state.players.map((p) => {
@@ -2826,11 +2942,12 @@
     const act = rm.votes[myColor] === 'y'
       ? `<div class="rmwait">Waiting for ${escapeHtml(nameList(waiting))}…</div>`
       : `<div class="winrow"><button class="btn" onclick="CATAN.rmVote('y')">✓ I'm in</button><button class="btn wood" onclick="CATAN.rmVote('n')">✗ Not this time</button></div>`;
-    return `<div class="rmbox"><div class="rmhead">🔁 Rematch? <span class="rmsecs">0:${String(secs).padStart(2, '0')}</span></div><div class="rmchips">${chips}</div>${act}</div>`;
+    return `<div class="rmbox"><div class="rmhead">🔁 ${state.cup ? 'Rematch the cup' : 'Rematch'}? <span class="rmsecs">0:${String(secs).padStart(2, '0')}</span></div><div class="rmchips">${chips}</div>${act}</div>`;
   }
   // re-render just the panel (never the whole victory card: no fanfare, no scroll jump)
   function refreshRematch() {
     if (!state || state.phase !== 'ended') return;
+    if (state.cup && cupFinal(state) !== victoryFinal && !endView) { showVictory(); return; }   // the cup was just ended -> the champion screen
     refreshGG();
     const rm = state.rm;
     // a proposal I haven't answered while I'm studying the board -> bring the results back so I can vote
@@ -2848,13 +2965,13 @@
   function rmWrite(mut) {
     const s2 = JSON.parse(JSON.stringify(state));
     if (mut(s2) === false) return;
-    state.rm = s2.rm; state.left = s2.left; state.gg = s2.gg; refreshRematch();
+    state.rm = s2.rm; state.left = s2.left; state.gg = s2.gg; if (s2.cup) state.cup = s2.cup; refreshRematch();
     if (!demoMode) svUpdate(mut);
   }
   function rmPropose() {
     if (!online || !myColor || !state || state.phase !== 'ended') return;
     const id = Math.random().toString(36).slice(2, 8), me = myColor;
-    rmWrite((s) => { if (s.phase !== 'ended' || (s.left && s.left.length) || rmPending(s.rm)) return false; s.rm = { id, by: me, votes: { [me]: 'y' } }; });
+    rmWrite((s) => { if (s.phase !== 'ended' || (s.left && s.left.length && !cupBetween(s)) || rmPending(s.rm)) return false; s.rm = { id, by: me, votes: { [me]: 'y' } }; });
     if (demoMode) state.players.filter((p) => p.color !== me).forEach((p, i) =>   // showcase bots say yes, one by one
       setTimeout(() => { if (state.rm && state.rm.id === id) { state.rm.votes[p.color] = 'y'; refreshRematch(); } }, 1400 + i * 1300));
   }
@@ -2865,13 +2982,13 @@
   }
   // walking away from a finished game is recorded, so the table knows a rematch can't happen
   function markLeft(color) {
-    if (!color || demoMode || !state || state.phase !== 'ended') return;
+    if (!color || demoMode || !state || state.phase !== 'ended' || cupBetween(state)) return;   // a cup waits for whoever stepped away
     svUpdate((s) => { if (s.phase !== 'ended') return false; s.left = s.left || []; if (!s.left.includes(color)) s.left.push(color); });
   }
   // the 30s clock: keep the countdown ticking, and let any phone call time on an unanswered proposal
   setInterval(() => {
     if (!state || state.phase !== 'ended' || !online) return;
-    const rm = state.rm; if (!rmPending(rm) || rmAllIn(rm)) return;
+    const rm = state.rm; if (!rmPending(rm) || rmAllIn(rm) || cupBetween(state)) return;   // the cup's ready-up never lapses
     if (!rmSeen[rm.id]) rmSeen[rm.id] = Date.now();
     if (Date.now() - rmSeen[rm.id] > RM_MS) { const id = rm.id; rmWrite((s) => { if (!s.rm || s.rm.id !== id || !rmPending(s.rm) || rmAllIn(s.rm)) return false; s.rm.lapsed = true; }); return; }
     const el = $('rmpanel'); if (el) el.innerHTML = rematchPanelHTML();
@@ -4172,6 +4289,7 @@
       if (this.poll) { clearInterval(this.poll); this.poll = null; }
     },
     onRow(row) {
+      if (LOBBY.cupRow && !(row && row.state && row.state.phase === 'ended')) { LOBBY.cupRow = null; lobbySig = null; }
       if (!row || !row.state || (row.phase !== 'playing' && row.phase !== 'ended')) {
         LOBBY.lastRow = null;
         // if the game went idle while still in progress (someone left / it was abandoned), it did NOT
@@ -4186,6 +4304,9 @@
       // who already left it) treats the table as free: no re-entry, no Watch, a new game can start.
       if (!this.started && row.state.phase === 'ended') {
         LOBBY.lastRow = null;
+        // a cup paused between games: its players get a way back in (the cup waits for them)
+        const mine = cupBetween(row.state) && (row.players || []).some((p) => p.playerId === (AUTH.me && AUTH.me.id));
+        if ((LOBBY.cupRow && LOBBY.cupRow.version) !== (mine ? row.version : undefined)) { LOBBY.cupRow = mine ? row : null; lobbySig = null; renderLobby(); }
         if (LOBBY.inProgress) { LOBBY.inProgress = false; renderLobby(); }
         return;
       }
@@ -4208,7 +4329,7 @@
       if (this.started) {
         myColor = seat ? seat.color : null;
         // a fresh game arriving while we're on an ended one = a rematch -> replay the 3·2·1 intro for everyone
-        if (isFreshStart(row.state) && state && state.phase === 'ended') { ui.svEnding = false; showCountdown(() => enterGame(row.state), 5, 'Rematch in'); return; }
+        if (isFreshStart(row.state) && state && state.phase === 'ended') { ui.svEnding = false; showCountdown(() => enterGame(row.state), 5, row.state.cup ? (row.state.cup.n > 1 ? 'Game ' + row.state.cup.n + ' in' : 'Cup starts in') : 'Rematch in'); return; }
         applyRemoteState(row.state); return;   // already in -> just sync
       }
       // not in the game yet: seated players + anyone who chose Spectate enter now;
@@ -4259,6 +4380,8 @@
   const PRESENCE_GRACE = 22000;   // keep a briefly-vanished member visible this long (rides out phone sleep/background)
   const LOBBY = {
     channel: null, presence: {}, mode: 'idle', readyAt: 0, inProgress: false, lastRow: null, table: null, created: null, targetPoints: null,
+    cup: 0,          // host's lobby choice: 0 = one game, N = a cup of N games (rides presence as ws 'cup:N')
+    cupRow: null,    // a cup paused between games at this table that I'm seated in (shows "Back to the cup")
     whoStarts: (function () { try { return localStorage.getItem('catanWhoStarts') === 'random' ? 'random' : 'rps'; } catch (_) { return 'rps'; } })(),   // host's lobby choice (default: rock-paper-scissors)
     lastSeen: {},          // id -> last time seen live (ms) — powers the grace window
     lastPayload: {},       // id -> last-known presence payload (kept so a grace member keeps its name/avatar)
@@ -4282,7 +4405,7 @@
     // changed it at the table, else their profile preference. undefined = no override in play.
     // effective color preference: the table-session override if set, else the profile default
     myPref() { return this.prefGame !== undefined ? this.prefGame : ((AUTH.me && AUTH.me.prefColor) || null); },
-    myPayload() { return { id: AUTH.me.id, name: AUTH.me.name, avatar: AUTH.me.avatar || null, pref: this.myPref(), mode: this.mode, readyAt: this.readyAt, table: this.table || null, created: this.created || null, target: this.targetPoints || null, ws: this.whoStarts }; },
+    myPayload() { return { id: AUTH.me.id, name: AUTH.me.name, avatar: AUTH.me.avatar || null, pref: this.myPref(), mode: this.mode, readyAt: this.readyAt, table: this.table || null, created: this.created || null, target: this.targetPoints || null, ws: this.cup ? 'cup:' + this.cup : this.whoStarts }; },
     // announce my state: heartbeat row on the server + an optimistic local echo so my own UI updates
     // instantly (the poll confirms it a few seconds later)
     track() {
@@ -4356,12 +4479,14 @@
       try { gstate = C.createGame({ id: 'table', players: players.map((p) => ({ color: p.color, name: p.name })), seed: (Math.random() * 1e9) | 0, targetPoints: target, randomFirst: true }); }
       catch (e) { toast('Start failed: ' + e.message); return; }
       gstate.whoStarts = this.whoStarts;
-      if (this.whoStarts === 'rps') gstate.rps = newRps(gstate.players, 4500);   // the 3·2·1 countdown runs first
+      if (this.cup) { gstate.cup = { name: host.name + "'s Cup", games: this.cup, n: 1, host: host.id, hist: [] }; gstate.whoStarts = 'rps'; }   // a cup: rock-paper-scissors every game
+      if (gstate.whoStarts === 'rps') gstate.rps = newRps(gstate.players, 4500);   // the 3·2·1 countdown runs first
       const c = NET.init();
       // never start OVER a live game — a stale ready-screen (slow fetch, resumed PWA) must not
       // clobber a match in progress on this code. Check the row right before writing.
       const { data: cur } = await c.from('games').select('*').eq('code', NET.code).maybeSingle();
       if (cur && cur.phase === 'playing' && cur.state && cur.state.phase !== 'ended') { toast('A game is already running at this table'); NET.onRow(cur); return; }
+      if (cur && cupBetween(cur.state) && Date.now() - (this.cupKillAt || 0) > 6000) { this.cupKillAt = Date.now(); toast(`${cur.state.cup.name} is paused here. Tap Start again to end it`); return; }
       if (cur && cur.state && cur.state.phase === 'ended') { purgeVoice(NET.code); try { c.from('messages').delete().eq('code', NET.code); } catch (_) { } }   // the finished game's chat goes with it
       const { error } = await c.from('games').upsert({ code: NET.code, phase: 'playing', players, state: gstate, target_points: target, version: 1, host_id: AUTH.me.id });
       if (error) toast('Start failed: ' + error.message);   // realtime drives everyone in
@@ -4402,6 +4527,11 @@
       try { gstate = C.createGame({ id: 'table', players: players.map((p) => ({ color: p.color, name: p.name })), seed: (Math.random() * 1e9) | 0, targetPoints: target, randomFirst: true }); }
       catch (e) { toast('Rematch failed: ' + e.message); return; }
       gstate.whoStarts = (state && state.whoStarts) || 'random';   // a rematch keeps the table's choice
+      if (state && state.cup) {   // next game of the cup carries the results so far; after the final, "rematch the cup" starts a fresh one
+        const fin = cupFinal(state);
+        gstate.cup = Object.assign({}, state.cup, { n: fin ? 1 : state.cup.n + 1, hist: fin ? [] : cupHist(state), stop: false });
+        gstate.whoStarts = 'rps';
+      }
       if (gstate.whoStarts === 'rps') gstate.rps = newRps(gstate.players, 6500);   // after the 5·4·3·2·1
       const prevV = NET.version || 1;
       const { data, error } = await c.from('games')
@@ -4597,18 +4727,8 @@
     if (!online || !NET.code || !NET.client || !state || state.phase !== 'ended' || !state.winner) return;
     const seatId = {};   // color -> persistent player id, from the game's seat map (rename-proof stats key)
     (gameSeats || []).forEach((s) => { if (s && s.color) seatId[s.color] = s.playerId || null; });
-    // the actual winner is ALWAYS place 1 — a surrender winner may not be the VP leader; the rest rank by VP.
-    // A mid-game quitter (state.quitBy) is forced to last place and carries a penalty flag.
-    const win = state.winner;
     const quitter = state.quitBy || null;
-    const rows = state.players.map((p) => ({ p, vp: C.victoryPoints(state, p.color, true) }))
-      .sort((a, b) => {
-        const aq = a.p.color === quitter, bq = b.p.color === quitter;   // the quitter always ranks last
-        if (aq !== bq) return aq ? 1 : -1;
-        const aw = a.p.color === win, bw = b.p.color === win;           // winner first
-        if (aw !== bw) return aw ? -1 : 1;
-        return b.vp - a.vp;                                             // everyone else by victory points
-      });
+    const rows = finishOrder(state);   // winner 1st, a mid-game quitter last, the rest by VP
     const standings = rows.map(({ p, vp }, i) => {
       const s = { id: seatId[p.color] || null, name: p.name, color: p.color, pts: vp, place: i + 1, lr: p.hasLongestRoad ? 1 : 0, la: p.hasLargestArmy ? 1 : 0 };
       if (p.color === quitter) s.penalty = 1;   // quit mid-game -> flagged (shown in the Penalties column)
@@ -4729,7 +4849,7 @@
     const all = LOBBY.online();
     // sig over the whole presence (table memberships + modes) so any change re-renders
     const sig = JSON.stringify([LOBBY.table, LOBBY.inProgress, LOBBY.mode, LOBBY.targetPoints,
-      all.map((p) => p.id + ':' + (p.table || '') + ':' + pmode(p) + ':' + p.name + ':' + (p.readyAt || 0) + ':' + (p.target || '') + ':' + (p.ws || '') + ':' + (p.created || '') + ':' + (p.pref || '') + ':' + (p.away ? 'a' : '')).sort(), LOBBY.whoStarts]);
+      all.map((p) => p.id + ':' + (p.table || '') + ':' + pmode(p) + ':' + p.name + ':' + (p.readyAt || 0) + ':' + (p.target || '') + ':' + (p.ws || '') + ':' + (p.created || '') + ':' + (p.pref || '') + ':' + (p.away ? 'a' : '')).sort(), LOBBY.whoStarts, LOBBY.cup, LOBBY.cupRow && LOBBY.cupRow.version]);
     if (sig === lobbySig) return;
     lobbySig = sig;
     dynEl.innerHTML = LOBBY.table ? atTableHTML(all) : tableListHTML(all);   // footer frame untouched
@@ -4748,7 +4868,8 @@
     const rowFor = (code, m) => {
       const home = code === HOME_CODE, inGame = m.some((p) => pmode(p) === 'playing');
       const creator = m.find((p) => p.created === code);
-      const gname = home ? '🏠 Main Game' : creator ? escapeHtml(creator.name) + "'s Game" : 'Game';
+      const cupOn = m.some((p) => String(p.ws || '').startsWith('cup:'));
+      const gname = (home ? '🏠 Main Game' : creator ? escapeHtml(creator.name) + "'s Game" : 'Game') + (cupOn ? ' · 🏆 Cup' : '');
       const names = m.map((p) => escapeHtml(p.name)).join(', ');
       return `<button class="tablerow${home ? ' home' : ''}" onclick="CATAN.joinTable('${code}')"><span class="trow-main"><span class="tgname">${gname}</span><span class="tgwho">${names || (home ? 'Empty — gather here' : 'Empty')}</span></span>` +
         `<span class="${inGame ? 't-pend' : 't-acc'}">${inGame ? '🔴 watch' : m.length ? m.length + ' here' : 'join'}</span></button>`;
@@ -4770,6 +4891,13 @@
     const creator = members.find((p) => p.created === LOBBY.table);
     const rows = lobbyRows(members, ready, creator ? creator.id : null);
     // no in-card "back to games" button — the top-left ← in the header handles leaving
+    if (LOBBY.cupRow) {   // my cup is paused between games here -> straight back to it
+      const k = LOBBY.cupRow.state.cup;
+      return `<p class="muted small" style="text-align:center">${members.length} here</p>
+        <div class="loblist">${rows}</div>
+        <button class="btn full" onclick="CATAN.cupRejoin()">🏆 Back to ${escapeHtml(k.name)} · game ${k.n + 1} of ${k.games} next</button>
+        ${lobbyChatHTML()}`;
+    }
     if (LOBBY.inProgress) {
       return `<p class="muted small" style="text-align:center">${members.length} here</p>
         <div class="loblist">${rows}</div>
@@ -4790,11 +4918,14 @@
     const iAmReady = LOBBY.mode === 'ready';
     const startBtn = iAmHost
       ? (!hostReady ? '' : ready.length < 2 ? `<div class="lobstatus">Waiting for more players to ready up…</div>`
+        : LOBBY.cup ? `<button class="btn full" onclick="CATAN.lobbyStart()">🏆 Start ${escapeHtml(AUTH.me.name)}'s Cup · ${seatN}p · ${LOBBY.cup} games (${tgt} pts)</button>`
         : `<button class="btn full" onclick="CATAN.lobbyStart()">Start · ${seatN}p (${tgt} pts)${LOBBY.whoStarts === 'rps' ? ' · ✊ who starts' : ''}</button>`)
       : (iAmReady ? `<div class="lobstatus">${ready.length < 2 ? 'Waiting for more players…' : 'Waiting for ' + hostName + ' to start…'}</div>` : '');
     const targetRow = iAmHost
-      ? `<div class="lobtgt"><span class="lobtgt-lbl">Win at <b id="tgt-val">${tgt}</b> pts</span><input class="lobtgt-slider" type="range" min="9" max="15" step="1" value="${tgt}" oninput="var e=document.getElementById('tgt-val');if(e)e.textContent=this.value" onchange="CATAN.lobbyTarget(this.value)"></div>`
-      : `<div class="lobtgt muted">Win at ${tgt} pts${host && host.ws ? ` · Who starts: <b>${host.ws === 'rps' ? '✊ Rock-paper-scissors' : '🎲 Random'}</b>` : ''}</div>`;   // the host's choice (older hosts don't send it)
+      ? `<div class="lobtgt"><span class="lobtgt-lbl">${LOBBY.cup ? 'Each game to' : 'Win at'} <b id="tgt-val">${tgt}</b> pts</span><input class="lobtgt-slider" type="range" min="${LOBBY.cup ? 6 : 9}" max="15" step="1" value="${tgt}" oninput="var e=document.getElementById('tgt-val');if(e)e.textContent=this.value" onchange="CATAN.lobbyTarget(this.value)"></div>`
+      : host && String(host.ws || '').startsWith('cup:')
+        ? `<div class="lobtgt muted"><b>🏆 Tournament</b> · ${parseInt(host.ws.slice(4), 10) || 3} games, each to ${tgt} pts · ✊ every game</div>`
+        : `<div class="lobtgt muted">Win at ${tgt} pts${host && host.ws ? ` · Who starts: <b>${host.ws === 'rps' ? '✊ Rock-paper-scissors' : '🎲 Random'}</b>` : ''}</div>`;   // the host's choice (older hosts don't send it)
     // your color for THIS game: the table-session override if set, else your profile preference
     const myPref = LOBBY.prefGame !== undefined ? LOBBY.prefGame : (AUTH.me.prefColor || null);
     const prefRow = `<div class="lobprefrow"><span class="lobtgt-lbl">Your color</span>
@@ -4806,7 +4937,8 @@
     const specLink = `<button class="linkbtn" onclick="CATAN.lobbySpectate()">${LOBBY.mode === 'spectate' ? '✓ Spectating — tap to stop' : '👁 Spectate instead'}</button>`;
     return `<p class="muted small" style="text-align:center">${members.length} here · ${ready.length} ready</p>
       <div class="loblist">${rows}</div>
-      <div class="lobsetup">${targetRow}${iAmHost ? `<div class="lobws"><span class="lobtgt-lbl">Who starts</span><div class="seg lobwsseg"><button class="${LOBBY.whoStarts === 'rps' ? 'on' : ''}" onclick="CATAN.lobbyWhoStarts('rps')">✊ Rock-paper-scissors</button><button class="${LOBBY.whoStarts !== 'rps' ? 'on' : ''}" onclick="CATAN.lobbyWhoStarts('random')">🎲 Random</button></div></div>` : ''}${prefRow}</div>
+      <div class="lobsetup">${iAmHost ? `<div class="lobws"><span class="lobtgt-lbl">Format</span><div class="seg lobwsseg"><button class="${!LOBBY.cup ? 'on' : ''}" onclick="CATAN.lobbyCup(0)">One game</button><button class="${LOBBY.cup ? 'on' : ''}" onclick="CATAN.lobbyCup(3)">🏆 Tournament</button></div></div>`
+        + (LOBBY.cup ? `<div class="lobcup"><span class="lobtgt-lbl">Games</span><button class="cupstep" onclick="CATAN.lobbyCup(${LOBBY.cup - 1})" aria-label="Fewer">−</button><b>${LOBBY.cup}</b><button class="cupstep" onclick="CATAN.lobbyCup(${LOBBY.cup + 1})" aria-label="More">+</button><span class="lobcupnote">${seatN === 3 ? '3 · 1 · 0' : seatN === 2 ? '3 · 0' : '3 · 2 · 1 · 0'} pts per finish · ✊ every game</span></div>` : '') : ''}${targetRow}${iAmHost && !LOBBY.cup ? `<div class="lobws"><span class="lobtgt-lbl">Who starts</span><div class="seg lobwsseg"><button class="${LOBBY.whoStarts === 'rps' ? 'on' : ''}" onclick="CATAN.lobbyWhoStarts('rps')">✊ Rock-paper-scissors</button><button class="${LOBBY.whoStarts !== 'rps' ? 'on' : ''}" onclick="CATAN.lobbyWhoStarts('random')">🎲 Random</button></div></div>` : ''}${prefRow}</div>
       ${readyBtn}
       ${startBtn}
       ${specLink}
@@ -4841,7 +4973,7 @@
   window.CATAN.guardJoin = (code) => { lobbyShell(); LOBBY.enterTable(code); };
   window.CATAN.newTableGo = () => { const code = genCode(); LOBBY.created = code; lobbyShell(); LOBBY.enterTable(code); };
   window.CATAN.lobbyWhoStarts = (v) => { LOBBY.whoStarts = v === 'rps' ? 'rps' : 'random'; try { localStorage.setItem('catanWhoStarts', LOBBY.whoStarts); } catch (_) { } LOBBY.track(); lobbySig = null; renderLobby(); };
-  window.CATAN.lobbyTarget = (v) => { LOBBY.targetPoints = Math.max(9, Math.min(15, parseInt(v, 10) || 13)); LOBBY.track(); lobbySig = null; renderLobby(); };
+  window.CATAN.lobbyTarget = (v) => { LOBBY.targetPoints = Math.max(LOBBY.cup ? 6 : 9, Math.min(15, parseInt(v, 10) || 13)); LOBBY.track(); lobbySig = null; renderLobby(); };
   window.CATAN.joinTable = (code) => LOBBY.enterTable(code);
   window.CATAN.leaveTable = () => LOBBY.leaveTable();
   window.CATAN.lobbyReady = () => LOBBY.setReady();
@@ -4923,6 +5055,27 @@
   // whoever's still looking, and onRow won't pull me back in (a rematch / new game at the table still will)
   window.CATAN.leaveEnded = () => { markLeft(myColor); NET.started = false; NET.version = 0; online = false; myColor = null; LOBBY.toLobby(); };
   window.CATAN.rematch = () => LOBBY.rematch();
+  // back into a cup paused between games: the finished game's screen, to ready up for the next one
+  window.CATAN.cupRejoin = () => {
+    const row = LOBBY.cupRow, seat = row && (row.players || []).find((p) => p.playerId === (AUTH.me && AUTH.me.id));
+    if (!seat) return;
+    LOBBY.cupRow = null; myColor = seat.color; online = true; gameSeats = row.players || null;
+    LOBBY.enterAs('play'); NET.started = true; NET.version = row.version;
+    victoryShownFor = null; enterGame(row.state);
+  };
+  // end the cup early: the standings so far are final
+  window.CATAN.cupStop = () => {
+    if (!cupBetween(state)) return;
+    const mut = (s) => { if (!cupBetween(s)) return false; s.cup.stop = true; s.rm = null; };
+    const s2 = JSON.parse(JSON.stringify(state)); if (mut(s2) === false) return;
+    state.cup = s2.cup; state.rm = null; showVictory();
+    if (!demoMode) svUpdate(mut);
+  };
+  window.CATAN.lobbyCup = (n) => {
+    LOBBY.cup = n ? Math.max(2, Math.min(9, n | 0)) : 0;
+    if (!LOBBY.cup && LOBBY.targetPoints != null && LOBBY.targetPoints < 9) LOBBY.targetPoints = 9;   // short targets are a cup thing
+    LOBBY.track(); lobbySig = null; renderLobby();
+  };
 
   // ===== identity / PIN auth (persistent player + device auto-login) =========
   const AUTH = {
@@ -5034,7 +5187,7 @@
   function exitGameUI() {
     ['leavetab', 'radialtab', 'settingstab', 'dicetab', 'trophytab', 'dicereveal', 'toast', 'confirmbar', 'countdown'].forEach((id) => { const e = $(id); if (e) e.classList.add('hidden'); });
     const rr = $('radialroot'); if (rr) { rr.classList.remove('open'); rr.classList.add('hidden'); }
-    document.querySelectorAll('.flyres, .robberdrag, .emofloat, .emocombo, .emothrow, .emosplat, .emoghost').forEach((el) => el.remove());
+    document.querySelectorAll('.flyres, .robberdrag, .emofloat, .emocombo, .emothrow, .emosplat, .emoghost, #cuppill').forEach((el) => el.remove());
     closeEmojiTray(); hideChip(); const mp = $('momentpill'); if (mp) mp.classList.add('hidden'); const rpr = $('rpsroot'); if (rpr) rpr.classList.add('hidden'); rpsBoardClear();
     document.body.classList.remove('ingame', 'trading', 'gameover');
     hideOverlay();

@@ -186,6 +186,36 @@
   .rpsposbtn b{font-family:-apple-system, system-ui, 'Segoe UI', Roboto, sans-serif; font-size:20px; color:var(--gold);}
   .rpsposbtn span{font-size:11.5px; color:var(--muted);}
   .rpsposbtn:active{transform:scale(0.96); background:rgba(233,196,90,0.22);}
+  /* quick tournament (cup) */
+  .lobcup{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:2px 2px 4px;}
+  .lobcup b{min-width:18px; text-align:center; font-size:17px; color:var(--gold); font-family:-apple-system, system-ui, 'Segoe UI', Roboto, sans-serif;}
+  .cupstep{width:30px; height:30px; border-radius:50%; border:1px solid #7a5c24; background:rgba(0,0,0,0.3); color:var(--ink); font-size:18px; font-weight:800; line-height:1; cursor:pointer;}
+  .lobcupnote{font-size:11.5px; color:var(--muted);}
+  .cupbox{margin:10px 0 12px; padding:8px; border-radius:12px; background:rgba(0,0,0,0.28); border:1px solid rgba(255,220,170,0.16); text-align:left;}
+  .cuprow{display:grid; align-items:center; gap:8px; padding:5px 6px; border-radius:9px; font-size:14px;}
+  .cuprow + .cuprow{margin-top:3px;}
+  .cuprow.cuphd{font-size:11px; letter-spacing:.5px; color:var(--muted); padding-top:0;}
+  .cuprow.lead{background:rgba(233,196,90,0.16);}
+  .cuprow .nm{display:flex; align-items:center; gap:6px; font-weight:700; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .cuprow .dot{width:9px; height:9px; border-radius:50%; display:inline-block; flex:none;}
+  .cuprk{font-weight:800; color:var(--gold); text-align:center; font-family:-apple-system, system-ui, 'Segoe UI', Roboto, sans-serif;}
+  .cupc{text-align:center; white-space:nowrap; font-family:-apple-system, system-ui, 'Segoe UI', Roboto, sans-serif;}
+  .cuppts{font-weight:800; font-size:18px; color:#ffd76b; text-align:right;}
+  .cupgain{color:#a8e09a;}
+  .cupnote{font-size:12px; color:var(--muted); margin:6px 4px 0;}
+  .cupsub{font-size:13px; color:var(--muted); margin-top:-4px;}
+  .cupaws{display:flex; flex-direction:column; gap:5px; margin:0 0 12px; text-align:left;}
+  .cupaw{padding:5px 10px; border-radius:10px; background:rgba(0,0,0,0.3); font-size:12.5px;}
+  .cupaw b{display:inline-flex; align-items:center; gap:4px;}
+  .cupawimg{height:16px; width:auto;}
+  .cuptrophy{position:absolute; bottom:-6px; left:calc(50% + 26px); font-size:38px; filter:drop-shadow(0 2px 3px rgba(0,0,0,0.6));}
+  .pcup{position:absolute; z-index:6; top:6px; display:flex; align-items:center; gap:3px; height:24px; padding:0 8px 0 6px; border-radius:12px;
+    background:rgba(30,16,4,0.85); border:1.5px solid var(--gold); font-size:13px; pointer-events:none;}
+  .pcup b{font-family:-apple-system, system-ui, 'Segoe UI', Roboto, sans-serif; color:#ffd76b; font-size:14px; font-weight:800;}
+  .corner.tl .pcup, .corner.bl .pcup{left:calc(100% + 9px);}
+  .corner.tr .pcup, .corner.br .pcup{right:calc(100% + 9px);}
+  #cuppill{position:fixed; z-index:30; top:calc(env(safe-area-inset-top) + 50px); left:50%; transform:translateX(-50%); padding:3px 12px; border-radius:12px;
+    background:rgba(0,0,0,0.55); border:1px solid rgba(233,196,90,0.5); font-size:12px; font-weight:800; color:#ffd76b; white-space:nowrap; pointer-events:none;}
   /* the choice, revealed to everyone: headline + the turn order it makes */
   .rpsfinal{width:min(560px,92vw); gap:12px; animation:rpsin .35s cubic-bezier(.3,1.6,.6,1);}
   .rpsfinal .rpswinner{font-size:24px; text-align:center;}
@@ -1220,7 +1250,7 @@
   #rotate .r-land, #rotate .r-port{display:none;}
   @media (orientation:portrait) and (pointer:coarse){   /* in a game + portrait -> rotate to landscape */
     body.ingame #stage, body.ingame #overlay, body.ingame #confirmbar, body.ingame #radialroot,
-    body.ingame #radialtab, body.ingame #dicetab, body.ingame #trophytab, body.ingame #emotray, body.ingame #reactchip, body.ingame .emoghost, body.ingame #rpsroot, body.ingame .rpsb, body.ingame .rpscrown, body.ingame #settingstab, body.ingame #dicereveal, body.ingame #toast, body.ingame #tradeprompt{display:none !important;}
+    body.ingame #radialtab, body.ingame #dicetab, body.ingame #trophytab, body.ingame #emotray, body.ingame #reactchip, body.ingame .emoghost, body.ingame #rpsroot, body.ingame .rpsb, body.ingame .rpscrown, body.ingame #cuppill, body.ingame #settingstab, body.ingame #dicereveal, body.ingame #toast, body.ingame #tradeprompt{display:none !important;}
     body.ingame #rotate{display:flex !important; position:fixed; inset:0; z-index:200; flex-direction:column; align-items:center; justify-content:center;
       gap:16px; background:radial-gradient(120% 120% at 50% 40%, #1f4f74, #0a2336); text-align:center; padding:24px;}
     body.ingame #rotate .r-land{display:block;}

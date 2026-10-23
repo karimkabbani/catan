@@ -155,6 +155,8 @@ export interface GameState {
   rps?: { done?: boolean; [k: string]: unknown } | null;
   /** How this table decides who starts ('rps' | 'random'); rematches reuse it. */
   whoStarts?: string;
+  /** A quick tournament riding this game (client-owned; the engine never reads it). */
+  cup?: { name: string; games: number; n: number; host?: string | null; hist: unknown[]; stop?: boolean } | null;
   /** Who last moved the robber (7 or Knight) — it wears their face. null/absent = the classic robber. */
   robberBy?: PlayerColor | null;
   /** Whom they robbed with that move (null = nobody). */
