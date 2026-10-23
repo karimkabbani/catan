@@ -557,6 +557,11 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    just-finished / gone-quiet tables get no card. Rooms show "🏁 X · still on the last game's results". The 5-min
    presence drop-off is unchanged (shorter would flicker people mid-game). Old clients read 'results' as not playing.
 
+19. ✅ **"Go!" nudge — v178 (2026-10-23).** Seated guests get a big **Go!** under "Waiting for X to start". It sends a
+   `messages` row (`type 'go'`, code = the table) via `LOBBY.sendBroadcast`; `NET.onMsg` routes it to `lvGoIn` (lobby
+   only, ignored in a game). Host: toast "👉 Ramzi: Go!" + vibrate; every phone in the room: "👉 Go!" pops on the
+   nudger's seat for 6s; host's Start reads "· N want to go" (nudges in the last 2 min). 15s cooldown per player.
+
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
