@@ -506,6 +506,27 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
      can "End the cup now": standings so far are final. Starting a new game over a paused cup needs a second tap.
    - In game: 🏆 points beside every corner + a "game 2 of 3" pill. Final: champion screen with per-game medals,
      tie-break line, cup-long awards (Robber magnet, Most points scored), "Rematch the cup".
+   - v170: Who starts is a choice in cups too (presence `ws = 'cup:N:r' | 'cup:N:x'`; old 'cup:N' reads as RPS).
+     **Cup stats:** each cup game's `game_results.standings[i].cup = { id, name, n, of, cp, cr }` (running cup points
+     and rank); `STATS.cups()` rebuilds every cup from its latest game. Stats tab shows "Cups · all time" (winners +
+     list); a player's page shows "Cups won X of Y". Only cups started on v170+ carry an id; earlier ones fall back to host+name.
+
+14. ✅ **Lobby redesign — BUILT v170 (2026-10-23). Screens only, same plumbing** (mockups: canvas rows "Lobby
+   redesign" + "Host flow"). Three tabs: **Play · Chat · Stats** (`LV.tab`), slim header (CATAN + avatar → profile;
+   "Switch player" moved into the profile).
+   - **Play** (not at a table): one hero card for what's happening now: a gathering table (seats + settings line +
+     Join / Just watch), else a live game (Watch), else "Nobody's playing yet · Start a game". Then other tables,
+     who's online, the latest chat message, "Play on one phone".
+   - **Room** (at a table): 2×2 seats from `readyList()` (👑 host = creator, else first seated), tap your own seat for
+     colour (+ Any), lines for first-in-line / here-not-seated / watching, one settings line (host: Edit → bottom
+     sheet with Format, games, points Auto + buttons, Who starts), one primary action. Paused cup → cup card.
+   - **Mapping to the old plumbing:** "Join" = `enterTable` + ready; "Just watch"/"Watch" = `enterTable` + spectate
+     (a running game takes spectators straight in); "Take a seat"/"Leave seat" = `lobbyReady`; "Start a game" =
+     `lvStart` (offers a gathering table first via the guard sheet, else the standing table `TABLE` if nobody's
+     there, else a new code), with `LOBBY.created` set so the starter hosts. Main Game / separate game are gone from view.
+   - **Chat** tab: bubbles (newest at the bottom), unread badge (`LV.chatSeen`, localStorage), a Join/Back strip.
+   - **Stats** tab: the existing stats screens draw into the tab via `statsOut()`.
+   - Old renderers removed: `tableListHTML`, `atTableHTML`, `lobbyRows`, `lobbyChatHTML`, `CATAN.newTable`/`guardJoin`.
 
 ### Also shipped since multiplayer (2026-06)
 
