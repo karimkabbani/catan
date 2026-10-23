@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v177';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v178';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -4083,6 +4083,7 @@
     onMsg(row) {
       if (!row || !row.id || row.id <= this.lastMsgId) return;
       this.lastMsgId = row.id;
+      if (row.type === 'go') { if (!this.started) lvGoIn(row); return; }   // a room nudge to the host — lobby only
       if (row.color && row.color === myColor) return;   // mine — already shown locally on send
       showBroadcast({ type: row.type || 'text', text: row.body, url: row.url, dur: row.dur, name: row.name, avatar: row.avatar, color: row.color, code: row.code });   // 'emoji': body = emoji, dur = tap count, url = 'm:<moment key>'
     },
@@ -4220,7 +4221,7 @@
     creatorOf(code) { return this.online().find((p) => (p.table || null) === code && p.created === code) || null; },
     gameName(code) { if (code === HOME_CODE) return 'Main Game'; const c = this.creatorOf(code); return c ? c.name + "'s Game" : 'Game'; },
     // enter / switch tables (a table is a presence grouping keyed by a game code)
-    enterTable(code) { this.table = code; NET.code = code; this.mode = 'idle'; this.readyAt = 0; this.inProgress = false; this.targetPoints = null; this.prefGame = undefined; NET.subscribe(); this.track(); lobbySig = null; renderLobby(); },
+    enterTable(code) { LV.gos = {}; this.table = code; NET.code = code; this.mode = 'idle'; this.readyAt = 0; this.inProgress = false; this.targetPoints = null; this.prefGame = undefined; NET.subscribe(); this.track(); lobbySig = null; renderLobby(); },
     leaveTable() { this.table = null; NET.code = null; this.mode = 'idle'; this.readyAt = 0; this.inProgress = false; this.targetPoints = null; this.prefGame = undefined; NET.unsubscribeGame(); this.track(); lobbySig = null; renderLobby(); },
     // Chat rides a polled table (like the game state), NOT realtime broadcast — so it survives
     // iOS/PWA WebSocket drops. Insert a row; every client picks it up via postgres_changes + poll.
@@ -4645,7 +4646,33 @@
     last: null,      // { at, code, text } the game I just left, shown in its room for a while
     chatSeen: (function () { try { return +localStorage.getItem('catanChatSeen') || 0; } catch (_) { return 0; } })(),
     roster: [], rosterAt: 0,   // every registered player {name, avatar}, so the offline ones show too
+    gos: {},          // sender id -> when they last hit "Go!" in this room (👉 on their seat, count on Start)
+    goAt: 0,          // my own last "Go!" (15s cooldown)
   };
+  const GO_SHOW_MS = 6000, GO_COUNT_MS = 120000, GO_COOLDOWN_MS = 15000;
+  // a seated guest nudges the host: "Go!"
+  function lvGo() {
+    if (!LOBBY.table || !AUTH.me) return;
+    const now = Date.now();
+    if (now - LV.goAt < GO_COOLDOWN_MS) { toast('Nudged. Give them a sec'); return; }
+    LV.goAt = now; LV.gos[AUTH.me.id] = now;
+    LOBBY.sendBroadcast({ type: 'go', text: 'Go!', code: LOBBY.table, name: AUTH.me.name, avatar: AUTH.me.avatar || null, color: null });
+    lvGoTick();
+  }
+  function lvGoIn(row) {
+    if (!row.sender || row.sender === (AUTH.me && AUTH.me.id) || row.code !== LOBBY.table) return;
+    LV.gos[row.sender] = Date.now();
+    const host = lvRoomHost();
+    if (host && host.id === AUTH.me.id) {   // the host gets the buzz
+      toast(`👉 ${row.name || 'Someone'}: Go!`);
+      try { if (navigator.vibrate) navigator.vibrate([120, 60, 120]); } catch (_) { }
+      playSound('click', 0.7);
+    }
+    lvGoTick();
+  }
+  // re-render now, and again when the 👉 should fade
+  function lvGoTick() { lobbySig = null; renderLobby(); setTimeout(() => { lobbySig = null; renderLobby(); }, GO_SHOW_MS + 100); }
+  function lvGoKey() { const now = Date.now(); return Object.keys(LV.gos).filter((k) => now - LV.gos[k] < GO_SHOW_MS).sort().join(',') + '|' + Object.keys(LV.gos).filter((k) => now - LV.gos[k] < GO_COUNT_MS).length + '|' + (now - LV.goAt < 2500 ? 1 : 0); }
   // fetch the full player list (the sign-in screen's list), at most every 2 minutes
   function lvLoadRoster() {
     if (Date.now() - LV.rosterAt < 120000) return;
@@ -4758,7 +4785,7 @@
     const mine = p.id === AUTH.me.id, pref = mine ? LOBBY.myPref() : p.pref, col = pref && PCOLOR[pref];
     return `<div class="lvseat${isHost ? ' host' : ''}${mine ? ' mine' : ''}${p.away ? ' away' : ''}"${mine ? ` onclick="CATAN.lvSheet('colour')"` : ''}>`
       + `${isHost ? '<span class="lvcrown">👑</span>' : ''}<span class="lvcd${col ? '' : ' any'}"${col ? ` style="background:${col}"` : ''}></span>`
-      + `${faceHTML(p.name, p.avatar, 'xl')}<b>${escapeHtml(p.name)}${mine ? ' (you)' : ''}</b>${mine ? '<span class="lvhint">tap for colour</span>' : p.away ? '<span class="lvhint">away…</span>' : ''}</div>`;
+      + `${Date.now() - (LV.gos[p.id] || 0) < GO_SHOW_MS ? '<span class="lvgo">👉 Go!</span>' : ''}${faceHTML(p.name, p.avatar, 'xl')}<b>${escapeHtml(p.name)}${mine ? ' (you)' : ''}</b>${mine ? '<span class="lvhint">tap for colour</span>' : p.away ? '<span class="lvhint">away…</span>' : ''}</div>`;
   }
   function lvRoomHTML() {
     // a cup paused between games that I'm in: the whole tab is the cup
@@ -4792,11 +4819,13 @@
     const setl = `<${iAmHost ? 'button' : 'div'} class="lvsetl"${iAmHost ? ` onclick="CATAN.lvSheet('settings')"` : ''}><span>${lvSettingsLine(host || { id: AUTH.me.id }, playerN)}</span>${iAmHost ? '<b class="gold">Edit ›</b>' : ''}</${iAmHost ? 'button' : 'div'}>`;
     let act;
     if (iSeated && iAmHost) {
+      const wantGo = seated.filter((p) => p.id !== AUTH.me.id && Date.now() - (LV.gos[p.id] || 0) < GO_COUNT_MS).length;
       act = ready.length < 2 ? `<div class="lvstatus">Waiting for at least 1 more player…</div>`
-        : `<button class="btn full lvbig" onclick="CATAN.lobbyStart()">${LOBBY.cup ? `🏆 Start ${escapeHtml(AUTH.me.name)}'s Cup · ${seated.length} players` : `Start · ${seated.length} players`}</button>`;
+        : `<button class="btn full lvbig" onclick="CATAN.lobbyStart()">${LOBBY.cup ? `🏆 Start ${escapeHtml(AUTH.me.name)}'s Cup · ${seated.length} players` : `Start · ${seated.length} players`}${wantGo ? ` · ${wantGo} want to go` : ''}</button>`;
       act += `<button class="linkbtn" onclick="CATAN.lobbyReady()">Leave seat</button>`;
     } else if (iSeated) {
-      act = `<div class="lvstatus">⏳ Waiting for ${escapeHtml(host ? host.name : 'the host')} to start</div><button class="linkbtn" onclick="CATAN.lobbyReady()">Leave seat</button>`;
+      act = `<div class="lvstatus">⏳ Waiting for ${escapeHtml(host ? host.name : 'the host')} to start</div>`
+        + `<button class="btn full lvbig lvgobtn" onclick="CATAN.lvGo()">${Date.now() - LV.goAt < 2500 ? 'Go! ✓' : 'Go!'}</button><button class="linkbtn" onclick="CATAN.lobbyReady()">Leave seat</button>`;
     } else if (inLine) {
       act = `<div class="lvstatus">You're first in line for a seat</div><button class="linkbtn" onclick="CATAN.lobbyReady()">Leave the line</button>`;
     } else if (LOBBY.mode === 'spectate') {
@@ -4892,7 +4921,7 @@
     const g = LV.tab === 'chat' && lvGathering()[0];
     const live = LV.tab === 'chat' ? [LOBBY.table, g ? g.code + ':' + g.ready.length : '']
       : all.map((p) => p.id + ':' + (p.table || '') + ':' + pmode(p) + ':' + p.name + ':' + (p.readyAt || 0) + ':' + (p.target || '') + ':' + (p.ws || '') + ':' + (p.created || '') + ':' + (p.pref || '') + ':' + (p.away ? 'a' : '') + ':' + (p.avatar ? 1 : 0)).sort();
-    const sig = JSON.stringify([LV.tab, LV.sheet, LV.roster.length, LOBBY.table, LOBBY.inProgress, LOBBY.mode, LOBBY.targetPoints, LOBBY.whoStarts, LOBBY.cup, LOBBY.cupRow && LOBBY.cupRow.version, LOBBY.prefGame, LV.last && LV.last.at, live]);
+    const sig = JSON.stringify([LV.tab, LV.sheet, LV.roster.length, lvGoKey(), LOBBY.table, LOBBY.inProgress, LOBBY.mode, LOBBY.targetPoints, LOBBY.whoStarts, LOBBY.cup, LOBBY.cupRow && LOBBY.cupRow.version, LOBBY.prefGame, LV.last && LV.last.at, live]);
     if (sig === lobbySig) return;
     lobbySig = sig;
     if (LV.tab === 'chat') { dynEl.innerHTML = lvChatHTML(); renderLobbyChat(); }
@@ -4933,6 +4962,7 @@
     LOBBY.enterTable(code); LOBBY.mode = 'ready'; LOBBY.readyAt = Date.now(); LOBBY.track(); lobbySig = null; renderLobby();
   }
   window.CATAN.lvStartGo = () => lvStartGo();
+  window.CATAN.lvGo = () => { lvGo(); setTimeout(() => { lobbySig = null; renderLobby(); }, 2600); };
   // tap a face in the lobby -> that player's Stats page (by player id, else by name for the offline list)
   window.CATAN.lvStatsFor = (name, id) => {
     name = decodeURIComponent(name || ''); id = decodeURIComponent(id || '');
