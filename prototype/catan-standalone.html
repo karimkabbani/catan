@@ -311,6 +311,8 @@
   .cupchamps{display:flex; flex-wrap:wrap; gap:6px; margin:4px 0 8px;}
   .cupchamp{padding:4px 10px; border-radius:12px; background:rgba(233,196,90,0.14); border:1px solid rgba(233,196,90,0.4); font-size:13px;}
   .cupchamp b{color:#ffd76b;}
+  .quitnote{margin:6px 0 2px; padding:8px 12px; border-radius:10px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,220,170,0.18); font-size:13px; line-height:1.4; color:var(--ink); text-align:left;}
+  .quittag{font-size:11.5px; color:#f0a08f; font-weight:700; margin-left:4px;}
   /* quick tournament (cup) */
   .lobcup{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:2px 2px 4px;}
   .lobcup b{min-width:18px; text-align:center; font-size:17px; color:var(--gold); font-family:-apple-system, system-ui, 'Segoe UI', Roboto, sans-serif;}
@@ -1589,7 +1591,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v171';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v172';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -3760,13 +3762,12 @@
     const wi = state.players.indexOf(winner);
     const wavSrc = seatAvatarSrc(winner, wi);
     const wav = wavSrc ? `<img src="${wavSrc}" alt="">` : '';
-    const rows = state.players
-      .map((p) => ({ p, vp: C.victoryPoints(state, p.color, true) }))
-      .sort((a, b) => b.vp - a.vp);
+    const rows = finishOrder(state);   // the real finish: winner first, a quitter last
     // Domination: the winner held every rival under 10 points (all VP revealed at game end)
-    const domination = rows.length > 1 && rows.every((s) => s.p.color === winner.color || s.vp < 10);
+    // (only a real win in a game to 10+: never after a quit, and a short game's target makes "under 10" meaningless)
+    const domination = rows.length > 1 && !state.quitBy && (state.targetPoints || 10) >= 10 && rows.every((s) => s.p.color === winner.color || s.vp < 10);
     const standings = rows
-      .map(({ p, vp }, i) => `<div class="standing${p.color === winner.color ? ' win' : ''}" style="animation-delay:${(0.5 + i * 0.12).toFixed(2)}s"><span class="nm"><span class="dot" style="background:${PCOLOR[p.color]}"></span>${escapeHtml(p.name)}</span><span class="pvp">${vp} VP</span></div>`)
+      .map(({ p, vp }, i) => `<div class="standing${p.color === winner.color ? ' win' : ''}" style="animation-delay:${(0.5 + i * 0.12).toFixed(2)}s"><span class="nm"><span class="dot" style="background:${PCOLOR[p.color]}"></span>${escapeHtml(p.name)}${p.color === state.quitBy ? ' <span class="quittag">🚪 quit</span>' : ''}</span><span class="pvp">${vp} VP</span></div>`)
       .join('');
     const crown = `<img class="crown" src="assets/hud/crown.png" alt="">`;
     const domBadge = domination ? `<div class="dombadge">DOMINATION<span>every rival held under 10</span></div>` : '';
@@ -3774,6 +3775,7 @@
       <div class="winhead"><div class="winrays"></div>${crown}
         <div class="winava" style="background:${PCOLOR[winner.color]}">${wav}</div></div>
       <h2>${escapeHtml(winner.name)} wins!</h2>
+      ${quitNoteHTML()}
       ${domBadge}
       <div id="ggrow">${ggHTML()}</div>
       <div style="margin:12px 0">${standings}</div>
@@ -3803,7 +3805,7 @@
     showOverlay(`<div class="winwrap${fin ? ' cupfinal' : ''}">
       <div class="winhead"><div class="winrays"></div><img class="crown" src="assets/hud/crown.png" alt="">
         <div class="winava" style="background:${PCOLOR[hero.color]}">${src ? `<img src="${src}" alt="">` : ''}</div>${fin ? '<span class="cuptrophy">🏆</span>' : ''}</div>
-      <h2>${title}</h2>${sub}
+      <h2>${title}</h2>${sub}${quitNoteHTML()}
       <div id="ggrow">${ggHTML()}</div>
       ${cupStandingsHTML()}
       ${fin ? cupAwardsHTML() : awardsHTML()}
@@ -5036,13 +5038,23 @@
   // a seated player quits mid-game (via Leave -> confirm). The leader among those still in wins;
   // the quitter takes a recorded penalty (a loss). We push the ended state through the game row so
   // every client records it the normal way (dedup-safe), then the quitter leaves the table.
+  // when someone walks out mid-game, the points leader among the rest takes the win
+  function quitLeader(s, quitter) {
+    return s.players.filter((p) => p.color !== quitter)
+      .map((p) => ({ p, c: p.color, vp: C.victoryPoints(s, p.color, true) }))
+      .sort((a, b) => b.vp - a.vp)[0] || null;
+  }
+  // the line every results screen shows after a quit, so nobody wonders why the order looks off
+  function quitNoteHTML() {
+    const q = state && state.quitBy; if (!q) return '';
+    const qn = escapeHtml(nameOf(q)), wn = escapeHtml(nameOf(state.winner));
+    return `<div class="quitnote">🚪 <b>${qn}</b> quit mid-game, so ${qn} finishes last and gets a quit on their record. <b>${wn}</b> wins as the points leader.</div>`;
+  }
   async function endByQuit() {
     if (!online || !myColor || !state || state.phase !== 'play') return false;
-    const others = state.players.filter((p) => p.color !== myColor);
-    if (!others.length) return false;   // nobody to hand the win to -> caller falls back to plain abandon
-    const winner = others
-      .map((p) => ({ c: p.color, vp: C.victoryPoints(state, p.color, true) }))
-      .sort((a, b) => b.vp - a.vp)[0].c;
+    const lead = quitLeader(state, myColor);
+    if (!lead) return false;   // nobody to hand the win to -> caller falls back to plain abandon
+    const winner = lead.c;
     const q = myColor;
     ui.svEnding = true;
     state.winner = winner; state.phase = 'ended'; state.quitBy = q; delete state.sv;
@@ -6381,14 +6393,15 @@
     const countSeg = sizes.length > 1
       ? `<div class="seg stseg stcountseg"><button class="${!statsCount ? 'on' : ''}" onclick="CATAN.statsCount(null)">All sizes</button>${sizes.map((n) => `<button class="${statsCount === n ? 'on' : ''}" onclick="CATAN.statsCount(${n})">${n}p</button>`).join('')}</div>`
       : '';
-    const head = `<tr><th>#</th><th>Player</th><th>GP</th><th>W</th><th>Win%</th><th>Pen</th><th></th></tr>`;
+    const head = `<tr><th>#</th><th>Player</th><th>GP</th><th>W</th><th>Win%</th><th>Quits</th><th></th></tr>`;
     const rows = board.map((p, i) => `<tr class="${p.ranked ? '' : 'stfew'}" onclick="CATAN.statsPlayer('${encodeURIComponent(p.key)}')"><td class="str">${p.ranked ? i + 1 : '—'}</td>` +
         `<td class="stn">${escapeHtml(p.name)}</td><td>${p.gp}</td><td class="stw">${p.w}</td><td>${p.winpct}%</td>` +
         `<td class="${p.pen ? 'stpen' : 'stz'}">${p.pen || '—'}</td><td class="stgo">›</td></tr>`).join('');
     const sizeLbl = statsCount ? ' · ' + statsCount + 'p' : '';
     const body = games.length
       ? `<div class="sttbl-wrap"><table class="sttbl"><thead>${head}</thead><tbody>${rows}</tbody></table></div>
-         <div class="stnote">GP games · W wins · Pen quit penalties · Ranked by win %, from ${STATS_MIN_GAMES} games (fewer are greyed out). Tap a player for detail.</div>
+         <div class="stnote">GP games · W wins · Ranked by win %, from ${STATS_MIN_GAMES} games (fewer are greyed out). Tap a player for detail.</div>
+         <div class="stnote"><b>Quits</b> = walked out of a game in progress. The game ends there: the quitter is counted last (a loss) and whoever was leading on points gets the win.</div>
          <h4 class="stsub">Games${selLbl ? ' · ' + selLbl : ''}${sizeLbl}</h4>
          <div class="rglist tall">${recentRowsHTML(games)}</div>`
       : `<p class="muted" style="text-align:center;padding:22px 8px">No ${statsCount ? statsCount + '-player ' : ''}games ${isAll ? 'recorded' : 'in ' + selLbl} yet.</p>`;
@@ -6746,9 +6759,9 @@
     const midGame = endsForAll && state && state.phase === 'play' && state.players.length > 1;
     const ttl = spectator ? 'Stop watching?' : midGame ? 'Quit the game?' : 'Leave game?';
     const sub = spectator ? 'You go back to the lobby. The game keeps going for the players.'
-      : midGame ? 'Quitting ends the game for everyone. You take a penalty — it counts as a loss — and the win goes to whoever is leading.'
+      : midGame ? (() => { const l = quitLeader(state, myColor); return `Quitting ends the game for everyone. You finish last and it goes on your record as a quit (it counts as a loss).${l ? ` ${escapeHtml(l.p.name)} wins as the points leader (${l.vp} VP).` : ''}`; })()
       : endsForAll ? 'This ends the game for everyone.' : 'You will leave this game.';
-    const act = spectator ? 'Leave to lobby' : midGame ? 'Quit — take the penalty' : endsForAll ? 'End game' : 'Leave game';
+    const act = spectator ? 'Leave to lobby' : midGame ? 'Quit · finish last' : endsForAll ? 'End game' : 'Leave game';
     // big, full-width stacked targets — Cancel is the prominent safe action, leave is below
     // seated online players can raise/lower a white flag (concede). Last one standing wins.
     const canFlag = endsForAll && state && state.players.length > 1;
