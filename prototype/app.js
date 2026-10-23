@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v172';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v173';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -4858,7 +4858,14 @@
     sheet: null,     // bottom sheet: 'settings' | 'colour' | 'guard:<code>'
     last: null,      // { at, code, text } the game I just left, shown in its room for a while
     chatSeen: (function () { try { return +localStorage.getItem('catanChatSeen') || 0; } catch (_) { return 0; } })(),
+    roster: [], rosterAt: 0,   // every registered player {name, avatar}, so the offline ones show too
   };
+  // fetch the full player list (the sign-in screen's list), at most every 2 minutes
+  function lvLoadRoster() {
+    if (Date.now() - LV.rosterAt < 120000) return;
+    LV.rosterAt = Date.now();
+    AUTH.list().then((r) => { if (r && r.length) { LV.roster = r; lobbySig = null; renderLobby(); } }, () => { });
+  }
   // Build the frame (header · body · tabs · sheet slot) ONCE per entry. Only an explicit
   // showLobby() calls this; background ticks only refill its parts.
   function lobbyShell() {
@@ -4945,12 +4952,15 @@
         <div class="lvsub">${n ? `${n} friend${n > 1 ? 's are' : ' is'} online. Start a game and they'll see it right here.` : `Nobody else is online right now. Start a game and friends will see it when they open the app.`}</div>
         <button class="btn full lvbig" onclick="CATAN.lvStart()">Start a game</button></div>`;
     }
+    // everyone in the group: online first (with what they're doing), then the rest greyed out as offline
+    const onNames = new Set(LOBBY.online().map((p) => String(p.name || '').toLowerCase()));
+    const offline = LV.roster.filter((r) => r && r.name && !onNames.has(String(r.name).toLowerCase())).sort((a, b) => String(a.name).localeCompare(b.name));
     const faces = others.map((p) => {
       const st = p.away ? 'away' : !p.table ? 'online' : pmode(p) === 'playing' ? 'playing' : 'in a room';
       return `<div class="lvface${p.away ? ' away' : ''}">${faceHTML(p.name, p.avatar, 'md')}<span class="lvdot${p.away || p.table ? ' busy' : ''}"></span><b>${escapeHtml(p.name)}</b><span class="lvfst">${st}</span></div>`;
-    }).join('');
+    }).join('') + offline.map((r) => `<div class="lvface off">${faceHTML(r.name, r.avatar, 'md')}<span class="lvdot off"></span><b>${escapeHtml(r.name)}</b><span class="lvfst">offline</span></div>`).join('');
     return `${hero}${more.join('')}
-      ${others.length ? `<div class="lvsect">ONLINE NOW · ${others.length}</div><div class="lvfaces">${faces}</div>` : ''}
+      ${faces ? `<div class="lvsect">FRIENDS · ${others.length} ONLINE</div><div class="lvfaces">${faces}</div>` : ''}
       <div id="lv-peek"></div>
       <button class="linkbtn lvoff" onclick="CATAN.playOffline()">📱 Play on one phone</button>`;
   }
@@ -5085,13 +5095,14 @@
     const dynEl = $('lobby-dyn'), t = $('title');
     if (!dynEl || !t || t.classList.contains('hidden') || !$('lv-root')) return;   // not the visible screen -> never clobber it
     lvChrome();
+    lvLoadRoster();
     if (LV.tab === 'stats') { if (!dynEl.firstChild) statsScreen(); return; }   // the stats screens draw themselves
     const all = LOBBY.online();
     // the chat tab only re-renders when its join strip changes (a rebuild would steal the keyboard)
     const g = LV.tab === 'chat' && lvGathering()[0];
     const live = LV.tab === 'chat' ? [LOBBY.table, g ? g.code + ':' + g.ready.length : '']
       : all.map((p) => p.id + ':' + (p.table || '') + ':' + pmode(p) + ':' + p.name + ':' + (p.readyAt || 0) + ':' + (p.target || '') + ':' + (p.ws || '') + ':' + (p.created || '') + ':' + (p.pref || '') + ':' + (p.away ? 'a' : '') + ':' + (p.avatar ? 1 : 0)).sort();
-    const sig = JSON.stringify([LV.tab, LV.sheet, LOBBY.table, LOBBY.inProgress, LOBBY.mode, LOBBY.targetPoints, LOBBY.whoStarts, LOBBY.cup, LOBBY.cupRow && LOBBY.cupRow.version, LOBBY.prefGame, LV.last && LV.last.at, live]);
+    const sig = JSON.stringify([LV.tab, LV.sheet, LV.roster.length, LOBBY.table, LOBBY.inProgress, LOBBY.mode, LOBBY.targetPoints, LOBBY.whoStarts, LOBBY.cup, LOBBY.cupRow && LOBBY.cupRow.version, LOBBY.prefGame, LV.last && LV.last.at, live]);
     if (sig === lobbySig) return;
     lobbySig = sig;
     if (LV.tab === 'chat') { dynEl.innerHTML = lvChatHTML(); renderLobbyChat(); }
