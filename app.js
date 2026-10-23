@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v167';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v168';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -2523,7 +2523,7 @@
   //   with the winning shape play on; all same / all three -> draw. 5 draws -> the game picks. The engine
   //   refuses every move until done; the winner is rotated to the front of the turn order.
   const RPS_CHOOSE_MS = 20000;   // the winner's time to choose when to go
-  const RPS_FIRST_MS = 10000, RPS_PICK_MS = 5000, RPS_REVEAL_MS = 3400, RPS_WIN_MS = 2800, RPS_MAX_ROUNDS = 5;   // round 1 is roomier: people are still settling in / turning their phone
+  const RPS_FIRST_MS = 10000, RPS_PICK_MS = 5000, RPS_REVEAL_MS = 3400, RPS_WIN_MS = 4500, RPS_MAX_ROUNDS = 5;   // round 1 is roomier: people are still settling in / turning their phone
   const RPS_HAND = { r: '✊', p: '✋', s: '✌️' }, RPS_BEATS = { r: 's', s: 'p', p: 'r' };
   const rpsLocal = { seen: {}, resolving: {}, winShown: {}, bots: {}, key: null };
   function newRps(players, delayMs) {
@@ -2617,7 +2617,7 @@
   function rpsCornerClass(color) {
     const m = rpsMode(); if (m !== 'reveal' && m !== 'win' && m !== 'choose') return '';
     const R = state.rps;
-    if (m === 'win') return color === R.winner ? ' spin-win' : '';
+    if (m === 'win') return color === state.order[0] ? ' spin-win' : '';   // the player who starts glows (the winner keeps the crown)
     if (m === 'choose') return color === R.winner ? ' rps-won' : '';
     const V = R.reveal; if (!V.winners.length && !V.tooMany) return '';   // a draw: nobody fades
     return V.winners.includes(color) ? ' rps-won' : ' rps-out';
@@ -2725,9 +2725,23 @@
       const w = R.winner, wk = w + ':' + gk;
       key = 'win:' + w;
       if (key !== rpsLocal.key || force) {
-        hideCard(); rpsBoardClear(); renderPanels();
+        rpsBoardClear(); renderPanels();
         rpsCrown(w);
         const first = state.order[0];
+        // everyone gets the same reveal card: what the winner chose, and the turn order it makes
+        let el = root;
+        if (!el) { el = document.createElement('div'); el.id = 'rpsroot'; document.body.appendChild(el); }
+        el.classList.remove('strip');
+        const head = R.chooseAuto ? `👑 ${escapeHtml(nameOf(w))} didn't choose, so goes <span class="rpsn">1st</span>`
+          : `👑 ${escapeHtml(nameOf(w))} chose to go <span class="rpsn">${ORD[(R.position || 1) - 1]}</span>`;
+        const seats = state.order.map((c, i) => {
+          const pl = state.players.find((p) => p.color === c);
+          return `<div class="rpsseat${i === 0 ? ' first' : ''}"><span class="rpsnum">${i + 1}</span>`
+            + `<img src="${seatAvatarSrc(pl, state.players.indexOf(pl))}" alt="" style="border-color:${PCOLOR[c]}" onerror="this.style.visibility='hidden'">`
+            + `<b>${escapeHtml(nameOf(c))}${c === w ? ' 👑' : ''}</b><em>${i === 0 ? 'starts' : '&nbsp;'}</em></div>`;
+        }).join('<span class="rpsarr">→</span>');
+        el.innerHTML = `<div class="rpscard rpsfinal"><div class="rpswinner">${head}</div><div class="rpslineup">${seats}</div></div>`;
+        el.classList.remove('hidden');
         setRpsBanner(R.chooseAuto ? `👑 ${escapeHtml(nameOf(w))} didn't choose, so goes 1st`
           : `👑 ${escapeHtml(nameOf(w))} chose to go ${ORD[(R.position || 1) - 1]}${first !== w ? ` · ${escapeHtml(nameOf(first))} starts` : ''}`);
       }
