@@ -562,6 +562,15 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    only, ignored in a game). Host: toast "👉 Ramzi: Go!" + vibrate; every phone in the room: "👉 Go!" pops on the
    nudger's seat for 6s; host's Start reads "· N want to go" (nudges in the last 2 min). 15s cooldown per player.
 
+20. ✅ **Pinned rematch bar — v180 (2026-10-23).** (Mockups: canvas row "Rematch: a pinned bar nobody can miss".) The vote
+   moved out of the bottom of the results card into `#rmbar`, fixed at the top over the results AND the board
+   (`rmBarModel` / `syncRmBar`, ticked every second; only rewritten when its content changes). States: asked
+   ("Sam wants a rematch · 0:24", chips ✓/…/💤, I'm in / Not this time), you're in ("Waiting for…"), all in (green,
+   "Rematch starting…"), no / lapsed (red, 4s, then slides away). Chime (`trade` sound) + vibrate once per question
+   for whoever didn't ask. Cups between games use the same bar ("🏆 Kay's Cup · game 2 of 3 · Ready for game 2");
+   the card keeps only "End the cup now". "View board" is no longer yanked back to the results. The card's
+   "Rematch? Ask the table" moved up under the winner's name.
+
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
