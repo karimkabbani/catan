@@ -190,8 +190,9 @@
   /* the lobby's tab bar owns the bottom edge (its own padding clears the home indicator / gesture bar),
      so the frame runs to the real bottom instead of stopping a safe-area short */
   #title.lvmode{bottom:0; padding-bottom:0;}
-  /* iPhone home-screen app: size from the top to the measured real screen height (see fitAppHeight) */
-  html.ios-pwa #title.lvmode{bottom:auto; height:var(--app-h, 100%);}
+  /* iPhone home-screen app: the drawable area already ends above the home bar by --vp-gap (see fitAppHeight),
+     so the tab bar only keeps whatever safe-area padding that gap doesn't already cover */
+  html.ios-pwa #title.lvmode .lvtabs{padding-bottom:max(8px, calc(env(safe-area-inset-bottom, 0px) - var(--vp-gap, 0px)));}
   /* safety net: anything that still peeks out under the tab bar matches it, instead of showing a band */
   body.inlobby{background:#120903 !important;}
   .lv{position:relative; flex:1 1 auto; min-height:0; width:100%; max-width:600px; margin:0 auto; display:flex; flex-direction:column; color:var(--ink);
@@ -1599,7 +1600,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v181';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v182';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -5341,12 +5342,16 @@
     setTimeout(fitTitle, 400);
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitTitle).catch(() => {});
   }
+  // iPhone home-screen app: iOS reports (and only draws) a viewport shorter than the real screen by the status-bar
+  // strip, so the bottom of the screen is out of reach. Measure that missing strip; the lobby's tab bar then drops
+  // the safe-area padding it no longer needs (the cut-off line already sits above the home bar), and the strip
+  // below is painted in the tab bar's colour so it reads as one bar down to the edge.
   function fitAppHeight() {
     const root = document.documentElement;
     if (window.navigator.standalone !== true) { root.classList.remove('ios-pwa'); return; }   // only the iOS home-screen app
     const portrait = window.matchMedia ? window.matchMedia('(orientation: portrait)').matches : window.innerHeight > window.innerWidth;
     const h = portrait ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height);
-    root.style.setProperty('--app-h', h + 'px'); root.classList.add('ios-pwa');
+    root.style.setProperty('--vp-gap', Math.max(0, h - window.innerHeight) + 'px'); root.classList.add('ios-pwa');
   }
   fitAppHeight();
   window.addEventListener('resize', fitAppHeight);

@@ -190,8 +190,9 @@
   /* the lobby's tab bar owns the bottom edge (its own padding clears the home indicator / gesture bar),
      so the frame runs to the real bottom instead of stopping a safe-area short */
   #title.lvmode{bottom:0; padding-bottom:0;}
-  /* iPhone home-screen app: size from the top to the measured real screen height (see fitAppHeight) */
-  html.ios-pwa #title.lvmode{bottom:auto; height:var(--app-h, 100%);}
+  /* iPhone home-screen app: the drawable area already ends above the home bar by --vp-gap (see fitAppHeight),
+     so the tab bar only keeps whatever safe-area padding that gap doesn't already cover */
+  html.ios-pwa #title.lvmode .lvtabs{padding-bottom:max(8px, calc(env(safe-area-inset-bottom, 0px) - var(--vp-gap, 0px)));}
   /* safety net: anything that still peeks out under the tab bar matches it, instead of showing a band */
   body.inlobby{background:#120903 !important;}
   .lv{position:relative; flex:1 1 auto; min-height:0; width:100%; max-width:600px; margin:0 auto; display:flex; flex-direction:column; color:var(--ink);
