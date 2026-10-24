@@ -571,6 +571,16 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    the card keeps only "End the cup now". "View board" is no longer yanked back to the results. The card's
    "Rematch? Ask the table" moved up under the winner's name.
 
+21. ✅ **Lobby tab bar flush to the bottom — v181 (2026-10-24).** Karim's iPhone 16 Pro (home-screen app) showed a
+   ~63pt band under the tab bar. Diagnosis from the screenshot: the band = the TOP safe area (status bar / Dynamic
+   Island, ~62pt), not the bottom one (34pt). The iOS home-screen app reports a layout viewport shorter by the
+   status-bar strip, so `position:fixed; inset:0` stops short; the old `bottom: -safe-area-bottom` hack on `#title`
+   corrected by the wrong amount. Fix: `fitAppHeight()` sets `--app-h` from `screen.width/height` (by orientation)
+   only when `navigator.standalone`, and `html.ios-pwa #title.lvmode` sizes from the top to it. In the lobby
+   (`#title.lvmode`) the tab bar owns the bottom edge (bottom:0, no title padding; `.lvtabs` pads by the safe area),
+   so browsers and Android are flush too. Safety net: `body.inlobby` paints the tab-bar colour under it. The game
+   board (landscape: no status bar) and the card screens (sign-in, profile) are untouched.
+
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
