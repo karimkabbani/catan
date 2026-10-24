@@ -580,6 +580,11 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    (`#title.lvmode`) the tab bar owns the bottom edge (bottom:0, no title padding; `.lvtabs` pads by the safe area),
    so browsers and Android are flush too. Safety net: `body.inlobby` paints the tab-bar colour under it. The game
    board (landscape: no status bar) and the card screens (sign-in, profile) are untouched.
+   **v182 correction:** v181's full-height sizing clipped the tab labels: iOS also only DRAWS fixed content down to
+   the short viewport's bottom. Now `fitAppHeight` only measures the gap (`--vp-gap` = real screen height minus
+   `innerHeight`) and the lobby stays inside the drawable area; the tab bar's bottom padding becomes
+   `max(8px, safe-area-bottom - gap)` (the cut-off line already sits above the home bar), and `body.inlobby` paints
+   the strip below in the tab bar's colour so it reads as one bar to the edge.
 
 ### Also shipped since multiplayer (2026-06)
 
