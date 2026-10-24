@@ -186,7 +186,14 @@
   .rpsposbtn span{font-size:11.5px; color:var(--muted);}
   .rpsposbtn:active{transform:scale(0.96); background:rgba(233,196,90,0.22);}
   /* ===== lobby v170: Play · Chat · Stats ===== */
-  #title:has(#lv-root){align-items:stretch;}
+  #title:has(#lv-root), #title.lvmode{align-items:stretch;}
+  /* the lobby's tab bar owns the bottom edge (its own padding clears the home indicator / gesture bar),
+     so the frame runs to the real bottom instead of stopping a safe-area short */
+  #title.lvmode{bottom:0; padding-bottom:0;}
+  /* iPhone home-screen app: size from the top to the measured real screen height (see fitAppHeight) */
+  html.ios-pwa #title.lvmode{bottom:auto; height:var(--app-h, 100%);}
+  /* safety net: anything that still peeks out under the tab bar matches it, instead of showing a band */
+  body.inlobby{background:#120903 !important;}
   .lv{position:relative; flex:1 1 auto; min-height:0; width:100%; max-width:600px; margin:0 auto; display:flex; flex-direction:column; color:var(--ink);
     font-family:-apple-system, system-ui, 'Segoe UI', Roboto, sans-serif;}
   .lvhdr{display:flex; align-items:center; gap:10px; padding:12px 16px 8px; min-height:54px;}
@@ -197,7 +204,7 @@
   .lvme{margin-left:auto; padding:0; border:none; background:none; cursor:pointer;}
   .lvme .face{width:36px; height:36px; border:2px solid var(--gold-edge);}
   .lvbody{flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:6px 16px 16px; display:flex; flex-direction:column; gap:14px;}
-  .lvtabs{display:flex; border-top:1px solid rgba(255,220,170,0.14); background:rgba(18,9,3,0.92); padding:6px 0 calc(8px + env(safe-area-inset-bottom, 0px));}
+  .lvtabs{display:flex; border-top:1px solid rgba(255,220,170,0.14); background:#120903; padding:6px 0 calc(8px + env(safe-area-inset-bottom, 0px));}
   .lvtab{flex:1; display:flex; flex-direction:column; align-items:center; gap:2px; background:none; border:none; color:#9c8a70; font-size:11px; font-weight:700; padding:4px 0; cursor:pointer; font-family:inherit;}
   .lvtab i{font-style:normal; font-size:22px; line-height:1; position:relative;}
   .lvtab.on{color:#ffd76b;}
@@ -1592,7 +1599,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v180';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v181';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -5334,6 +5341,17 @@
     setTimeout(fitTitle, 400);
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitTitle).catch(() => {});
   }
+  function fitAppHeight() {
+    const root = document.documentElement;
+    if (window.navigator.standalone !== true) { root.classList.remove('ios-pwa'); return; }   // only the iOS home-screen app
+    const portrait = window.matchMedia ? window.matchMedia('(orientation: portrait)').matches : window.innerHeight > window.innerWidth;
+    const h = portrait ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height);
+    root.style.setProperty('--app-h', h + 'px'); root.classList.add('ios-pwa');
+  }
+  fitAppHeight();
+  window.addEventListener('resize', fitAppHeight);
+  window.addEventListener('orientationchange', () => setTimeout(fitAppHeight, 80));
+  window.addEventListener('pageshow', fitAppHeight);
   window.addEventListener('resize', fitTitle);
   window.addEventListener('load', scheduleFit);
   window.addEventListener('pageshow', scheduleFit);            // PWA resume / bfcache restore
@@ -6299,6 +6317,7 @@
   function lobbyShell() {
     const t = $('title');
     t.innerHTML = `<div class="lv" id="lv-root"><div class="lvhdr" id="lv-hdr"></div><div class="lvbody" id="lobby-dyn"></div><nav class="lvtabs" id="lv-tabs"></nav><div id="lv-sheet"></div></div>`;
+    t.classList.add('lvmode'); document.body.classList.add('inlobby');
     t.classList.remove('hidden'); hideOverlay(); stopMusic(); document.body.classList.remove('ingame');
     lobbySig = null; LV.hdrHTML = LV.tabsHTML = null;
   }
@@ -6764,7 +6783,7 @@
   };
 
   function titleCard(html) {
-    const t = $('title');
+    const t = $('title'); t.classList.remove('lvmode'); document.body.classList.remove('inlobby');
     const banner = (ASSETS.logo)
       ? `<div class="t-banner"><img src="${ASSETS.logo}" alt="CATAN"></div>`
       : `<div class="t-banner"><h2 style="color:#e9c45a;text-align:center;line-height:30vh;font-family:var(--serif)">CATAN</h2></div>`;
@@ -6807,6 +6826,7 @@
     ['leavetab', 'radialtab', 'settingstab', 'dicetab', 'trophytab', 'dicereveal', 'toast', 'confirmbar', 'countdown'].forEach((id) => { const e = $(id); if (e) e.classList.add('hidden'); });
     const rr = $('radialroot'); if (rr) { rr.classList.remove('open'); rr.classList.add('hidden'); }
     document.querySelectorAll('.flyres, .robberdrag, .emofloat, .emocombo, .emothrow, .emosplat, .emoghost, #cuppill, #rmbar').forEach((el) => el.remove());
+    document.body.classList.remove('inlobby');
     closeEmojiTray(); hideChip(); const mp = $('momentpill'); if (mp) mp.classList.add('hidden'); const rpr = $('rpsroot'); if (rpr) rpr.classList.add('hidden'); rpsBoardClear();
     document.body.classList.remove('ingame', 'trading', 'gameover');
     hideOverlay();

@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v180';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v181';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -3747,6 +3747,17 @@
     setTimeout(fitTitle, 400);
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitTitle).catch(() => {});
   }
+  function fitAppHeight() {
+    const root = document.documentElement;
+    if (window.navigator.standalone !== true) { root.classList.remove('ios-pwa'); return; }   // only the iOS home-screen app
+    const portrait = window.matchMedia ? window.matchMedia('(orientation: portrait)').matches : window.innerHeight > window.innerWidth;
+    const h = portrait ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height);
+    root.style.setProperty('--app-h', h + 'px'); root.classList.add('ios-pwa');
+  }
+  fitAppHeight();
+  window.addEventListener('resize', fitAppHeight);
+  window.addEventListener('orientationchange', () => setTimeout(fitAppHeight, 80));
+  window.addEventListener('pageshow', fitAppHeight);
   window.addEventListener('resize', fitTitle);
   window.addEventListener('load', scheduleFit);
   window.addEventListener('pageshow', scheduleFit);            // PWA resume / bfcache restore
@@ -4712,6 +4723,7 @@
   function lobbyShell() {
     const t = $('title');
     t.innerHTML = `<div class="lv" id="lv-root"><div class="lvhdr" id="lv-hdr"></div><div class="lvbody" id="lobby-dyn"></div><nav class="lvtabs" id="lv-tabs"></nav><div id="lv-sheet"></div></div>`;
+    t.classList.add('lvmode'); document.body.classList.add('inlobby');
     t.classList.remove('hidden'); hideOverlay(); stopMusic(); document.body.classList.remove('ingame');
     lobbySig = null; LV.hdrHTML = LV.tabsHTML = null;
   }
@@ -5177,7 +5189,7 @@
   };
 
   function titleCard(html) {
-    const t = $('title');
+    const t = $('title'); t.classList.remove('lvmode'); document.body.classList.remove('inlobby');
     const banner = (ASSETS.logo)
       ? `<div class="t-banner"><img src="${ASSETS.logo}" alt="CATAN"></div>`
       : `<div class="t-banner"><h2 style="color:#e9c45a;text-align:center;line-height:30vh;font-family:var(--serif)">CATAN</h2></div>`;
@@ -5220,6 +5232,7 @@
     ['leavetab', 'radialtab', 'settingstab', 'dicetab', 'trophytab', 'dicereveal', 'toast', 'confirmbar', 'countdown'].forEach((id) => { const e = $(id); if (e) e.classList.add('hidden'); });
     const rr = $('radialroot'); if (rr) { rr.classList.remove('open'); rr.classList.add('hidden'); }
     document.querySelectorAll('.flyres, .robberdrag, .emofloat, .emocombo, .emothrow, .emosplat, .emoghost, #cuppill, #rmbar').forEach((el) => el.remove());
+    document.body.classList.remove('inlobby');
     closeEmojiTray(); hideChip(); const mp = $('momentpill'); if (mp) mp.classList.add('hidden'); const rpr = $('rpsroot'); if (rpr) rpr.classList.add('hidden'); rpsBoardClear();
     document.body.classList.remove('ingame', 'trading', 'gameover');
     hideOverlay();
