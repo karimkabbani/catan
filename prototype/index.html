@@ -186,7 +186,14 @@
   .rpsposbtn span{font-size:11.5px; color:var(--muted);}
   .rpsposbtn:active{transform:scale(0.96); background:rgba(233,196,90,0.22);}
   /* ===== lobby v170: Play · Chat · Stats ===== */
-  #title:has(#lv-root){align-items:stretch;}
+  #title:has(#lv-root), #title.lvmode{align-items:stretch;}
+  /* the lobby's tab bar owns the bottom edge (its own padding clears the home indicator / gesture bar),
+     so the frame runs to the real bottom instead of stopping a safe-area short */
+  #title.lvmode{bottom:0; padding-bottom:0;}
+  /* iPhone home-screen app: size from the top to the measured real screen height (see fitAppHeight) */
+  html.ios-pwa #title.lvmode{bottom:auto; height:var(--app-h, 100%);}
+  /* safety net: anything that still peeks out under the tab bar matches it, instead of showing a band */
+  body.inlobby{background:#120903 !important;}
   .lv{position:relative; flex:1 1 auto; min-height:0; width:100%; max-width:600px; margin:0 auto; display:flex; flex-direction:column; color:var(--ink);
     font-family:-apple-system, system-ui, 'Segoe UI', Roboto, sans-serif;}
   .lvhdr{display:flex; align-items:center; gap:10px; padding:12px 16px 8px; min-height:54px;}
@@ -197,7 +204,7 @@
   .lvme{margin-left:auto; padding:0; border:none; background:none; cursor:pointer;}
   .lvme .face{width:36px; height:36px; border:2px solid var(--gold-edge);}
   .lvbody{flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:6px 16px 16px; display:flex; flex-direction:column; gap:14px;}
-  .lvtabs{display:flex; border-top:1px solid rgba(255,220,170,0.14); background:rgba(18,9,3,0.92); padding:6px 0 calc(8px + env(safe-area-inset-bottom, 0px));}
+  .lvtabs{display:flex; border-top:1px solid rgba(255,220,170,0.14); background:#120903; padding:6px 0 calc(8px + env(safe-area-inset-bottom, 0px));}
   .lvtab{flex:1; display:flex; flex-direction:column; align-items:center; gap:2px; background:none; border:none; color:#9c8a70; font-size:11px; font-weight:700; padding:4px 0; cursor:pointer; font-family:inherit;}
   .lvtab i{font-style:normal; font-size:22px; line-height:1; position:relative;}
   .lvtab.on{color:#ffd76b;}
