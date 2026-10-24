@@ -620,6 +620,28 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    mangled `catan-standalone.html` (the live site loads app.js directly and was unaffected). Now uses function
    replacers.
 
+25. ✅ **Bug sweep — v188 (2026-10-25).** Lint + three parallel code reviews (sync/votes, lobby, who-starts/stats). Fixed:
+   - `svUpdate` now applies the merged server state locally after a write (and when its mutation is a no-op but the
+     server is newer); own echoes are deduped by version, so near-simultaneous taps (rematch/quit votes, GG, RPS
+     picks) used to vanish on the second phone. Only applied if the phone is still in that game.
+   - Quits: the quitter goes into `state.left` (an honest "rematch isn't possible"), a quit stops a cup
+     (`cup.stop`), quit-vote voters exclude anyone who left, an empty voter list settles by the near-win rule,
+     leaving the results (`markLeft`) re-checks the vote (and records first if it now counts), the 5-min timeout
+     settles on the server (no local pre-record), and `cupHist` skips a quit game until it's counted.
+   - Lobby: `cupRow` comparison (null vs undefined) rebuilt the room every poll; Start has an in-flight guard and a
+     version-guarded write (no double boards); `LOBBY.created` resets unless entering the room you created;
+     phones asleep (`away`) aren't dealt in; reopening during a paused cup returns you to that table
+     (`catanLastTable`); sheets don't rebuild while you type; lobby chat first-loads the newest 50; own message
+     not duplicated.
+   - Stats: cups carry `fin`; only finished cups count as "won" / in the tally; others say "unfinished".
+   - Who-starts: `rpsMode` returns 'gone' once setup has begun (no ceremony replay after reopening).
+   - Hardening: `escapeHtml` escapes `'`; `faceHTML` only accepts image data URLs / `assets/` paths (`safeImg`);
+     table codes must match `^[A-Z0-9]{4,6}$` (`safeCode`).
+   - Not fixed (minor): ghost click after `data-nav` pointerup, phone-clock skew on deadlines, silent poker-swap
+     failure after 6 retries, settings/chat-read marker shared across users on one phone, dead code (`actionsBar`,
+     `recentRowsHTML`, `cameraPanTo`, `cinematicHex`…).
+   - Repo `CLAUDE.md` added so cloud/phone Claude Code sessions follow the same rules.
+
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
