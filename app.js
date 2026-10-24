@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v181';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v182';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -3747,12 +3747,16 @@
     setTimeout(fitTitle, 400);
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitTitle).catch(() => {});
   }
+  // iPhone home-screen app: iOS reports (and only draws) a viewport shorter than the real screen by the status-bar
+  // strip, so the bottom of the screen is out of reach. Measure that missing strip; the lobby's tab bar then drops
+  // the safe-area padding it no longer needs (the cut-off line already sits above the home bar), and the strip
+  // below is painted in the tab bar's colour so it reads as one bar down to the edge.
   function fitAppHeight() {
     const root = document.documentElement;
     if (window.navigator.standalone !== true) { root.classList.remove('ios-pwa'); return; }   // only the iOS home-screen app
     const portrait = window.matchMedia ? window.matchMedia('(orientation: portrait)').matches : window.innerHeight > window.innerWidth;
     const h = portrait ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height);
-    root.style.setProperty('--app-h', h + 'px'); root.classList.add('ios-pwa');
+    root.style.setProperty('--vp-gap', Math.max(0, h - window.innerHeight) + 'px'); root.classList.add('ios-pwa');
   }
   fitAppHeight();
   window.addEventListener('resize', fitAppHeight);
