@@ -600,6 +600,14 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
      last-10 W/L strip, tiles (avg place, streak, cups, Longest Road, Largest Army, times 2nd), head to head with split
      bars. Numbers use the system font (the display font draws 1 like a Roman I).
 
+23. ✅ **Tournament names — v184–v186 (2026-10-24).** v184: Stats shows the year ("All-time · 2026 · Oct", headings
+   "October 2026"). v185: cups get a random name from the group's slang (`CUP_NAMES`, `pickCupName` skips the phone's
+   last 6), editable in the settings sheet (+ 🎲 reroll); "3-game tourney · Oct 24" shows underneath (`cupSub`,
+   `cup.at`). Old "X's Cup" names display as "N-game tourney" (`cupTitle`). The 24 Oct cup was renamed in the DB to
+   "First Tourney" (jsonb update of its 3 `game_results` rows, 2026-10-24). v186: a name already used gets the next
+   number on Start ("Yalla Classic #2"; `uniqueCupName`, checked against `STATS.cups()`, case-insensitive).
+   Also 2026-10-24: Karim deleted the 14 Kay-vs-test games himself (SQL editor); the "test" player stays.
+
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
