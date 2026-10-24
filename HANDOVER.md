@@ -608,6 +608,18 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    number on Start ("Yalla Classic #2"; `uniqueCupName`, checked against `STATS.cups()`, case-insensitive).
    Also 2026-10-24: Karim deleted the 14 Kay-vs-test games himself (SQL editor); the "test" player stays.
 
+24. ✅ **Poker hand for who starts — v187 (2026-10-25).** (Mockups: canvas row "Poker hand".) Third "Who starts"
+   option (`whoStarts: 'poker'`; presence `ws 'poker'`, cups `cup:N:p`). Rides the RPS machinery: `state.rps` with
+   `kind: 'poker'`, `deck`, `hands`; `picks[c]` = 'k' kept / 's<N>' swapped. 15s (`POKER_MS`) to tap up to 3 cards
+   and swap once (`pokerSwap` draws from the shared deck inside one `rpsUpdate`, so simultaneous swaps can't clash);
+   undecided players keep their hand. `pkScore` ranks 5-card hands (A-2-3-4-5 straight, kickers); exact ties deal
+   again for just the tied players (5 rounds max, then random). Reveal 5.2s with each hand beside its corner
+   (`pkBoard`), then the same winner-chooses-position flow. CSS-drawn cards (`.pkc`). Old clients can't render a poker
+   start: everyone should be on v187.
+   **Build fix:** `build.mjs` inlined app.js with a string `replace`, so `$&` in app.js (v186's `uniqueCupName`)
+   mangled `catan-standalone.html` (the live site loads app.js directly and was unaffected). Now uses function
+   replacers.
+
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
