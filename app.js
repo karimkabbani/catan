@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v185';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v186';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -2836,6 +2836,14 @@
     const name = k && typeof k === 'object' ? k.name : k, g = k && typeof k === 'object' ? k.games : games;
     return !name || /'s Cup$/.test(name) ? `${g || 3}-game tourney` : name;
   }
+  // a name already used by a past cup gets the next number: "Yalla Classic", "Yalla Classic #2", "#3"…
+  function uniqueCupName(name) {
+    const base = String(name).replace(/ #\d+$/, '').trim();
+    const esc = base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), re = new RegExp('^' + esc + '(?: #(\\d+))?$', 'i');
+    let max = 0;
+    STATS.cups().forEach((c) => { const m = String(c.name || '').match(re); if (m) max = Math.max(max, m[1] ? +m[1] : 1); });
+    return max ? base + ' #' + (max + 1) : base;
+  }
   function cupWhen(at) { if (!at) return ''; const d = new Date(at); return MONTH_ABBR[d.getMonth()] + ' ' + d.getDate(); }
   function cupSub(k) { return `${k.games}-game tourney${k.at ? ' · ' + cupWhen(k.at) : ''}`; }
   // finishing order: the actual winner is ALWAYS 1st (a surrender winner may not lead on VP), a
@@ -4406,7 +4414,10 @@
       try { gstate = C.createGame({ id: 'table', players: players.map((p) => ({ color: p.color, name: p.name })), seed: (Math.random() * 1e9) | 0, targetPoints: target, randomFirst: true }); }
       catch (e) { toast('Start failed: ' + e.message); return; }
       gstate.whoStarts = this.whoStarts;
-      if (this.cup) gstate.cup = { id: Math.random().toString(36).slice(2, 10), name: (this.cupName || '').trim() || pickCupName(), games: this.cup, n: 1, host: host.id, hist: [], at: Date.now() };
+      if (this.cup) {
+        try { await STATS.load(); } catch (_) { }   // past cups, so a repeated name gets its number
+        gstate.cup = { id: Math.random().toString(36).slice(2, 10), name: uniqueCupName((this.cupName || '').trim() || pickCupName()), games: this.cup, n: 1, host: host.id, hist: [], at: Date.now() };
+      }
       if (gstate.whoStarts === 'rps') gstate.rps = newRps(gstate.players, 4500);   // the 3·2·1 countdown runs first
       const c = NET.init();
       // never start OVER a live game — a stale ready-screen (slow fetch, resumed PWA) must not
@@ -4456,7 +4467,7 @@
       gstate.whoStarts = (state && state.whoStarts) || 'random';   // a rematch keeps the table's choice
       if (state && state.cup) {   // next game of the cup carries the results so far; after the final, "rematch the cup" starts a fresh one
         const fin = cupFinal(state);
-        gstate.cup = Object.assign({}, state.cup, { n: fin ? 1 : state.cup.n + 1, hist: fin ? [] : cupHist(state), stop: false }, fin ? { id: Math.random().toString(36).slice(2, 10), name: pickCupName(state.cup.name), at: Date.now() } : {});
+        gstate.cup = Object.assign({}, state.cup, { n: fin ? 1 : state.cup.n + 1, hist: fin ? [] : cupHist(state), stop: false }, fin ? { id: Math.random().toString(36).slice(2, 10), name: uniqueCupName(pickCupName(state.cup.name)), at: Date.now() } : {});
       }
       if (gstate.whoStarts === 'rps') gstate.rps = newRps(gstate.players, 6500);   // after the 5·4·3·2·1
       const prevV = NET.version || 1;
