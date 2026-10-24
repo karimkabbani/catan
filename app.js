@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v183';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v184';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -4690,12 +4690,12 @@
     if (statsCount && !sizes.includes(statsCount)) statsCount = null;
     const games = statsCount ? seasonGames.filter((g) => g.standings.length === statsCount) : seasonGames;
     const board = STATS.board(games);
-    const selLbl = isAll ? 'All-time' : STATS.seasonLabel(season);
+    const selLbl = isAll ? 'All-time' : MONTH_FULL[STATS.monthShort(season)] + ' ' + season.split('-')[0];   // always with the year
     // chips: All-time + months (one year), or All-time + years and that year's months
     const years = STATS.years().slice().reverse();
     const chip = (on, js, lbl) => `<button class="st2chip${on ? ' on' : ''}" onclick="${js}">${lbl}</button>`;
     let chips;
-    if (years.length <= 1) chips = chip(isAll, "CATAN.statsSeason('all')", 'All-time') + STATS.seasons().map((ym) => chip(!isAll && season === ym, `CATAN.statsSeason('${ym}')`, STATS.monthShort(ym))).join('');
+    if (years.length <= 1) chips = chip(isAll, "CATAN.statsSeason('all')", 'All-time') + `<span class="st2yr">${years[0] || ''}</span>` + STATS.seasons().map((ym) => chip(!isAll && season === ym, `CATAN.statsSeason('${ym}')`, STATS.monthShort(ym))).join('');
     else {
       const selYear = isAll ? years[years.length - 1] : +season.split('-')[0];
       chips = chip(isAll, "CATAN.statsSeason('all')", 'All-time') + years.map((y) => chip(!isAll && selYear === y, `CATAN.statsYear(${y})`, y)).join('')
