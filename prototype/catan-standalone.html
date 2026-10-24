@@ -424,6 +424,42 @@
   .st2sc .pos{color:#a8e09a;} .st2sc .neg{color:#f0a08f;}
   .st2sb{width:110px; height:6px; border-radius:3px; background:rgba(230,91,79,0.55); overflow:hidden;}
   .st2sb i{display:block; height:100%; background:#a8e09a;}
+  /* ===== poker hand (who starts) ===== */
+  .pkc{position:relative; display:inline-block; flex:none; width:64px; height:90px; border-radius:9px; box-sizing:border-box;
+    background:linear-gradient(160deg, #fffef9 0%, #f6efdf 60%, #ece1c8 100%); border:1px solid rgba(60,40,10,0.35);
+    box-shadow:0 1px 0 rgba(255,255,255,0.8) inset, 0 6px 14px rgba(0,0,0,0.45); color:#1c1c22; font-family:Georgia, 'Times New Roman', serif;
+    transition:transform .16s cubic-bezier(.3,1.4,.5,1), box-shadow .16s; cursor:pointer; -webkit-user-select:none; user-select:none;}
+  .pkc.red{color:#b5121b;}
+  .pkc .pkr{position:absolute; left:6px; top:5px; display:flex; flex-direction:column; align-items:center; line-height:0.95; font-weight:700; font-size:17px; letter-spacing:-0.5px;}
+  .pkc .pkr i{font-style:normal; font-size:13px;}
+  .pkc .pkr.pkb{left:auto; top:auto; right:6px; bottom:5px; transform:rotate(180deg);}
+  .pkc .pks{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:32px; line-height:1;}
+  .pkc.sel{transform:translateY(-14px); box-shadow:0 0 0 3px #ffd76b, 0 12px 20px rgba(0,0,0,0.5);}
+  .pkc.sel::after{content:'SWAP'; position:absolute; left:50%; bottom:-21px; transform:translateX(-50%); font-family:-apple-system, system-ui, sans-serif; font-size:10.5px; font-weight:800; letter-spacing:1.2px; color:#ffd76b;}
+  .pkc.locked{cursor:default;}
+  .pkc.back{background:#7d1c19; background-image:repeating-linear-gradient(45deg, rgba(255,215,107,0.16) 0 3px, transparent 3px 8px), repeating-linear-gradient(-45deg, rgba(255,215,107,0.16) 0 3px, transparent 3px 8px);
+    border:2px solid #f3e6c8; box-shadow:0 0 0 1px rgba(0,0,0,0.4), 0 3px 6px rgba(0,0,0,0.5);}
+  .pkc.sm{width:30px; height:42px; border-radius:5px; cursor:default; box-shadow:0 2px 5px rgba(0,0,0,0.5);}
+  .pkc.sm .pkr{left:3px; top:2px; font-size:11.5px;} .pkc.sm .pkr i{font-size:9px;}
+  .pkc.sm .pkr.pkb, .pkc.sm .pks{display:none;}
+  .pkcard{width:min(440px, 94vw);}
+  .pkrow{display:flex; gap:9px; justify-content:center; padding:12px 0 18px;}
+  .pkhand{font-size:12.5px; font-weight:800; color:#a8e09a; background:rgba(120,200,110,0.14); border:1px solid rgba(168,224,154,0.5); border-radius:10px; padding:2px 9px; white-space:nowrap;}
+  .pkinfo{width:26px; height:26px; border-radius:50%; border:1px solid #7a5c24; background:rgba(0,0,0,0.3); color:var(--gold); font-size:14px; font-weight:800; cursor:pointer; padding:0;}
+  .pkbtns{width:100%; display:flex;}
+  .btn.pkgo{flex:1; padding:12px; font-size:16px;}
+  .btn.pkgo[disabled]{opacity:0.6;}
+  .pkwait{font-size:13.5px; font-weight:700; color:#e9dcc0; padding:6px 0;}
+  .pklegend{font-size:12px; line-height:1.45; color:#e9dcc0; background:rgba(0,0,0,0.3); border-radius:10px; padding:7px 10px; text-align:center;}
+  .pkb{position:fixed; z-index:36; display:flex; flex-direction:column; align-items:center; gap:5px; pointer-events:none; animation:pkin .45s cubic-bezier(.3,1.5,.5,1);}
+  @keyframes pkin{from{transform:scale(0.6) translateY(10px); opacity:0;} to{transform:none; opacity:1;}}
+  .pkfan{display:flex;}
+  .pkfan .pkc{margin-left:-7px;} .pkfan .pkc:first-child{margin-left:0;}
+  .pkb.won .pkc{box-shadow:0 0 0 2px #ffd76b, 0 2px 6px rgba(0,0,0,0.5);}
+  .pkb.lost{opacity:0.5; filter:grayscale(0.5);}
+  .pkname{font-family:-apple-system, system-ui, sans-serif; font-size:11.5px; font-weight:800; color:#f3e6c8; background:rgba(0,0,0,0.65); border-radius:9px; padding:2px 8px; white-space:nowrap;}
+  .pkname.ok{color:#a8e09a;}
+  .pkname.w{background:#ffd76b; color:#3a2400;}
   /* quick tournament (cup) */
   .lobcup{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:2px 2px 4px;}
   .lobcup b{min-width:18px; text-align:center; font-size:17px; color:var(--gold); font-family:-apple-system, system-ui, 'Segoe UI', Roboto, sans-serif;}
@@ -1488,7 +1524,7 @@
   #rotate .r-land, #rotate .r-port{display:none;}
   @media (orientation:portrait) and (pointer:coarse){   /* in a game + portrait -> rotate to landscape */
     body.ingame #stage, body.ingame #overlay, body.ingame #confirmbar, body.ingame #radialroot,
-    body.ingame #radialtab, body.ingame #dicetab, body.ingame #trophytab, body.ingame #emotray, body.ingame #reactchip, body.ingame .emoghost, body.ingame #rpsroot, body.ingame .rpsb, body.ingame .rpscrown, body.ingame #cuppill, body.ingame #rmbar, body.ingame #settingstab, body.ingame #dicereveal, body.ingame #toast, body.ingame #tradeprompt{display:none !important;}
+    body.ingame #radialtab, body.ingame #dicetab, body.ingame #trophytab, body.ingame #emotray, body.ingame #reactchip, body.ingame .emoghost, body.ingame #rpsroot, body.ingame .rpsb, body.ingame .rpscrown, body.ingame #cuppill, body.ingame #rmbar, body.ingame .pkb, body.ingame #settingstab, body.ingame #dicereveal, body.ingame #toast, body.ingame #tradeprompt{display:none !important;}
     body.ingame #rotate{display:flex !important; position:fixed; inset:0; z-index:200; flex-direction:column; align-items:center; justify-content:center;
       gap:16px; background:radial-gradient(120% 120% at 50% 40%, #1f4f74, #0a2336); text-align:center; padding:24px;}
     body.ingame #rotate .r-land{display:block;}
@@ -1675,7 +1711,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v186';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v187';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -4230,10 +4266,75 @@
   const RPS_CHOOSE_MS = 20000;   // the winner's time to choose when to go
   const RPS_FIRST_MS = 10000, RPS_PICK_MS = 5000, RPS_REVEAL_MS = 3400, RPS_WIN_MS = 4500, RPS_MAX_ROUNDS = 5;   // round 1 is roomier: people are still settling in / turning their phone
   const RPS_HAND = { r: '✊', p: '✋', s: '✌️' }, RPS_BEATS = { r: 's', s: 'p', p: 'r' };
-  const rpsLocal = { seen: {}, resolving: {}, winShown: {}, allIn: {}, key: null };
+  const rpsLocal = { seen: {}, resolving: {}, winShown: {}, allIn: {}, key: null, sel: new Set(), swapping: false, legend: false };
   const RPS_ALLIN_MS = 1000;   // everyone's picked -> reveal after this beat instead of waiting out the clock
-  function newRps(players, delayMs) {
-    return { round: 1, alive: players.map((p) => p.color), picks: {}, deadline: Date.now() + delayMs + RPS_FIRST_MS };
+  function newRps(players, delayMs, kind) {
+    const alive = players.map((p) => p.color);
+    if (kind === 'poker') return Object.assign({ kind: 'poker', round: 1, alive, picks: {}, deadline: Date.now() + delayMs + POKER_MS }, pkDeal(alive));
+    return { round: 1, alive, picks: {}, deadline: Date.now() + delayMs + RPS_FIRST_MS };
+  }
+  // ---- poker hand: 5 cards each, one swap of up to 3, best hand starts (same reveal/choose flow as RPS) ----
+  // cards are 'Kh' style: rank 23456789TJQKA, suit s h d c. picks[color] = 'k' (kept) or 's<N>' (swapped N).
+  const POKER_MS = 15000, POKER_REVEAL_MS = 5200, PK_RANKS = '23456789TJQKA';
+  const PK_SUIT = { s: '♠', h: '♥', d: '♦', c: '♣' };
+  const PK_RNAME = { T: '10', J: 'J', Q: 'Q', K: 'K', A: 'A' };
+  const PK_PLURAL = { 2: 'Twos', 3: 'Threes', 4: 'Fours', 5: 'Fives', 6: 'Sixes', 7: 'Sevens', 8: 'Eights', 9: 'Nines', 10: 'Tens', 11: 'Jacks', 12: 'Queens', 13: 'Kings', 14: 'Aces' };
+  const PK_ONE = { 2: 'Two', 3: 'Three', 4: 'Four', 5: 'Five', 6: 'Six', 7: 'Seven', 8: 'Eight', 9: 'Nine', 10: 'Ten', 11: 'Jack', 12: 'Queen', 13: 'King', 14: 'Ace' };
+  function pkDeal(colors) {
+    const deck = [];
+    for (const r of PK_RANKS) for (const su of 'shdc') deck.push(r + su);
+    for (let i = deck.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [deck[i], deck[j]] = [deck[j], deck[i]]; }
+    const hands = {}; colors.forEach((c) => { hands[c] = deck.splice(0, 5); });
+    return { deck, hands };
+  }
+  // score a 5-card hand: [category, tiebreak ranks…] compared left to right (higher wins)
+  function pkScore(cards) {
+    const v = cards.map((c) => PK_RANKS.indexOf(c[0]) + 2).sort((a, b) => b - a), suits = cards.map((c) => c[1]);
+    const flush = suits.every((x) => x === suits[0]);
+    const uniq = [...new Set(v)];
+    let straightHi = 0;
+    if (uniq.length === 5 && v[0] - v[4] === 4) straightHi = v[0];
+    if (uniq.length === 5 && v[0] === 14 && v[1] === 5) straightHi = 5;   // A-2-3-4-5
+    const cnt = {}; v.forEach((x) => { cnt[x] = (cnt[x] || 0) + 1; });
+    const groups = Object.keys(cnt).map(Number).sort((a, b) => cnt[b] - cnt[a] || b - a), shape = groups.map((g) => cnt[g]).join('');
+    if (straightHi && flush) return [8, straightHi];
+    if (shape === '41') return [7].concat(groups);
+    if (shape === '32') return [6].concat(groups);
+    if (flush) return [5].concat(v);
+    if (straightHi) return [4, straightHi];
+    if (shape === '311') return [3].concat(groups);
+    if (shape === '221') return [2].concat(groups);
+    if (shape === '2111') return [1].concat(groups);
+    return [0].concat(v);
+  }
+  function pkCmp(a, b) { for (let i = 0; i < Math.max(a.length, b.length); i++) { const d = (a[i] || 0) - (b[i] || 0); if (d) return d; } return 0; }
+  function pkName(sc) {
+    const [cat, a, b] = sc;
+    return cat === 8 ? (a === 14 ? 'Royal flush' : 'Straight flush') : cat === 7 ? 'Four ' + PK_PLURAL[a] : cat === 6 ? 'Full house'
+      : cat === 5 ? 'Flush' : cat === 4 ? 'Straight' : cat === 3 ? 'Three ' + PK_PLURAL[a] : cat === 2 ? 'Two pair' : cat === 1 ? 'Pair of ' + PK_PLURAL[a] : PK_ONE[a] + ' high';
+  }
+  // "wins with a full house" / "a pair of Kings" / "Three Kings" / "Two pair" / "Ace high"
+  function pkArticle(name) { return /^(Full|Flush|Straight|Royal|Pair)/.test(name) ? 'a ' + name.charAt(0).toLowerCase() + name.slice(1) : name; }
+  function pkCardHTML(c, cls, extra) {
+    const red = c[1] === 'h' || c[1] === 'd', r = PK_RNAME[c[0]] || c[0];
+    return `<span class="pkc${red ? ' red' : ''}${cls ? ' ' + cls : ''}"${extra || ''}><span class="pkr">${r}<i>${PK_SUIT[c[1]]}</i></span><span class="pks">${PK_SUIT[c[1]]}</span><span class="pkr pkb">${r}<i>${PK_SUIT[c[1]]}</i></span></span>`;
+  }
+  // my swap: draw replacements from the shared deck in one atomic write (two players swapping at once can't clash)
+  function pokerSwap() {
+    const R = state && state.rps; if (!R || R.kind !== 'poker' || R.done || !myColor || !R.alive.includes(myColor) || R.picks[myColor] || Date.now() > R.deadline) return;
+    const idx = [...(rpsLocal.sel || [])].filter((i) => i >= 0 && i < 5).slice(0, 3), round = R.round, me = myColor;
+    rpsLocal.sel = new Set(); rpsLocal.swapping = true; syncRps(true);
+    rpsUpdate((st) => {
+      const Q = st.rps; if (!Q || Q.done || Q.round !== round || Q.picks[me]) return false;
+      idx.forEach((i) => { if (Q.deck.length) Q.hands[me][i] = Q.deck.pop(); });
+      Q.picks[me] = idx.length ? 's' + idx.length : 'k';
+    }).then(() => { rpsLocal.swapping = false; syncRps(true); }, () => { rpsLocal.swapping = false; syncRps(true); });
+  }
+  function pokerToggle(i) {
+    const R = state && state.rps; if (!R || R.picks[myColor]) return;
+    const sel = rpsLocal.sel || (rpsLocal.sel = new Set());
+    if (sel.has(i)) sel.delete(i); else if (sel.size < 3) sel.add(i); else { toast('Up to 3 cards'); return; }
+    syncRps(true);
   }
   function rpsActive() { return !!(online && state && state.phase === 'setup' && state.rps); }
   // write to the shared game and apply the result here too (my own echo is deduped by version)
@@ -4264,6 +4365,17 @@
     rpsLocal.resolving[k] = Date.now();
     rpsUpdate((s) => {
       const Q = s.rps; if (!Q || Q.done || Q.round !== round) return false;
+      if (Q.kind === 'poker') {
+        const auto = Q.alive.filter((c) => !Q.picks[c]), scores = {}, names = {}, hands = {};
+        Q.alive.forEach((c) => { hands[c] = Q.hands[c].slice(); scores[c] = pkScore(hands[c]); names[c] = pkName(scores[c]); });
+        const best = Q.alive.reduce((m, c) => (!m || pkCmp(scores[c], scores[m]) > 0 ? c : m), null);
+        let winners = Q.alive.filter((c) => pkCmp(scores[c], scores[best]) === 0), tooMany = false;
+        if (winners.length > 1 && round >= RPS_MAX_ROUNDS) { winners = [winners[(Math.random() * winners.length) | 0]]; tooMany = true; }
+        Q.reveal = { kind: 'poker', round, hands, names, auto, winners, tooMany };
+        if (winners.length === 1) { Q.winner = winners[0]; Q.chooseDeadline = Date.now() + POKER_REVEAL_MS + RPS_CHOOSE_MS; }
+        else Object.assign(Q, { round: round + 1, alive: winners, picks: {}, deadline: Date.now() + POKER_REVEAL_MS + POKER_MS }, pkDeal(winners));   // a dead heat: just them, fresh cards
+        return;
+      }
       const full = {}, auto = [];
       Q.alive.forEach((c) => { let v = Q.picks[c]; if (!v) { v = 'rps'[(Math.random() * 3) | 0]; auto.push(c); } full[c] = v; });
       const shapes = [...new Set(Object.values(full))];
@@ -4308,7 +4420,7 @@
     const R = state.rps, now = Date.now(), gk = gameKey();
     if (R.done && rpsLocal.winShown[R.winner + ':' + gk] === 'gone') return 'gone';
     if (R.reveal && !rpsLocal.seen[gk + ':' + R.reveal.round]) rpsLocal.seen[gk + ':' + R.reveal.round] = now;
-    if (R.reveal && now - rpsLocal.seen[gk + ':' + R.reveal.round] < RPS_REVEAL_MS) return 'reveal';
+    if (R.reveal && now - rpsLocal.seen[gk + ':' + R.reveal.round] < (R.reveal.kind === 'poker' ? POKER_REVEAL_MS : RPS_REVEAL_MS)) return 'reveal';
     return R.done ? 'win' : R.winner ? 'choose' : 'pick';
   }
   // the corners show the result: losers fade, winners glow (read by renderPanels on every redraw)
@@ -4318,9 +4430,32 @@
     if (m === 'win') return color === state.order[0] ? ' spin-win' : '';   // the player who starts glows (the winner keeps the crown)
     if (m === 'choose') return color === R.winner ? ' rps-won' : '';
     const V = R.reveal; if (!V.winners.length && !V.tooMany) return '';   // a draw: nobody fades
+    if (V.kind === 'poker' && !V.hands[color]) return ' rps-out';   // sat this round out (lost an earlier one)
     return V.winners.includes(color) ? ' rps-won' : ' rps-out';
   }
-  function rpsBoardClear() { document.querySelectorAll('.rpsb, .rpscrown').forEach((el) => el.remove()); }
+  function rpsBoardClear() { document.querySelectorAll('.rpsb, .rpscrown, .pkb').forEach((el) => el.remove()); }
+  // poker on the board: everyone else's 5 cards beside their corner, face-down while they decide, face-up at the reveal
+  function pkBoard(R, V) {
+    rpsBoardClear();
+    const list = V ? Object.keys(V.hands) : R.alive.filter((c) => c !== myColor);
+    list.forEach((c) => {
+      const k = cornerOf(c); if (!k) return;
+      const r = k.el.getBoundingClientRect(), left = k.pos[1] === 'l', top = k.pos[0] === 't';
+      const el = document.createElement('div');
+      if (V) {
+        const won = V.winners.includes(c), auto = V.auto.includes(c);
+        el.className = 'pkb' + (won ? ' won' : ' lost');
+        el.innerHTML = `<span class="pkfan">${V.hands[c].map((x) => pkCardHTML(x, 'sm')).join('')}</span><span class="pkname${won ? ' w' : ''}">${escapeHtml(V.names[c])}${auto ? ' · 🎲 kept' : ''}</span>`;
+      } else {
+        const p = R.picks[c];
+        el.className = 'pkb';
+        el.innerHTML = `<span class="pkfan">${'<span class="pkc back sm"></span>'.repeat(5)}</span><span class="pkname${p ? ' ok' : ''}">${!p ? 'deciding…' : p === 'k' ? '✓ kept' : '✓ swapped ' + p.slice(1)}</span>`;
+      }
+      el.style.top = (top ? Math.max(4, avatarCentre(k).y - 40) : avatarCentre(k).y - 40) + 'px';   // level with the player's portrait
+      if (left) el.style.left = (r.right + 12) + 'px'; else el.style.right = (window.innerWidth - r.left + 12) + 'px';
+      document.body.appendChild(el);
+    });
+  }
   // each player's hand pops out beside their own corner (over the sea), all at once
   function rpsBoardHands(V) {
     rpsBoardClear();
@@ -4356,7 +4491,36 @@
     if (mode === 'none' || mode === 'gone') { hideCard(); if (rpsLocal.key) { rpsBoardClear(); rpsLocal.key = null; rpsBanner = null; } return; }
     const R = state.rps, now = Date.now(), gk = gameKey();
     let key = '';
-    if (mode === 'pick') {
+    if (mode === 'pick' && R.kind === 'poker') {
+      const left = Math.max(0, Math.ceil((R.deadline - now) / 1000));
+      const inGame = !!myColor && R.alive.includes(myColor), done = inGame && R.picks[myColor];
+      const sel = rpsLocal.sel || new Set();
+      key = 'pk:' + R.round + ':' + (inGame ? R.hands[myColor].join('') : '') + ':' + [...sel].sort().join('') + ':' + (done || '') + ':' + rpsLocal.swapping + ':' + rpsLocal.legend + ':' + R.alive.map((c) => c + (R.picks[c] || '')).join(',');
+      if (key !== rpsLocal.key || force) {
+        if (rpsLocal.key && !rpsLocal.key.startsWith('pk:')) { renderPanels(); rpsLocal.sel = new Set(); }   // a new round: fresh selection, un-fade the corners
+        pkBoard(R, null);
+        if (inGame) {
+          const hand = R.hands[myColor], nm = pkName(pkScore(hand));
+          const cards = hand.map((c, i) => pkCardHTML(c, (sel.has(i) ? 'sel' : '') + (done ? ' locked' : ''), done ? '' : ` onclick="CATAN.pkToggle(${i})"`)).join('');
+          const waiting = R.alive.filter((c) => !R.picks[c] && c !== myColor);
+          const act = done ? `<div class="pkwait">${rpsLocal.swapping ? 'Dealing your new cards…' : `Locked in${waiting.length ? ` · waiting for ${escapeHtml(nameList(waiting))}…` : ''}`}</div>`
+            : `<div class="pkbtns"><button class="btn pkgo" onclick="CATAN.pkSwap()"${rpsLocal.swapping ? ' disabled' : ''}>${sel.size ? `Swap ${sel.size} card${sel.size > 1 ? 's' : ''}` : 'Keep my hand'}</button></div>`;
+          const legend = rpsLocal.legend ? `<div class="pklegend">Best to worst: Straight flush · Four of a kind · Full house · Flush · Straight · Three of a kind · Two pair · Pair · High card</div>` : '';
+          let el = root;
+          if (!el) { el = document.createElement('div'); el.id = 'rpsroot'; document.body.appendChild(el); }
+          el.classList.remove('strip');
+          el.innerHTML = `<div class="rpscard pkcard"><div class="rpshead"><b>🃏 ${R.round > 1 ? 'Deal again' : 'Your hand'}</b><span class="pkhand">${escapeHtml(nm)}</span><button class="pkinfo" onclick="CATAN.pkLegend()" aria-label="Hand rankings">ⓘ</button><span class="rpstime" id="rps-t">0:${String(left).padStart(2, '0')}</span></div>`
+            + `<div class="pkrow">${cards}</div>${legend}${act}${done ? '' : `<div class="rpsnote">Tap up to 3 cards to swap, once. Best hand wins.</div>`}</div>`;
+          el.classList.remove('hidden');
+        } else hideCard();
+        setRpsBanner(R.round > 1 ? `🃏 ${escapeHtml(nameList(R.alive))} deal again…` : '🃏 Poker for who starts · best hand wins');
+      }
+      const t = $('rps-t'); if (t) t.textContent = '0:' + String(left).padStart(2, '0');
+      const ak = gk + ':' + R.round;
+      if (R.alive.every((c) => R.picks[c])) { if (!rpsLocal.allIn[ak]) rpsLocal.allIn[ak] = now; if (now - rpsLocal.allIn[ak] > RPS_ALLIN_MS) rpsResolve(); }
+      else delete rpsLocal.allIn[ak];
+      if (now > R.deadline + 600) rpsResolve();
+    } else if (mode === 'pick') {
       const left = Math.max(0, Math.ceil((R.deadline - now) / 1000));
       const inGame = !!myColor && R.alive.includes(myColor), mine = inGame ? R.picks[myColor] : null;
       key = 'pick:' + R.round + ':' + mine + ':' + R.alive.map((c) => c + (R.picks[c] ? 1 : 0)).join(',');
@@ -4384,6 +4548,17 @@
     } else if (mode === 'reveal') {
       const V = R.reveal;
       key = 'reveal:' + V.round;
+      if (V.kind === 'poker') {
+        if (key !== rpsLocal.key || force) {
+          hideCard(); renderPanels(); pkBoard(R, V);
+          const w = V.winners;
+          setRpsBanner(V.tooMany ? `Too many dead heats. The game decides 🎲: ${escapeHtml(nameOf(w[0]))}`
+            : w.length > 1 ? `🃏 Dead heat: ${escapeHtml(nameList(w))} · deal again`
+            : `🃏 ${escapeHtml(nameOf(w[0]))} wins with ${escapeHtml(pkArticle(V.names[w[0]]))}`);
+          if (rpsLocal.key !== key) playSound('trade', 0.7);
+        }
+        rpsLocal.key = key; return;
+      }
       if (key !== rpsLocal.key || force) {
         hideCard();
         renderPanels();   // fade losers / glow winners
@@ -4509,25 +4684,7 @@
   // a name already used by a past cup gets the next number: "Yalla Classic", "Yalla Classic #2", "#3"…
   function uniqueCupName(name) {
     const base = String(name).replace(/ #\d+$/, '').trim();
-    const esc = base.replace(/[.*+?^${}()|[\]\\]/g, '\\<script src="app.js"></script>'), re = new RegExp('^' + esc + '(?: #(\\d+))?
-  <script>
-    /* PWA: cache the app + art so repeat launches are instant and offline-capable */
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', function () {
-        navigator.serviceWorker.register('sw.js').then(function (reg) { try { reg.update(); } catch (e) { } }).catch(function () { });
-      });
-      // when a new build's worker takes over, refresh so you get the latest code — but never
-      // yank someone out of an active game (they'll pick it up on the next menu screen).
-      var swReloaded = false;
-      navigator.serviceWorker.addEventListener('controllerchange', function () {
-        if (swReloaded || document.body.classList.contains('ingame')) return;
-        swReloaded = true; location.reload();
-      });
-    }
-  </script>
-</body>
-</html>
-, 'i');
+    const esc = base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), re = new RegExp('^' + esc + '(?: #(\\d+))?$', 'i');
     let max = 0;
     STATS.cups().forEach((c) => { const m = String(c.name || '').match(re); if (m) max = Math.max(max, m[1] ? +m[1] : 1); });
     return max ? base + ' #' + (max + 1) : base;
@@ -5408,6 +5565,9 @@
     openEmojiTray: () => openEmojiTray(),
     rmPropose: () => rmPropose(),
     rps: (v) => rpsPick(v),
+    pkToggle: (i) => pokerToggle(i),
+    pkSwap: () => pokerSwap(),
+    pkLegend: () => { rpsLocal.legend = !rpsLocal.legend; syncRps(true); },
     rpsChoose: (k) => rpsChoose(k),
     robberInfo: () => { const by = state && state.robberBy; if (!by) return; const v = state.robberVictim; toast(`${nameOf(by)} put the robber here${v ? ` and robbed ${nameOf(v)}` : ''}`); },
     robberies: (c) => openRobberies(c),
@@ -6005,7 +6165,7 @@
     channel: null, presence: {}, mode: 'idle', readyAt: 0, inProgress: false, lastRow: null, table: null, created: null, targetPoints: null,
     cup: 0,          // host's lobby choice: 0 = one game, N = a cup of N games (rides presence as ws 'cup:N')
     cupRow: null,    // a cup paused between games at this table that I'm seated in (shows "Back to the cup")
-    whoStarts: (function () { try { return localStorage.getItem('catanWhoStarts') === 'random' ? 'random' : 'rps'; } catch (_) { return 'rps'; } })(),   // host's lobby choice (default: rock-paper-scissors)
+    whoStarts: (function () { try { const v = localStorage.getItem('catanWhoStarts'); return v === 'random' || v === 'poker' ? v : 'rps'; } catch (_) { return 'rps'; } })(),   // host's lobby choice (default: rock-paper-scissors)
     lastSeen: {},          // id -> last time seen live (ms) — powers the grace window
     lastPayload: {},       // id -> last-known presence payload (kept so a grace member keeps its name/avatar)
     liveIds: new Set(),    // ids present RIGHT NOW (no grace) — used for AFK/skip detection
@@ -6028,7 +6188,7 @@
     // changed it at the table, else their profile preference. undefined = no override in play.
     // effective color preference: the table-session override if set, else the profile default
     myPref() { return this.prefGame !== undefined ? this.prefGame : ((AUTH.me && AUTH.me.prefColor) || null); },
-    myPayload() { return { id: AUTH.me.id, name: AUTH.me.name, avatar: AUTH.me.avatar || null, pref: this.myPref(), mode: this.mode, readyAt: this.readyAt, table: this.table || null, created: this.created || null, target: this.targetPoints || null, ws: this.cup ? 'cup:' + this.cup + ':' + (this.whoStarts === 'rps' ? 'r' : 'x') : this.whoStarts }; },
+    myPayload() { return { id: AUTH.me.id, name: AUTH.me.name, avatar: AUTH.me.avatar || null, pref: this.myPref(), mode: this.mode, readyAt: this.readyAt, table: this.table || null, created: this.created || null, target: this.targetPoints || null, ws: this.cup ? 'cup:' + this.cup + ':' + ({ rps: 'r', poker: 'p' }[this.whoStarts] || 'x') : this.whoStarts }; },
     // announce my state: heartbeat row on the server + an optimistic local echo so my own UI updates
     // instantly (the poll confirms it a few seconds later)
     track() {
@@ -6106,7 +6266,7 @@
         try { await STATS.load(); } catch (_) { }   // past cups, so a repeated name gets its number
         gstate.cup = { id: Math.random().toString(36).slice(2, 10), name: uniqueCupName((this.cupName || '').trim() || pickCupName()), games: this.cup, n: 1, host: host.id, hist: [], at: Date.now() };
       }
-      if (gstate.whoStarts === 'rps') gstate.rps = newRps(gstate.players, 4500);   // the 3·2·1 countdown runs first
+      if (gstate.whoStarts === 'rps' || gstate.whoStarts === 'poker') gstate.rps = newRps(gstate.players, 4500, gstate.whoStarts);   // the 3·2·1 countdown runs first
       const c = NET.init();
       // never start OVER a live game — a stale ready-screen (slow fetch, resumed PWA) must not
       // clobber a match in progress on this code. Check the row right before writing.
@@ -6157,7 +6317,7 @@
         const fin = cupFinal(state);
         gstate.cup = Object.assign({}, state.cup, { n: fin ? 1 : state.cup.n + 1, hist: fin ? [] : cupHist(state), stop: false }, fin ? { id: Math.random().toString(36).slice(2, 10), name: uniqueCupName(pickCupName(state.cup.name)), at: Date.now() } : {});
       }
-      if (gstate.whoStarts === 'rps') gstate.rps = newRps(gstate.players, 6500);   // after the 5·4·3·2·1
+      if (gstate.whoStarts === 'rps' || gstate.whoStarts === 'poker') gstate.rps = newRps(gstate.players, 6500, gstate.whoStarts);   // after the 5·4·3·2·1
       const prevV = NET.version || 1;
       const { data, error } = await c.from('games')
         .update({ phase: 'playing', players, state: gstate, target_points: target, version: prevV + 1 })
@@ -6510,8 +6670,8 @@
   // the host's choices ride presence in `ws`: 'rps' | 'random' | 'cup:N' (v169) | 'cup:N:r' / 'cup:N:x'
   function wsInfo(ws) {
     const s = String(ws || '');
-    if (s.startsWith('cup:')) { const p = s.split(':'); return { cup: parseInt(p[1], 10) || 3, rps: p[2] !== 'x' }; }
-    return { cup: 0, rps: s !== 'random' };
+    if (s.startsWith('cup:')) { const p = s.split(':'); return { cup: parseInt(p[1], 10) || 3, ws: p[2] === 'x' ? 'random' : p[2] === 'p' ? 'poker' : 'rps' }; }
+    return { cup: 0, ws: s === 'random' || s === 'poker' ? s : 'rps' };
   }
   function lvArg(v) { return encodeURIComponent(String(v || '')).replace(/'/g, '%27'); }   // safe inside onclick='…'
   function namesAnd(ns) { return ns.length < 2 ? (ns[0] || '') : ns.slice(0, -1).join(', ') + ' and ' + ns[ns.length - 1]; }
@@ -6544,9 +6704,9 @@
   function lvSettingsLine(host, n) {
     const isMe = host && host.id === AUTH.me.id;
     const tgt = isMe ? LOBBY.targetPoints : (host ? host.target : null);
-    const w = isMe ? { cup: LOBBY.cup, rps: LOBBY.whoStarts === 'rps' } : wsInfo(host && host.ws);
+    const w = isMe ? { cup: LOBBY.cup, ws: LOBBY.whoStarts } : wsInfo(host && host.ws);
     const pts = tgt != null ? tgt : (n >= 2 ? targetForN(n) + ' (auto)' : 'auto');
-    return (w.cup ? `🏆 ${isMe && (LOBBY.cupName || '').trim() ? escapeHtml(LOBBY.cupName.trim()) : 'Tournament'} · ${w.cup} games to ${pts}` : `🎯 Win at ${pts} · One game`) + (w.rps ? ' · ✊ Who starts' : ' · 🎲 Random start');
+    return (w.cup ? `🏆 ${isMe && (LOBBY.cupName || '').trim() ? escapeHtml(LOBBY.cupName.trim()) : 'Tournament'} · ${w.cup} games to ${pts}` : `🎯 Win at ${pts} · One game`) + ({ rps: ' · ✊ Who starts', poker: ' · 🃏 Poker hand' }[w.ws] || ' · 🎲 Random start');
   }
   function lvMini(p, crown) {
     return `<div class="lvmini">${crown ? '<span class="lvminicrown">👑</span>' : ''}${faceHTML(p.name, p.avatar, 'md' + (crown ? ' hostring' : ''))}<span class="lvmn">${escapeHtml(p.name)}</span></div>`;
@@ -6672,7 +6832,7 @@
         <div><div class="lvlbl">${cup ? 'Each game to' : 'Points to win'}</div>
           <div class="lvpts"><button class="auto${tgt == null ? ' on' : ''}" onclick="CATAN.lobbyTargetAuto()">Auto · ${n >= 2 ? targetForN(n) + ' for ' + n + ' players' : 'by player count'}</button></div>
           <div class="lvpts nums">${nums.map((v) => `<button class="${tgt === v ? 'on' : ''}" onclick="CATAN.lobbyTarget(${v})">${v}</button>`).join('')}</div></div>
-        <div><div class="lvlbl">Who starts</div><div class="seg lvseg"><button class="${LOBBY.whoStarts === 'rps' ? 'on' : ''}" onclick="CATAN.lobbyWhoStarts('rps')">✊ Rock-paper-scissors</button><button class="${LOBBY.whoStarts !== 'rps' ? 'on' : ''}" onclick="CATAN.lobbyWhoStarts('random')">🎲 Random</button></div></div>`;
+        <div><div class="lvlbl">Who starts</div><div class="seg lvseg"><button class="${LOBBY.whoStarts === 'rps' ? 'on' : ''}" onclick="CATAN.lobbyWhoStarts('rps')">✊ Rock-paper-scissors</button><button class="${LOBBY.whoStarts === 'poker' ? 'on' : ''}" onclick="CATAN.lobbyWhoStarts('poker')">🃏 Poker hand</button><button class="${LOBBY.whoStarts === 'random' ? 'on' : ''}" onclick="CATAN.lobbyWhoStarts('random')">🎲 Random</button></div>${LOBBY.whoStarts === 'poker' ? '<div class="lvsub small" style="margin-top:6px">Everyone is dealt 5 cards and can swap up to 3, once. Best hand wins and picks when to go.</div>' : ''}</div>`;
     } else if (s === 'colour') {
       const mine = LOBBY.myPref(), others = LOBBY.tableMembers().filter((p) => p.id !== AUTH.me.id && pmode(p) === 'ready');
       body = `<div class="lvst">Your colour this game</div>
@@ -6796,7 +6956,7 @@
     if (STATS.loaded) go(); else STATS.load().then(go);
   };
   window.CATAN.lobbyTargetAuto = () => { LOBBY.targetPoints = null; LOBBY.track(); lobbySig = null; renderLobby(); };
-  window.CATAN.lobbyWhoStarts = (v) => { LOBBY.whoStarts = v === 'rps' ? 'rps' : 'random'; try { localStorage.setItem('catanWhoStarts', LOBBY.whoStarts); } catch (_) { } LOBBY.track(); lobbySig = null; renderLobby(); };
+  window.CATAN.lobbyWhoStarts = (v) => { LOBBY.whoStarts = v === 'rps' || v === 'poker' ? v : 'random'; try { localStorage.setItem('catanWhoStarts', LOBBY.whoStarts); } catch (_) { } LOBBY.track(); lobbySig = null; renderLobby(); };
   window.CATAN.lobbyTarget = (v) => { LOBBY.targetPoints = Math.max(LOBBY.cup ? 6 : 9, Math.min(15, parseInt(v, 10) || 13)); LOBBY.track(); lobbySig = null; renderLobby(); };
   window.CATAN.joinTable = (code) => LOBBY.enterTable(code);
   window.CATAN.leaveTable = () => LOBBY.leaveTable();

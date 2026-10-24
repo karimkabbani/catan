@@ -43,8 +43,9 @@ console.log('• inlining -> catan-standalone.html');
 let html = fs.readFileSync(path.join(here, 'index.html'), 'utf8');
 const engineJs = fs.readFileSync(path.join(here, 'catan-engine.js'), 'utf8');
 const appJs = fs.readFileSync(path.join(here, 'app.js'), 'utf8');
-html = html.replace('<script src="catan-engine.js"></script>', '<script>\n' + engineJs + '\n</script>');
-html = html.replace('<script src="app.js"></script>', '<script>\n' + appJs + '\n</script>');
+// function replacers: a plain string would treat $& / $1 inside the code as replace patterns and mangle it
+html = html.replace('<script src="catan-engine.js"></script>', () => '<script>\n' + engineJs + '\n</script>');
+html = html.replace('<script src="app.js"></script>', () => '<script>\n' + appJs + '\n</script>');
 fs.writeFileSync(path.join(here, 'catan-standalone.html'), html);
 
 console.log('✓ built catan-engine.js and catan-standalone.html');
