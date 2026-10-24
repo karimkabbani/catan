@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v182';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v183';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -2190,7 +2190,7 @@
     showOverlay(`<div class="winwrap${domination ? ' domination' : ''}">
       <div class="winhead"><div class="winrays"></div>${crown}
         <div class="winava" style="background:${PCOLOR[winner.color]}">${wav}</div></div>
-      <h2>${escapeHtml(winner.name)} wins!</h2>
+      <h2 id="vtitle">${victoryTitle()}</h2>
       ${quitNoteHTML()}
       ${myColor ? `<div id="rmpanel">${rematchPanelHTML()}</div>` : ''}
       ${domBadge}
@@ -2891,6 +2891,7 @@
   function rematchPanelHTML() {
     if (!online || !myColor || !state || state.phase !== 'ended') return '';
     if (cupBetween(state)) return cupReadyHTML();
+    if (qvOpen(state)) return '';   // first the table decides whether the quit game counts
     const left = state.left || [];
     if (left.length) return `<div class="rmleft">🚪 ${escapeHtml(nameList(left))} ${left.length > 1 ? 'have' : 'has'} left. A rematch isn't possible.</div>`;
     const rm = state.rm;
@@ -2911,8 +2912,26 @@
     }).join('');
   }
   // returns { cls, html } for the bar, or null when there's nothing to ask
+  const qvShown = {};
   function rmBarModel() {
     if (!online || !myColor || !state || state.phase !== 'ended') return null;
+    if (state.quitBy && state.qv) {   // after a quit: the "does it count?" vote
+      const v = state.qv, voters = qvVoters(state), wn = escapeHtml(nameOf(state.winner));
+      const pts = C.victoryPoints(state, state.winner, true), tgt = state.targetPoints || 10;
+      const chips = voters.map((c) => { const a = v.votes[c], off = !a && !isPlayerOnline(c);
+        return `<span class="rmbchip${a === 'y' ? ' y' : a === 'n' ? ' n' : ''}"><span class="dot" style="background:${PCOLOR[c]}"></span>${escapeHtml(nameOf(c))} ${a === 'y' ? '✓' : a === 'n' ? '✗' : off ? '💤' : '…'}</span>`; }).join('');
+      if (v.done) {   // the outcome, briefly, then the normal rematch bar can take over
+        const t0 = qvShown[NET.code + ':' + v.deadline] || (qvShown[NET.code + ':' + v.deadline] = Date.now());
+        if (Date.now() - t0 < 6000) return { cls: v.count ? 'go' : 'no', html: `<div class="rmbt"><div class="rmbh">${v.count ? `✓ Counted: ${wn}'s win` : '✗ Not counted'}</div><div class="rmbsub">${v.count ? 'It goes in the stats.' : "This game won't appear in the stats."}${v.auto ? ' Not everyone voted in time.' : ''}</div></div>` };
+      } else {
+        const mine = v.votes[myColor];
+        return { cls: '', qtimer: v.deadline, html: `<div class="rmbt"><div class="rmbh"><span>🚪 ${escapeHtml(nameOf(state.quitBy))} quit · Count it as <b>${wn}</b>'s win (${pts} of ${tgt})?</span><span class="rmbtm" id="rmbsecs"></span></div>`
+          + `<div class="rmbsub">Everyone must agree. One "no" and the game doesn't count.</div><div class="rmbchips">${chips}</div></div>`
+          + (mine ? `<div class="rmbwait">⏳ Waiting for the others…</div>`
+            : `<button class="btn rmbyes" onclick="CATAN.qvVote(1)">✓ Count it</button><button class="btn wood rmbno" onclick="CATAN.qvVote(0)">Don't count</button>`) };
+      }
+      if (!v.done) return null;
+    }
     const rm = state.rm, pend = rmPending(rm), P = state.players;
     const waitFor = () => nameList(P.filter((p) => !(rm.votes && rm.votes[p.color] === 'y')).map((p) => p.color));
     if (cupBetween(state)) {   // a cup: ready up for the next game (no timer, no "no")
@@ -2944,6 +2963,12 @@
     el.className = 'show' + (m.cls ? ' ' + m.cls : '');
     const t = $('rmbsecs'), rm = state.rm;
     if (t && m.timer && rm) { if (!rmSeen[rm.id]) rmSeen[rm.id] = Date.now(); t.textContent = '0:' + String(Math.max(0, Math.ceil((RM_MS - (Date.now() - rmSeen[rm.id])) / 1000))).padStart(2, '0'); }
+    if (t && m.qtimer) { const left = Math.max(0, m.qtimer - Date.now()); t.textContent = Math.floor(left / 60000) + ':' + String(Math.floor((left % 60000) / 1000)).padStart(2, '0'); }
+    // a quit vote just opened and I haven't voted -> chime + buzz, once
+    if (qvOpen(state) && !state.qv.votes[myColor] && !rmChimed['qv' + state.qv.deadline]) {
+      rmChimed['qv' + state.qv.deadline] = true; playSound('trade', 0.8);
+      try { if (navigator.vibrate) navigator.vibrate([120, 60, 120]); } catch (_) { }
+    }
     // somebody else just asked and I haven't answered -> chime + buzz, once per question
     if (rm && rmPending(rm) && rm.by !== myColor && !(rm.votes[myColor] === 'y') && !rmChimed[rm.id]) {
       rmChimed[rm.id] = true; playSound('trade', 0.8);
@@ -2957,6 +2982,8 @@
     refreshGG();
     const rm = state.rm;
     const el = $('rmpanel'); if (el) el.innerHTML = rematchPanelHTML();
+    const qn = $('quitnote'); if (qn) qn.outerHTML = quitNoteHTML();
+    const vt = $('vtitle'); if (vt && state.quitBy) vt.innerHTML = victoryTitle();
     syncRmBar();   // the vote itself: pinned at the top, over the results or the board
     if (rmAllIn(rm) && !rmStarted[rm.id]) {
       rmStarted[rm.id] = true;
@@ -2988,6 +3015,10 @@
   // the 30s clock: keep the countdown ticking, and let any phone call time on an unanswered proposal
   setInterval(() => {
     if (!state || state.phase !== 'ended' || !online) { const b = $('rmbar'); if (b) b.classList.remove('show'); return; }
+    if (qvOpen(state) && Date.now() > state.qv.deadline + 1000) {   // nobody settled it in 5 min -> the near-win rule decides
+      const mut = (s) => { if (!qvOpen(s)) return false; qvSettle(s, true); };
+      const s2 = JSON.parse(JSON.stringify(state)); if (mut(s2) !== false) { state.qv = s2.qv; afterAction(); svUpdate(mut); }
+    }
     syncRmBar();
     const rm = state.rm; if (!rmPending(rm) || rmAllIn(rm) || cupBetween(state)) return;   // the cup's ready-up never lapses
     if (!rmSeen[rm.id]) rmSeen[rm.id] = Date.now();
@@ -3451,10 +3482,42 @@
       .sort((a, b) => b.vp - a.vp)[0] || null;
   }
   // the line every results screen shows after a quit, so nobody wonders why the order looks off
+  // ---- after a quit, the players still in the game vote (unanimously) on whether it counts ----------
+  // state.qv = { deadline, votes: {color: 'y'|'n'}, done, count, auto }. Everyone still in the game votes, the
+  // leader included. All yes -> it counts (leader's win, quitter last); one no -> it doesn't count at all (no
+  // stats row). Unanswered after QV_MS -> it counts only if the leader was within 2 points of winning.
+  const QV_MS = 5 * 60 * 1000;
+  function qvVoters(s) { return s.players.filter((p) => p.color !== s.quitBy).map((p) => p.color); }
+  function qvOpen(s) { return !!(s && s.phase === 'ended' && s.quitBy && s.qv && !s.qv.done); }
+  function qvNearWin(s) { return C.victoryPoints(s, s.winner, true) >= (s.targetPoints || 10) - 2; }
+  // settle the vote inside a mutation (so every phone agrees): any "no" ends it, all "yes" counts it
+  function qvSettle(s, timedOut) {
+    const v = s.qv, voters = qvVoters(s);
+    if (voters.some((c) => v.votes[c] === 'n')) { v.done = true; v.count = false; return; }
+    if (voters.every((c) => v.votes[c] === 'y')) { v.done = true; v.count = true; return; }
+    if (timedOut) { v.done = true; v.count = qvNearWin(s); v.auto = true; }
+  }
+  function qvVote(yes) {
+    if (!qvOpen(state) || !myColor || state.qv.votes[myColor]) return;
+    const me = myColor;
+    const mut = (s) => { if (!qvOpen(s) || s.qv.votes[me]) return false; s.qv.votes[me] = yes ? 'y' : 'n'; qvSettle(s, false); };
+    const s2 = JSON.parse(JSON.stringify(state)); if (mut(s2) === false) return;
+    state.qv = s2.qv; refreshRematch(); afterAction();
+    svUpdate(mut);
+  }
+  // "Sam wins!", unless a quit ended it and the table hasn't (yet) agreed it counts
+  function victoryTitle() {
+    const w = escapeHtml(nameOf(state.winner));
+    if (state.quitBy && state.qv && !(state.qv.done && state.qv.count)) return state.qv.done ? 'Game not counted' : 'Game ended early';
+    return `${w} wins!`;
+  }
   function quitNoteHTML() {
     const q = state && state.quitBy; if (!q) return '';
-    const qn = escapeHtml(nameOf(q)), wn = escapeHtml(nameOf(state.winner));
-    return `<div class="quitnote">🚪 <b>${qn}</b> quit mid-game, so ${qn} finishes last and gets a quit on their record. <b>${wn}</b> wins as the points leader.</div>`;
+    const qn = escapeHtml(nameOf(q)), wn = escapeHtml(nameOf(state.winner)), v = state.qv;
+    const head = `🚪 <b>${qn}</b> quit mid-game. <b>${wn}</b> was leading.`;
+    if (!v) return `<div class="quitnote" id="quitnote">${head} ${wn} gets the win and ${qn} is placed last.</div>`;   // an older game, before the vote
+    if (!v.done) return `<div class="quitnote" id="quitnote">${head} Everyone still in the game votes on whether it counts. Answer in the bar at the top ↑</div>`;
+    return `<div class="quitnote" id="quitnote">${head} ${v.count ? `<b>Counted</b>: ${wn}'s win, ${qn} placed last.` : `<b>Not counted</b>: this game won't appear in the stats.`}${v.auto ? ' (Not everyone voted in time.)' : ''}</div>`;
   }
   async function endByQuit() {
     if (!online || !myColor || !state || state.phase !== 'play') return false;
@@ -3463,9 +3526,9 @@
     const winner = lead.c;
     const q = myColor;
     ui.svEnding = true;
-    state.winner = winner; state.phase = 'ended'; state.quitBy = q; delete state.sv;
-    recordResult();   // record locally too, so the result lands even if the state push is slow
-    await svUpdate((s) => { s.winner = winner; s.phase = 'ended'; s.quitBy = q; delete s.sv; });
+    const qv = { deadline: Date.now() + QV_MS, votes: {} };   // the others vote on whether this counts (see qvSettle)
+    state.winner = winner; state.phase = 'ended'; state.quitBy = q; state.qv = qv; delete state.sv;
+    await svUpdate((s) => { s.winner = winner; s.phase = 'ended'; s.quitBy = q; s.qv = qv; delete s.sv; });
     return true;
   }
   // checked from afterAction on every state change: trigger the win when only one stands
@@ -3638,6 +3701,7 @@
     robberies: (c) => openRobberies(c),
     gg: () => sayGG(),
     rmVote: (v) => rmVote(v),
+    qvVote: (y) => qvVote(!!y),
     poke: () => poke(),
     emo: (e) => { sendEmoji(e); bumpTray(); },
     emoMore: () => { closeEmojiTray(); openQuickChat(); },
@@ -4494,7 +4558,7 @@
           STATS.loading = null; STATS.loaded = true;
           STATS.games = ((!error && data) ? data : []).filter((r) => Array.isArray(r.standings) && r.standings.length).map((r) => {
             const d = new Date(r.finished_at), mo = d.getMonth();
-            return { date: MONTH_ABBR[mo] + ' ' + d.getDate() + ', ' + d.getFullYear(), ym: d.getFullYear() + '-' + String(mo + 1).padStart(2, '0'),
+            return { at: d.getTime(), date: MONTH_ABBR[mo] + ' ' + d.getDate() + ', ' + d.getFullYear(), ym: d.getFullYear() + '-' + String(mo + 1).padStart(2, '0'),
               standings: r.standings.map((s) => ({ id: s.id || null, n: s.name, pts: s.pts, lr: s.lr ? 1 : 0, la: s.la ? 1 : 0, pen: s.penalty ? 1 : 0, cup: s.cup || null })) };
           });
           // Resolve the LATEST display name per identity key (games are newest-first, so the first
@@ -4553,6 +4617,7 @@
   let lastRecorded = null;
   function recordResult() {
     if (!online || !NET.code || !NET.client || !state || state.phase !== 'ended' || !state.winner) return;
+    if (state.quitBy && state.qv && (!state.qv.done || !state.qv.count)) return;   // a quit: only once the table votes to count it
     const seatId = {};   // color -> persistent player id, from the game's seat map (rename-proof stats key)
     (gameSeats || []).forEach((s) => { if (s && s.color) seatId[s.color] = s.playerId || null; });
     const quitter = state.quitBy || null;
@@ -4590,95 +4655,90 @@
     if (lvOn()) { LV.tab = 'stats'; LV.sheet = null; const sh = $('lv-sheet'); if (sh) sh.innerHTML = ''; const d = $('lobby-dyn'); if (d) d.innerHTML = `<div class="lvstats">${html}</div>`; lvChrome(); return; }
     titleCard(html);
   }
+  // ---- Stats screens (v183): filters as chips, a podium, a photo leaderboard, cups card, recent games ----
+  function stAv(name, cls) { const r = (LV.roster || []).find((x) => x && String(x.name).toLowerCase() === String(name).toLowerCase()); return faceHTML(name, r && r.avatar, cls); }
+  function stWhen(at) {
+    if (!at) return '';
+    const d = new Date(at), now = new Date(), day = 86400000;
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const hm = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+    if (at >= start) return 'Today<br>' + hm;
+    if (at >= start - day) return 'Yesterday';
+    return MONTH_ABBR[d.getMonth()] + ' ' + d.getDate() + (d.getFullYear() !== now.getFullYear() ? ', ' + d.getFullYear() : '');
+  }
+  function stArg(k) { return encodeURIComponent(k).replace(/'/g, '%27'); }
   // cups, rebuilt from the tagged game rows (latest game of each cup = its final standings)
   function cupsHTML() {
     const cups = STATS.cups(); if (!cups.length) return '';
     const wins = {};
     cups.forEach((c) => { const k = pkey(c.rows[0]); wins[k] = (wins[k] || 0) + 1; });
-    const champs = Object.keys(wins).sort((a, b) => wins[b] - wins[a]).map((k) => `<span class="cupchamp">🏆 ${escapeHtml(STATS.nameFor(k))} <b>${wins[k]}</b></span>`).join('');
-    const list = cups.slice(0, 6).map((c) => `<div class="rgrow"><span class="rgwin">🏆 ${escapeHtml(STATS.nameFor(pkey(c.rows[0])))}</span>`
-      + `<span class="rgfield">${escapeHtml(c.name)} · ${c.n < c.of ? c.n + ' of ' + c.of + ' games' : c.of + ' games'}</span><span class="rgdate">${c.date}</span></div>`).join('');
-    return `<h4 class="stsub" style="margin-top:0">Cups · all time</h4><div class="cupchamps">${champs}</div><div class="rglist">${list}</div>`;
+    const last = cups[0], champ = STATS.nameFor(pkey(last.rows[0]));
+    const tally = Object.keys(wins).sort((x, y) => wins[y] - wins[x]).map((k) => `<span>🏆 ${escapeHtml(STATS.nameFor(k))} ×${wins[k]}</span>`).join('');
+    const more = cups.slice(1, 6).map((c) => `<div class="st2cupl"><b>${escapeHtml(STATS.nameFor(pkey(c.rows[0])))}</b> won ${escapeHtml(c.name)}<span>${c.date.replace(/, \d{4}$/, '')}</span></div>`).join('');
+    return `<div class="st2sect">CUPS</div><div class="st2cup"><div class="st2champ">${stAv(champ, 'md')}<div><b>${escapeHtml(champ)} won ${escapeHtml(last.name)}</b>`
+      + `<span>${last.n < last.of ? last.n + ' of ' + last.of + ' games' : last.of + ' games'} · ${last.date.replace(/, \d{4}$/, '')}</span></div></div><div class="st2tally">${tally}</div>${more}</div>`;
   }
   function statsScreen() {
     const back = lvOn() ? '' : `<div class="lobhead"><button class="lobback" onclick="CATAN.showLobby()" title="Back to lobby">←</button><h3>🏆 Stats</h3></div>`;
     if (!STATS.loaded) { statsOut(`${back}<p class="muted" style="text-align:center;padding:26px 0">Loading…</p>`); STATS.load().then(() => statsScreen()); return; }
     if (!STATS.games.length) { statsOut(`${back}<p class="muted" style="text-align:center;padding:22px 8px;line-height:1.5">No games recorded yet.<br>Finish an online game and it'll show up here.</p>`); return; }
-    // statsSeason: 'all' = all-time · null = default (latest month) · else a specific 'YYYY-MM'
     const isAll = statsSeason === 'all';
     let season = isAll ? 'all' : (statsSeason || STATS.curSeason());
-    if (!isAll && !STATS.seasons().includes(season)) season = STATS.curSeason();   // selected month emptied out -> fall back
+    if (!isAll && !STATS.seasons().includes(season)) season = STATS.curSeason();
     const seasonGames = STATS.filter(season);
-    // secondary filter: only games with this many players. Only offer sizes that actually occur.
     const sizes = [...new Set(STATS.games.map((g) => g.standings.length))].sort();
-    if (statsCount && !sizes.includes(statsCount)) statsCount = null;   // size vanished (e.g. all deleted) -> reset
+    if (statsCount && !sizes.includes(statsCount)) statsCount = null;
     const games = statsCount ? seasonGames.filter((g) => g.standings.length === statsCount) : seasonGames;
     const board = STATS.board(games);
-    const selLbl = isAll ? '' : STATS.seasonLabel(season);   // label for the currently-selected month
-    // Season selector — scales to many months/years, pills run chronologically LEFT→RIGHT
-    // (oldest first, newest last); the strip auto-scrolls to keep the active (newest) pill in view.
-    //   • one year of data -> a single row: All-time + a pill per month
-    //   • multiple years   -> a YEAR row (All-time + a pill per year) plus, unless All-time,
-    //                         a MONTH row for the selected year (≤12 pills).
-    const years = STATS.years().slice().reverse();   // ascending (oldest -> newest)
-    let seasonSeg;
-    if (years.length <= 1) {
-      seasonSeg = `<div class="seg stseg stseasonseg"><button class="${isAll ? 'on' : ''}" onclick="CATAN.statsSeason('all')">All-time</button>` +
-        STATS.seasons().map((ym) => `<button class="${!isAll && season === ym ? 'on' : ''}" onclick="CATAN.statsSeason('${ym}')">${STATS.seasonPill(ym)}</button>`).join('') + `</div>`;
-    } else {
+    const selLbl = isAll ? 'All-time' : STATS.seasonLabel(season);
+    // chips: All-time + months (one year), or All-time + years and that year's months
+    const years = STATS.years().slice().reverse();
+    const chip = (on, js, lbl) => `<button class="st2chip${on ? ' on' : ''}" onclick="${js}">${lbl}</button>`;
+    let chips;
+    if (years.length <= 1) chips = chip(isAll, "CATAN.statsSeason('all')", 'All-time') + STATS.seasons().map((ym) => chip(!isAll && season === ym, `CATAN.statsSeason('${ym}')`, STATS.monthShort(ym))).join('');
+    else {
       const selYear = isAll ? years[years.length - 1] : +season.split('-')[0];
-      const yearRow = `<div class="seg stseg stseasonseg"><button class="${isAll ? 'on' : ''}" onclick="CATAN.statsSeason('all')">All-time</button>` +
-        years.map((y) => `<button class="${!isAll && selYear === y ? 'on' : ''}" onclick="CATAN.statsYear(${y})">${y}</button>`).join('') + `</div>`;
-      const monthRow = isAll ? '' : `<div class="seg stseg stseasonseg stmonthrow">` +
-        STATS.monthsIn(selYear).slice().reverse().map((ym) => `<button class="${season === ym ? 'on' : ''}" onclick="CATAN.statsSeason('${ym}')">${STATS.monthShort(ym)}</button>`).join('') + `</div>`;
-      seasonSeg = yearRow + monthRow;
+      chips = chip(isAll, "CATAN.statsSeason('all')", 'All-time') + years.map((y) => chip(!isAll && selYear === y, `CATAN.statsYear(${y})`, y)).join('')
+        + (isAll ? '' : STATS.monthsIn(selYear).slice().reverse().map((ym) => chip(season === ym, `CATAN.statsSeason('${ym}')`, STATS.monthShort(ym) + " '" + String(selYear).slice(2))).join(''));
     }
-    const countSeg = sizes.length > 1
-      ? `<div class="seg stseg stcountseg"><button class="${!statsCount ? 'on' : ''}" onclick="CATAN.statsCount(null)">All sizes</button>${sizes.map((n) => `<button class="${statsCount === n ? 'on' : ''}" onclick="CATAN.statsCount(${n})">${n}p</button>`).join('')}</div>`
-      : '';
-    const head = `<tr><th>#</th><th>Player</th><th>GP</th><th>W</th><th>Win%</th><th>Quits</th><th></th></tr>`;
-    const rows = board.map((p, i) => `<tr class="${p.ranked ? '' : 'stfew'}" onclick="CATAN.statsPlayer('${encodeURIComponent(p.key)}')"><td class="str">${p.ranked ? i + 1 : '—'}</td>` +
-        `<td class="stn">${escapeHtml(p.name)}</td><td>${p.gp}</td><td class="stw">${p.w}</td><td>${p.winpct}%</td>` +
-        `<td class="${p.pen ? 'stpen' : 'stz'}">${p.pen || '—'}</td><td class="stgo">›</td></tr>`).join('');
-    const sizeLbl = statsCount ? ' · ' + statsCount + 'p' : '';
+    const sizeSel = sizes.length > 1 ? `<select class="st2size" onchange="CATAN.statsCount(this.value ? +this.value : null)"><option value="">All sizes</option>${sizes.map((n) => `<option value="${n}"${statsCount === n ? ' selected' : ''}>${n} players</option>`).join('')}</select>` : '';
+    const ranked = board.filter((p) => p.ranked), unranked = board.filter((p) => !p.ranked);
+    const pod = ranked.slice(0, 3), order = [pod[1], pod[0], pod[2]].filter(Boolean);
+    const podium = pod.length ? `<div class="st2pod">${order.map((p) => { const i = pod.indexOf(p);
+      return `<button class="st2pc p${i + 1}" onclick="CATAN.statsPlayer('${stArg(p.key)}')">${i === 0 ? '<span class="st2crown">👑</span>' : ''}${stAv(p.name, i === 0 ? 'xl' : 'md')}<b>${escapeHtml(p.name)}</b><span class="st2pct">${p.winpct}%</span><span class="st2sub">${p.w} of ${p.gp}</span><span class="st2step">${i + 1}</span></button>`; }).join('')}</div>` : '';
+    const row = (p, rk) => `<button class="st2row${p.ranked ? '' : ' dim'}" onclick="CATAN.statsPlayer('${stArg(p.key)}')"><span class="st2rk">${rk}</span>${stAv(p.name, 'md')}<span class="st2nm"><b>${escapeHtml(p.name)}</b><span>${p.w} win${p.w === 1 ? '' : 's'} · ${p.gp} game${p.gp === 1 ? '' : 's'}${p.ranked ? '' : ' · not ranked yet'}</span></span>`
+      + `<span class="st2wp"><b>${p.winpct}%</b><span class="st2bar"><i style="width:${p.winpct}%"></i></span></span><span class="st2go">›</span></button>`;
+    const rows = ranked.slice(3).map((p, i) => row(p, i + 4)).join('') + unranked.map((p) => row(p, '–')).join('');
+    const recent = games.slice(0, 12).map((g) => { const w = g.standings[0], cup = w.cup ? ' · 🏆 cup' : '';
+      return `<div class="st2g">${stAv(w.n, 'sm')}<span class="st2gt"><b>${escapeHtml(w.n)} won</b><span>beat ${escapeHtml(g.standings.slice(1).map((x) => x.n).join(', '))} · ${g.standings.length} players${cup}</span></span><span class="st2gw">${stWhen(g.at)}</span></div>`; }).join('');
     const body = games.length
-      ? `<div class="sttbl-wrap"><table class="sttbl"><thead>${head}</thead><tbody>${rows}</tbody></table></div>
-         <div class="stnote">GP games · W wins · Ranked by win %, from ${STATS_MIN_GAMES} games (fewer are greyed out). Tap a player for detail.</div>
-         <div class="stnote"><b>Quits</b> = walked out of a game in progress. The game ends there: the quitter is counted last (a loss) and whoever was leading on points gets the win.</div>
-         <h4 class="stsub">Games${selLbl ? ' · ' + selLbl : ''}${sizeLbl}</h4>
-         <div class="rglist tall">${recentRowsHTML(games)}</div>`
-      : `<p class="muted" style="text-align:center;padding:22px 8px">No ${statsCount ? statsCount + '-player ' : ''}games ${isAll ? 'recorded' : 'in ' + selLbl} yet.</p>`;
-    statsOut(`${back}
-      ${cupsHTML()}
-      ${seasonSeg}
-      ${countSeg}
-      ${body}`);
-    // Keep the active pill visible: scroll each strip horizontally ONLY if the selected pill sits
-    // off (or under) an edge, and only just enough to bring it in — no jarring jump for a pill
-    // that's already on screen. (Runs on open and after every selection, since we re-render.)
-    requestAnimationFrame(() => document.querySelectorAll('.stseasonseg').forEach((seg) => {
-      const on = seg.querySelector('button.on'); if (!on) return;
-      const sr = seg.getBoundingClientRect(), br = on.getBoundingClientRect(), pad = 12;
-      if (br.right > sr.right - pad) seg.scrollLeft += br.right - sr.right + pad;        // off the right edge -> reveal
-      else if (br.left < sr.left + pad) seg.scrollLeft -= sr.left + pad - br.left;       // off the left edge -> reveal
-    }));
+      ? `${podium}${rows ? `<div class="st2sect"><span>LEADERBOARD · ${escapeHtml(selLbl.toUpperCase())}</span><span>WIN %</span></div><div class="st2list">${rows}</div>` : ''}
+         <div class="st2note">Ranked by win %, from ${STATS_MIN_GAMES} games. Tap anyone for head to head.</div>
+         ${cupsHTML()}
+         <div class="st2sect">RECENT GAMES · ${escapeHtml(selLbl.toUpperCase())}</div><div class="st2list">${recent}</div>`
+      : `<p class="muted" style="text-align:center;padding:22px 8px">No ${statsCount ? statsCount + '-player ' : ''}games ${isAll ? 'recorded' : 'in ' + selLbl} yet.</p>${cupsHTML()}`;
+    statsOut(`${back}<div class="st2">
+      <div class="st2filters"><div class="st2chips">${chips}</div>${sizeSel}</div>
+      ${body}</div>`);
+    requestAnimationFrame(() => { const strip = document.querySelector('.st2chips'), on = strip && strip.querySelector('.on'); if (on) strip.scrollLeft = on.offsetLeft - strip.clientWidth / 2 + on.clientWidth / 2; });
   }
   function statsPlayerScreen(key) {
     const d = STATS.detail(key);
     if (!d) { statsScreen(); return; }
+    const mine = STATS.games.filter((g) => g.standings.some((x) => pkey(x) === key));
+    const form = mine.slice(0, 10).reverse().map((g) => pkey(g.standings[0]) === key ? '<i class="w">W</i>' : '<i class="l">L</i>').join('');
+    const seconds = mine.filter((g) => g.standings[1] && pkey(g.standings[1]) === key).length;
+    const rank = STATS.board(STATS.games).filter((p) => p.ranked).findIndex((p) => p.key === key);
     const cups = STATS.cups(), cupsIn = cups.filter((c) => c.rows.some((r) => pkey(r) === key)), cupsWon = cupsIn.filter((c) => pkey(c.rows[0]) === key).length;
-    const chips = [['Games', d.gp], ['Wins', d.w], ['Win%', d.winpct + '%'], ['Avg place', d.avg.toFixed(1)], ['Streak', d.cur + ' · best ' + d.best]].concat(cupsIn.length ? [['Cups won', cupsWon + ' of ' + cupsIn.length]] : []);
-    const chipHTML = chips.map((c) => `<div class="stchip"><span class="stcv">${c[1]}</span><span class="stcl">${c[0]}</span></div>`).join('');
-    const h2hHTML = Object.keys(d.h2h).map((ok) => { const r = d.h2h[ok], lead = r.w > r.l ? 'stpos' : (r.w < r.l ? 'stneg' : '');
-      return `<div class="h2hrow"><span class="h2hn">vs ${escapeHtml(r.name)}</span><span class="h2hr ${lead}">${r.w}–${r.l}</span></div>`; }).join('');
-    const roadIco = ROAD_ICO ? `<img src="${ROAD_ICO}" class="stbonico" alt="">` : '🛤';
-    statsOut(`<div class="lobhead"><button class="lobback" onclick="CATAN.openStats()" title="Back to stats">←</button><h3>${escapeHtml(d.name)}</h3></div>
-      <div class="stchips">${chipHTML}</div>
-      <h4 class="stsub">Head to head</h4>
-      <div class="stnote">Who finished higher, in every game you both played (any table size, all time).</div>
-      <div class="h2hlist">${h2hHTML}</div>
-      <h4 class="stsub">Bonuses held</h4>
-      <div class="stbon"><span>${roadIco} Longest Road ×${d.lr}</span><span><span class="stbonemo">⚔</span> Largest Army ×${d.la}</span></div>`);
+    const tiles = [[d.avg.toFixed(1), 'AVG PLACE'], [d.cur, 'STREAK · BEST ' + d.best], [cupsIn.length ? cupsWon + ' / ' + cupsIn.length : '–', 'CUPS WON'],
+      [d.lr, '🛣️ LONGEST ROAD'], [d.la, '⚔️ LARGEST ARMY'], [seconds, 'TIMES 2ND']].map((t) => `<div class="st2tile"><b>${t[0]}</b><span>${t[1]}</span></div>`).join('');
+    const h2h = Object.keys(d.h2h).sort((a, b) => (d.h2h[b].w + d.h2h[b].l) - (d.h2h[a].w + d.h2h[a].l)).map((ok) => { const r = d.h2h[ok], tot = r.w + r.l, pct = tot ? Math.round(100 * r.w / tot) : 50;
+      return `<div class="st2h">${stAv(r.name, 'sm')}<b>vs ${escapeHtml(r.name)}</b><span class="st2split"><span class="st2sc"><span class="pos">${r.w}</span> – <span class="neg">${r.l}</span></span><span class="st2sb"><i style="width:${pct}%"></i></span></span></div>`; }).join('');
+    statsOut(`<div class="st2"><div class="st2phead"><button class="lobback" onclick="CATAN.openStats()" title="Back to stats">←</button><h3>${escapeHtml(d.name)}</h3></div>
+      <div class="st2ptop">${stAv(d.name, 'xl')}<div class="st2big"><b>${d.winpct}%</b><span>${d.w} win${d.w === 1 ? '' : 's'} from ${d.gp} game${d.gp === 1 ? '' : 's'}${rank >= 0 ? ' · #' + (rank + 1) : ' · not ranked yet'}</span><div class="st2form">${form}</div></div></div>
+      <div class="st2tiles">${tiles}</div>
+      <div class="st2sect">HEAD TO HEAD</div><div class="st2list">${h2h}</div>
+      <div class="st2note">Head to head: who finished higher, in every game you both played (any table size, all time).</div></div>`);
   }
   // ===== Lobby (v170): three tabs (Play · Chat · Stats) over the SAME tables/presence plumbing.
   // Play shows one card for what's happening now; a table is a "room" of four seats. Taking a seat
@@ -5059,7 +5119,7 @@
     const midGame = endsForAll && state && state.phase === 'play' && state.players.length > 1;
     const ttl = spectator ? 'Stop watching?' : midGame ? 'Quit the game?' : 'Leave game?';
     const sub = spectator ? 'You go back to the lobby. The game keeps going for the players.'
-      : midGame ? (() => { const l = quitLeader(state, myColor); return `Quitting ends the game for everyone. You finish last and it goes on your record as a quit (it counts as a loss).${l ? ` ${escapeHtml(l.p.name)} wins as the points leader (${l.vp} VP).` : ''}`; })()
+      : midGame ? (() => { const l = quitLeader(state, myColor); return `Quitting ends the game for everyone. The others then vote on whether it counts: if they all agree${l ? `, ${escapeHtml(l.p.name)} gets the win as the points leader (${l.vp} VP) and` : ','} you're placed last.`; })()
       : endsForAll ? 'This ends the game for everyone.' : 'You will leave this game.';
     const act = spectator ? 'Leave to lobby' : midGame ? 'Quit · finish last' : endsForAll ? 'End game' : 'Leave game';
     // big, full-width stacked targets — Cancel is the prominent safe action, leave is below
