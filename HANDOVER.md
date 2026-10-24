@@ -586,6 +586,20 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    `max(8px, safe-area-bottom - gap)` (the cut-off line already sits above the home bar), and `body.inlobby` paints
    the strip below in the tab bar's colour so it reads as one bar to the edge.
 
+22. ✅ **Quit vote + Stats redesign — v183 (2026-10-24).** (Mockups: canvas row "Stats redesign (no more Quits)".)
+   - **Quit vote:** a mid-game quit now opens `state.qv = { deadline (5 min), votes, done, count, auto }`. Everyone still
+     in the game votes, the leader included; it must be unanimous ("Everyone must agree" in the pinned bar). All yes ->
+     counted (leader's win, quitter last); any no -> not counted at all (no `game_results` row). Timeout -> counted
+     only if the leader was within 2 points of the target (`qvNearWin`), settled by any phone still on the results.
+     `recordResult` waits for the vote; the quitter's phone no longer records. Card title reads "Game ended early" /
+     "Game not counted" until it counts. Rematch waits for the vote. Limitation: if every phone leaves before it
+     settles, that game is never recorded. Pre-v183 clients still record a quit immediately.
+   - **Stats:** "Quits" column + note removed (the penalty flag is still stored per row). New `statsScreen`: month
+     chips + "All sizes" select, podium for the top 3 ranked (photos from `LV.roster`), photo leaderboard rows with a
+     win-% bar, cups card, recent games with "Today 22:31 / Yesterday" (`g.at`). New `statsPlayerScreen`: big win %,
+     last-10 W/L strip, tiles (avg place, streak, cups, Longest Road, Largest Army, times 2nd), head to head with split
+     bars. Numbers use the system font (the display font draws 1 like a Roman I).
+
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
