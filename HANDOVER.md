@@ -680,6 +680,13 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    `enterGame` → the normal results card, quiet, dated "📅 Final board · …", "Back to stats" (`closePastGame`).
    "View board" shows every hand + dev cards (the ended-game spectator view). `renderLobby` is a no-op while
    ARCHIVE; any real `enterGame` clears it. Older games have no board (nothing was saved).
+31. ✅ **v197 (2026-10-25).** Review fixes for v193–v196. `recordResult` returns while `ARCHIVE` (a live row update
+   could set `online` back to true under the viewer and re-record the past game under a new id).
+   `findMyGame` no longer downloads every playing game's `players` column (photos, ~20–80 KB per poll): it filters
+   server-side with `players cs [{playerId: me}]`, selects only code + phase, and reads `players` for the one
+   matching game at most once a minute. `closePastGame` keeps `state` (like leaving any game). Verified with a
+   fake Supabase client in headless Chrome: ranked/friendly/absent quits, result + snapshot save, the no-column
+   fallback, archive open/no re-record/board/close, and findMyGame (found, then cleared once I'm in `left`).
 
 ### Also shipped since multiplayer (2026-06)
 

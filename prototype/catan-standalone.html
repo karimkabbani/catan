@@ -1735,7 +1735,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v196';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v197';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -6322,12 +6322,23 @@
       const c = NET.init(); if (!c || !AUTH.me || NET.started) return;
       if (!force && Date.now() - this.myGameAt < 10000) return;
       this.myGameAt = Date.now();
-      const { data, error } = await c.from('games').select('code,players,sleft:state->left,sphase:state->>phase').eq('phase', 'playing');
-      if (error || !Array.isArray(data)) return;
       const me = AUTH.me.id;
-      const row = data.find((r) => safeCode(r.code) && r.sphase !== 'ended' && (r.players || []).some((p) => p && p.playerId === me && !(r.sleft || []).includes(p.color)));
-      const g = row ? { code: row.code, names: row.players.filter((p) => p && p.playerId !== me).map((p) => p.name) } : null;
-      if (JSON.stringify(g) !== JSON.stringify(this.myGame)) { this.myGame = g; lobbySig = null; if (!NET.started) renderLobby(); }
+      // only rows with a seat for me (server-side containment), and only small columns: the `players`
+      // column carries everyone's photos, so it is read for the one matching game and only when it changes
+      const { data, error } = await c.from('games').select('code,sphase:state->>phase').eq('phase', 'playing').filter('players', 'cs', JSON.stringify([{ playerId: me }]));
+      if (error || !Array.isArray(data)) return;
+      const hit = data.find((r) => safeCode(r.code) && r.sphase !== 'ended');
+      let g = null;
+      if (hit) {
+        if (this.myGame && this.myGame.code === hit.code && Date.now() - (this.myGame.at || 0) < 60000) return;   // same game, recently checked
+        const { data: r, error: e2 } = await c.from('games').select('players,sleft:state->left').eq('code', hit.code).maybeSingle();
+        if (e2 || !r) return;
+        const seat = (r.players || []).find((p) => p && p.playerId === me);
+        if (seat && !(r.sleft || []).includes(seat.color)) g = { code: hit.code, names: r.players.filter((p) => p && p.playerId !== me).map((p) => p.name), at: Date.now() };
+      }
+      const key = (x) => (x ? x.code + ':' + x.names.join(',') : '');
+      if (key(g) === key(this.myGame)) { if (g) this.myGame.at = g.at; return; }
+      this.myGame = g; lobbySig = null; if (!NET.started) renderLobby();
     },
     // fetch the roster from the DB. A failed fetch keeps the roster we have (a blip never empties the lobby).
     async pollPresence() {
@@ -6628,7 +6639,7 @@
   // (identical on every device, stable across reconnects) dedups so exactly one row lands.
   let lastRecorded = null;
   function recordResult() {
-    if (!online || !NET.code || !NET.client || !state || state.phase !== 'ended' || !state.winner) return;
+    if (ARCHIVE || !online || !NET.code || !NET.client || !state || state.phase !== 'ended' || !state.winner) return;   // a past game on screen is never re-recorded
     if (state.friendly) return;   // 🤝 friendly: played for fun, never in the stats
     if (state.quitBy && state.qv && (!state.qv.done || !state.qv.count)) return;   // a quit: only once the table votes to count it
     const seatId = {};   // color -> persistent player id, from the game's seat map (rename-proof stats key)
@@ -6679,7 +6690,7 @@
     online = false; myColor = null; victoryShownFor = null;
     enterGame(s);
   }
-  function closePastGame() { ARCHIVE = null; gameSeats = null; state = null; showLobby(); }
+  function closePastGame() { ARCHIVE = null; showLobby(); }
   const ROAD_ICO = (ASSETS.pieces && ASSETS.pieces['road-eastwest'] && (ASSETS.pieces['road-eastwest'].yellow || ASSETS.pieces['road-eastwest'].red)) || '';
   let statsSeason = null;   // null = current season, 'all' = all-time
   let statsCount = null;    // null = all table sizes; 2 | 3 | 4 = only that many players
