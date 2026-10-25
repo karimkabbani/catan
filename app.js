@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v190';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v191';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -5243,7 +5243,7 @@
   }
   function lvTabsHTML() {
     const u = lvUnread();
-    const t = (k, ico, lbl, extra) => `<button class="lvtab${LV.tab === k ? ' on' : ''}" data-nav="tab:${k}"><i>${ico}${extra || ''}</i>${lbl}</button>`;
+    const t = (k, ico, lbl, extra) => `<button class="lvtab${LV.tab === k ? ' on' : ''}" data-nav="tab:${k}"><i><span class="lvico">${ico}</span>${extra || ''}</i>${lbl}</button>`;
     return t('play', '⚔️', 'Play') + t('chat', '💬', 'Chat', u && LV.tab !== 'chat' ? `<span class="lvbadge">${u > 9 ? '9+' : u}</span>` : '') + t('stats', '🏆', 'Stats');
   }
   function lvChrome() {
