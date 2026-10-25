@@ -642,6 +642,13 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
      `recentRowsHTML`, `cameraPanTo`, `cinematicHex`…).
    - Repo `CLAUDE.md` added so cloud/phone Claude Code sessions follow the same rules.
 
+26. ✅ **v189–v191 (2026-10-25).** v189: poker swap is any number of cards (five-card draw), not up to 3.
+   v190: **Ranked / Friendly** ("Counts in stats?") in Game settings: `LOBBY.friendly` (resets to Ranked on every
+   `enterTable`), carried as `state.friendly` (rematches keep it), presence `ws` gets a trailing `:f` / `f`
+   (`wsInfo` parses it); `recordResult` skips friendly games; in-game pill "🤝 Friendly game · not in stats";
+   results note. Older clients would still record a friendly game. v191: tab bar redesign: the selected tab's
+   icon sits in a gold pill, others greyed (`.lvico` only, so the unread badge stays red).
+
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
