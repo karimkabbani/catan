@@ -339,3 +339,47 @@ describe('dev card dead ends (v199)', () => {
     expect(applyAction(s, { type: 'playYearOfPlenty', resources: ['wheat', 'wheat'] }, me).ok).toBe(false);
   });
 });
+
+describe('rules fixes (v200)', () => {
+  const base = () => runSetup(createGame({ id: 't', players: [{ color: 'red', name: 'A' }, { color: 'blue', name: 'B' }, { color: 'green', name: 'C' }], seed: 5 }));
+
+  it('a player at the target when their turn starts wins at once', () => {
+    let s = structuredClone(base()); s.turnPhase = 'main'; s.hasRolledThisTurn = true;
+    const me = currentColor(s);
+    const next = s.order[(s.order.indexOf(me) + 1) % s.order.length];
+    s.targetPoints = 3;   // everyone has 2 settlements = 2 VP
+    s.players.find((p) => p.color === next)!.devCards.push('victory_point');   // next player: 3 VP, reached off-turn
+    const r = applyAction(s, { type: 'endTurn' }, me);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.state.phase).toBe('ended');
+    expect(r.state.winner).toBe(next);
+  });
+
+  it('nobody else at the target: the game goes on', () => {
+    let s = structuredClone(base()); s.turnPhase = 'main'; s.hasRolledThisTurn = true;
+    const r = applyAction(s, { type: 'endTurn' }, currentColor(s));
+    expect(r.ok && r.state.phase).toBe('play');
+  });
+});
+
+describe('trade answers never land on changed terms (v200)', () => {
+  it('an accept made to an older offer is refused', () => {
+    let s = runSetup(createGame({ id: 't', players: [{ color: 'red', name: 'A' }, { color: 'blue', name: 'B' }], seed: 9 }));
+    s = structuredClone(s); s.turnPhase = 'main'; s.hasRolledThisTurn = true;
+    const me = currentColor(s), other = s.order.find((c) => c !== me)!;
+    s.players.forEach((p) => { p.resources = { brick: 3, wood: 3, sheep: 3, wheat: 3, ore: 3 }; });
+    let r = applyAction(s, { type: 'offerTrade', give: { wheat: 1 }, want: { ore: 1 } }, me); expect(r.ok).toBe(true); if (!r.ok) return;
+    const firstId = r.state.pendingTrade!.id;
+    r = applyAction(r.state, { type: 'offerTrade', give: { wheat: 1 }, want: { ore: 2 } }, me); expect(r.ok).toBe(true); if (!r.ok) return;
+    expect(applyAction(r.state, { type: 'acceptTrade', tid: firstId }, other).ok).toBe(false);
+    expect(applyAction(r.state, { type: 'acceptTrade', tid: r.state.pendingTrade!.id }, other).ok).toBe(true);
+    expect(applyAction(r.state, { type: 'acceptTrade' }, other).ok).toBe(true);   // older phones send no id
+  });
+
+  it('negative counts are refused', () => {
+    let s = runSetup(createGame({ id: 't', players: [{ color: 'red', name: 'A' }, { color: 'blue', name: 'B' }], seed: 9 }));
+    s = structuredClone(s); s.turnPhase = 'main'; s.hasRolledThisTurn = true;
+    expect(applyAction(s, { type: 'offerTrade', give: { ore: -3 }, want: {} }, currentColor(s)).ok).toBe(false);
+  });
+});

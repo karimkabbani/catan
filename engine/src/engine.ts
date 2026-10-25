@@ -37,10 +37,10 @@ export type Action =
   | { type: 'discard'; resources: Partial<Record<Resource, number>> }
   | { type: 'bankTrade'; give: Resource; want: Resource }
   | { type: 'offerTrade'; give: Partial<Record<Resource, number>>; want: Partial<Record<Resource, number>> }
-  | { type: 'acceptTrade' }
-  | { type: 'declineTrade' }
-  | { type: 'counterTrade'; give: Partial<Record<Resource, number>>; want: Partial<Record<Resource, number>> }
-  | { type: 'confirmTrade'; with: PlayerColor }
+  | { type: 'acceptTrade'; tid?: number }
+  | { type: 'declineTrade'; tid?: number }
+  | { type: 'counterTrade'; give: Partial<Record<Resource, number>>; want: Partial<Record<Resource, number>>; tid?: number }
+  | { type: 'confirmTrade'; with: PlayerColor; tid?: number; cv?: number }
   | { type: 'cancelTrade' }
   | { type: 'endTurn' };
 
@@ -127,6 +127,7 @@ function checkWin(s: GameState, color: PlayerColor): void {
   if (victoryPoints(s, color) >= (s.targetPoints ?? VICTORY_POINTS_TO_WIN)) {
     s.winner = color;
     s.phase = 'ended';
+    s.pendingTrade = null;   // an offer left open can't outlive the game
     s.log.push(`${getPlayer(s, color).name} wins!`);
   }
 }
@@ -171,6 +172,11 @@ function legalRoadCount(s: GameState, color: PlayerColor): number {
   let n = 0;
   for (let e = 0; e < s.board.edges.length; e++) if (s.roads[e] == null && roadConnects(s, color, e)) n++;
   return n;
+}
+
+// card counts sent by a client must be whole and non-negative (a -1 would take cards from the bank)
+function countsOk(o: Partial<Record<Resource, number>> | undefined): boolean {
+  return !!o && RESOURCES.every((r) => { const n = o[r] ?? 0; return Number.isInteger(n) && n >= 0; });
 }
 
 function tallyOf(s: GameState, color: PlayerColor): Tally {
@@ -334,6 +340,7 @@ export function applyAction(state: GameState, action: Action, byColor: PlayerCol
   if (action.type === 'discard') {
     const owed = s.pendingDiscards[byColor] ?? 0;
     if (owed <= 0) return err('You have nothing to discard.');
+    if (!countsOk(action.resources)) return err('Invalid card counts.');
     const p = getPlayer(s, byColor);
     const given = RESOURCES.reduce((n, r) => n + (action.resources[r] ?? 0), 0);
     if (given !== owed) return err(`You must discard exactly ${owed} cards.`);
@@ -344,6 +351,17 @@ export function applyAction(state: GameState, action: Action, byColor: PlayerCol
       s.turnPhase = 'moveRobber';
     }
     return { ok: true, state: s };
+  }
+
+  // An answer made to an offer that has since been re-made (or a counter that has since changed) is refused,
+  // so nobody trades on terms they never saw. Old clients send no ids and are accepted as before.
+  if (action.type === 'acceptTrade' || action.type === 'declineTrade' || action.type === 'counterTrade' || action.type === 'confirmTrade') {
+    const t = s.pendingTrade;
+    if (t && t.id != null && action.tid != null && action.tid !== t.id) return err('That offer just changed.');
+    if (action.type === 'confirmTrade' && t && action.cv != null) {
+      const c = t.counters?.[action.with];
+      if (!c || c.v !== action.cv) return err('That counter-offer just changed.');
+    }
   }
 
   // A non-current player may accept or decline the standing trade offer.
@@ -364,6 +382,8 @@ export function applyAction(state: GameState, action: Action, byColor: PlayerCol
   switch (action.type) {
     case 'rollDice': {
       if (s.turnPhase !== 'roll') return err('You have already rolled.');
+      checkWin(s, cur);   // (games saved before the endTurn check) already at the target: no roll needed
+      if (s.phase === 'ended') return { ok: true, state: s };
       const r = rollDice(s.rngState);
       s.rngState = r.state;
       s.dice = r.dice;
@@ -574,8 +594,10 @@ export function applyAction(state: GameState, action: Action, byColor: PlayerCol
 
     case 'offerTrade': {
       if (s.turnPhase !== 'main') return err('Roll first.');
+      if (!countsOk(action.give) || !countsOk(action.want)) return err('Invalid card counts.');
       if (!canPay(player, action.give)) return err('You do not have what you are offering.');
-      s.pendingTrade = { from: cur, give: action.give, want: action.want, acceptedBy: [], declinedBy: [], counters: {} };
+      s.tradeSeq = (s.tradeSeq ?? 0) + 1;
+      s.pendingTrade = { id: s.tradeSeq, from: cur, give: action.give, want: action.want, acceptedBy: [], declinedBy: [], counters: {} };
       return { ok: true, state: s };
     }
 
@@ -618,6 +640,8 @@ export function applyAction(state: GameState, action: Action, byColor: PlayerCol
       s.freeRoads = 0;
       s.currentPlayerIndex = (s.currentPlayerIndex + 1) % s.players.length;
       s.turnPhase = 'roll';
+      // points can arrive on someone else's turn (Longest Road changing hands); you win as your turn starts
+      checkWin(s, currentColor(s));
       return { ok: true, state: s };
     }
   }
@@ -652,13 +676,15 @@ export function counterTrade(
   if (!state.pendingTrade) return err('There is no trade to counter.');
   if (state.pendingTrade.from === byColor) return err('You cannot counter your own offer.');
   const me = getPlayer(state, byColor);
+  if (!countsOk(give) || !countsOk(want)) return err('Invalid card counts.');
   if (!canPay(me, want)) return err('You cannot cover your counter-offer.');
   const s = clone(state);
   const t = s.pendingTrade!;
   t.acceptedBy = t.acceptedBy.filter((c) => c !== byColor);
   t.declinedBy = t.declinedBy.filter((c) => c !== byColor);
   t.counters = t.counters ?? {};
-  t.counters[byColor] = { give, want };
+  s.tradeSeq = (s.tradeSeq ?? 0) + 1;
+  t.counters[byColor] = { give, want, v: s.tradeSeq };
   return { ok: true, state: s };
 }
 

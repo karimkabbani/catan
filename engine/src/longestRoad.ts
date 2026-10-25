@@ -58,7 +58,9 @@ export function longestRoadLength(state: GameState, color: PlayerColor): number 
   return best;
 }
 
-/** Recompute the longest-road holder. Award at 5+; steal only on a strict lead. */
+/** Recompute the longest-road holder (official rules): 5+ to hold it; the holder keeps it unless someone
+ *  is strictly longer; if the holder loses it (overtaken, or broken below 5), the single longest road
+ *  takes it, and a tie for longest among the others leaves it with nobody until someone pulls ahead. */
 export function updateLongestRoad(state: GameState): void {
   const MIN = 5;
   const lengths = new Map<PlayerColor, number>();
@@ -66,30 +68,13 @@ export function updateLongestRoad(state: GameState): void {
 
   const current = state.longestRoadOwner;
   const currentLen = current ? lengths.get(current)! : 0;
+  const best = Math.max(0, ...state.players.map((p) => lengths.get(p.color)!));
 
-  let leader: PlayerColor | null = current;
-  let leaderLen = current && currentLen >= MIN ? currentLen : 0;
-
-  for (const p of state.players) {
-    const len = lengths.get(p.color)!;
-    if (len >= MIN && len > leaderLen) {
-      leader = p.color;
-      leaderLen = len;
-    }
-  }
-
-  // If the current holder dropped below 5 (road broken by an opponent), the
-  // title is recomputed among everyone else; if nobody qualifies, it's vacant.
-  if (current && currentLen < MIN) {
-    leader = null;
-    leaderLen = 0;
-    for (const p of state.players) {
-      const len = lengths.get(p.color)!;
-      if (len >= MIN && len > leaderLen) {
-        leader = p.color;
-        leaderLen = len;
-      }
-    }
+  let leader: PlayerColor | null;
+  if (current && currentLen >= MIN && currentLen >= best) leader = current;   // holder keeps it on a tie
+  else {
+    const top = best >= MIN ? state.players.filter((p) => lengths.get(p.color) === best) : [];
+    leader = top.length === 1 ? top[0].color : null;
   }
 
   if (leader !== current) {

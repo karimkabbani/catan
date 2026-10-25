@@ -114,6 +114,8 @@ export type TurnPhase =
   | 'placeRoad'; // initial setup OR road-building: place a road
 
 export interface PendingTrade {
+  /** Changes whenever the offer is made or re-made: answers carry it, so an answer never lands on newer terms. */
+  id?: number;
   from: PlayerColor;
   give: Partial<Record<Resource, number>>;
   want: Partial<Record<Resource, number>>;
@@ -123,7 +125,7 @@ export interface PendingTrade {
   declinedBy: PlayerColor[];
   /** Per-responder counter-offers, in the OFFERER's frame (give = what `from` gives, want = what
    *  `from` wants). The offerer can confirm any counter, trading on those terms instead. */
-  counters?: Partial<Record<PlayerColor, { give: Partial<Record<Resource, number>>; want: Partial<Record<Resource, number>> }>>;
+  counters?: Partial<Record<PlayerColor, { give: Partial<Record<Resource, number>>; want: Partial<Record<Resource, number>>; v?: number }>>;
 }
 
 export interface GameState {
@@ -185,6 +187,8 @@ export interface GameState {
   hasRolledThisTurn: boolean;
 
   pendingTrade: PendingTrade | null;
+  /** Counter for offer / counter-offer ids. */
+  tradeSeq?: number;
 
   winner: PlayerColor | null;
   targetPoints: number; // victory points needed to win (house rule by player count)

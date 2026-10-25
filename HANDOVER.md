@@ -719,6 +719,22 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    `showLobby` (`window.catanUpdatePending`). (9) Hourly sweep no longer deletes LOBBY chat (`.neq('code','LOBBY')`).
    Also: the off-turn cards screen re-renders when it becomes playable (`ui.devView`) and closes when the robber
    needs the board; poker HELD marks reset per deal. Batches B–D (wrong results, polish, security) not done yet.
+34. ✅ **v200 (2026-10-25): Batch B (wrong results / wrong information).** Steal fly passes the real resource for
+   the counts (third parties' corner counts were off until the next roll). Trade sheets keep ✓/✗/auto-decline off
+   the resource columns (`.traderoot .tgrid` padding; on SE-size phones ✓ sat on brick, ✗ on wheat). "1" drawn as
+   "I": offer counts, discard/YoP titles, `.btimer`, countdown, voice timer use the system font (`.rpsn`).
+   Engine: Longest Road per the rules (holder keeps on a tie; a tie for longest among others leaves it with
+   nobody); `checkWin` for the new current player at `endTurn` (and at `rollDice` for old states) so points won
+   on someone else's turn win as your turn starts; `checkWin` clears `pendingTrade`; trade offers get an `id`
+   (`tradeSeq`) and counters a `v`: accept/decline/counter/confirm carry `tid`/`cv` (client `seenTid()`) and the
+   engine refuses an answer to a changed offer (old clients send none: accepted as before); negative/non-integer
+   counts refused (`countsOk`). 4 new engine tests (32). Stats: white flags only in a live game (raise, Leave
+   dialog, `syncSurrenderUI`); `endByFlags` no longer records/shows locally first, it waits for `svUpdate`'s
+   merged state; `recordResult` waits while `NET.inflight` (my move not yet on the server) and `syncAction`
+   records once it lands; `STATS.cups()` treats a cup idle > 6h (past the cleanup, can't resume) as ended early;
+   Stats refetch when opened if older than 60s (`STATS.loadedAt`). Lobby: `startTableNow` polls presence first;
+   the auto target counts seated players only (start and room preview). Automatic rematch re-reads the row and
+   needs the server's all-yes. RPS: my local pick is used at resolve if my write hasn't landed (`rpsLocal.myPick`).
 
 ### Also shipped since multiplayer (2026-06)
 
