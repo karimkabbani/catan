@@ -352,6 +352,28 @@ untouched core. Have Lovable build the lobby, board, and Supabase wiring around
   state tampering). Decision (Karim): the group is trusted ("I trust them"), so the
   real-world risk is nil — not worth the rebuild. **Revisit only if** the play turns
   competitive, someone would actually peek, or it opens beyond the friend circle.
+- **Pause, save and resume games (idea logged 2026-10-25, NOT started: Karim isn't ready to invest yet).**
+  Goal: any game (single or part of a cup) can be paused and resumed later, even days later, without blocking
+  new games in parallel. Proposed design:
+  1. Every new game gets its own code (stop reusing HOME_CODE 'TABLE'), so a saved game never blocks a table.
+  2. **Saved games** (step 1, lower risk): a `paused` phase on the `games` row; no 6h purge for paused rows (expire
+     after ~30 days); a game with nobody online for ~30 min becomes paused automatically (replaces "abandoned");
+     Play tab gets a "Saved games" list (players, score, cup game N of M, paused when, Resume ›); Resume = everyone
+     in the game back + ready-up (like the rematch bar), then 3·2·1 and play continues exactly where it stopped.
+     Deleting a saved game needs everyone's agreement. Cups pause as a whole; stats only on a finished game.
+  3. **Pause button** (step 2): in the radial menu's left arc; any player pauses instantly; full-screen "⏸ Paused
+     by Kay" card on every phone with Resume / Back to lobby; no moves, clocks or offline bar while paused.
+  Open decisions for Karim: who can pause (proposed: anyone, instantly); resume needs every player present
+  (proposed: yes); auto-save when everyone leaves (proposed: yes, after 30 min).
+  Risks (why it's a careful build, ~1 day + regression sweep): (a) moves slipping through in the seconds before
+  every phone sees the pause, or from phones on older versions; (b) every stored deadline (RPS/poker picks, the
+  who-starts position choice, quit vote 5 min, rematch 30s, turn clock, 3-min offline bar) is long expired on
+  resume and would fire at once; (c) the app assumes one game per player (NET.code, findMyGame's single card);
+  (d) pausing mid-discard/robber/free-road/trade must restore the right prompt on each phone; (e) the 6h purge and
+  "abandoned" semantics change. Mitigations: a database trigger that refuses any state write to a paused row
+  except the resume (closes (a) for every version), an engine rule refusing actions while paused, shifting every
+  deadline by the pause length on resume, showing Pause only when every phone in the game is on the new version,
+  and a regression sweep focused on (a)–(e).
 - ~~Spectator experience is bare~~ → **fixed (v60)**: a spectator dock strip ("👁 Spectating — X's
   turn" + Leave), a `body.spectating` class driving the chrome, and the existing banner. No hidden-info leak.
 - **A player who vanishes on their turn — policy, not a skip (v61).** Decision (Karim): a stalled game is
