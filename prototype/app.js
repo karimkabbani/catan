@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v189';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v190';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -853,9 +853,10 @@
     });
     // which game of the cup this is, under the banner
     let pill = $('cuppill');
-    if (state.cup && state.phase !== 'ended') {
+    if ((state.cup || state.friendly) && state.phase !== 'ended') {
       if (!pill) { pill = document.createElement('div'); pill.id = 'cuppill'; document.body.appendChild(pill); }
-      pill.innerHTML = `🏆 ${escapeHtml(cupTitle(state.cup))} · game <span class="rpsn">${state.cup.n}</span> of <span class="rpsn">${state.cup.games}</span>`;
+      pill.innerHTML = state.cup ? `🏆 ${escapeHtml(cupTitle(state.cup))} · game <span class="rpsn">${state.cup.n}</span> of <span class="rpsn">${state.cup.games}</span>${state.friendly ? ' · 🤝 friendly' : ''}`
+        : '🤝 Friendly game · not in stats';
     } else if (pill) pill.remove();
     const usedSeats = {}; state.players.forEach((_, i) => { usedSeats[seatKey(i)] = 1; });
     ['tl', 'tr', 'br', 'bl'].forEach((k) => { if (!usedSeats[k]) { const el = $('p-' + k); if (el) el.style.display = 'none'; } });
@@ -2191,6 +2192,7 @@
       <div class="winhead"><div class="winrays"></div>${crown}
         <div class="winava" style="background:${PCOLOR[winner.color]}">${wav}</div></div>
       <h2 id="vtitle">${victoryTitle()}</h2>
+      ${state.friendly ? '<div class="quitnote">🤝 Friendly game: not recorded in Stats.</div>' : ''}
       ${quitNoteHTML()}
       ${myColor ? `<div id="rmpanel">${rematchPanelHTML()}</div>` : ''}
       ${domBadge}
@@ -2220,7 +2222,7 @@
     showOverlay(`<div class="winwrap${fin ? ' cupfinal' : ''}">
       <div class="winhead"><div class="winrays"></div><img class="crown" src="assets/hud/crown.png" alt="">
         <div class="winava" style="background:${PCOLOR[hero.color]}">${src ? `<img src="${src}" alt="">` : ''}</div>${fin ? '<span class="cuptrophy">🏆</span>' : ''}</div>
-      <h2>${title}</h2>${sub}${quitNoteHTML()}
+      <h2>${title}</h2>${sub}${state.friendly ? '<div class="quitnote">🤝 Friendly tournament: not recorded in Stats.</div>' : ''}${quitNoteHTML()}
       ${myColor ? `<div id="rmpanel">${rematchPanelHTML()}</div>` : ''}
       <div id="ggrow">${ggHTML()}</div>
       ${cupStandingsHTML()}
@@ -4489,6 +4491,7 @@
   const LOBBY = {
     channel: null, presence: {}, mode: 'idle', readyAt: 0, inProgress: false, lastRow: null, table: null, created: null, targetPoints: null,
     cup: 0,          // host's lobby choice: 0 = one game, N = a cup of N games (rides presence as ws 'cup:N')
+    friendly: false, // host's lobby choice: true = 🤝 friendly (not in stats); rides presence as a trailing 'f' in ws
     cupRow: null,    // a cup paused between games at this table that I'm seated in (shows "Back to the cup")
     whoStarts: (function () { try { const v = localStorage.getItem('catanWhoStarts'); return v === 'random' || v === 'poker' ? v : 'rps'; } catch (_) { return 'rps'; } })(),   // host's lobby choice (default: rock-paper-scissors)
     lastSeen: {},          // id -> last time seen live (ms) — powers the grace window
@@ -4520,7 +4523,7 @@
     // changed it at the table, else their profile preference. undefined = no override in play.
     // effective color preference: the table-session override if set, else the profile default
     myPref() { return this.prefGame !== undefined ? this.prefGame : ((AUTH.me && AUTH.me.prefColor) || null); },
-    myPayload() { return { id: AUTH.me.id, name: AUTH.me.name, avatar: AUTH.me.avatar || null, pref: this.myPref(), mode: this.mode, readyAt: this.readyAt, table: this.table || null, created: this.created || null, target: this.targetPoints || null, ws: this.cup ? 'cup:' + this.cup + ':' + ({ rps: 'r', poker: 'p' }[this.whoStarts] || 'x') : this.whoStarts }; },
+    myPayload() { return { id: AUTH.me.id, name: AUTH.me.name, avatar: AUTH.me.avatar || null, pref: this.myPref(), mode: this.mode, readyAt: this.readyAt, table: this.table || null, created: this.created || null, target: this.targetPoints || null, ws: (this.cup ? 'cup:' + this.cup + ':' + ({ rps: 'r', poker: 'p' }[this.whoStarts] || 'x') : this.whoStarts) + (this.friendly ? (this.cup ? 'f' : ':f') : '') }; },
     // announce my state: heartbeat row on the server + an optimistic local echo so my own UI updates
     // instantly (the poll confirms it a few seconds later)
     track() {
@@ -4532,7 +4535,7 @@
     creatorOf(code) { return this.online().find((p) => (p.table || null) === code && p.created === code) || null; },
     gameName(code) { if (code === HOME_CODE) return 'Main Game'; const c = this.creatorOf(code); return c ? c.name + "'s Game" : 'Game'; },
     // enter / switch tables (a table is a presence grouping keyed by a game code)
-    enterTable(code) { LV.gos = {}; if (this.created !== code) this.created = null; try { localStorage.setItem('catanLastTable', code); } catch (_) { } this.table = code; NET.code = code; this.mode = 'idle'; this.readyAt = 0; this.inProgress = false; this.targetPoints = null; this.prefGame = undefined; NET.subscribe(); this.track(); lobbySig = null; renderLobby(); },
+    enterTable(code) { LV.gos = {}; this.friendly = false; if (this.created !== code) this.created = null; try { localStorage.setItem('catanLastTable', code); } catch (_) { } this.table = code; NET.code = code; this.mode = 'idle'; this.readyAt = 0; this.inProgress = false; this.targetPoints = null; this.prefGame = undefined; NET.subscribe(); this.track(); lobbySig = null; renderLobby(); },
     leaveTable() { this.created = null; try { localStorage.removeItem('catanLastTable'); } catch (_) { } this.table = null; NET.code = null; this.mode = 'idle'; this.readyAt = 0; this.inProgress = false; this.targetPoints = null; this.prefGame = undefined; NET.unsubscribeGame(); this.track(); lobbySig = null; renderLobby(); },
     // Chat rides a polled table (like the game state), NOT realtime broadcast — so it survives
     // iOS/PWA WebSocket drops. Insert a row; every client picks it up via postgres_changes + poll.
@@ -4602,6 +4605,7 @@
       try { gstate = C.createGame({ id: 'table', players: players.map((p) => ({ color: p.color, name: p.name })), seed: (Math.random() * 1e9) | 0, targetPoints: target, randomFirst: true }); }
       catch (e) { toast('Start failed: ' + e.message); return; }
       gstate.whoStarts = this.whoStarts;
+      if (this.friendly) gstate.friendly = true;   // 🤝 not recorded in stats
       if (this.cup) {
         try { await STATS.load(); } catch (_) { }   // past cups, so a repeated name gets its number
         gstate.cup = { id: Math.random().toString(36).slice(2, 10), name: uniqueCupName((this.cupName || '').trim() || pickCupName()), games: this.cup, n: 1, host: host.id, hist: [], at: Date.now() };
@@ -4659,6 +4663,7 @@
       try { gstate = C.createGame({ id: 'table', players: players.map((p) => ({ color: p.color, name: p.name })), seed: (Math.random() * 1e9) | 0, targetPoints: target, randomFirst: true }); }
       catch (e) { toast('Rematch failed: ' + e.message); return; }
       gstate.whoStarts = (state && state.whoStarts) || 'random';   // a rematch keeps the table's choice
+      if (state && state.friendly) gstate.friendly = true;          // …and stays friendly
       if (state && state.cup) {   // next game of the cup carries the results so far; after the final, "rematch the cup" starts a fresh one
         const fin = cupFinal(state);
         gstate.cup = Object.assign({}, state.cup, { n: fin ? 1 : state.cup.n + 1, hist: fin ? [] : cupHist(state), stop: false }, fin ? { id: Math.random().toString(36).slice(2, 10), name: uniqueCupName(pickCupName(state.cup.name)), at: Date.now() } : {});
@@ -4840,6 +4845,7 @@
   let lastRecorded = null;
   function recordResult() {
     if (!online || !NET.code || !NET.client || !state || state.phase !== 'ended' || !state.winner) return;
+    if (state.friendly) return;   // 🤝 friendly: played for fun, never in the stats
     if (state.quitBy && state.qv && (!state.qv.done || !state.qv.count)) return;   // a quit: only once the table votes to count it
     const seatId = {};   // color -> persistent player id, from the game's seat map (rename-proof stats key)
     (gameSeats || []).forEach((s) => { if (s && s.color) seatId[s.color] = s.playerId || null; });
@@ -5019,7 +5025,11 @@
   function lvOn() { const t = $('title'); return !!(AUTH.me && t && !t.classList.contains('hidden') && $('lv-root')); }
   // the host's choices ride presence in `ws`: 'rps' | 'random' | 'cup:N' (v169) | 'cup:N:r' / 'cup:N:x'
   function wsInfo(ws) {
-    const s = String(ws || '');
+    let s = String(ws || ''); const friendly = /f$/.test(s) && (s.startsWith('cup:') || s.endsWith(':f'));
+    if (friendly) s = s.endsWith(':f') ? s.slice(0, -2) : s.slice(0, -1);
+    return Object.assign(wsInfo0(s), { friendly });
+  }
+  function wsInfo0(s) {
     if (s.startsWith('cup:')) { const p = s.split(':'); return { cup: parseInt(p[1], 10) || 3, ws: p[2] === 'x' ? 'random' : p[2] === 'p' ? 'poker' : 'rps' }; }
     return { cup: 0, ws: s === 'random' || s === 'poker' ? s : 'rps' };
   }
@@ -5055,9 +5065,9 @@
   function lvSettingsLine(host, n) {
     const isMe = host && host.id === AUTH.me.id;
     const tgt = isMe ? LOBBY.targetPoints : (host ? host.target : null);
-    const w = isMe ? { cup: LOBBY.cup, ws: LOBBY.whoStarts } : wsInfo(host && host.ws);
+    const w = isMe ? { cup: LOBBY.cup, ws: LOBBY.whoStarts, friendly: LOBBY.friendly } : wsInfo(host && host.ws);
     const pts = tgt != null ? tgt : (n >= 2 ? targetForN(n) + ' (auto)' : 'auto');
-    return (w.cup ? `🏆 ${isMe && (LOBBY.cupName || '').trim() ? escapeHtml(LOBBY.cupName.trim()) : 'Tournament'} · ${w.cup} games to ${pts}` : `🎯 Win at ${pts} · One game`) + ({ rps: ' · ✊ Who starts', poker: ' · 🃏 Poker hand' }[w.ws] || ' · 🎲 Random start');
+    return (w.cup ? `🏆 ${isMe && (LOBBY.cupName || '').trim() ? escapeHtml(LOBBY.cupName.trim()) : 'Tournament'} · ${w.cup} games to ${pts}` : `🎯 Win at ${pts} · One game`) + ({ rps: ' · ✊ Who starts', poker: ' · 🃏 Poker hand' }[w.ws] || ' · 🎲 Random start') + (w.friendly ? ' · 🤝 Friendly' : '');
   }
   function lvMini(p, crown) {
     return `<div class="lvmini">${crown ? '<span class="lvminicrown">👑</span>' : ''}${faceHTML(p.name, p.avatar, 'md' + (crown ? ' hostring' : ''))}<span class="lvmn">${escapeHtml(p.name)}</span></div>`;
@@ -5176,6 +5186,8 @@
       const cup = LOBBY.cup, tgt = LOBBY.targetPoints, nums = [];
       for (let v = cup ? 6 : 9; v <= 15; v++) nums.push(v);
       body = `<div class="lvst">Game settings</div>
+        <div><div class="lvlbl">Counts in stats?</div><div class="seg lvseg"><button class="${!LOBBY.friendly ? 'on' : ''}" onclick="CATAN.lobbyFriendly(0)">🏆 Ranked</button><button class="${LOBBY.friendly ? 'on' : ''}" onclick="CATAN.lobbyFriendly(1)">🤝 Friendly</button></div>
+          <div class="lvsub small" style="margin-top:6px">${LOBBY.friendly ? 'Just for fun: this game won\'t appear in Stats.' : 'The result goes in Stats, as usual.'}</div></div>
         <div><div class="lvlbl">Format</div><div class="seg lvseg"><button class="${!cup ? 'on' : ''}" onclick="CATAN.lobbyCup(0)">One game</button><button class="${cup ? 'on' : ''}" onclick="CATAN.lobbyCup(3)">🏆 Tournament</button></div></div>
         ${cup ? `<div><div class="lvlbl">Tournament name</div><div class="lvname"><input class="lvnamein" maxlength="28" value="${escapeHtml(LOBBY.cupName || '')}" placeholder="Name it, or tap 🎲" oninput="CATAN.lobbyCupName(this.value)" onchange="CATAN.lobbyCupNameDone()"><button onclick="CATAN.lobbyCupReroll()" aria-label="Random name">🎲</button></div></div>` : ''}
         ${cup ? `<div class="lvrowc"><div><div class="lvlbl">Games in the cup</div><div class="lvstep"><button onclick="CATAN.lobbyCup(${cup - 1})" aria-label="Fewer">−</button><b>${cup}</b><button onclick="CATAN.lobbyCup(${cup + 1})" aria-label="More">+</button></div></div>`
@@ -5253,7 +5265,7 @@
     const g = LV.tab === 'chat' && lvGathering()[0];
     const live = LV.tab === 'chat' ? [LOBBY.table, g ? g.code + ':' + g.ready.length : '']
       : all.map((p) => p.id + ':' + (p.table || '') + ':' + pmode(p) + ':' + p.name + ':' + (p.readyAt || 0) + ':' + (p.target || '') + ':' + (p.ws || '') + ':' + (p.created || '') + ':' + (p.pref || '') + ':' + (p.away ? 'a' : '') + ':' + (p.avatar ? 1 : 0)).sort();
-    const sig = JSON.stringify([LV.tab, LV.sheet, LV.roster.length, lvGoKey(), LOBBY.table, LOBBY.inProgress, LOBBY.mode, LOBBY.targetPoints, LOBBY.whoStarts, LOBBY.cup, LOBBY.cupRow && LOBBY.cupRow.version, LOBBY.prefGame, LV.last && LV.last.at, live]);
+    const sig = JSON.stringify([LV.tab, LV.sheet, LV.roster.length, lvGoKey(), LOBBY.friendly, LOBBY.table, LOBBY.inProgress, LOBBY.mode, LOBBY.targetPoints, LOBBY.whoStarts, LOBBY.cup, LOBBY.cupRow && LOBBY.cupRow.version, LOBBY.prefGame, LV.last && LV.last.at, live]);
     if (sig === lobbySig) return;
     const ae = document.activeElement;
     if (ae && ae.tagName === 'INPUT' && ae.closest && ae.closest('#lv-sheet')) return;   // typing a name: redraw once you're done
@@ -5308,6 +5320,7 @@
     };
     if (STATS.loaded) go(); else STATS.load().then(go);
   };
+  window.CATAN.lobbyFriendly = (on) => { LOBBY.friendly = !!on; LOBBY.track(); lobbySig = null; renderLobby(); };
   window.CATAN.lobbyTargetAuto = () => { LOBBY.targetPoints = null; LOBBY.track(); lobbySig = null; renderLobby(); };
   window.CATAN.lobbyWhoStarts = (v) => { LOBBY.whoStarts = v === 'rps' || v === 'poker' ? v : 'random'; try { localStorage.setItem('catanWhoStarts', LOBBY.whoStarts); } catch (_) { } LOBBY.track(); lobbySig = null; renderLobby(); };
   window.CATAN.lobbyTarget = (v) => { LOBBY.targetPoints = Math.max(LOBBY.cup ? 6 : 9, Math.min(15, parseInt(v, 10) || 13)); LOBBY.track(); lobbySig = null; renderLobby(); };
