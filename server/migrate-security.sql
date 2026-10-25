@@ -6,7 +6,7 @@
 --   4. changing your PIN signs out every other device (new login token)
 --   5. at most 60 players can be created
 --   6. chat can no longer be wiped by anyone: only a finished game's own chat is cleared, through a function;
---      old game chat is cleaned up by the server (3h), the group chat after 48h as before
+--      old game chat is cleaned up by the server (6h), the group chat after 48h as before
 --   7. size caps on chat messages and on saved results, so nobody can stuff huge rows into them
 -- Not changed (on purpose): game rows stay writable by the app (moves are written by the phones), and the
 -- voice-note storage bucket keeps its rules. Locking those down needs a server that checks every move.
@@ -42,6 +42,9 @@ begin
   if not found then return json_build_object('ok', false, 'error', 'No such player'); end if;
   if r.locked_until is not null and r.locked_until > now() then
     return json_build_object('ok', false, 'error', 'Too many wrong PINs. Try again in a few minutes.');
+  end if;
+  if r.locked_until is not null then   -- an expired lock starts the count again (one more typo doesn't re-lock)
+    update players set failed_logins = 0, locked_until = null where id = r.id;
   end if;
   if r.pin_hash <> crypt(p_pin, r.pin_hash) then
     update players set failed_logins = failed_logins + 1,
@@ -102,7 +105,7 @@ begin
   get diagnostics n = row_count;
   delete from public.lobby_presence where at < now() - interval '2 hours';
   delete from public.messages where code = 'LOBBY' and created_at < now() - interval '48 hours';
-  delete from public.messages where code <> 'LOBBY' and created_at < now() - interval '3 hours';
+  delete from public.messages where code <> 'LOBBY' and created_at < now() - interval '6 hours';
   return n;
 end $$;
 

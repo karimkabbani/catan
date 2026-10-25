@@ -383,3 +383,19 @@ describe('trade answers never land on changed terms (v200)', () => {
     expect(applyAction(s, { type: 'offerTrade', give: { ore: -3 }, want: {} }, currentColor(s)).ok).toBe(false);
   });
 });
+
+describe('confirm never trades on a counter the offerer did not see (v202)', () => {
+  it('an accept that turned into a counter meanwhile is refused', () => {
+    let s = runSetup(createGame({ id: 't', players: [{ color: 'red', name: 'A' }, { color: 'blue', name: 'B' }], seed: 9 }));
+    s = structuredClone(s); s.turnPhase = 'main'; s.hasRolledThisTurn = true;
+    const me = currentColor(s), other = s.order.find((c) => c !== me)!;
+    s.players.forEach((p) => { p.resources = { brick: 3, wood: 3, sheep: 3, wheat: 3, ore: 3 }; });
+    let r = applyAction(s, { type: 'offerTrade', give: { wheat: 1 }, want: { ore: 1 } }, me); if (!r.ok) throw new Error(r.error);
+    const tid = r.state.pendingTrade!.id;
+    r = applyAction(r.state, { type: 'acceptTrade', tid }, other); if (!r.ok) throw new Error(r.error);
+    const sawAccept = r.state;
+    r = applyAction(sawAccept, { type: 'counterTrade', give: { wheat: 3 }, want: { ore: 1 }, tid }, other); if (!r.ok) throw new Error(r.error);
+    expect(applyAction(r.state, { type: 'confirmTrade', with: other, tid, cv: 0 }, me).ok).toBe(false);   // saw a plain accept
+    expect(applyAction(sawAccept, { type: 'confirmTrade', with: other, tid, cv: 0 }, me).ok).toBe(true);  // no race: fine
+  });
+});

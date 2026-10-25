@@ -757,6 +757,19 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    after 3h), size caps on messages/results. Tested on a local Postgres copy. supabase-js pinned to 2.117.0 with
    crossorigin (cacheable). `deploy.sh` runs the engine tests first. Not done: games rows stay writable by the
    app (moves are written by phones), voice bucket rules unchanged.
+36. ✅ **v202 (2026-10-25): regression sweep of v199–v201 (4 reviewers) + fixes.** No core-flow breakage found;
+   fixed what our own changes introduced: quick messages: Done within 800ms of an edit wiped the list (the debounce
+   fired with `qmDraft = null`) -> `quickDone` clears the timer, `persistQuick` skips null. Room host: the creator
+   keeps it unless away > 90s (`m.age` from presence); a stand-in host starts with the CREATOR's broadcast settings
+   (`wsInfo(cr.ws)`, `cr.target`) and can't edit them. `pokeTarget` uses `currentDiscarder()`. Stats: a failed forced
+   refresh keeps the games; background refresh never pulls you off a player page (`#st2player`). Rematch: the
+   automatic start retries the server all-yes check (5 x 1.2s) while the last "yes" lands; a manual rematch at
+   version -1 reads the real version. Sync: `netTimeout` falls back to AbortController + setTimeout (iOS < 16; a hung
+   poll used to block polling for the session); `subscribe()` resets `NET.polling`; lobby full-row refresh every 5s
+   (30s in game). Trades: confirm sends `cv: 0` when no counter was seen, the engine compares `(counter?.v ?? 0)`
+   (an accept that turned into a counter meanwhile is refused; 1 new test, 33). `hideTradeSheets` also matches the
+   pass-and-play `.menuscreen.trade`. Paused-cup card has "Start a separate game instead". SQL (migrate-security.sql,
+   re-runnable): an expired PIN lock resets the count; game chat purged after 6h (cups) instead of 3h.
 
 ### Also shipped since multiplayer (2026-06)
 

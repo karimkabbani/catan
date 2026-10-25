@@ -359,8 +359,10 @@ export function applyAction(state: GameState, action: Action, byColor: PlayerCol
     const t = s.pendingTrade;
     if (t && t.id != null && action.tid != null && action.tid !== t.id) return err('That offer just changed.');
     if (action.type === 'confirmTrade' && t && action.cv != null) {
+      // cv = the counter the offerer saw from that player (0 = none): a counter that appeared, changed or
+      // went away since is refused, so a plain accept never turns into someone else's terms
       const c = t.counters?.[action.with];
-      if (!c || c.v !== action.cv) return err('That counter-offer just changed.');
+      if ((c ? (c.v ?? 0) : 0) !== action.cv) return err('That counter-offer just changed.');
     }
   }
 
