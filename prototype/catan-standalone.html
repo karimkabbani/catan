@@ -205,11 +205,18 @@
   .lvme{margin-left:auto; padding:0; border:none; background:none; cursor:pointer;}
   .lvme .face{width:36px; height:36px; border:2px solid var(--gold-edge);}
   .lvbody{flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:6px 16px 16px; display:flex; flex-direction:column; gap:14px;}
-  .lvtabs{display:flex; border-top:1px solid rgba(255,220,170,0.14); background:#120903; padding:6px 0 calc(8px + env(safe-area-inset-bottom, 0px));}
-  .lvtab{flex:1; display:flex; flex-direction:column; align-items:center; gap:2px; background:none; border:none; color:#9c8a70; font-size:11px; font-weight:700; padding:4px 0; cursor:pointer; font-family:inherit;}
-  .lvtab i{font-style:normal; font-size:22px; line-height:1; position:relative;}
-  .lvtab.on{color:#ffd76b;}
-  .lvbadge{position:absolute; right:-13px; top:-5px; min-width:17px; height:17px; padding:0 4px; border-radius:9px; background:#e65b4f; color:#fff; font-size:10px; font-weight:800; display:flex; align-items:center; justify-content:center;}
+  .lvtabs{display:flex; gap:4px; padding:7px 10px calc(8px + env(safe-area-inset-bottom, 0px)); background:linear-gradient(180deg, #1c0f05, #120903);
+    border-top:1px solid rgba(233,196,90,0.22); box-shadow:0 -8px 22px rgba(0,0,0,0.35);}
+  .lvtab{flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; background:none; border:none; color:#8a7a62; font-size:11px; font-weight:600;
+    letter-spacing:0.2px; padding:2px 0; cursor:pointer; font-family:inherit; -webkit-tap-highlight-color:transparent;}
+  /* the icon sits in a pill: gold and lit when selected, plain and greyed otherwise */
+  .lvtab i{font-style:normal; font-size:21px; line-height:1; position:relative; display:flex; align-items:center; justify-content:center;
+    width:62px; height:32px; border-radius:16px; transition:background .2s, box-shadow .2s, transform .12s;}
+  .lvtab:not(.on) .lvico{filter:grayscale(0.9); opacity:0.55;}   /* only the icon dims: the unread badge stays red */
+  .lvtab.on{color:#ffd76b; font-weight:800;}
+  .lvtab.on i{background:linear-gradient(180deg, rgba(233,196,90,0.32), rgba(233,196,90,0.12)); box-shadow:inset 0 0 0 1px rgba(255,215,107,0.6), 0 0 14px rgba(233,196,90,0.18);}
+  .lvtab:active i{transform:scale(0.92);}
+  .lvbadge{position:absolute; right:6px; top:-4px; filter:none; min-width:17px; height:17px; padding:0 4px; border-radius:9px; background:#e65b4f; color:#fff; font-size:10px; font-weight:800; display:flex; align-items:center; justify-content:center;}
   .lvhero{border-radius:20px; padding:18px 16px; background:linear-gradient(180deg, rgba(130,88,24,0.6), rgba(44,24,8,0.92)); border:1.5px solid #b8913f; display:flex; flex-direction:column; gap:12px; box-shadow:0 10px 26px rgba(0,0,0,0.3);}
   .lvhero.hot{border-color:var(--gold); box-shadow:0 0 24px rgba(233,196,90,0.22);}
   .lvkick{font-size:11px; letter-spacing:1.5px; font-weight:800; color:var(--muted); display:flex; align-items:center; gap:6px;}
@@ -1711,7 +1718,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v190';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v191';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -6949,7 +6956,7 @@
   }
   function lvTabsHTML() {
     const u = lvUnread();
-    const t = (k, ico, lbl, extra) => `<button class="lvtab${LV.tab === k ? ' on' : ''}" data-nav="tab:${k}"><i>${ico}${extra || ''}</i>${lbl}</button>`;
+    const t = (k, ico, lbl, extra) => `<button class="lvtab${LV.tab === k ? ' on' : ''}" data-nav="tab:${k}"><i><span class="lvico">${ico}</span>${extra || ''}</i>${lbl}</button>`;
     return t('play', '⚔️', 'Play') + t('chat', '💬', 'Chat', u && LV.tab !== 'chat' ? `<span class="lvbadge">${u > 9 ? '9+' : u}</span>` : '') + t('stats', '🏆', 'Stats');
   }
   function lvChrome() {
