@@ -902,6 +902,19 @@
     font-size:26px; line-height:1; filter:drop-shadow(0 2px 3px rgba(0,0,0,0.6));}
   .radbtn.center{width:50px; height:50px; left:-25px; top:-25px; transform:none; opacity:1; transition:opacity .16s;}
   #radialroot.open .radbtn.center{transform:none;}
+  /* utilities arc (Settings, Dice stats, Leave): black-and-gold, labelled, left of the ring */
+  .radbtn.util{width:42px; height:42px; left:-21px; top:-21px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    background:radial-gradient(circle at 36% 28%, #6c6c6c 0, #242424 42%, #050505 78%);
+    box-shadow:0 0 0 2px #dcb558, 0 0 0 3.5px #5a3f12, 0 3px 6px rgba(0,0,0,0.6);}
+  .radbtn.util svg{width:22px; height:22px;}
+  .radbtn.util .ulbl{position:absolute; right:calc(100% + 8px); top:50%; transform:translateY(-50%); white-space:nowrap;
+    font-size:12px; font-weight:700; color:#f0dcb0; padding:4px 9px; border-radius:12px;
+    background:rgba(26,14,4,0.92); border:1px solid rgba(184,145,63,0.6);}
+  .radbtn.util.out{box-shadow:0 0 0 2px #c86a5a, 0 0 0 3.5px #5a1f12, 0 3px 6px rgba(0,0,0,0.6);}
+  .radbtn.util.out .ulbl{color:#ff9d8f;}
+  .devview{position:absolute; top:8px; left:50%; transform:translateX(-50%); z-index:3; white-space:nowrap; pointer-events:none;
+    font-size:12.5px; font-weight:700; color:#f3e6c8; padding:5px 12px; border-radius:14px;
+    background:rgba(26,14,4,0.9); border:1px solid var(--gold-edge);}
   /* ---- full-screen menus (Build / Cards / Trade) — original-app style ---- */
   /* menus are a bottom sheet (~62% tall) so the board stays visible above, like the app */
   #overlay.menu{align-items:flex-end; justify-content:center; background:rgba(0,0,0,0.18);}
