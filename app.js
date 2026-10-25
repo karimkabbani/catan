@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v199';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v200';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -1608,7 +1608,7 @@
       </div>`;
     }).join('');
     showFullMenu(`<div class="traderoot discard">
-      <div class="ttitle2">${escapeHtml(p.name)} — discard ${Math.max(0, need - total)}</div>
+      <div class="ttitle2">${escapeHtml(p.name)} — discard <span class="rpsn">${Math.max(0, need - total)}</span></div>
       <div class="tradesheet">
         <div class="tgrid">${cols}</div>
       </div>
@@ -1794,7 +1794,7 @@
       </div>`;
     }).join('');
     showFullMenu(`<div class="traderoot discard">
-      <div class="ttitle2">Year of Plenty — take ${Math.max(0, 2 - total)}</div>
+      <div class="ttitle2">Year of Plenty — take <span class="rpsn">${Math.max(0, 2 - total)}</span></div>
       <div class="tradesheet"><div class="tgrid">${cols}</div></div>
       <button class="tclose" onclick="CATAN.yopCancel()"><img src="assets/hud/decline.png" alt="Cancel"></button>
       <button class="tconfirm${total === 2 ? '' : ' hidden'}" onclick="CATAN.yopSubmit()"><img src="assets/hud/confirm.png" alt="Confirm"></button>
@@ -1927,7 +1927,7 @@
   // describe a give/want bundle as little resource icons
   function offerStr(obj) {
     const res = HUD.res || {};
-    const parts = RES.filter((r) => obj && obj[r]).map((r) => `${obj[r]}<img class="ri" src="${res[r] || ''}">`);
+    const parts = RES.filter((r) => obj && obj[r]).map((r) => `<span class="rpsn">${obj[r]}</span><img class="ri" src="${res[r] || ''}">`);
     return parts.length ? parts.join(' ') : '—';
   }
   // open the trade builder (proposer, on your turn, when no offer is pending)
@@ -2135,7 +2135,7 @@
     // No sheet when: auto-declining this turn, you can't cover the ask, or you already responded. In the
     // first two cases auto-decline so the offerer isn't left waiting; otherwise just step aside and wait.
     if (ui.autoDeclineIdx === state.currentPlayerIndex || !canCover) {
-      if (!iDec && !iAcc && !myCounter) dispatch({ type: 'declineTrade' }, meColor);
+      if (!iDec && !iAcc && !myCounter) dispatch({ type: 'declineTrade', tid: pt.id }, meColor);
       hideTradeSheets(); return;
     }
     if (iAcc || iDec || myCounter) { hideTradeSheets(); return; }   // you've responded -> wait for the offerer
@@ -2171,6 +2171,8 @@
     document.body.classList.add('trading');
     setTimeout(attachTradeSwipe, 0);
   }
+  // the offer this phone is showing (answers carry its id: the engine refuses them if the offer changed meanwhile)
+  function seenTid() { return state && state.pendingTrade ? state.pendingTrade.id : undefined; }
   // close the overlay only if it's a trade sheet (the offer builder or the respond sheet): an offer
   // starting/ending must never take down the Knight question, dev cards, build menu, settings…
   function hideTradeSheets() { const o = $('overlay'); if (o && o.querySelector('.traderoot.respond, .traderoot .ttargets')) hideOverlay(); }
@@ -2690,6 +2692,7 @@
     if (allIn(R)) return;   // everyone's picked: hands are locked, the reveal is coming
     const round = R.round, me = myColor;
     R.picks[me] = v; syncRps(true);   // local echo; you can change it until the last person picks
+    rpsLocal.myPick = { gk: gameKey(), round, v };   // if my write is still on its way when this phone resolves, my pick counts
     svUpdate((s) => { if (!s.rps || s.rps.done || s.rps.round !== round || allIn(s.rps)) return false; s.rps.picks[me] = v; });
   }
   function rpsResolve() {
@@ -2710,6 +2713,8 @@
         else Object.assign(Q, { round: round + 1, alive: winners, picks: {}, deadline: Date.now() + POKER_REVEAL_MS + POKER_MS }, pkDeal(winners));   // a dead heat: just them, fresh cards
         return;
       }
+      const mp = rpsLocal.myPick;
+      if (myColor && mp && mp.gk === gameKey() && mp.round === round && Q.alive.includes(myColor) && !Q.picks[myColor]) Q.picks[myColor] = mp.v;
       const full = {}, auto = [];
       Q.alive.forEach((c) => { let v = Q.picks[c]; if (!v) { v = 'rps'[(Math.random() * 3) | 0]; auto.push(c); } full[c] = v; });
       const shapes = [...new Set(Object.values(full))];
@@ -3696,7 +3701,7 @@
     if (stillHere()) NET.lost(code);
   }
   function raiseFlag() {
-    if (!online || !myColor || !state || state.players.length < 2 || iAmFlagged()) return;
+    if (!online || !myColor || !state || state.phase !== 'play' || state.players.length < 2 || iAmFlagged()) return;
     state.sv = state.sv || { flags: [] }; if (!state.sv.flags) state.sv.flags = [];
     state.sv.flags.push(myColor); render();                                  // local echo (my own write comes back deduped)
     svUpdate((s) => { s.sv = s.sv || { flags: [] }; if (!s.sv.flags) s.sv.flags = []; if (s.sv.flags.indexOf(myColor) < 0) s.sv.flags.push(myColor); });
@@ -3707,13 +3712,13 @@
   }
   // everyone-but-one conceded -> the lone player still standing wins. Single writer = winner.
   let svEndTimer = null;
-  function endByFlags(winner) {
+  async function endByFlags(winner) {
     if (ui.svEnding) return; ui.svEnding = true;
-    // apply locally too — the winner's own row write echoes back deduped, so otherwise the
-    // winner would never see their own victory.
-    if (state) { state.winner = winner; state.phase = 'ended'; delete state.sv; recordResult(); render(); showVictory(); }
-    svUpdate((s) => { if (s.phase !== 'play') return false; s.winner = winner; s.phase = 'ended'; delete s.sv; });
     if (svEndTimer) clearTimeout(svEndTimer);
+    // svUpdate applies the server's merged result here (so the win is shown + recorded only once it's real);
+    // if the game had already ended another way, nothing is written and that ending stands
+    await svUpdate((s) => { if (s.phase !== 'play') return false; s.winner = winner; s.phase = 'ended'; delete s.sv; });
+    if (state && state.phase !== 'ended') ui.svEnding = false;   // the write didn't land: a later flag can try again
   }
   // a seated player quits mid-game (via Leave -> confirm). The leader among those still in wins;
   // the quitter takes a recorded penalty (a loss). We push the ended state through the game row so
@@ -3783,7 +3788,7 @@
   }
   // checked from afterAction on every state change: trigger the win when only one stands
   function syncSurrenderUI() {
-    if (!online || !myColor || ui.svEnding || !state || !state.sv) return;
+    if (!online || !myColor || ui.svEnding || !state || !state.sv || state.phase !== 'play') return;
     const seats = seatedColors(); if (seats.length < 2) return;
     const flags = flagsOf(state).filter((c) => seats.indexOf(c) >= 0);
     if (flags.length < seats.length - 1) return;                            // more than one still standing
@@ -3997,10 +4002,10 @@
       showBankFly(color, t.give, t.want);
     },
     tradeClose: () => { ui.tradeView = null; hideOverlay(); render(); },
-    tradeAccept: () => dispatch({ type: 'acceptTrade' }, online ? myColor : activeColor()),
-    tradeDecline: () => dispatch({ type: 'declineTrade' }, online ? myColor : activeColor()),
+    tradeAccept: () => dispatch({ type: 'acceptTrade', tid: seenTid() }, online ? myColor : activeColor()),
+    tradeDecline: () => dispatch({ type: 'declineTrade', tid: seenTid() }, online ? myColor : activeColor()),
     tradeAs: (kind, color) => dispatch({ type: kind === 'accept' ? 'acceptTrade' : 'declineTrade' }, color),  // hotseat: respond as a player
-    tradeConfirm: (c) => { ui.tradeSel = null; dispatch({ type: 'confirmTrade', with: c }, online ? myColor : activeColor()); },
+    tradeConfirm: (c) => { ui.tradeSel = null; const pt = state.pendingTrade || {}; dispatch({ type: 'confirmTrade', with: c, tid: pt.id, cv: ((pt.counters || {})[c] || {}).v }, online ? myColor : activeColor()); },
     tradeViewResponse: (c) => { ui.tradeSel = c; render(); },   // offerer taps a corner to review/confirm that response
     tradeCancel: () => dispatch({ type: 'cancelTrade' }),
     // responder ✓: unchanged from the offer -> accept; adjusted -> counter (offerer's frame: give = my
@@ -4010,10 +4015,10 @@
       const give = {}, want = {};
       RES.forEach((r) => { if (t.want[r]) give[r] = t.want[r]; if (t.give[r]) want[r] = t.give[r]; });
       const unchanged = RES.every((r) => (give[r] || 0) === (pt.give[r] || 0) && (want[r] || 0) === (pt.want[r] || 0));
-      dispatch(unchanged ? { type: 'acceptTrade' } : { type: 'counterTrade', give, want }, online ? myColor : activeColor());
+      dispatch(unchanged ? { type: 'acceptTrade', tid: seenTid() } : { type: 'counterTrade', give, want, tid: seenTid() }, online ? myColor : activeColor());
     },
-    tradeRespDecline: () => dispatch({ type: 'declineTrade' }, online ? myColor : activeColor()),
-    tradeAutoDecline: () => { ui.autoDeclineIdx = state.currentPlayerIndex; dispatch({ type: 'declineTrade' }, online ? myColor : activeColor()); },
+    tradeRespDecline: () => dispatch({ type: 'declineTrade', tid: seenTid() }, online ? myColor : activeColor()),
+    tradeAutoDecline: () => { ui.autoDeclineIdx = state.currentPlayerIndex; dispatch({ type: 'declineTrade', tid: seenTid() }, online ? myColor : activeColor()); },
     tradeReoffer: () => { dispatch({ type: 'cancelTrade' }); openTrade(); },   // drop the offer + reopen the builder
     steal: (c) => { hideOverlay(); dispatch({ type: 'steal', victim: c }, activeColor()); },
     disc: (r, d) => { const s = ui.pending, p = state.players.find((x) => x.color === s.color), next = s.sel[r] + d, total = RES.reduce((n, x) => n + s.sel[x], 0); if (next < 0 || next > p.resources[r]) return; if (d > 0 && total >= s.need) return; s.sel[r] = next; renderDiscard(); },
@@ -4401,7 +4406,7 @@
     if (stolen) {
       // only the thief and the victim see WHICH card; everyone else sees a face-down card move
       const reveal = myColor === stolen.victim || myColor === stolen.thief;
-      const fly = () => showStealFly(stolen.victim, stolen.thief, reveal ? stolen.res : null);
+      const fly = () => showStealFly(stolen.victim, stolen.thief, stolen.res, reveal);   // real resource for the counts; face-up only for thief + victim
       robberMoved ? setTimeout(fly, aDur(450)) : fly();   // let the robber land first if both happened at once
     }
     if (devBuy) showDevBuyFly(devBuy.buyer);   // the buyer themselves already saw it face-up via their own dispatch
@@ -4525,8 +4530,13 @@
     // Serialize syncs: chained actions (e.g. moveRobber -> auto-steal) must hit the server
     // in order, or the second reads a state where it's invalid, "reverts", and the move is lost.
     _syncQ: Promise.resolve(),
+    inflight: 0,
     syncAction(action, actor) {
-      this._syncQ = this._syncQ.then(() => this._doSync(action, actor)).catch(() => { });
+      this.inflight++;
+      this._syncQ = this._syncQ.then(() => this._doSync(action, actor)).catch(() => { }).then(() => {
+        this.inflight--;
+        if (!this.inflight && this.version > 0 && state && state.phase === 'ended') recordResult();   // the win is confirmed now
+      });
       return this._syncQ;
     },
     // A move is applied on this phone first, then written here. If it can't be written, this phone must
@@ -4540,7 +4550,7 @@
         if (error) { if (i < 4) { await new Promise((res) => setTimeout(res, 700 * (i + 1))); continue; } return this.lost(code); }   // nothing written yet: safe to retry
         if (!data || !data.state) return;
         const r = C.applyAction(data.state, action, actor);
-        if (!r.ok) { applyRemoteState(data.state); if (data.version > this.version) this.version = data.version; return; }
+        if (!r.ok) { applyRemoteState(data.state); if (data.version > this.version) this.version = data.version; if (/Trade$/.test(action.type)) toast(r.error); return; }
         if (data.state.sv && r.state.phase !== 'ended') r.state.sv = data.state.sv;   // keep a live surrender vote across moves
         const phase = r.state.phase === 'ended' ? 'ended' : 'playing';
         const { data: upd, error: uerr } = await netTimeout(c.from('games')
@@ -4697,6 +4707,7 @@
       try { await this.startTableNow(); } finally { this.starting = false; }
     },
     async startTableNow() {
+      try { await this.pollPresence(); } catch (_) { }   // the freshest roster: someone who just sat down (or left) a second ago
       const ready = this.readyList();
       if (ready.length < 2) { toast('Need at least 2 players ready'); return; }
       const host = this.creatorOf(this.table) || ready[0];   // the game's creator starts it (fallback: first ready, if creator left)
@@ -4710,7 +4721,7 @@
       // state — its presence echo may lag behind a just-tapped lobby swatch.
       const colorOf = assignSeatColors(seated.map((p) => p.id === AUTH.me.id ? Object.assign({}, p, { pref: this.myPref() }) : p));
       const players = seated.map((p, i) => ({ seat: i, color: colorOf[p.id], name: p.name, playerId: p.id, avatar: p.avatar || null }));
-      const playerN = Math.min(4, this.tableMembers().filter((m) => pmode(m) !== 'spectate').length) || n;
+      const playerN = n;   // the seats actually dealt in (idle "here, not seated" people don't change the target)
       const target = (this.targetPoints != null ? this.targetPoints : targetForN(playerN));   // host's chosen win target, else the count default
       let gstate;
       try { gstate = C.createGame({ id: 'table', players: players.map((p) => ({ color: p.color, name: p.name })), seed: (Math.random() * 1e9) | 0, targetPoints: target, randomFirst: true }); }
@@ -4780,7 +4791,13 @@
         gstate.cup = Object.assign({}, state.cup, { n: fin ? 1 : state.cup.n + 1, hist: fin ? [] : cupHist(state), stop: false }, fin ? { id: Math.random().toString(36).slice(2, 10), name: uniqueCupName(pickCupName(state.cup.name)), at: Date.now() } : {});
       }
       if (gstate.whoStarts === 'rps' || gstate.whoStarts === 'poker') gstate.rps = newRps(gstate.players, 6500, gstate.whoStarts);   // after the 5·4·3·2·1
-      const prevV = NET.version || 1;
+      let prevV = NET.version || 1;
+      if (quiet) {   // the automatic start: only on the SERVER's word that everyone said yes (a "No" may have just landed)
+        const { data: row } = await c.from('games').select('state,version').eq('code', NET.code).maybeSingle();
+        const rs = row && row.state;
+        if (!rs || rs.phase !== 'ended' || (rs.left || []).length || !rmPending(rs.rm) || !rs.players.every((p) => rs.rm.votes && rs.rm.votes[p.color] === 'y')) return;
+        prevV = row.version;
+      }
       const { data, error } = await c.from('games')
         .update({ phase: 'playing', players, state: gstate, target_points: target, version: prevV + 1 })
         .eq('code', NET.code).eq('version', prevV).select('version');
@@ -4898,7 +4915,7 @@
       const q = (cols) => c.from('game_results').select(cols).order('finished_at', { ascending: false }).limit(1000);
       STATS.loading = q('game_id,standings,finished_at,snap:final->>id').then((r) => (r.error ? q('game_id,standings,finished_at') : r)).then(
         ({ data, error }) => {
-          STATS.loading = null; STATS.loaded = true;
+          STATS.loading = null; STATS.loaded = true; STATS.loadedAt = Date.now();
           STATS.games = ((!error && data) ? data : []).filter((r) => Array.isArray(r.standings) && r.standings.length).map((r) => {
             const d = new Date(r.finished_at), mo = d.getMonth();
             return { gid: r.game_id || null, snap: !!r.snap, at: d.getTime(), date: MONTH_ABBR[mo] + ' ' + d.getDate() + ', ' + d.getFullYear(), ym: d.getFullYear() + '-' + String(mo + 1).padStart(2, '0'),
@@ -4949,7 +4966,8 @@
       const by = {};
       STATS.games.forEach((g) => {
         const c = g.standings[0] && g.standings[0].cup; if (!c || !c.id) return;
-        if (!by[c.id] || c.n > by[c.id].n) by[c.id] = { id: c.id, name: c.name, n: c.n, of: c.of, fin: !!c.fin || c.n >= c.of, date: (by[c.id] && by[c.id].date) || g.date, rows: g.standings.filter((x) => x.cup).slice().sort((a, b) => a.cup.cr - b.cup.cr) };
+        // a cup idle past the 6h cleanup can never resume: it ended early, its leader is the champion
+        if (!by[c.id] || c.n > by[c.id].n) by[c.id] = { id: c.id, name: c.name, n: c.n, of: c.of, fin: !!c.fin || c.n >= c.of || Date.now() - g.at > 6 * 36e5, date: (by[c.id] && by[c.id].date) || g.date, rows: g.standings.filter((x) => x.cup).slice().sort((a, b) => a.cup.cr - b.cup.cr) };
       });
       return Object.values(by);
     },
@@ -4961,6 +4979,7 @@
   function recordResult() {
     if (ARCHIVE || !online || !NET.code || !NET.client || !state || state.phase !== 'ended' || !state.winner) return;   // a past game on screen is never re-recorded
     if (state.friendly) return;   // 🤝 friendly: played for fun, never in the stats
+    if (NET.inflight > 0) return;   // my own move is still on its way: record once the server has it (see syncAction)
     if (state.quitBy && state.qv && (!state.qv.done || !state.qv.count)) return;   // a quit: only once the table votes to count it
     const seatId = {};   // color -> persistent player id, from the game's seat map (rename-proof stats key)
     (gameSeats || []).forEach((s) => { if (s && s.color) seatId[s.color] = s.playerId || null; });
@@ -5056,6 +5075,10 @@
   function statsScreen() {
     const back = lvOn() ? '' : `<div class="lobhead"><button class="lobback" onclick="CATAN.showLobby()" title="Back to lobby">←</button><h3>🏆 Stats</h3></div>`;
     if (!STATS.loaded) { statsOut(`${back}<p class="muted" style="text-align:center;padding:26px 0">Loading…</p>`); STATS.load().then(() => statsScreen()); return; }
+    if (Date.now() - (STATS.loadedAt || 0) > 60000 && !STATS.loading) {   // games finished elsewhere since: refresh quietly
+      const sig = (STATS.games[0] || {}).at + ':' + STATS.games.length;
+      STATS.load(true).then(() => { if ((STATS.games[0] || {}).at + ':' + STATS.games.length !== sig && LV.tab === 'stats' && lvOn()) statsScreen(); });
+    }
     if (!STATS.games.length) { statsOut(`${back}<p class="muted" style="text-align:center;padding:22px 8px;line-height:1.5">No games recorded yet.<br>Finish an online game and it'll show up here.</p>`); return; }
     const isAll = statsSeason === 'all';
     let season = isAll ? 'all' : (statsSeason || STATS.curSeason());
@@ -5303,7 +5326,7 @@
     const seated = ready.slice(0, 4), line = ready.slice(4);
     const iSeated = seated.some((p) => p.id === AUTH.me.id), inLine = line.some((p) => p.id === AUTH.me.id);
     const idle = members.filter((p) => pmode(p) === 'idle' && p.id !== AUTH.me.id), watching = members.filter((p) => pmode(p) === 'spectate');
-    const playerN = Math.min(4, members.filter((m) => pmode(m) !== 'spectate').length) || seated.length;
+    const playerN = seated.length >= 2 ? seated.length : (Math.min(4, members.filter((m) => pmode(m) !== 'spectate').length) || seated.length);   // the auto target follows who's seated
     const seats = seated.map((p) => lvSeat(p, host && p.id === host.id)).join('')
       + `<div class="lvseat empty"><span class="lvplus">+</span>Open seat</div>`.repeat(Math.max(0, 4 - seated.length));
     const extras = [];
@@ -5536,7 +5559,7 @@
     const act = spectator ? 'Leave to lobby' : midGame ? 'Quit · finish last' : endsForAll ? 'End game' : 'Leave game';
     // big, full-width stacked targets — Cancel is the prominent safe action, leave is below
     // seated online players can raise/lower a white flag (concede). Last one standing wins.
-    const canFlag = endsForAll && state && state.players.length > 1;
+    const canFlag = endsForAll && state && state.phase === 'play' && state.players.length > 1;
     const voteBtn = !canFlag ? '' : (iAmFlagged()
       ? `<button class="btn wood full" style="padding:14px;font-size:15px;margin-top:9px" onclick="CATAN.lowerFlag()">⬇ Lower white flag — keep fighting</button>`
       : `<button class="btn wood full" style="padding:14px;font-size:15px;margin-top:9px" onclick="CATAN.raiseFlag()">🏳️ Raise white flag — give up</button>`);
