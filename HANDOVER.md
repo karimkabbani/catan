@@ -648,6 +648,14 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    (`wsInfo` parses it); `recordResult` skips friendly games; in-game pill "🤝 Friendly game · not in stats";
    results note. Older clients would still record a friendly game. v191: tab bar redesign: the selected tab's
    icon sits in a gold pill, others greyed (`.lvico` only, so the unread badge stays red).
+27. ✅ **v192–v193 (2026-10-25).** v192: poker is hold-and-draw (tap the cards you KEEP, marked HELD; Draw
+   replaces the rest; `rpsLocal.sel` = held indices). v193: radial menu tidy (Karim kept the four original
+   icons): Build top, Trade right, End turn bottom, Cards left, evenly spaced; Settings / Dice stats / Leave
+   ("Stop" for spectators) are a labelled black-and-gold arc left of the ring (`.radbtn.util`, Leave has a red
+   edge). The always-on `#dicetab` and the far-left `#settingstab` gear are retired (elements kept, always
+   hidden). Off-turn during play the ring still shows, Build/Trade/End greyed, Cards lit: `openDev` shows MY
+   hand and is view-only (`'wait'` taps toast, no Buy, "View only" pill). Rejected: refined ring with new
+   icons, side panel (B), tray under the ring (covered the resource bar).
 
 ### Also shipped since multiplayer (2026-06)
 
