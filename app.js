@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v197';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v199';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -329,6 +329,7 @@
   // is it this device's turn to act? (always true in pass-and-play)
   function isMyTurn() { return !online || (myColor && activeColor() === myColor); }
   function afterAction() {
+    if (ui.spinning && !isFreshStart(state)) ui.spinning = false;   // setup is under way: any intro this phone missed is over
     ui.mode = 'idle';
     // my lobby status follows the game: on the results screen I'm "just finished", not "playing"
     if (online && NET.started && myColor) {
@@ -381,7 +382,7 @@
   // the "play the knight first, or roll?" question (matches the original)
   function showKnightQuestion() {
     hideRollPrompt();
-    const o = $('overlay');
+    const o = $('overlay'); o.onclick = null;
     o.innerHTML = `<div class="qdlg">
       <div class="qbanner">Question</div>
       <div class="qbody">
@@ -805,7 +806,7 @@
   const ABSENT_MS = 3 * 60 * 1000;
   const offSince = {};   // color -> when this phone first saw them offline (reset when they're back)
   function absentColors() {
-    if (!online || !myColor || !state || state.phase !== 'play') return [];
+    if (!online || !myColor || !state || (state.phase !== 'play' && state.phase !== 'setup')) return [];
     const gone = state.left || [], now = Date.now();
     return state.players.map((p) => p.color).filter((c) => {
       if (c === myColor || gone.includes(c)) return false;
@@ -1549,8 +1550,8 @@
   }
 
   // ---- overlays (unchanged logic) -----------------------------------------
-  function showOverlay(html) { const o = $('overlay'); o.innerHTML = `<div class="sheet">${html}</div>`; o.classList.remove('hidden', 'menu', 'devmode', 'trademode', 'qmode'); document.body.classList.remove('trading'); const rr = $('radialroot'); rr.classList.remove('open'); rr.classList.add('hidden'); $('radialtab').classList.add('hidden'); $('settingstab').classList.add('hidden'); $('dicetab').classList.add('hidden'); $('trophytab').classList.add('hidden'); closeEmojiTray(); hideChip(); }
-  function showFullMenu(html) { const o = $('overlay'); o.innerHTML = html; o.classList.remove('hidden', 'devmode', 'trademode', 'qmode'); o.classList.add('menu'); document.body.classList.remove('trading'); }
+  function showOverlay(html) { const o = $('overlay'); o.onclick = null; o.innerHTML = `<div class="sheet">${html}</div>`; o.classList.remove('hidden', 'menu', 'devmode', 'trademode', 'qmode'); document.body.classList.remove('trading'); const rr = $('radialroot'); rr.classList.remove('open'); rr.classList.add('hidden'); $('radialtab').classList.add('hidden'); $('settingstab').classList.add('hidden'); $('dicetab').classList.add('hidden'); $('trophytab').classList.add('hidden'); closeEmojiTray(); hideChip(); }
+  function showFullMenu(html) { const o = $('overlay'); o.onclick = null; o.innerHTML = html; o.classList.remove('hidden', 'devmode', 'trademode', 'qmode'); o.classList.add('menu'); document.body.classList.remove('trading'); }
   // Re-render a menu sheet without replaying its slide-up / reloading images: if the
   // same view is already open, swap only its inner content; otherwise mount fresh.
   function paintMenu(view, html) {
@@ -1693,9 +1694,11 @@
     victory_point: 'You obtain an extra Victory Point with this Card, which will remain invisible to the other players until the end of the game.',
   };
   // full-screen development-cards carousel (matches the original app)
+  function devViewOnly() { return !(state.phase === 'play' && state.turnPhase === 'main' && isMyTurn()); }
   function openDev() {
     const p = (online && myColor) ? state.players.find((x) => x.color === myColor) : activePlayer();
-    const view = !(state.phase === 'play' && state.turnPhase === 'main' && isMyTurn());   // look, don't play
+    const view = devViewOnly();   // look, don't play
+    ui.devView = view;
     const res = HUD.res || {}, face = HUD.devFace || {}, art = HUD.devArt || {};
     const ORDER = ['knight', 'year_of_plenty', 'road_building', 'monopoly', 'victory_point'];
     const played = state.hasPlayedDevCardThisTurn;
@@ -1793,6 +1796,7 @@
     showFullMenu(`<div class="traderoot discard">
       <div class="ttitle2">Year of Plenty — take ${Math.max(0, 2 - total)}</div>
       <div class="tradesheet"><div class="tgrid">${cols}</div></div>
+      <button class="tclose" onclick="CATAN.yopCancel()"><img src="assets/hud/decline.png" alt="Cancel"></button>
       <button class="tconfirm${total === 2 ? '' : ' hidden'}" onclick="CATAN.yopSubmit()"><img src="assets/hud/confirm.png" alt="Confirm"></button>
     </div>`);
     $('overlay').classList.add('trademode');
@@ -2070,7 +2074,7 @@
   function renderTradeWait(pt) {
     // online: the board stays visible, each responder's answer rides on their corner portrait, and a slim
     // bar carries the offer + New offer / Cancel. Tapping an accepted/countered corner selects it here.
-    if (online) { hideOverlay(); ui.tradeView = 'wait'; showTradePrompt(pt); return; }
+    if (online) { hideTradeSheets(); ui.tradeView = 'wait'; showTradePrompt(pt); return; }
     // offline hotseat: one device answers as each player -> keep the list
     const others = state.players.filter((p) => p.color !== pt.from);
     const rows = others.map((p) => {
@@ -2132,9 +2136,9 @@
     // first two cases auto-decline so the offerer isn't left waiting; otherwise just step aside and wait.
     if (ui.autoDeclineIdx === state.currentPlayerIndex || !canCover) {
       if (!iDec && !iAcc && !myCounter) dispatch({ type: 'declineTrade' }, meColor);
-      hideOverlay(); return;
+      hideTradeSheets(); return;
     }
-    if (iAcc || iDec || myCounter) { hideOverlay(); return; }   // you've responded -> wait for the offerer
+    if (iAcc || iDec || myCounter) { hideTradeSheets(); return; }   // you've responded -> wait for the offerer
     ui.tradeView = 'respond';
     // pre-fill the swipe sheet from the responder's frame: they GIVE the offerer's `want`, RECEIVE the `give`
     const key = pt.from + ':' + JSON.stringify(pt.give) + '|' + JSON.stringify(pt.want);
@@ -2167,14 +2171,17 @@
     document.body.classList.add('trading');
     setTimeout(attachTradeSwipe, 0);
   }
+  // close the overlay only if it's a trade sheet (the offer builder or the respond sheet): an offer
+  // starting/ending must never take down the Knight question, dev cards, build menu, settings…
+  function hideTradeSheets() { const o = $('overlay'); if (o && o.querySelector('.traderoot.respond, .traderoot .ttargets')) hideOverlay(); }
   // drive the pending-trade overlays off the shared state, on every render
   function syncTradeUI() {
     // "auto-decline this turn" only lasts the offerer's turn — drop it once the turn advances
     if (state && ui.autoDeclineIdx != null && ui.autoDeclineIdx !== state.currentPlayerIndex) ui.autoDeclineIdx = null;
-    const pt = state && state.pendingTrade;
-    if (!pt) {
+    const pt = state && state.phase !== 'ended' && state.pendingTrade;   // an offer left open when the game ended is void
+    if (!pt || (online && !myColor)) {   // (spectators never answer offers)
       ui.respondKey = null; ui.tradeSel = null; hideTradePrompt();
-      if (ui.tradeView === 'wait' || ui.tradeView === 'respond') { ui.tradeView = null; hideOverlay(); }
+      if (ui.tradeView === 'wait' || ui.tradeView === 'respond') { ui.tradeView = null; hideTradeSheets(); }
       return;
     }
     const meColor = online ? myColor : activeColor();
@@ -2509,7 +2516,7 @@
         if (stale.length) await c.storage.from('voice').remove(stale);
       }
       // also drop chat rows from games that never cleaned up (older than ~3h)
-      await c.from('messages').delete().lt('created_at', new Date(now - 3 * 36e5).toISOString());
+      await c.from('messages').delete().neq('code', 'LOBBY').lt('created_at', new Date(now - 3 * 36e5).toISOString());
     } catch (_) { }
   }
   // ---- per-player message history: the last few messages (text + voice) each player sent this
@@ -2663,15 +2670,19 @@
   // write to the shared game and apply the result here too (my own echo is deduped by version)
   async function rpsUpdate(mut) {
     const c = NET.init(); if (!c || !NET.code) return;
+    const code = NET.code;
     for (let i = 0; i < 6; i++) {
-      const { data, error } = await c.from('games').select('state,version').eq('code', NET.code).maybeSingle();
-      if (error || !data || !data.state) return;
+      const { data, error } = await netTimeout(c.from('games').select('state,version').eq('code', code)).maybeSingle();
+      if (error) return NET.lost(code);
+      if (!data || !data.state || NET.code !== code) return;
       const s2 = JSON.parse(JSON.stringify(data.state));
       if (mut(s2) === false) { if (data.version > NET.version) { NET.version = data.version; applyRemoteState(data.state); } return; }
-      const { data: upd } = await c.from('games').update({ state: s2, version: data.version + 1 }).eq('code', NET.code).eq('version', data.version).select('version');
-      if (upd && upd.length) { NET.version = data.version + 1; applyRemoteState(s2); return; }
+      const { data: upd, error: uerr } = await netTimeout(c.from('games').update({ state: s2, version: data.version + 1 }).eq('code', code).eq('version', data.version)).select('version');
+      if (uerr) return NET.lost(code);
+      if (upd && upd.length) { if (NET.code !== code) return; if (data.version + 1 > NET.version) NET.version = data.version + 1; applyRemoteState(s2); return; }
       await new Promise((r) => setTimeout(r, 80));
     }
+    NET.lost(code);
   }
   function rpsPick(v) {
     const R = state && state.rps; if (!R || R.done || !myColor || !R.alive.includes(myColor) || Date.now() > R.deadline) return;
@@ -2687,7 +2698,7 @@
     if (rpsLocal.resolving[k] && Date.now() - rpsLocal.resolving[k] < 4000) return;
     rpsLocal.resolving[k] = Date.now();
     rpsUpdate((s) => {
-      const Q = s.rps; if (!Q || Q.done || Q.round !== round) return false;
+      const Q = s.rps; if (!Q || Q.done || Q.round !== round || Q.winner || (Q.reveal && Q.reveal.round === round)) return false;
       if (Q.kind === 'poker') {
         const auto = Q.alive.filter((c) => !Q.picks[c]), scores = {}, names = {}, hands = {};
         Q.alive.forEach((c) => { hands[c] = Q.hands[c].slice(); scores[c] = pkScore(hands[c]); names[c] = pkName(scores[c]); });
@@ -2818,10 +2829,11 @@
     if (mode === 'pick' && R.kind === 'poker') {
       const left = Math.max(0, Math.ceil((R.deadline - now) / 1000));
       const inGame = !!myColor && R.alive.includes(myColor), done = inGame && R.picks[myColor];
-      const sel = rpsLocal.sel || new Set();
+      if (!(rpsLocal.key || '').startsWith('pk:' + R.round + ':') || rpsLocal.pkGame !== gk) { rpsLocal.sel = new Set(); rpsLocal.pkGame = gk; }   // a new deal: nothing held yet
+      const sel = rpsLocal.sel;
       key = 'pk:' + R.round + ':' + (inGame ? R.hands[myColor].join('') : '') + ':' + [...sel].sort().join('') + ':' + (done || '') + ':' + rpsLocal.swapping + ':' + rpsLocal.legend + ':' + R.alive.map((c) => c + (R.picks[c] || '')).join(',');
       if (key !== rpsLocal.key || force) {
-        if (rpsLocal.key && !rpsLocal.key.startsWith('pk:')) { renderPanels(); rpsLocal.sel = new Set(); }   // a new round: fresh selection, un-fade the corners
+        if (rpsLocal.key && !rpsLocal.key.startsWith('pk:')) renderPanels();   // a new round: un-fade the corners
         pkBoard(R, null);
         if (inGame) {
           const hand = R.hands[myColor], nm = pkName(pkScore(hand));
@@ -2963,7 +2975,7 @@
     return btn + (gg.length ? `<div class="ggwho">🤝 GG from ${escapeHtml(nameList(gg))}</div>` : '');
   }
   function refreshGG() {
-    if (!state || state.phase !== 'ended') return;
+    if (!state || state.phase !== 'ended' || ARCHIVE) return;
     const el = $('ggrow'); if (el) el.innerHTML = ggHTML();
     const k = gameKey(), seen = (ggSeen[k] = ggSeen[k] || new Set());
     (state.gg || []).forEach((c) => { if (!seen.has(c)) { seen.add(c); emojiBurst(c, 'GG', 3, 0); playSound('click', 0.4); } });
@@ -2981,7 +2993,7 @@
   // and state.left = [colors who walked away]. Anyone left -> no rematch. Every seat must say yes;
   // one "not this time" or RM_MS without everyone ends it. All in -> a clear 5·4·3·2·1, then go.
   const RM_MS = 30000, rmSeen = {}, rmStarted = {};
-  let victoryShownFor = null, victoryFinal = false;
+  let victoryShownFor = null, victoryFinal = false, cupQvDrawn = null;
   function gameKey() { return state && state.board ? state.board.hexes.map((h) => (h.terrain || '?')[0] + (h.token || '')).join('') + state.players.map((p) => p.color).join('') : ''; }
   function nameList(cs) { const ns = cs.map(nameOf); return ns.length < 2 ? (ns[0] || '') : ns.slice(0, -1).join(', ') + ' & ' + ns[ns.length - 1]; }
   function rmPending(rm) { return !!rm && !rm.no && !rm.lapsed; }
@@ -3078,7 +3090,7 @@
   // between games: readying up lives in the pinned bar; the card keeps the host's way out
   function cupReadyHTML() {
     const k = state.cup;
-    const hostHere = state.players.some((p) => gameSeatId(p.color) === k.host && isPlayerOnline(p.color));
+    const hostHere = state.players.some((p) => gameSeatId(p.color) === k.host && (isPlayerOnline(p.color) || !!LOBBY.presence[k.host]));   // away (asleep) still counts
     const canStop = AUTH.me && (AUTH.me.id === k.host || !hostHere);   // the host can end it; anyone can if the host has gone
     return canStop ? `<button class="linkbtn" onclick="CATAN.cupStop()">End the cup now</button>` : '';
   }
@@ -3110,7 +3122,7 @@
   // returns { cls, html } for the bar, or null when there's nothing to ask
   const qvShown = {};
   function rmBarModel() {
-    if (online && myColor && state && state.phase === 'play') {   // someone's been gone a while: offer to end it
+    if (online && myColor && state && (state.phase === 'play' || state.phase === 'setup')) {   // someone's been gone a while: offer to end it
       const away = absentColors(); if (!away.length) return null;
       const mins = Math.floor((Date.now() - Math.min(...away.map((c) => offSince[c]))) / 60000);
       return { cls: '', html: `<div class="rmbt"><div class="rmbh">💤 ${escapeHtml(nameList(away))} ${away.length > 1 ? 'have' : 'has'} been offline for ${mins} min</div>`
@@ -3182,6 +3194,9 @@
   function refreshRematch() {
     if (!state || state.phase !== 'ended') return;
     if (state.cup && cupFinal(state) !== victoryFinal && !endView) { showVictory(); return; }   // the cup was just ended -> the champion screen
+    if (state.cup && state.quitBy && state.qv && state.qv.done && cupQvDrawn !== gameKey() + ':' + state.qv.deadline && !$('vtitle') && document.querySelector('#overlay .winwrap') && !endView) {
+      cupQvDrawn = gameKey() + ':' + state.qv.deadline; showVictory(true); return;   // the vote settled: standings + champion change with it
+    }
     refreshGG();
     const rm = state.rm;
     const el = $('rmpanel'); if (el) el.innerHTML = rematchPanelHTML();
@@ -3225,6 +3240,7 @@
   }
   // the 30s clock: keep the countdown ticking, and let any phone call time on an unanswered proposal
   setInterval(() => {
+    if (state && online && (state.phase === 'play' || state.phase === 'setup') && !ARCHIVE) { syncRmBar(); return; }   // the offline bar ("End the game") lives in play/setup
     if (!state || state.phase !== 'ended' || !online) { const b = $('rmbar'); if (b) b.classList.remove('show'); return; }
     if (qvOpen(state) && Date.now() > state.qv.deadline + 1000) {   // nobody settled it in 5 min -> the near-win rule decides
       if (!rpsLocal.resolving['qv' + state.qv.deadline] || Date.now() - rpsLocal.resolving['qv' + state.qv.deadline] > 4000) {
@@ -3657,16 +3673,18 @@
     // only touch this phone's screen if it's still in the same game (a "leave" may have happened meanwhile)
     const stillHere = () => NET.started && online && NET.code === code;
     for (let i = 0; i < 6; i++) {
-      const { data, error } = await c.from('games').select('state,version').eq('code', code).maybeSingle();
-      if (error || !data || !data.state) return;
+      const { data, error } = await netTimeout(c.from('games').select('state,version').eq('code', code)).maybeSingle();
+      if (error) { if (stillHere()) NET.lost(code); return; }   // this phone's optimistic echo is undone by the next row
+      if (!data || !data.state) return;
       const s2 = JSON.parse(JSON.stringify(data.state));
       if (mutate(s2) === false) {   // nothing to write, but the server may know more than this phone does
         if (stillHere() && data.version > NET.version) { NET.version = data.version; applyRemoteState(data.state); }
         return;
       }
       const phase = s2.phase === 'ended' ? 'ended' : 'playing';
-      const { data: upd } = await c.from('games')
-        .update({ state: s2, version: data.version + 1, phase }).eq('code', code).eq('version', data.version).select('version');
+      const { data: upd, error: uerr } = await netTimeout(c.from('games')
+        .update({ state: s2, version: data.version + 1, phase }).eq('code', code).eq('version', data.version)).select('version');
+      if (uerr) { if (stillHere()) NET.lost(code); return; }
       if (upd && upd.length) {
         // apply the merged result here too: our own echo is ignored as a duplicate, so without this a tap that
         // landed on the server a moment before ours would never show on this phone
@@ -3675,6 +3693,7 @@
       }
       await new Promise((r) => setTimeout(r, 80));
     }
+    if (stillHere()) NET.lost(code);
   }
   function raiseFlag() {
     if (!online || !myColor || !state || state.players.length < 2 || iAmFlagged()) return;
@@ -3693,7 +3712,7 @@
     // apply locally too — the winner's own row write echoes back deduped, so otherwise the
     // winner would never see their own victory.
     if (state) { state.winner = winner; state.phase = 'ended'; delete state.sv; recordResult(); render(); showVictory(); }
-    svUpdate((s) => { s.winner = winner; s.phase = 'ended'; delete s.sv; });
+    svUpdate((s) => { if (s.phase !== 'play') return false; s.winner = winner; s.phase = 'ended'; delete s.sv; });
     if (svEndTimer) clearTimeout(svEndTimer);
   }
   // a seated player quits mid-game (via Leave -> confirm). The leader among those still in wins;
@@ -3745,7 +3764,7 @@
   }
   // `absent`: other players' colors who went offline (ended on their behalf from a phone still here)
   async function endByQuit(absent) {
-    if (!online || !myColor || !state || state.phase !== 'play') return false;
+    if (!online || !myColor || !state || (state.phase !== 'play' && !(absent && state.phase === 'setup'))) return false;
     const out = absent && absent.length ? absent : [myColor];
     const lead = state.players.filter((p) => !out.includes(p.color))
       .map((p) => ({ c: p.color, vp: C.victoryPoints(state, p.color, true) })).sort((a, b) => b.vp - a.vp)[0];
@@ -3757,7 +3776,7 @@
     // ended because someone went offline (being away isn't walking out, and the only voters would gain from it)
     const qv = (state.friendly || absent) ? { deadline: Date.now(), votes: {}, done: true, count: false } : { deadline: Date.now() + QV_MS, votes: {} };
     // the quitter has left (no rematch can wait on them); a quit also ends a tournament there and then
-    const quitMut = (s) => { if (s.phase !== 'play') return false; s.winner = winner; s.phase = 'ended'; s.quitBy = q; s.qv = qv; delete s.sv; s.left = (s.left || []).concat(out.filter((c) => !(s.left || []).includes(c))); if (absent) s.quitAbsent = true; if (s.cup) s.cup.stop = true; };
+    const quitMut = (s) => { if (s.phase !== 'play' && !(absent && s.phase === 'setup')) return false; s.winner = winner; s.phase = 'ended'; s.quitBy = q; s.qv = qv; delete s.sv; s.left = (s.left || []).concat(out.filter((c) => !(s.left || []).includes(c))); if (absent) s.quitAbsent = true; if (s.cup) s.cup.stop = true; };
     if (!absent) quitMut(state);   // the quitter's phone moves on at once; the others get it via the write
     await svUpdate(quitMut);
     return true;
@@ -3822,6 +3841,11 @@
     // open, so a just-completed trade must close its overlay before we decide the radial tab's
     // visibility — otherwise the radial entry point stays hidden after every trade.
     syncTradeUI();      // show/refresh/close the pending-trade overlays off shared state
+    // the cards screen opened on someone else's turn becomes playable the moment it's mine (and vice versa)
+    if ($('overlay').classList.contains('devmode') && !$('devconfirm') && ui.devView !== undefined) {
+      if (isMyTurn() && state.phase === 'play' && state.turnPhase !== 'main' && state.turnPhase !== 'roll') hideOverlay();   // the robber etc. needs the board
+      else if (ui.devView !== devViewOnly()) openDev();
+    }
     syncSurrenderUI();  // show/refresh/close the surrender vote off shared state
     // hide the radial tab during forced, uninterruptible steps (placing the robber, the
     // ✓/✗ confirm, picking a steal victim) and behind any open dialog/menu
@@ -3842,7 +3866,7 @@
     $('leavetab').classList.add('hidden');   // exit lives in the radial menu now
     // the "show game map" roll prompt only belongs in your own pre-roll phase
     if (!(state.phase === 'play' && tp === 'roll' && isMyTurn())) hideRollPrompt();
-    startMusic();       // keep the playlist going in-game (no-op if off / already playing)
+    if (!ARCHIVE) startMusic();       // keep the playlist going in-game (no-op if off / already playing)
     if (rpsActive()) syncRps();
   }
 
@@ -3920,7 +3944,7 @@
     },
     close: () => { hideOverlay(); render(); },
     openDiceStats: (from) => openDiceStats(from),
-    openPast: (gid) => openPastGame(decodeURIComponent(gid)).catch(() => toast("Couldn't open that game")),
+    openPast: (gid) => openPastGame(decodeURIComponent(gid)).catch(() => { toast("Couldn't open that game"); if (ARCHIVE && !NET.started) closePastGame(); }),
     closePast: () => closePastGame(),
     endAbsent: () => { const a = absentColors(); if (a.length) endByQuit(a).catch(() => { }); },
     diceDetail: (t) => diceDetail(t),
@@ -3950,6 +3974,7 @@
     devFocus: () => devFocus(),
     devScroll: (dir) => { const s = $('devstrip'); if (!s) return; const card = s.querySelector('.devcard2'); const stride = card ? card.offsetWidth + 18 : 200; s.scrollBy({ left: dir * stride, behavior: 'smooth' }); },
     devCancelPlay: () => { const el = $('devconfirm'); if (el) el.remove(); },
+    yopCancel: () => { ui.yop = null; hideOverlay(); render(); },
     yopSubmit: () => { const sel = ui.yop || {}, picks = []; RES.forEach((r) => { for (let i = 0; i < (sel[r] || 0); i++) picks.push(r); }); if (picks.length !== 2) return; hideOverlay(); dispatch({ type: 'playYearOfPlenty', resources: [picks[0], picks[1]] }); },
     mono: (r) => { hideOverlay(); dispatch({ type: 'playMonopoly', resource: r }); },
     // switch target (players <-> bank) in place — no sheet rebuild / re-animation
@@ -4312,6 +4337,7 @@
   let specView = null;   // spectators: which player's resources to show in the hand bar (null = follow whoever's up)
   function enterGame(s) {
     if (!s.archived) ARCHIVE = null;
+    Object.keys(offSince).forEach((k) => { delete offSince[k]; });   // offline clocks are per game
     state = s; ui = { mode: 'idle', pending: null }; resetZoom(); renderedBoardKey = null; specView = null; endView = false;
     lastBcAt = 0; clearMsgLog();   // reset chat cooldown + per-player message history on entry
     const t = $('title'); if (t) t.classList.add('hidden');
@@ -4471,8 +4497,8 @@
       }
       this.version = row.version;
       LOBBY.lastRow = row;
-      gameSeats = row.players || null;   // carries each seat's uploaded avatar for the board/corners
       const seat = (row.players || []).find((p) => p.playerId === (AUTH.me && AUTH.me.id));
+      if (!ARCHIVE || this.started || seat || LOBBY.mode === 'spectate') gameSeats = row.players || null;   // carries each seat's uploaded avatar for the board/corners
       if (this.started) {
         myColor = seat ? seat.color : null;
         // a fresh game arriving while we're on an ended one = a rematch -> replay the 3·2·1 intro for everyone
@@ -4492,7 +4518,7 @@
         // a game is running and I'm idling in the lobby -> offer Watch. Only re-render on the
         // transition; otherwise every in-game move (version bump) would rebuild the lobby and
         // make its buttons (Switch player, Watch) un-tappable mid-rebuild.
-        online = true;
+        if (!ARCHIVE) online = true;
         if (!LOBBY.inProgress) { LOBBY.inProgress = true; renderLobby(); }
       }
     },
@@ -4503,24 +4529,45 @@
       this._syncQ = this._syncQ.then(() => this._doSync(action, actor)).catch(() => { });
       return this._syncQ;
     },
+    // A move is applied on this phone first, then written here. If it can't be written, this phone must
+    // never stay out of step with the game (a lost "End turn" used to freeze everyone): `lost()` makes the
+    // next poll/realtime row re-apply the server's state, which keeps the move if it landed, else undoes it.
     async _doSync(action, actor) {
       const c = this.init(); if (!c) return;
-      for (let i = 0; i < 6; i++) {
-        const { data, error } = await c.from('games').select('state,version').eq('code', this.code).maybeSingle();
-        if (error || !data || !data.state) return;
+      const before = this.version, code = this.code;
+      for (let i = 0; i < 8; i++) {
+        const { data, error } = await netTimeout(c.from('games').select('state,version').eq('code', code)).maybeSingle();
+        if (error) { if (i < 4) { await new Promise((res) => setTimeout(res, 700 * (i + 1))); continue; } return this.lost(code); }   // nothing written yet: safe to retry
+        if (!data || !data.state) return;
         const r = C.applyAction(data.state, action, actor);
-        if (!r.ok) { applyRemoteState(data.state); return; }
+        if (!r.ok) { applyRemoteState(data.state); if (data.version > this.version) this.version = data.version; return; }
         if (data.state.sv && r.state.phase !== 'ended') r.state.sv = data.state.sv;   // keep a live surrender vote across moves
         const phase = r.state.phase === 'ended' ? 'ended' : 'playing';
-        const { data: upd, error: uerr } = await c.from('games')
-          .update({ state: r.state, version: data.version + 1, phase }).eq('code', this.code).eq('version', data.version).select('version');
-        if (uerr) { toast('Sync error'); return; }
-        if (upd && upd.length) { this.version = data.version + 1; return; }
+        const { data: upd, error: uerr } = await netTimeout(c.from('games')
+          .update({ state: r.state, version: data.version + 1, phase }).eq('code', code).eq('version', data.version)).select('version');
+        if (uerr) return this.lost(code);   // the write may or may not have landed: never re-send it, re-sync instead
+        if (upd && upd.length) {
+          if (this.code !== code) return;
+          if (data.version + 1 > this.version) this.version = data.version + 1;
+          if (data.version !== before) applyRemoteState(r.state);   // someone wrote first: show the merged result
+          return;
+        }
         await new Promise((res) => setTimeout(res, 70));
       }
+      this.lost(code);
+    },
+    lost(code) {
+      if (this.code !== code || !this.started) return;
+      this.version = -1;   // the next row (poll or realtime) is applied even at the same version
+      toast('Connection hiccup · syncing with the game…');
     },
   };
 
+  // give up on a request after 10s (a hung request on iOS used to block every later move behind it)
+  function netTimeout(q) {
+    try { if (q && q.abortSignal && typeof AbortSignal !== 'undefined' && AbortSignal.timeout) return q.abortSignal(AbortSignal.timeout(10000)); } catch (_) { }
+    return q;
+  }
   // ===== lobby: presence (who's online + ready) + explicit table formation ===
   // read a presence entry's lobby mode (back-compat with the old {ready} payload)
   function pmode(p) { return p.mode || (p.ready ? 'ready' : 'idle'); }
@@ -4574,7 +4621,7 @@
     gameName(code) { if (code === HOME_CODE) return 'Main Game'; const c = this.creatorOf(code); return c ? c.name + "'s Game" : 'Game'; },
     // enter / switch tables (a table is a presence grouping keyed by a game code)
     enterTable(code) { LV.gos = {}; this.friendly = false; if (this.created !== code) this.created = null; try { localStorage.setItem('catanLastTable', code); } catch (_) { } this.table = code; NET.code = code; this.mode = 'idle'; this.readyAt = 0; this.inProgress = false; this.targetPoints = null; this.prefGame = undefined; NET.subscribe(); this.track(); lobbySig = null; renderLobby(); },
-    leaveTable() { this.created = null; try { localStorage.removeItem('catanLastTable'); } catch (_) { } this.table = null; NET.code = null; this.mode = 'idle'; this.readyAt = 0; this.inProgress = false; this.targetPoints = null; this.prefGame = undefined; NET.unsubscribeGame(); this.track(); lobbySig = null; renderLobby(); },
+    leaveTable() { this.cupRow = null; this.created = null; try { localStorage.removeItem('catanLastTable'); } catch (_) { } this.table = null; NET.code = null; this.mode = 'idle'; this.readyAt = 0; this.inProgress = false; this.targetPoints = null; this.prefGame = undefined; NET.unsubscribeGame(); this.track(); lobbySig = null; renderLobby(); },
     // Chat rides a polled table (like the game state), NOT realtime broadcast — so it survives
     // iOS/PWA WebSocket drops. Insert a row; every client picks it up via postgres_changes + poll.
     sendBroadcast(msg) {
@@ -4595,18 +4642,20 @@
       const me = AUTH.me.id;
       // only rows with a seat for me (server-side containment), and only small columns: the `players`
       // column carries everyone's photos, so it is read for the one matching game and only when it changes
-      const { data, error } = await c.from('games').select('code,sphase:state->>phase').eq('phase', 'playing').filter('players', 'cs', JSON.stringify([{ playerId: me }]));
+      // a running game, or a cup paused between games (its row is 'ended' until the next game starts)
+      const { data, error } = await c.from('games').select('code,phase,sphase:state->>phase,kc:state->cup').in('phase', ['playing', 'ended']).filter('players', 'cs', JSON.stringify([{ playerId: me }]));
       if (error || !Array.isArray(data)) return;
-      const hit = data.find((r) => safeCode(r.code) && r.sphase !== 'ended');
+      const paused = (r) => r.phase === 'ended' && r.kc && !r.kc.stop && r.kc.n < r.kc.games;
+      const hit = data.find((r) => safeCode(r.code) && r.phase === 'playing' && r.sphase !== 'ended') || data.find((r) => safeCode(r.code) && paused(r));
       let g = null;
       if (hit) {
-        if (this.myGame && this.myGame.code === hit.code && Date.now() - (this.myGame.at || 0) < 60000) return;   // same game, recently checked
+        if (this.myGame && this.myGame.code === hit.code && !!this.myGame.cup === paused(hit) && Date.now() - (this.myGame.at || 0) < 60000) return;   // same game, recently checked
         const { data: r, error: e2 } = await c.from('games').select('players,sleft:state->left').eq('code', hit.code).maybeSingle();
         if (e2 || !r) return;
         const seat = (r.players || []).find((p) => p && p.playerId === me);
-        if (seat && !(r.sleft || []).includes(seat.color)) g = { code: hit.code, names: r.players.filter((p) => p && p.playerId !== me).map((p) => p.name), at: Date.now() };
+        if (seat && !(r.sleft || []).includes(seat.color)) g = { code: hit.code, names: r.players.filter((p) => p && p.playerId !== me).map((p) => p.name), at: Date.now(), cup: paused(hit) ? { name: cupTitle(hit.kc), next: hit.kc.n + 1, of: hit.kc.games } : null };
       }
-      const key = (x) => (x ? x.code + ':' + x.names.join(',') : '');
+      const key = (x) => (x ? x.code + ':' + x.names.join(',') + ':' + (x.cup ? x.cup.next : '') : '');
       if (key(g) === key(this.myGame)) { if (g) this.myGame.at = g.at; return; }
       this.myGame = g; lobbySig = null; if (!NET.started) renderLobby();
     },
@@ -4631,7 +4680,7 @@
       if (AUTH.me) { const p = this.myPayload(); live[p.id] = Object.assign(live[p.id] || {}, p, { away: false }); this.liveIds.add(p.id); }
       this.presence = live;
       if (!NET.started) renderLobby();
-      else { renderBanner(); if (state) { renderPanels(); if (state.phase === 'play') syncRmBar(); } }   // in-game: refresh watch count + online dots (+ the offline bar)
+      else { renderBanner(); if (state) { renderPanels(); if (state.phase === 'play' || state.phase === 'setup') syncRmBar(); } }   // in-game: refresh watch count + online dots (+ the offline bar)
     },
     online() { return Object.values(this.presence); },
     tableMembers() { return this.online().filter((p) => (p.table || null) === this.table); },   // who's at MY table
@@ -4739,6 +4788,7 @@
       if ((!data || !data.length) && !quiet) toast('Starting rematch…');   // someone else already tapped it — their write drives us in
     },
     leave() {
+      this.myGame = null;
       const c = NET.init();
       if (c && AUTH.me) { try { c.rpc('presence_beat', { p: Object.assign(this.myPayload(), { mode: 'gone', table: null }) }).then(() => { }, () => { }); } catch (_) { } }   // drop off the roster immediately
       if (c && this.channel) { try { c.removeChannel(this.channel); } catch (_) { } this.channel = null; }
@@ -4952,6 +5002,7 @@
   async function openPastGame(gid) {
     const c = NET.init(); if (!c || NET.started) return;
     const { data, error } = await c.from('game_results').select('final,finished_at').eq('game_id', gid).maybeSingle();
+    if (NET.started) return;   // a real game started while this was loading: it wins
     if (error || !data || !data.final || !data.final.board) { toast("This game's board wasn't saved"); return; }
     const s = data.final, roster = LV.roster || [];
     s.devDeck = s.devDeck || []; s.archived = true;
@@ -5176,7 +5227,11 @@
     const live = tabs.filter((t) => t.playing && !(mg && t.code === mg.code));
     let hero, more = [];
     if (mg) {   // the app was closed mid-game: that game waits for me
-      hero = `<div class="lvhero hot"><div class="lvkick"><span class="lvrec"></span>YOUR GAME IS STILL ON</div><div class="lvh1">${mg.names.length ? `You're playing with ${escapeHtml(namesAnd(mg.names))}` : 'You left a game running'}</div>
+      hero = mg.cup
+        ? `<div class="lvhero hot"><div class="lvkick">🏆 ${escapeHtml(mg.cup.name.toUpperCase())} · GAME ${mg.cup.next} OF ${mg.cup.of} NEXT</div><div class="lvh1">Your cup is waiting for you</div>
+        <div class="lvsub small">${mg.names.length ? `With ${escapeHtml(namesAnd(mg.names))}. ` : ''}The next game starts when everyone's ready.</div>
+        <button class="btn full lvbig" onclick="CATAN.lvRejoin('${mg.code}')">🏆 Back to the cup</button></div>`
+        : `<div class="lvhero hot"><div class="lvkick"><span class="lvrec"></span>YOUR GAME IS STILL ON</div><div class="lvh1">${mg.names.length ? `You're playing with ${escapeHtml(namesAnd(mg.names))}` : 'You left a game running'}</div>
         <div class="lvsub small">Your seat is waiting. Everyone else sees you as offline until you're back.</div>
         <button class="btn full lvbig" onclick="CATAN.lvRejoin('${mg.code}')">Back to your game</button></div>`;
       more = gathering.map((t) => `<button class="lvrowg" onclick="CATAN.lvJoin('${t.code}')"><span><b>${escapeHtml(lvTableName(t))}</b> · ${t.ready.length} seated</span><b class="gold">Join ›</b></button>`)
@@ -5404,8 +5459,19 @@
   // "Start a game": friends already gathering -> offer their room first (the old creation guard)
   window.CATAN.lvStart = () => { const g = lvGathering()[0]; if (g) CATAN.lvSheet('guard:' + g.code); else lvStartGo(); };
   // a new room, me seated as host: the standing table when nobody's using it, else a fresh code
-  function lvStartGo() {
-    const homeBusy = LOBBY.online().some((p) => p.id !== AUTH.me.id && p.table === HOME_CODE);
+  async function lvStartGo() {
+    if (LV.starting) return; LV.starting = true;
+    let homeBusy = LOBBY.online().some((p) => p.id !== AUTH.me.id && p.table === HOME_CODE);
+    // the home table can also hold a game everyone closed the app on (or a paused cup): nobody shows up
+    // there in presence, but starting on it would bounce off the live row -> use a fresh table instead
+    if (!homeBusy) {
+      try {
+        const c = NET.init();
+        const { data } = c ? await netTimeout(c.from('games').select('phase,kc:state->cup').eq('code', HOME_CODE)).maybeSingle() : { data: null };
+        if (data && (data.phase === 'playing' || (data.phase === 'ended' && data.kc && !data.kc.stop && data.kc.n < data.kc.games))) homeBusy = true;
+      } catch (_) { }
+    }
+    LV.starting = false;
     const code = homeBusy ? genCode() : HOME_CODE;
     LV.sheet = null; LV.tab = 'play'; LOBBY.created = code;
     LOBBY.enterTable(code); LOBBY.mode = 'ready'; LOBBY.readyAt = Date.now(); LOBBY.track(); lobbySig = null; renderLobby();
@@ -5493,9 +5559,9 @@
       try { quit = await endByQuit(); } catch (_) { }
       if (quit) { NET.started = false; online = false; myColor = null; NET.version = 0; exitGameUI(); LOBBY.leaveTable(); return; }
     }
+    if (!wasSpectator && state && state.phase === 'ended') { markLeft(leaving); NET.started = false; online = false; myColor = null; NET.version = 0; LOBBY.toLobby(); return; }   // game's over -> just me; the others keep the final board
     NET.started = false; online = false; myColor = null; NET.version = 0;
     if (wasSpectator) { LOBBY.mode = 'idle'; LOBBY.inProgress = false; showLobby(); return; }   // watcher leaves -> lobby, game untouched
-    if (state && state.phase === 'ended') { markLeft(leaving); LOBBY.toLobby(); return; }   // game's over -> just me; the others keep the final board
     // seated player ending the game: idle the table FIRST, then re-enter the lobby —
     // otherwise re-subscribing reads the still-'playing' row and bounces us back in.
     try { await LOBBY.reset(); } catch (_) { }
@@ -5652,6 +5718,7 @@
     hideOverlay();
   }
   function showLobby() {
+    if (window.catanUpdatePending && !NET.started) { window.catanUpdatePending = false; location.reload(); return; }   // a new build arrived mid-game: take it now
     if (!AUTH.me) { showIdentity(); return; }
     exitGameUI();      // clear any lingering game layer before the lobby paints
     lobbyShell();      // build the frame (title + footer + empty dyn slot) once
