@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v192';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v193';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -1680,7 +1680,9 @@
   };
   // full-screen development-cards carousel (matches the original app)
   function openDev() {
-    const p = activePlayer(), res = HUD.res || {}, face = HUD.devFace || {}, art = HUD.devArt || {};
+    const p = (online && myColor) ? state.players.find((x) => x.color === myColor) : activePlayer();
+    const view = !(state.phase === 'play' && state.turnPhase === 'main' && isMyTurn());   // look, don't play
+    const res = HUD.res || {}, face = HUD.devFace || {}, art = HUD.devArt || {};
     const ORDER = ['knight', 'year_of_plenty', 'road_building', 'monopoly', 'victory_point'];
     const played = state.hasPlayedDevCardThisTurn;
     const cnt = (list) => list.reduce((m, c) => (m[c] = (m[c] || 0) + 1, m), {});
@@ -1688,7 +1690,7 @@
 
     // Buy card first — owned-coloured when you can afford it
     const COSTD = { ore: 1, wheat: 1, sheep: 1 };
-    const canBuy = RES.every((r) => (p.resources[r] || 0) >= (COSTD[r] || 0)) && state.devDeck.length > 0;
+    const canBuy = !view && RES.every((r) => (p.resources[r] || 0) >= (COSTD[r] || 0)) && state.devDeck.length > 0;
     const costRow = (c) => RES.filter((r) => c[r]).map((r) => `<span class="ci"><img src="${res[r] || ''}">${c[r]}</span>`).join('');
     let cards = `<div class="devcard2 buy${canBuy ? ' act' : ' dim'}" data-act="${canBuy ? 'buy' : ''}" style="background-image:url('${face.buy || ''}')" onclick="CATAN.devTap('${canBuy ? 'buy' : ''}')">
       ${canBuy && art.buy ? `<img class="dcolor" src="${art.buy}" alt="">` : ''}
@@ -1703,7 +1705,7 @@
       // when the play is blocked (already played one / just bought it), so the tap can
       // EXPLAIN the rule rather than do nothing.
       const tappable = c !== 'victory_point' && n > 0;
-      const tap = tappable ? `play:${c}` : '';
+      const tap = tappable ? (view ? 'wait' : `play:${c}`) : '';
       cards += `<div class="devcard2${n > 0 ? '' : ' dim'}${tappable ? ' act' : ''}" data-act="${tap}" style="background-image:url('${face[c] || ''}')" onclick="CATAN.devTap('${tap}')">
         ${n > 0 && art[c] ? `<img class="dcolor" src="${art[c]}" alt="">` : ''}
         <div class="dtitle">${DEV_TITLE[c]}</div>
@@ -1716,6 +1718,7 @@
       <button class="devnav left" onclick="CATAN.devScroll(-1)"><i></i></button>
       <button class="devnav right" onclick="CATAN.devScroll(1)"><i></i></button>
       <div class="devbar">${handBar()}</div>
+      ${view ? '<div class="devview">View only · play cards on your turn</div>' : ''}
       <button class="devclose" onclick="CATAN.close()"><img src="assets/hud/decline.png" alt="Close"></button>
       <button class="devok hidden" id="devok" data-act="" onclick="CATAN.devOk()"><img src="assets/hud/confirm.png" alt="Confirm"></button>
     </div>`);
@@ -1733,7 +1736,7 @@
     const ok = $('devok'); if (!ok) return;
     const act = best ? best.dataset.act : '';
     ok.dataset.act = act || '';
-    ok.classList.toggle('hidden', !act);
+    ok.classList.toggle('hidden', !act || act === 'wait');
   }
   // play-confirmation panel ("Would you like to play this Development Card now?")
   function devConfirm(c) {
@@ -1750,6 +1753,7 @@
   }
   function devAct(act) {
     if (!act) return;
+    if (act === 'wait') { toast('You can play it on your turn'); return; }
     if (act === 'buy') { window.CATAN.buyDev(); }      // dispatch shows the "X Card bought." reveal
     else if (act.indexOf('play:') === 0) {
       const c = act.slice(5);
@@ -3798,11 +3802,9 @@
     const hideTab = !!ui.confirm || placing || ui.mode === 'moveRobber' || ui.mode === 'steal' || !$('overlay').classList.contains('hidden');
     $('radialtab').classList.toggle('hidden', hideTab || state.phase === 'ended');
     $('trophytab').classList.toggle('hidden', hideTab || state.phase !== 'ended');   // game over: reopen the results
-    // the settings gear only appears while the radial menu is open (and rides above it)
-    $('settingstab').classList.toggle('hidden', hideTab || !$('radialroot').classList.contains('open'));
+    $('settingstab').classList.add('hidden');   // settings + dice stats live in the radial's arc now
     $('radialtab').classList.toggle('pulse', radialPhase && !hideTab);
-    // dice stats: a quick-look button under the radial tab, once play has begun
-    $('dicetab').classList.toggle('hidden', hideTab || state.phase !== 'play');
+    $('dicetab').classList.add('hidden');
     // ✓/✗ once a spot is chosen; a lone ✗ while still choosing (so you can back out of the build)
     $('confirmbar').classList.toggle('hidden', !ui.confirm && !placing);
     $('cfm-yes').classList.toggle('hidden', !ui.confirm);
@@ -3814,37 +3816,38 @@
     if (rpsActive()) syncRps();
   }
 
-  // the radial cluster: five actions arranged around a centre close button
+  // the radial cluster: your four actions around a centre close button, plus a small arc of
+  // utilities (Settings, Dice stats, Leave) just outside it on the left
+  const UTIL_ICON = {
+    settings: '<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="6.6" fill="none" stroke="#f0dcb0" stroke-width="3.4" stroke-dasharray="2.6 2.6"/><circle cx="10" cy="10" r="5.2" fill="#f0dcb0"/><circle cx="10" cy="10" r="2.1" fill="#151515"/></svg>',
+    dice: '<svg viewBox="0 0 20 20" fill="#e9c45a"><rect x="2.5" y="10" width="4" height="7" rx="1"/><rect x="8" y="4" width="4" height="13" rx="1"/><rect x="13.5" y="8" width="4" height="9" rx="1"/></svg>',
+    exit: '<svg viewBox="0 0 20 20" fill="none" stroke="#ff9d8f" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 3.5H5.5v13H11"/><path d="M9 10h8M14 7l3 3-3 3"/></svg>',
+  };
   function radialButtons() {
-    const R = 72;   // tighter orbit (~20% smaller menu)
-    // build/trade/end/dev only on your turn (dice roll automatically); Leave is always here.
+    const R = 72;
+    // build/trade/end only on your turn's main phase; Cards any time during play (view-only off-turn)
     const canAct = state.phase === 'play' && state.turnPhase === 'main' && isMyTurn();
-    const exit = { k: 'exit', label: (online && !myColor) ? 'Stop' : 'Leave', emoji: '🚪' };
-    const items = (canAct ? [
-      { k: 'build', label: 'Build' },
-      { k: 'trade', label: 'Trade' },
-      { k: 'end', label: 'End turn' },
-      exit,
-      { k: 'dev', label: 'Cards' },
-    ] : [exit]).slice();
-    // (quick chat moved out of the radial -> the 💬 bubble on your own corner portrait)
-    // spread the items evenly around the circle, first one at the top
-    const n = items.length;
+    const hasHand = state.phase === 'play' && (!online || !!myColor);
     let html = `<button class="radbtn center" onclick="CATAN.closeRadial()"><img src="assets/hud/radial/close.png" alt="close"></button>`;
-    items.forEach((it, i) => {
-      const a = 90 - i * (360 / n);
-      const x = Math.round(R * Math.cos(a * Math.PI / 180));
-      const y = Math.round(-R * Math.sin(a * Math.PI / 180));
-      const inner = it.emoji ? `<span class="rico">${it.emoji}</span>` : `<img src="assets/hud/radial/${it.k}.png" alt="${it.label}">`;
-      const click = it.k === 'exit' ? 'CATAN.exitGame()' : `CATAN.radial('${it.k}')`;
-      html += `<button class="radbtn${it.emoji ? ' framed' : ''}" style="--x:${x}px;--y:${y}px" onclick="${click}">${inner}</button>`;
+    if (hasHand) {
+      [{ k: 'build', label: 'Build', x: 0, y: -R, on: canAct },
+       { k: 'trade', label: 'Trade', x: R, y: 0, on: canAct },
+       { k: 'end', label: 'End turn', x: 0, y: R, on: canAct },
+       { k: 'dev', label: 'Cards', x: -R, y: 0, on: true }].forEach((it) => {
+        html += `<button class="radbtn${it.on ? '' : ' off'}" style="--x:${it.x}px;--y:${it.y}px" onclick="CATAN.radial('${it.k}')"><img src="assets/hud/radial/${it.k}.png" alt="${it.label}"></button>`;
+      });
+    }
+    const utils = [{ k: 'settings', label: 'Settings', x: -167, y: -83, click: 'CATAN.closeRadial();CATAN.openSettings()' }];
+    if (state.phase === 'play') utils.push({ k: 'dice', label: 'Dice stats', x: -196, y: 0, click: 'CATAN.closeRadial();CATAN.openDiceStats()' });
+    utils.push({ k: 'exit', label: (online && !myColor) ? 'Stop' : 'Leave', x: -167, y: 83, click: 'CATAN.closeRadial();CATAN.exitGame()' });
+    utils.forEach((u) => {
+      html += `<button class="radbtn util${u.k === 'exit' ? ' out' : ''}" style="--x:${u.x}px;--y:${u.y}px" onclick="${u.click}">${UTIL_ICON[u.k]}<span class="ulbl">${u.label}</span></button>`;
     });
     return html;
   }
   function closeRadial() {
     const r = $('radialroot');
     r.classList.remove('open');
-    $('settingstab').classList.add('hidden');   // gear lives with the radial
     setTimeout(() => r.classList.add('hidden'), 180);
   }
 
@@ -3875,7 +3878,6 @@
     openRadial: () => {
       if (ui.knightDismissed) { window.CATAN.qReopen(); return; }   // X tab during Show game map → back to the question
       const r = $('radialroot'); r.classList.remove('hidden'); requestAnimationFrame(() => r.classList.add('open'));
-      $('settingstab').classList.remove('hidden');   // the settings gear appears with the radial
     },
     closeRadial,
     radial: (k) => {
