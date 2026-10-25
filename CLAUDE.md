@@ -15,7 +15,9 @@ https://karimkabbani.github.io/catan/. The full history, every feature and its d
 - `prototype/app.js`: the whole client (one IIFE, plain JS). `prototype/index.html`: all CSS + markup.
 - `engine/src`: the pure rules engine (TypeScript), bundled by `prototype/build.mjs`.
 - `server/*.sql`: Supabase schema/RPCs (project `ufisdymhbhkquxqpxdzp`). Karim runs DDL himself in the
-  SQL editor; ask before any write/delete in the database and show him what it will touch first.
+  SQL editor; ask before any write/delete in the database and show him what it will touch first. When he has
+  to run SQL, paste the full SQL in the chat (ready to copy) with click-by-click steps, never just a file path.
+  Test new SQL on a throwaway local Postgres first (`initdb` + `pg_ctl`, Homebrew Postgres is installed).
 
 ## Every change
 1. Bump `APP_VERSION` in `prototype/app.js` and `VERSION 'catan-vNNN'` in `prototype/sw.js` together.
@@ -27,6 +29,8 @@ https://karimkabbani.github.io/catan/. The full history, every feature and its d
 4. `./deploy.sh "vNNN: what changed"` (builds, commits to main, pushes, publishes `prototype/` to gh-pages).
    GitHub Pages can take a few minutes; poll `app.js?x=random` for the new `APP_VERSION`.
 5. Add a short entry to HANDOVER.md §8 and commit it.
+6. After a big batch of fixes or features, run a regression sweep (parallel reviewers over the diff, each with
+   one area) before calling it done: the 2026-10-25 sweep caught a critical bug introduced by the fixes themselves.
 
 ## Things that bit us before
 - Online state is client-authoritative: writes go through `svUpdate` / `rpsUpdate` (version-guarded). Apply
