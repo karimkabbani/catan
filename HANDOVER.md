@@ -687,6 +687,38 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    matching game at most once a minute. `closePastGame` keeps `state` (like leaving any game). Verified with a
    fake Supabase client in headless Chrome: ranked/friendly/absent quits, result + snapshot save, the no-column
    fallback, archive open/no re-record/board/close, and findMyGame (found, then cleared once I'm in `left`).
+32. ✅ **v198 (2026-10-25).** Four-reviewer sweep of v183–v197. Fixed: (1) the offline "End the game" bar was hidden
+   every second by the results-bar ticker (now the ticker calls `syncRmBar` during play); (2) a cup quit vote that
+   settles as counted now redraws the champion screen (`cupQvDrawn`), it used to keep the pre-vote champion;
+   (3) leaving a finished game from the menu marks you left BEFORE going offline (the settling vote's result was
+   never recorded); (4) `openPastGame` re-checks `NET.started` after its fetch (a game starting meanwhile was
+   left with `online=false` for the whole game) and a failed open closes the viewer; (5) live table rows no
+   longer overwrite `gameSeats`/`online` under the viewer; viewer is silent (no GG bursts, no music);
+   (6) cup host "here" counts away-but-in-roster again (v194 made a 20s phone sleep hand guests "End the cup");
+   (7) `offSince` resets per game; (8) white-flag ending never overwrites an already-ended game;
+   (9) `leaveTable` clears `cupRow`; (10) `findMyGame` also finds a cup paused between games you're in (row phase
+   'ended', `state.cup` not stopped/finished) -> "Your cup is waiting · Back to the cup"; `leave()` clears myGame.
+   Known, not fixed (minor): an uncounted quit/offline ending inside a cup leaves the cup "unfinished" in Stats;
+   two simultaneous quits leave the second quitter as a voter; dev-card screen can close when a trade settles and
+   stays view-only if your turn starts while open; poker HELD marks can carry into the next game's first hand;
+   "Back to your game" can point at an abandoned game until cleanup (6h); viewer photos matched by name; a row
+   first written by a pre-v196 phone has no board.
+33. ✅ **v199 (2026-10-25): Batch A of the whole-app sweep (game-breakers).** (1) Lost moves: `_doSync`,
+   `svUpdate`, `rpsUpdate` never leave a phone silently out of step: read errors retry (nothing written yet),
+   write errors / exhausted retries call `NET.lost(code)` (`version = -1`, toast) so the next row re-applies the
+   server state; requests time out after 10s (`netTimeout`); a write that landed on a newer row applies the
+   merged state (`data.version !== before`). (2) `syncTradeUI` only closes trade sheets (`hideTradeSheets`: the
+   offer builder or respond sheet), never the Knight question / dev cards / build / settings; ignores offers in an
+   ended game and for spectators (they crashed). New dialogs reset `overlay.onclick`. (3) `afterAction` clears a
+   stuck `ui.spinning` once setup is under way (a phone asleep at the who-starts finale could never act).
+   (4) Offline "End the game" bar also in setup (dead phone stalled setup). (5) Engine: Road Building refused
+   with no legal edge, ends early when the 2nd road has none (`legalRoadCount`); Year of Plenty checks the total
+   asked; client YoP sheet has ✗. 3 new engine tests (28). (6) `lvStartGo` checks the TABLE row: a live/abandoned
+   game or paused cup there -> fresh code. (7) `rpsResolve` won't resolve a round that already has a result.
+   (8) PWA: `swReg.update()` on every return to the app; a new build arriving mid-game reloads on the next
+   `showLobby` (`window.catanUpdatePending`). (9) Hourly sweep no longer deletes LOBBY chat (`.neq('code','LOBBY')`).
+   Also: the off-turn cards screen re-renders when it becomes playable (`ui.devView`) and closes when the robber
+   needs the board; poker HELD marks reset per deal. Batches B–D (wrong results, polish, security) not done yet.
 
 ### Also shipped since multiplayer (2026-06)
 

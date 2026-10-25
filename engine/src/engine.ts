@@ -166,6 +166,13 @@ function roadConnects(s: GameState, color: PlayerColor, edge: number): boolean {
 // ----- tallies (awards + dice-stats luck line) ------------------------------
 const NUMBER_ODDS: Record<number, number> = { 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 8: 5, 9: 4, 10: 3, 11: 2, 12: 1 }; // of 36
 
+// how many empty edges this player could legally put a road on right now
+function legalRoadCount(s: GameState, color: PlayerColor): number {
+  let n = 0;
+  for (let e = 0; e < s.board.edges.length; e++) if (s.roads[e] == null && roadConnects(s, color, e)) n++;
+  return n;
+}
+
 function tallyOf(s: GameState, color: PlayerColor): Tally {
   s.tally ??= {}; // games saved before tallies existed
   return (s.tally[color] ??= { robberCost: 0, numbersHit: 0, numbersNormal: 0 });
@@ -389,7 +396,7 @@ export function applyAction(state: GameState, action: Action, byColor: PlayerCol
       s.roads[action.edge] = cur;
       player.roadsLeft--;
       updateLongestRoad(s);
-      if (s.freeRoads > 0 && player.roadsLeft > 0) {
+      if (s.freeRoads > 0 && player.roadsLeft > 0 && legalRoadCount(s, cur) > 0) {
         s.turnPhase = 'placeRoad';
       } else if (s.turnPhase === 'placeRoad') {
         s.turnPhase = 'main';
@@ -506,10 +513,11 @@ export function applyAction(state: GameState, action: Action, byColor: PlayerCol
       if (s.hasPlayedDevCardThisTurn) return err('You already played a development card this turn.');
       const idx = player.devCards.indexOf('road_building');
       if (idx < 0) return err('No road-building card available.');
+      if (player.roadsLeft <= 0) return err('You have no roads left to place.');
+      if (legalRoadCount(s, cur) === 0) return err('There is nowhere to build a road.');
       player.devCards.splice(idx, 1);
       s.hasPlayedDevCardThisTurn = true;
       s.freeRoads = Math.min(2, player.roadsLeft);
-      if (s.freeRoads === 0) return err('You have no roads left to place.');
       s.turnPhase = 'placeRoad';
       s.log.push(`${player.name} played Road Building.`);
       return { ok: true, state: s };
@@ -520,7 +528,9 @@ export function applyAction(state: GameState, action: Action, byColor: PlayerCol
       if (s.hasPlayedDevCardThisTurn) return err('You already played a development card this turn.');
       const idx = player.devCards.indexOf('year_of_plenty');
       if (idx < 0) return err('No Year of Plenty card available.');
-      for (const r of action.resources) if (s.bank[r] <= 0) return err('The bank is out of that resource.');
+      const ask: Partial<Record<Resource, number>> = {};
+      for (const r of action.resources) ask[r] = (ask[r] || 0) + 1;
+      for (const r of action.resources) if (s.bank[r] < (ask[r] || 0)) return err('The bank is out of that resource.');
       // (Both must be available; take them.)
       player.devCards.splice(idx, 1);
       s.hasPlayedDevCardThisTurn = true;

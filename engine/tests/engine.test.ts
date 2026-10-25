@@ -300,3 +300,42 @@ describe('longest road', () => {
     expect(conserved(s)).toBe(true);
   });
 });
+
+describe('dev card dead ends (v199)', () => {
+  const mainOf = () => {
+    let s = runSetup(createGame({ id: 't', players: [{ color: 'red', name: 'A' }, { color: 'blue', name: 'B' }], seed: 3 }));
+    s = structuredClone(s); s.turnPhase = 'main'; s.hasRolledThisTurn = true;
+    return s;
+  };
+
+  it('Road Building is refused when there is nowhere to build', () => {
+    const s = mainOf(), me = currentColor(s), opp = s.order.find((c) => c !== me)!;
+    s.players.find((p) => p.color === me)!.devCards.push('road_building');
+    s.board.edges.forEach((e) => { if (s.roads[e.id] == null) s.roads[e.id] = opp; });
+    const r = applyAction(s, { type: 'playRoadBuilding' }, me);
+    expect(r.ok).toBe(false);
+  });
+
+  it('Road Building ends early when the second road has no spot', () => {
+    const s = mainOf(), me = currentColor(s), opp = s.order.find((c) => c !== me)!;
+    s.players.find((p) => p.color === me)!.devCards.push('road_building');
+    const legal = s.board.edges.filter((e) => s.roads[e.id] == null && applyAction({ ...structuredClone(s), freeRoads: 1, turnPhase: 'placeRoad' }, { type: 'buildRoad', edge: e.id }, me).ok);
+    const keep = legal[0].id;
+    s.board.edges.forEach((e) => { if (s.roads[e.id] == null && e.id !== keep) s.roads[e.id] = opp; });
+    const r = applyAction(s, { type: 'playRoadBuilding' }, me);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const r2 = applyAction(r.state, { type: 'buildRoad', edge: keep }, me);
+    expect(r2.ok).toBe(true);
+    if (!r2.ok) return;
+    expect(r2.state.turnPhase).toBe('main');
+    expect(applyAction(r2.state, { type: 'endTurn' }, me).ok).toBe(true);
+  });
+
+  it('Year of Plenty never takes more than the bank holds', () => {
+    const s = mainOf(), me = currentColor(s);
+    s.players.find((p) => p.color === me)!.devCards.push('year_of_plenty');
+    s.bank.wheat = 1;
+    expect(applyAction(s, { type: 'playYearOfPlenty', resources: ['wheat', 'wheat'] }, me).ok).toBe(false);
+  });
+});
