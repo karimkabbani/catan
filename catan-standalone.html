@@ -442,7 +442,7 @@
   .pkc .pkr.pkb{left:auto; top:auto; right:6px; bottom:5px; transform:rotate(180deg);}
   .pkc .pks{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:32px; line-height:1;}
   .pkc.sel{transform:translateY(-14px); box-shadow:0 0 0 3px #ffd76b, 0 12px 20px rgba(0,0,0,0.5);}
-  .pkc.sel::after{content:'SWAP'; position:absolute; left:50%; bottom:-21px; transform:translateX(-50%); font-family:-apple-system, system-ui, sans-serif; font-size:10.5px; font-weight:800; letter-spacing:1.2px; color:#ffd76b;}
+  .pkc.sel::after{content:'HELD'; position:absolute; left:50%; bottom:-21px; transform:translateX(-50%); font-family:-apple-system, system-ui, sans-serif; font-size:10.5px; font-weight:800; letter-spacing:1.2px; color:#ffd76b;}
   .pkc.locked{cursor:default;}
   .pkc.back{background:#7d1c19; background-image:repeating-linear-gradient(45deg, rgba(255,215,107,0.16) 0 3px, transparent 3px 8px), repeating-linear-gradient(-45deg, rgba(255,215,107,0.16) 0 3px, transparent 3px 8px);
     border:2px solid #f3e6c8; box-shadow:0 0 0 1px rgba(0,0,0,0.4), 0 3px 6px rgba(0,0,0,0.5);}
@@ -1718,7 +1718,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v191';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v192';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -4286,7 +4286,7 @@
     if (kind === 'poker') return Object.assign({ kind: 'poker', round: 1, alive, picks: {}, deadline: Date.now() + delayMs + POKER_MS }, pkDeal(alive));
     return { round: 1, alive, picks: {}, deadline: Date.now() + delayMs + RPS_FIRST_MS };
   }
-  // ---- poker hand: 5 cards each, one swap of any number (five-card draw), best hand starts (same reveal/choose flow as RPS) ----
+  // ---- poker hand: 5 cards each, hold what you like and draw the rest once (video-poker style), best hand starts ----
   // cards are 'Kh' style: rank 23456789TJQKA, suit s h d c. picks[color] = 'k' (kept) or 's<N>' (swapped N).
   const POKER_MS = 15000, POKER_REVEAL_MS = 5200, PK_RANKS = '23456789TJQKA';
   const PK_SUIT = { s: '♠', h: '♥', d: '♦', c: '♣' };
@@ -4335,7 +4335,8 @@
   // my swap: draw replacements from the shared deck in one atomic write (two players swapping at once can't clash)
   function pokerSwap() {
     const R = state && state.rps; if (!R || R.kind !== 'poker' || R.done || !myColor || !R.alive.includes(myColor) || R.picks[myColor] || Date.now() > R.deadline) return;
-    const idx = [...(rpsLocal.sel || [])].filter((i) => i >= 0 && i < 5), round = R.round, me = myColor;   // five-card draw: swap any number, up to all 5
+    const held = rpsLocal.sel || new Set(), round = R.round, me = myColor;
+    const idx = [0, 1, 2, 3, 4].filter((i) => !held.has(i));   // video-poker style: every card you didn't HOLD is replaced
     rpsLocal.sel = new Set(); rpsLocal.swapping = true; syncRps(true);
     rpsUpdate((st) => {
       const Q = st.rps; if (!Q || Q.done || Q.round !== round || Q.picks[me]) return false;
@@ -4518,13 +4519,13 @@
           const cards = hand.map((c, i) => pkCardHTML(c, (sel.has(i) ? 'sel' : '') + (done ? ' locked' : ''), done ? '' : ` onclick="CATAN.pkToggle(${i})"`)).join('');
           const waiting = R.alive.filter((c) => !R.picks[c] && c !== myColor);
           const act = done ? `<div class="pkwait">${rpsLocal.swapping ? 'Dealing your new cards…' : `Locked in${waiting.length ? ` · waiting for ${escapeHtml(nameList(waiting))}…` : ''}`}</div>`
-            : `<div class="pkbtns"><button class="btn pkgo" onclick="CATAN.pkSwap()"${rpsLocal.swapping ? ' disabled' : ''}>${sel.size ? `Swap ${sel.size} card${sel.size > 1 ? 's' : ''}` : 'Keep my hand'}</button></div>`;
+            : `<div class="pkbtns"><button class="btn pkgo" onclick="CATAN.pkSwap()"${rpsLocal.swapping ? ' disabled' : ''}>${sel.size === 5 ? 'Keep all 5' : `Draw ${5 - sel.size} new card${5 - sel.size > 1 ? 's' : ''}`}</button></div>`;
           const legend = rpsLocal.legend ? `<div class="pklegend">Best to worst: Straight flush · Four of a kind · Full house · Flush · Straight · Three of a kind · Two pair · Pair · High card</div>` : '';
           let el = root;
           if (!el) { el = document.createElement('div'); el.id = 'rpsroot'; document.body.appendChild(el); }
           el.classList.remove('strip');
           el.innerHTML = `<div class="rpscard pkcard"><div class="rpshead"><b>🃏 ${R.round > 1 ? 'Deal again' : 'Your hand'}</b><span class="pkhand">${escapeHtml(nm)}</span><button class="pkinfo" onclick="CATAN.pkLegend()" aria-label="Hand rankings">ⓘ</button><span class="rpstime" id="rps-t">0:${String(left).padStart(2, '0')}</span></div>`
-            + `<div class="pkrow">${cards}</div>${legend}${act}${done ? '' : `<div class="rpsnote">Tap the cards you want to swap (any number), once. Best hand wins.</div>`}</div>`;
+            + `<div class="pkrow">${cards}</div>${legend}${act}${done ? '' : `<div class="rpsnote">Tap the cards you want to keep (HELD). Draw replaces the rest, once.</div>`}</div>`;
           el.classList.remove('hidden');
         } else hideCard();
         setRpsBanner(R.round > 1 ? `🃏 ${escapeHtml(nameList(R.alive))} deal again…` : '🃏 Poker for who starts · best hand wins');
@@ -6908,7 +6909,7 @@
         <div><div class="lvlbl">${cup ? 'Each game to' : 'Points to win'}</div>
           <div class="lvpts"><button class="auto${tgt == null ? ' on' : ''}" onclick="CATAN.lobbyTargetAuto()">Auto · ${n >= 2 ? targetForN(n) + ' for ' + n + ' players' : 'by player count'}</button></div>
           <div class="lvpts nums">${nums.map((v) => `<button class="${tgt === v ? 'on' : ''}" onclick="CATAN.lobbyTarget(${v})">${v}</button>`).join('')}</div></div>
-        <div><div class="lvlbl">Who starts</div><div class="seg lvseg"><button class="${LOBBY.whoStarts === 'rps' ? 'on' : ''}" onclick="CATAN.lobbyWhoStarts('rps')">✊ Rock-paper-scissors</button><button class="${LOBBY.whoStarts === 'poker' ? 'on' : ''}" onclick="CATAN.lobbyWhoStarts('poker')">🃏 Poker hand</button><button class="${LOBBY.whoStarts === 'random' ? 'on' : ''}" onclick="CATAN.lobbyWhoStarts('random')">🎲 Random</button></div>${LOBBY.whoStarts === 'poker' ? '<div class="lvsub small" style="margin-top:6px">Everyone is dealt 5 cards and can swap any of them, once. Best hand wins and picks when to go.</div>' : ''}</div>`;
+        <div><div class="lvlbl">Who starts</div><div class="seg lvseg"><button class="${LOBBY.whoStarts === 'rps' ? 'on' : ''}" onclick="CATAN.lobbyWhoStarts('rps')">✊ Rock-paper-scissors</button><button class="${LOBBY.whoStarts === 'poker' ? 'on' : ''}" onclick="CATAN.lobbyWhoStarts('poker')">🃏 Poker hand</button><button class="${LOBBY.whoStarts === 'random' ? 'on' : ''}" onclick="CATAN.lobbyWhoStarts('random')">🎲 Random</button></div>${LOBBY.whoStarts === 'poker' ? '<div class="lvsub small" style="margin-top:6px">Everyone is dealt 5 cards, holds the ones they like and draws new ones for the rest, once. Best hand wins and picks when to go.</div>' : ''}</div>`;
     } else if (s === 'colour') {
       const mine = LOBBY.myPref(), others = LOBBY.tableMembers().filter((p) => p.id !== AUTH.me.id && pmode(p) === 'ready');
       body = `<div class="lvst">Your colour this game</div>
