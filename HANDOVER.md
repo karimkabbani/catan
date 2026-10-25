@@ -656,6 +656,14 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    hidden). Off-turn during play the ring still shows, Build/Trade/End greyed, Cards lit: `openDev` shows MY
    hand and is view-only (`'wait'` taps toast, no Buy, "View only" pill). Rejected: refined ring with new
    icons, side panel (B), tray under the ring (covered the resource bar).
+28. ✅ **v194 (2026-10-25).** Offline players. Bug: the in-game online dot used "in the presence roster", which
+   keeps an 'away' entry for 5 minutes, so a player who closed the app stayed green. `isPlayerOnline` now uses
+   only `LOBBY.liveIds` (heartbeat < 18s). New: once a seated player has been offline `ABSENT_MS` (3 min, timed
+   per phone in `offSince`), the others get a pinned bar "💤 Kay has been offline for N min · End the game"
+   (`rmBarModel` play branch, refreshed from `applyPresence`). `endByQuit(absent)` ends it on their behalf:
+   leader among the rest wins, all absent colours go into `left`, `state.quitAbsent` changes the wording
+   ("went offline"). Ranked: the usual unanimous quit vote. Friendly: no vote (qv pre-settled as not counted),
+   also for a normal friendly quit, whose confirm text now says nothing is recorded.
 
 ### Also shipped since multiplayer (2026-06)
 
