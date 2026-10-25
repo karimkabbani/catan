@@ -409,6 +409,10 @@
   .st2gt b{font-size:14.5px;}
   .st2gt span{font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   .st2gw{font-size:11.5px; color:#a8957a; text-align:right; white-space:nowrap;}
+  .st2g.tap{cursor:pointer;}
+  .st2g.tap:active{background:rgba(255,255,255,0.08);}
+  .st2gv{display:block; margin-top:3px; color:var(--gold); font-weight:700; font-size:11px;}
+  .pastnote{margin:4px auto 2px; text-align:center; font-size:12.5px; font-weight:700; color:var(--gold); text-shadow:0 1px 2px #000;}
   .st2phead{display:flex; align-items:center; gap:12px;}
   .st2phead h3{font-family:var(--serif); font-size:21px; color:var(--gold); margin:0;}
   .st2ptop{display:flex; align-items:center; gap:14px;}
@@ -1731,7 +1735,8 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v195';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v196';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -3914,10 +3919,11 @@
       `<div class="award"><span class="awic">${ic}</span><div><b>${t}</b><span>${why}</span></div></div>`).join('')}</div>`;
   }
   function showVictory(quiet) {   // quiet = returning from the dice stats: no fanfare/confetti replay
+    if (ARCHIVE) quiet = true;   // a past game: no fanfare
     victoryShownFor = gameKey(); victoryFinal = cupFinal(state);
     if (!quiet) playSound('win', 0.8);
     if (state.cup) { showCupVictory(quiet); return; }
-    STATS.loaded = false;   // a game just ended -> every client refetches stats on the next lobby visit
+    if (!ARCHIVE) STATS.loaded = false;   // a game just ended -> every client refetches stats on the next lobby visit
     const winner = state.players.find((p) => p.color === state.winner);
     const wi = state.players.indexOf(winner);
     const wavSrc = seatAvatarSrc(winner, wi);
@@ -3935,6 +3941,7 @@
       <div class="winhead"><div class="winrays"></div>${crown}
         <div class="winava" style="background:${PCOLOR[winner.color]}">${wav}</div></div>
       <h2 id="vtitle">${victoryTitle()}</h2>
+      ${ARCHIVE ? `<div class="pastnote">📅 Final board · ${pastWhen()}</div>` : ''}
       ${state.friendly ? '<div class="quitnote">🤝 Friendly game: not recorded in Stats.</div>' : ''}
       ${quitNoteHTML()}
       ${myColor ? `<div id="rmpanel">${rematchPanelHTML()}</div>` : ''}
@@ -3943,7 +3950,8 @@
       <div style="margin:12px 0">${standings}</div>
       ${awardsHTML()}
       <div class="winrow"><button class="btn wood" onclick="CATAN.viewBoard()">🗺️ View board</button><button class="btn wood" onclick="CATAN.openDiceStats('victory')">📊 Dice stats</button></div>
-      ${myColor
+      ${ARCHIVE ? `<button class="btn full" onclick="CATAN.closePast()">Back to stats</button>`
+        : myColor
           ? `<button class="btn wood full" onclick="CATAN.leaveEnded()">Back to lobby</button>`
           : `<button class="btn full" onclick="CATAN.confirmExit()">Back to lobby</button>`}</div>`);
     syncRmBar();   /* a watcher leaves for themselves — never resets the players' table */
@@ -3954,18 +3962,19 @@
     if (domination) setTimeout(() => playSound('win', 0.55), 500);   // a second flourish for the blowout
   }
   // the game-over screen inside a cup: this game's winner + the standings (between games), or the champion
+  function pastWhen() { const d = new Date(ARCHIVE.at); return `${MONTH_ABBR[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`; }
   function showCupVictory(quiet) {
     const k = state.cup, fin = cupFinal(state), T = cupTable(state);
     const hero = fin ? T[0].p : state.players.find((p) => p.color === state.winner);
     const src = seatAvatarSrc(hero, state.players.indexOf(hero));
     const title = fin ? `🏆 ${escapeHtml(hero.name)} wins ${escapeHtml(cupTitle(k))}!` : `${escapeHtml(hero.name)} wins game <span class="rpsn">${k.n}</span>`;
     const sub = fin ? `<div class="cupsub">${escapeHtml(cupSub(k))} · ${T[0].pts} pts · won ${T[0].wins} of ${T[0].places.length}${k.stop && k.n < k.games ? ' · ended early' : ''}</div>` : '';
-    const btns = myColor ? `<button class="btn wood full" onclick="CATAN.leaveEnded()">${fin ? 'Back to lobby' : 'Step away · come back later'}</button>`
+    const btns = ARCHIVE ? `<button class="btn full" onclick="CATAN.closePast()">Back to stats</button>` : myColor ? `<button class="btn wood full" onclick="CATAN.leaveEnded()">${fin ? 'Back to lobby' : 'Step away · come back later'}</button>`
       : `<button class="btn full" onclick="CATAN.confirmExit()">Back to lobby</button>`;
     showOverlay(`<div class="winwrap${fin ? ' cupfinal' : ''}">
       <div class="winhead"><div class="winrays"></div><img class="crown" src="assets/hud/crown.png" alt="">
         <div class="winava" style="background:${PCOLOR[hero.color]}">${src ? `<img src="${src}" alt="">` : ''}</div>${fin ? '<span class="cuptrophy">🏆</span>' : ''}</div>
-      <h2>${title}</h2>${sub}${state.friendly ? '<div class="quitnote">🤝 Friendly tournament: not recorded in Stats.</div>' : ''}${quitNoteHTML()}
+      <h2>${title}</h2>${sub}${ARCHIVE ? `<div class="pastnote">📅 Final board · ${pastWhen()}</div>` : ''}${state.friendly ? '<div class="quitnote">🤝 Friendly tournament: not recorded in Stats.</div>' : ''}${quitNoteHTML()}
       ${myColor ? `<div id="rmpanel">${rematchPanelHTML()}</div>` : ''}
       <div id="ggrow">${ggHTML()}</div>
       ${cupStandingsHTML()}
@@ -5641,6 +5650,8 @@
     },
     close: () => { hideOverlay(); render(); },
     openDiceStats: (from) => openDiceStats(from),
+    openPast: (gid) => openPastGame(decodeURIComponent(gid)).catch(() => toast("Couldn't open that game")),
+    closePast: () => closePastGame(),
     endAbsent: () => { const a = absentColors(); if (a.length) endByQuit(a).catch(() => { }); },
     diceDetail: (t) => diceDetail(t),
     diceBack: () => showVictory(true),
@@ -6030,6 +6041,7 @@
   let endView = false;   // the victory screen was dismissed to look at the final board (don't re-pop it)
   let specView = null;   // spectators: which player's resources to show in the hand bar (null = follow whoever's up)
   function enterGame(s) {
+    if (!s.archived) ARCHIVE = null;
     state = s; ui = { mode: 'idle', pending: null }; resetZoom(); renderedBoardKey = null; specView = null; endView = false;
     lastBcAt = 0; clearMsgLog();   // reset chat cooldown + per-player message history on entry
     const t = $('title'); if (t) t.classList.add('hidden');
@@ -6550,12 +6562,15 @@
       if (STATS.loaded && !force) return Promise.resolve();
       const c = NET.init();
       if (!c) { STATS.loaded = true; STATS.games = []; return Promise.resolve(); }
-      STATS.loading = c.from('game_results').select('standings,finished_at').order('finished_at', { ascending: false }).limit(1000).then(
+      // `snap` = the saved final board's game id (only its id: the boards themselves load on tap). If the
+      // `final` column isn't there yet, fall back to the plain list.
+      const q = (cols) => c.from('game_results').select(cols).order('finished_at', { ascending: false }).limit(1000);
+      STATS.loading = q('game_id,standings,finished_at,snap:final->>id').then((r) => (r.error ? q('game_id,standings,finished_at') : r)).then(
         ({ data, error }) => {
           STATS.loading = null; STATS.loaded = true;
           STATS.games = ((!error && data) ? data : []).filter((r) => Array.isArray(r.standings) && r.standings.length).map((r) => {
             const d = new Date(r.finished_at), mo = d.getMonth();
-            return { at: d.getTime(), date: MONTH_ABBR[mo] + ' ' + d.getDate() + ', ' + d.getFullYear(), ym: d.getFullYear() + '-' + String(mo + 1).padStart(2, '0'),
+            return { gid: r.game_id || null, snap: !!r.snap, at: d.getTime(), date: MONTH_ABBR[mo] + ' ' + d.getDate() + ', ' + d.getFullYear(), ym: d.getFullYear() + '-' + String(mo + 1).padStart(2, '0'),
               standings: r.standings.map((s) => ({ id: s.id || null, n: s.name, pts: s.pts, lr: s.lr ? 1 : 0, la: s.la ? 1 : 0, pen: s.penalty ? 1 : 0, cup: s.cup || null })) };
           });
           // Resolve the LATEST display name per identity key (games are newest-first, so the first
@@ -6632,11 +6647,39 @@
     const gameId = (NET.code || '?') + ':' + fp + (quitter ? ':q' : '');   // a quit end is a distinct record
     if (lastRecorded === gameId) return;
     lastRecorded = gameId;
-    NET.client.from('game_results').upsert(
-      { game_id: gameId, code: NET.code, player_count: state.players.length, standings },
-      { onConflict: 'game_id', ignoreDuplicates: true }
-    ).then(({ error }) => { if (error) console.warn('stats save failed:', error.message); else STATS.loaded = false; });
+    const row = { game_id: gameId, code: NET.code, player_count: state.players.length, standings };
+    const save = (r) => NET.client.from('game_results').upsert(r, { onConflict: 'game_id', ignoreDuplicates: true });
+    let snap = null; try { snap = finalSnapshot(state); } catch (_) { }
+    // the final board rides along; if that write fails for any reason, the result alone still lands
+    save(snap ? Object.assign({ final: snap }, row) : row).then(({ error }) => {
+      if (!error) { STATS.loaded = false; return; }
+      if (!snap) { console.warn('stats save failed:', error.message); return; }
+      save(row).then(({ error: e2 }) => { if (e2) console.warn('stats save failed:', e2.message); else STATS.loaded = false; });
+    });
   }
+  // the finished game as it looked at the end (stats' "past game" viewer). Drops what means nothing
+  // after the game (rng seed, undrawn deck, who-starts hands, open trades/votes, setup steps); keeps the
+  // seat map minus photos (those come from the roster when it's viewed).
+  const SNAP_DROP = ['rngState', 'devDeck', 'rps', 'pendingTrade', 'stealCandidates', 'pendingDiscards', 'setupOrder', 'setupIndex', 'setupLastVertex', 'sv', 'rm'];
+  function finalSnapshot(st) {
+    const o = JSON.parse(JSON.stringify(st));
+    SNAP_DROP.forEach((k) => { delete o[k]; });
+    o.seats = (gameSeats || []).filter(Boolean).map((x) => ({ color: x.color, playerId: x.playerId || null, name: x.name || null }));
+    return o;
+  }
+  // ---- a past game's final board, read-only (opened from Stats → Recent games) ----
+  async function openPastGame(gid) {
+    const c = NET.init(); if (!c || NET.started) return;
+    const { data, error } = await c.from('game_results').select('final,finished_at').eq('game_id', gid).maybeSingle();
+    if (error || !data || !data.final || !data.final.board) { toast("This game's board wasn't saved"); return; }
+    const s = data.final, roster = LV.roster || [];
+    s.devDeck = s.devDeck || []; s.archived = true;
+    gameSeats = (s.seats || []).map((x) => { const r = roster.find((q) => q && String(q.name || '').toLowerCase() === String(x.name || '').toLowerCase()); return Object.assign({}, x, { avatar: (r && r.avatar) || null }); });
+    ARCHIVE = { at: new Date(data.finished_at).getTime() };
+    online = false; myColor = null; victoryShownFor = null;
+    enterGame(s);
+  }
+  function closePastGame() { ARCHIVE = null; gameSeats = null; state = null; showLobby(); }
   const ROAD_ICO = (ASSETS.pieces && ASSETS.pieces['road-eastwest'] && (ASSETS.pieces['road-eastwest'].yellow || ASSETS.pieces['road-eastwest'].red)) || '';
   let statsSeason = null;   // null = current season, 'all' = all-time
   let statsCount = null;    // null = all table sizes; 2 | 3 | 4 = only that many players
@@ -6710,7 +6753,8 @@
       + `<span class="st2wp"><b>${p.winpct}%</b><span class="st2bar"><i style="width:${p.winpct}%"></i></span></span><span class="st2go">›</span></button>`;
     const rows = ranked.slice(3).map((p, i) => row(p, i + 4)).join('') + unranked.map((p) => row(p, '–')).join('');
     const recent = games.slice(0, 12).map((g) => { const w = g.standings[0], cup = w.cup ? ' · 🏆 cup' : '';
-      return `<div class="st2g">${stAv(w.n, 'sm')}<span class="st2gt"><b>${escapeHtml(w.n)} won</b><span>beat ${escapeHtml(g.standings.slice(1).map((x) => x.n).join(', '))} · ${g.standings.length} players${cup}</span></span><span class="st2gw">${stWhen(g.at)}</span></div>`; }).join('');
+      const open = g.snap && g.gid ? ` onclick="CATAN.openPast('${encodeURIComponent(g.gid)}')"` : '';
+      return `<div class="st2g${open ? ' tap' : ''}"${open}>${stAv(w.n, 'sm')}<span class="st2gt"><b>${escapeHtml(w.n)} won</b><span>beat ${escapeHtml(g.standings.slice(1).map((x) => x.n).join(', '))} · ${g.standings.length} players${cup}</span></span><span class="st2gw">${stWhen(g.at)}${open ? '<span class="st2gv">🗺️ board ›</span>' : ''}</span></div>`; }).join('');
     const body = games.length
       ? `${podium}${rows ? `<div class="st2sect"><span>LEADERBOARD · ${escapeHtml(selLbl.toUpperCase())}</span><span>WIN %</span></div><div class="st2list">${rows}</div>` : ''}
          <div class="st2note">Ranked by win %, from ${STATS_MIN_GAMES} games. Tap anyone for head to head.</div>
@@ -7029,7 +7073,7 @@
     if (LV.tabsHTML !== th) { LV.tabsHTML = th; tb.innerHTML = th; }
   }
   function renderLobby() {
-    if (NET.started || !AUTH.me) return;
+    if (NET.started || ARCHIVE || !AUTH.me) return;
     document.body.classList.remove('ingame');   // lobby is a menu -> the rotate gate must never cover it
     const dynEl = $('lobby-dyn'), t = $('title');
     if (!dynEl || !t || t.classList.contains('hidden') || !$('lv-root')) return;   // not the visible screen -> never clobber it

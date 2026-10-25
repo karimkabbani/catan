@@ -671,6 +671,15 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    selected via PostgREST) for one where I hold a seat and haven't left; the Play tab then leads with
    "YOUR GAME IS STILL ON · Back to your game" (`CATAN.lvRejoin` = `enterTable`, and `NET.onRow` seats me).
    That game is dropped from the "Watch" rows. Works even when nobody is online (it doesn't rely on presence).
+30. ✅ **v196 (2026-10-25).** Past games' final boards. `recordResult` also saves `final` = `finalSnapshot(state)`
+   (the whole ended state minus `SNAP_DROP`: rng seed, undrawn deck, who-starts hands, open trades/votes, setup
+   steps; plus `seats` = color/playerId/name, no photos). Needs `server/migrate-final.sql` (one `alter table`);
+   without the column the save retries without `final`, and the Stats list falls back to the old select, so it is
+   safe either way. Stats → Recent games: rows with a board (`snap:final->>id`) show "🗺️ board ›" and open
+   `openPastGame(gid)`: fetches that one row, photos from `LV.roster` by name, `online = false`, `ARCHIVE = {at}`,
+   `enterGame` → the normal results card, quiet, dated "📅 Final board · …", "Back to stats" (`closePastGame`).
+   "View board" shows every hand + dev cards (the ended-game spectator view). `renderLobby` is a no-op while
+   ARCHIVE; any real `enterGame` clears it. Older games have no board (nothing was saved).
 
 ### Also shipped since multiplayer (2026-06)
 
