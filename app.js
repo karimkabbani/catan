@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v193';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v194';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -796,10 +796,23 @@
     if (myIdx >= 0 && ROT_ORDER[n]) return ROT_ORDER[n][(i - myIdx + n) % n];
     return SEATS[i];   // offline pass-and-play / spectator: original fixed layout
   }
-  // is a seated player currently connected? (their id is in lobby presence — grace-inclusive so a
-  // brief background blip doesn't flicker them offline). No id (offline/hotseat) -> treat as present.
+  // is a seated player currently connected? Only a fresh heartbeat counts (liveIds: one in the last 18s,
+  // which rides out a brief phone sleep); an 'away' roster entry is NOT online. No id (hotseat) -> present.
   function seatPlayerId(color) { const s = (gameSeats || []).find((x) => x && x.color === color); return s ? s.playerId : null; }
-  function isPlayerOnline(color) { const id = seatPlayerId(color); if (!id) return true; return LOBBY.liveIds.has(id) || !!LOBBY.presence[id]; }
+  function isPlayerOnline(color) { const id = seatPlayerId(color); if (!id) return true; return LOBBY.liveIds.has(id); }
+  // a seated player offline this long mid-game -> the others get an "End the game" bar
+  const ABSENT_MS = 3 * 60 * 1000;
+  const offSince = {};   // color -> when this phone first saw them offline (reset when they're back)
+  function absentColors() {
+    if (!online || !myColor || !state || state.phase !== 'play') return [];
+    const gone = state.left || [], now = Date.now();
+    return state.players.map((p) => p.color).filter((c) => {
+      if (c === myColor || gone.includes(c)) return false;
+      if (isPlayerOnline(c)) { delete offSince[c]; return false; }
+      if (!offSince[c]) offSince[c] = now;
+      return now - offSince[c] >= ABSENT_MS;
+    });
+  }
   function renderPanels() {
     const cupPts = state.cup ? Object.fromEntries(cupTable(state).map((r) => [r.p.color, r.pts])) : null;   // cup points so far, on every corner
     state.players.forEach((p, i) => {
@@ -3092,6 +3105,13 @@
   // returns { cls, html } for the bar, or null when there's nothing to ask
   const qvShown = {};
   function rmBarModel() {
+    if (online && myColor && state && state.phase === 'play') {   // someone's been gone a while: offer to end it
+      const away = absentColors(); if (!away.length) return null;
+      const mins = Math.floor((Date.now() - Math.min(...away.map((c) => offSince[c]))) / 60000);
+      return { cls: '', html: `<div class="rmbt"><div class="rmbh">💤 ${escapeHtml(nameList(away))} ${away.length > 1 ? 'have' : 'has'} been offline for ${mins} min</div>`
+        + `<div class="rmbsub">${state.friendly ? "End the game? It's friendly, so nothing is recorded." : 'End the game? Whoever is left votes on whether it counts.'}</div></div>`
+        + `<button class="btn rmbyes" onclick="CATAN.endAbsent()">End the game</button>` };
+    }
     if (!online || !myColor || !state || state.phase !== 'ended') return null;
     if (state.quitBy && state.qv) {   // after a quit: the "does it count?" vote
       const v = state.qv, voters = qvVoters(state), wn = escapeHtml(nameOf(state.winner));
@@ -3103,7 +3123,7 @@
         if (Date.now() - t0 < 6000) return { cls: v.count ? 'go' : 'no', html: `<div class="rmbt"><div class="rmbh">${v.count ? `✓ Counted: ${wn}'s win` : '✗ Not counted'}</div><div class="rmbsub">${v.count ? 'It goes in the stats.' : "This game won't appear in the stats."}${v.auto ? ' Not everyone voted in time.' : ''}</div></div>` };
       } else {
         const mine = v.votes[myColor];
-        return { cls: '', qtimer: v.deadline, html: `<div class="rmbt"><div class="rmbh"><span>🚪 ${escapeHtml(nameOf(state.quitBy))} quit · Count it as <b>${wn}</b>'s win (${pts} of ${tgt})?</span><span class="rmbtm" id="rmbsecs"></span></div>`
+        return { cls: '', qtimer: v.deadline, html: `<div class="rmbt"><div class="rmbh"><span>🚪 ${escapeHtml(nameOf(state.quitBy))} ${state.quitAbsent ? 'went offline' : 'quit'} · Count it as <b>${wn}</b>'s win (${pts} of ${tgt})?</span><span class="rmbtm" id="rmbsecs"></span></div>`
           + `<div class="rmbsub">Everyone must agree. One "no" and the game doesn't count.</div><div class="rmbchips">${chips}</div></div>`
           + (mine ? `<div class="rmbwait">⏳ Waiting for the others…</div>`
             : `<button class="btn rmbyes" onclick="CATAN.qvVote(1)">✓ Count it</button><button class="btn wood rmbno" onclick="CATAN.qvVote(0)">Don't count</button>`) };
@@ -3713,22 +3733,26 @@
   function quitNoteHTML() {
     const q = state && state.quitBy; if (!q) return '';
     const qn = escapeHtml(nameOf(q)), wn = escapeHtml(nameOf(state.winner)), v = state.qv;
-    const head = `🚪 <b>${qn}</b> quit mid-game. <b>${wn}</b> was leading.`;
+    const head = `🚪 <b>${qn}</b> ${state.quitAbsent ? 'went offline and the game was ended' : 'quit mid-game'}. <b>${wn}</b> was leading.`;
     if (!v) return `<div class="quitnote" id="quitnote">${head} ${wn} gets the win and ${qn} is placed last.</div>`;   // an older game, before the vote
     if (!v.done) return `<div class="quitnote" id="quitnote">${head} Everyone still in the game votes on whether it counts. Answer in the bar at the top ↑</div>`;
     return `<div class="quitnote" id="quitnote">${head} ${v.count ? `<b>Counted</b>: ${wn}'s win, ${qn} placed last.` : `<b>Not counted</b>: this game won't appear in the stats.`}${v.auto ? ' (Not everyone voted in time.)' : ''}</div>`;
   }
-  async function endByQuit() {
+  // `absent`: other players' colors who went offline (ended on their behalf from a phone still here)
+  async function endByQuit(absent) {
     if (!online || !myColor || !state || state.phase !== 'play') return false;
-    const lead = quitLeader(state, myColor);
+    const out = absent && absent.length ? absent : [myColor];
+    const lead = state.players.filter((p) => !out.includes(p.color))
+      .map((p) => ({ c: p.color, vp: C.victoryPoints(state, p.color, true) })).sort((a, b) => b.vp - a.vp)[0];
     if (!lead) return false;   // nobody to hand the win to -> caller falls back to plain abandon
     const winner = lead.c;
-    const q = myColor;
+    const q = out[0];
     ui.svEnding = true;
-    const qv = { deadline: Date.now() + QV_MS, votes: {} };   // the others vote on whether this counts (see qvSettle)
+    // the others vote on whether this counts (see qvSettle); a friendly game never counts, so no vote
+    const qv = state.friendly ? { deadline: Date.now(), votes: {}, done: true, count: false } : { deadline: Date.now() + QV_MS, votes: {} };
     // the quitter has left (no rematch can wait on them); a quit also ends a tournament there and then
-    const quitMut = (s) => { s.winner = winner; s.phase = 'ended'; s.quitBy = q; s.qv = qv; delete s.sv; s.left = (s.left || []).concat(q); if (s.cup) s.cup.stop = true; };
-    quitMut(state);
+    const quitMut = (s) => { if (s.phase !== 'play') return false; s.winner = winner; s.phase = 'ended'; s.quitBy = q; s.qv = qv; delete s.sv; s.left = (s.left || []).concat(out.filter((c) => !(s.left || []).includes(c))); if (absent) s.quitAbsent = true; if (s.cup) s.cup.stop = true; };
+    if (!absent) quitMut(state);   // the quitter's phone moves on at once; the others get it via the write
     await svUpdate(quitMut);
     return true;
   }
@@ -3890,6 +3914,7 @@
     },
     close: () => { hideOverlay(); render(); },
     openDiceStats: (from) => openDiceStats(from),
+    endAbsent: () => { const a = absentColors(); if (a.length) endByQuit(a).catch(() => { }); },
     diceDetail: (t) => diceDetail(t),
     diceBack: () => showVictory(true),
     openEmojiTray: () => openEmojiTray(),
@@ -4572,7 +4597,7 @@
       if (AUTH.me) { const p = this.myPayload(); live[p.id] = Object.assign(live[p.id] || {}, p, { away: false }); this.liveIds.add(p.id); }
       this.presence = live;
       if (!NET.started) renderLobby();
-      else { renderBanner(); if (state) renderPanels(); }   // in-game: refresh watch count + per-player online/offline dots
+      else { renderBanner(); if (state) { renderPanels(); if (state.phase === 'play') syncRmBar(); } }   // in-game: refresh watch count + online dots (+ the offline bar)
     },
     online() { return Object.values(this.presence); },
     tableMembers() { return this.online().filter((p) => (p.table || null) === this.table); },   // who's at MY table
@@ -5364,6 +5389,7 @@
     const midGame = endsForAll && state && state.phase === 'play' && state.players.length > 1;
     const ttl = spectator ? 'Stop watching?' : midGame ? 'Quit the game?' : 'Leave game?';
     const sub = spectator ? 'You go back to the lobby. The game keeps going for the players.'
+      : midGame && state.friendly ? "Quitting ends this friendly game for everyone. Nothing goes in the stats."
       : midGame ? (() => { const l = quitLeader(state, myColor); return `Quitting ends the game for everyone. The others then vote on whether it counts: if they all agree${l ? `, ${escapeHtml(l.p.name)} gets the win as the points leader (${l.vp} VP) and` : ','} you're placed last.`; })()
       : endsForAll ? 'This ends the game for everyone.' : 'You will leave this game.';
     const act = spectator ? 'Leave to lobby' : midGame ? 'Quit · finish last' : endsForAll ? 'End game' : 'Leave game';
