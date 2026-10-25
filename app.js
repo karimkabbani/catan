@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v201';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v202';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -1484,9 +1484,8 @@
   function turnLimit() { return TURN_LIMIT_MS; }
   // who the table is actually waiting on: a player still discarding on a 7, else whoever's turn it is
   function pokeTarget() {
-    const pd = state && state.turnPhase === 'discard' && state.pendingDiscards;
-    const c = pd && Object.keys(pd).find((k) => pd[k] > 0);
-    return c || activeColor();
+    const d = state && state.turnPhase === 'discard' && state.pendingDiscards && currentDiscarder();
+    return (d && d.color) || activeColor();
   }
   function pokeAfter() { return POKE_AFTER_MS; }
   function turnElapsed() {
@@ -2197,7 +2196,7 @@
   function seenTid() { return state && state.pendingTrade ? state.pendingTrade.id : undefined; }
   // close the overlay only if it's a trade sheet (the offer builder or the respond sheet): an offer
   // starting/ending must never take down the Knight question, dev cards, build menu, settings…
-  function hideTradeSheets() { const o = $('overlay'); if (o && o.querySelector('.traderoot.respond, .traderoot .ttargets')) hideOverlay(); }
+  function hideTradeSheets() { const o = $('overlay'); if (o && o.querySelector('.traderoot.respond, .traderoot .ttargets, .menuscreen.trade')) hideOverlay(); }
   // drive the pending-trade overlays off the shared state, on every render
   function syncTradeUI() {
     // "auto-decline this turn" only lasts the offerer's turn — drop it once the turn advances
@@ -3686,7 +3685,7 @@
       showOverlay(`<h3>Quick messages</h3>${body}<button class="btn full" style="margin-top:10px" onclick="CATAN.quickDone('game')">Done</button>`);
     }
   }
-  function persistQuick() { AUTH.setQuickMsgs(qmDraft).then((r) => { if (r && !r.ok) toast(r.error || 'Save failed'); }); }
+  function persistQuick() { if (!qmDraft) return; AUTH.setQuickMsgs(qmDraft).then((r) => { if (r && !r.ok) toast(r.error || 'Save failed'); }); }
   // ---- white flag (concede) — coordinated through the GAME ROW (version-guarded). Each
   //      player raises their own flag whenever they like, and can lower it again while the
   //      game is live. The moment everyone-but-one has a flag up, the lone player still
@@ -4032,7 +4031,7 @@
     tradeAccept: () => dispatch({ type: 'acceptTrade', tid: seenTid() }, online ? myColor : activeColor()),
     tradeDecline: () => dispatch({ type: 'declineTrade', tid: seenTid() }, online ? myColor : activeColor()),
     tradeAs: (kind, color) => dispatch({ type: kind === 'accept' ? 'acceptTrade' : 'declineTrade' }, color),  // hotseat: respond as a player
-    tradeConfirm: (c) => { ui.tradeSel = null; const pt = state.pendingTrade || {}; dispatch({ type: 'confirmTrade', with: c, tid: pt.id, cv: ((pt.counters || {})[c] || {}).v }, online ? myColor : activeColor()); },
+    tradeConfirm: (c) => { ui.tradeSel = null; const pt = state.pendingTrade || {}; dispatch({ type: 'confirmTrade', with: c, tid: pt.id, cv: pt.id != null ? (((pt.counters || {})[c] || {}).v || 0) : undefined }, online ? myColor : activeColor()); },
     tradeViewResponse: (c) => { ui.tradeSel = c; render(); },   // offerer taps a corner to review/confirm that response
     tradeCancel: () => dispatch({ type: 'cancelTrade' }),
     // responder ✓: unchanged from the offer -> accept; adjusted -> counter (offerer's frame: give = my
@@ -4476,7 +4475,7 @@
         .then(({ data, error }) => { if (error || NET.code !== code) return; NET.lastMsgId = Math.max(NET.lastMsgId || 0, (data && data[0]) ? data[0].id : 0); NET.msgReady = true; }, () => { });
       NET.lastMsgId = 0; cursor(); NET.msgCursor = cursor;
       if (this.poll) clearInterval(this.poll);
-      NET.headKey = null;
+      NET.headKey = null; NET.polling = false;   // a poll stuck on the old subscription never blocks the new one
       this.poll = setInterval(async () => {
         if (!NET.code || NET.polling) return;
         NET.polling = true;
@@ -4486,7 +4485,7 @@
           const { data: head, error: herr } = await netTimeout(c.from('games').select('version,phase').eq('code', NET.code)).maybeSingle();
           if (herr) return;   // transient network/DB blip -> keep the state we have (never boot on a failed fetch)
           const hk = head ? head.version + ':' + head.phase : 'none';
-          const stale = Date.now() - (NET.fullAt || 0) > 30000;
+          const stale = Date.now() - (NET.fullAt || 0) > (NET.started ? 30000 : 5000);
           const needFull = head && (NET.version === -1 || stale || hk !== NET.headKey || (NET.started && head.version !== NET.version));
           if (!head) { NET.headKey = hk; NET.onRow({ phase: 'idle' }); }
           else if (needFull) {
@@ -4627,7 +4626,11 @@
 
   // give up on a request after 10s (a hung request on iOS used to block every later move behind it)
   function netTimeout(q) {
-    try { if (q && q.abortSignal && typeof AbortSignal !== 'undefined' && AbortSignal.timeout) return q.abortSignal(AbortSignal.timeout(10000)); } catch (_) { }
+    try {
+      if (!q || !q.abortSignal) return q;
+      if (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) return q.abortSignal(AbortSignal.timeout(10000));
+      if (typeof AbortController !== 'undefined') { const ac = new AbortController(); setTimeout(() => ac.abort(), 10000); return q.abortSignal(ac.signal); }   // older iOS
+    } catch (_) { }
     return q;
   }
   // ===== lobby: presence (who's online + ready) + explicit table formation ===
@@ -4681,7 +4684,8 @@
     },
     creatorOf(code) { return this.online().find((p) => (p.table || null) === code && p.created === code) || null; },
     // who can start the room: its creator, unless their phone is asleep (then the first seated player who's here)
-    roomHost() { const cr = this.creatorOf(this.table), ready = this.readyList(); return (cr && !cr.away ? cr : null) || ready.find((p) => !p.away) || cr || ready[0] || null; },
+    // (a quick switch to WhatsApp to invite people doesn't hand the room over: only 90s+ without the app does)
+    roomHost() { const cr = this.creatorOf(this.table), ready = this.readyList(); return (cr && !(cr.away && cr.age > 90) ? cr : null) || ready.find((p) => !p.away) || cr || ready[0] || null; },
     gameName(code) { if (code === HOME_CODE) return 'Main Game'; const c = this.creatorOf(code); return c ? c.name + "'s Game" : 'Game'; },
     // enter / switch tables (a table is a presence grouping keyed by a game code)
     enterTable(code) { LV.gos = {}; this.friendly = false; if (this.created !== code) this.created = null; try { localStorage.setItem('catanLastTable', code); } catch (_) { } this.table = code; NET.code = code; this.mode = 'idle'; this.readyAt = 0; this.inProgress = false; this.targetPoints = null; this.prefGame = undefined; NET.subscribe(); this.track(); lobbySig = null; renderLobby(); },
@@ -4735,7 +4739,7 @@
       this.liveIds = new Set();
       rows.forEach((r) => {
         if (!r || !r.id || r.mode === 'gone') return;   // 'gone' = logged out on purpose
-        const m = { id: r.id, name: r.name, avatar: r.avatar, pref: r.pref, mode: r.mode, readyAt: Number(r.ready_at) || 0, table: r.table_code || null, created: r.created || null, target: r.target || null, ws: r.ws || null };
+        const m = { id: r.id, name: r.name, avatar: r.avatar, pref: r.pref, mode: r.mode, readyAt: Number(r.ready_at) || 0, table: r.table_code || null, created: r.created || null, target: r.target || null, ws: r.ws || null, age: Number(r.age_s) || 0 };
         const age = Number(r.age_s) || 0;
         if (age < 18) { this.liveIds.add(r.id); live[r.id] = m; }               // fresh heartbeat (5s cadence + slack)
         else live[r.id] = Object.assign(m, { away: true });                     // phone asleep — keep in the roster, dimmed
@@ -4776,15 +4780,19 @@
       const colorOf = assignSeatColors(seated.map((p) => p.id === AUTH.me.id ? Object.assign({}, p, { pref: this.myPref() }) : p));
       const players = seated.map((p, i) => ({ seat: i, color: colorOf[p.id], name: p.name, playerId: p.id, avatar: p.avatar || null }));
       const playerN = n;   // the seats actually dealt in (idle "here, not seated" people don't change the target)
-      const target = (this.targetPoints != null ? this.targetPoints : targetForN(playerN));   // host's chosen win target, else the count default
+      // a stand-in host (the creator's phone has been gone a while) starts the game the CREATOR set up
+      const cr = this.creatorOf(this.table), fromCr = cr && cr.id !== AUTH.me.id ? wsInfo(cr.ws) : null;
+      const set = fromCr ? { target: cr.target != null ? cr.target : null, whoStarts: fromCr.ws, friendly: fromCr.friendly, cup: fromCr.cup, cupName: '' }
+        : { target: this.targetPoints, whoStarts: this.whoStarts, friendly: this.friendly, cup: this.cup, cupName: this.cupName };
+      const target = (set.target != null ? set.target : targetForN(playerN));   // host's chosen win target, else the count default
       let gstate;
       try { gstate = C.createGame({ id: 'table', players: players.map((p) => ({ color: p.color, name: p.name })), seed: (Math.random() * 1e9) | 0, targetPoints: target, randomFirst: true }); }
       catch (e) { toast('Start failed: ' + e.message); return; }
-      gstate.whoStarts = this.whoStarts;
-      if (this.friendly) gstate.friendly = true;   // 🤝 not recorded in stats
-      if (this.cup) {
+      gstate.whoStarts = set.whoStarts;
+      if (set.friendly) gstate.friendly = true;   // 🤝 not recorded in stats
+      if (set.cup) {
         try { await STATS.load(); } catch (_) { }   // past cups, so a repeated name gets its number
-        gstate.cup = { id: Math.random().toString(36).slice(2, 10), name: uniqueCupName((this.cupName || '').trim() || pickCupName()), games: this.cup, n: 1, host: host.id, hist: [], at: Date.now() };
+        gstate.cup = { id: Math.random().toString(36).slice(2, 10), name: uniqueCupName((set.cupName || '').trim() || pickCupName()), games: set.cup, n: 1, host: host.id, hist: [], at: Date.now() };
       }
       if (gstate.whoStarts === 'rps' || gstate.whoStarts === 'poker') gstate.rps = newRps(gstate.players, 4500, gstate.whoStarts);   // the 3·2·1 countdown runs first
       const c = NET.init();
@@ -4845,11 +4853,17 @@
         gstate.cup = Object.assign({}, state.cup, { n: fin ? 1 : state.cup.n + 1, hist: fin ? [] : cupHist(state), stop: false }, fin ? { id: Math.random().toString(36).slice(2, 10), name: uniqueCupName(pickCupName(state.cup.name)), at: Date.now() } : {});
       }
       if (gstate.whoStarts === 'rps' || gstate.whoStarts === 'poker') gstate.rps = newRps(gstate.players, 6500, gstate.whoStarts);   // after the 5·4·3·2·1
-      let prevV = NET.version || 1;
-      if (quiet) {   // the automatic start: only on the SERVER's word that everyone said yes (a "No" may have just landed)
-        const { data: row } = await c.from('games').select('state,version').eq('code', NET.code).maybeSingle();
-        const rs = row && row.state;
-        if (!rs || rs.phase !== 'ended' || (rs.left || []).length || !rmPending(rs.rm) || !rs.players.every((p) => rs.rm.votes && rs.rm.votes[p.color] === 'y')) return;
+      let prevV = NET.version > 0 ? NET.version : 1;
+      if (quiet || !(NET.version > 0)) {
+        let ok = !quiet, row = null;
+        for (let i = 0; i < (quiet ? 5 : 1); i++) {   // the automatic start: only on the SERVER's word that everyone said yes
+          ({ data: row } = await c.from('games').select('state,version').eq('code', NET.code).maybeSingle());
+          const rs = row && row.state;
+          if (!rs || rs.phase !== 'ended' || (rs.left || []).length || !rmPending(rs.rm)) return;   // over, or a "No" landed
+          if (!quiet || rs.players.every((p) => rs.rm.votes && rs.rm.votes[p.color] === 'y')) { ok = true; break; }
+          await new Promise((r) => setTimeout(r, 1200));   // the last "yes" may still be on its way
+        }
+        if (!ok || !row) return;
         prevV = row.version;
       }
       const { data, error } = await c.from('games')
@@ -4972,7 +4986,9 @@
       const q = (cols) => c.from('game_results').select(cols).order('finished_at', { ascending: false }).limit(1000);
       STATS.loading = q('game_id,standings,finished_at,snap:final->>id').then((r) => (r.error ? q('game_id,standings,finished_at') : r)).then(
         ({ data, error }) => {
-          STATS.loading = null; STATS.loaded = true; STATS.loadedAt = Date.now();
+          STATS.loading = null; STATS.loaded = true;
+          if ((error || !data) && force && STATS.games.length) return;   // a failed refresh keeps the games we already have
+          STATS.loadedAt = Date.now();
           STATS.games = ((!error && data) ? data : []).filter((r) => Array.isArray(r.standings) && r.standings.length).map((r) => {
             const d = new Date(r.finished_at), mo = d.getMonth();
             return { gid: r.game_id || null, snap: !!r.snap, at: d.getTime(), date: MONTH_ABBR[mo] + ' ' + d.getDate() + ', ' + d.getFullYear(), ym: d.getFullYear() + '-' + String(mo + 1).padStart(2, '0'),
@@ -4984,7 +5000,7 @@
           STATS.nameMap = {};
           STATS.games.forEach((g) => g.standings.forEach((s) => { const k = pkey(s); if (!STATS.nameMap[k]) STATS.nameMap[k] = s.n; }));
         },
-        () => { STATS.loading = null; STATS.loaded = true; STATS.games = []; });
+        () => { STATS.loading = null; STATS.loaded = true; if (!(force && STATS.games.length)) STATS.games = []; });
       return STATS.loading;
     },
     nameFor(k) { return (STATS.nameMap && STATS.nameMap[k]) || k; },
@@ -5134,7 +5150,7 @@
     if (!STATS.loaded) { statsOut(`${back}<p class="muted" style="text-align:center;padding:26px 0">Loading…</p>`); STATS.load().then(() => statsScreen()); return; }
     if (Date.now() - (STATS.loadedAt || 0) > 60000 && !STATS.loading) {   // games finished elsewhere since: refresh quietly
       const sig = (STATS.games[0] || {}).at + ':' + STATS.games.length;
-      STATS.load(true).then(() => { if ((STATS.games[0] || {}).at + ':' + STATS.games.length !== sig && LV.tab === 'stats' && lvOn()) statsScreen(); });
+      STATS.load(true).then(() => { if ((STATS.games[0] || {}).at + ':' + STATS.games.length !== sig && LV.tab === 'stats' && lvOn() && !$('st2player')) statsScreen(); });
     }
     if (!STATS.games.length) { statsOut(`${back}<p class="muted" style="text-align:center;padding:22px 8px;line-height:1.5">No games recorded yet.<br>Finish an online game and it'll show up here.</p>`); return; }
     const isAll = statsSeason === 'all';
@@ -5190,7 +5206,7 @@
       [d.lr, '🛣️ LONGEST ROAD'], [d.la, '⚔️ LARGEST ARMY'], [seconds, 'TIMES 2ND']].map((t) => `<div class="st2tile"><b>${t[0]}</b><span>${t[1]}</span></div>`).join('');
     const h2h = Object.keys(d.h2h).sort((a, b) => (d.h2h[b].w + d.h2h[b].l) - (d.h2h[a].w + d.h2h[a].l)).map((ok) => { const r = d.h2h[ok], tot = r.w + r.l, pct = tot ? Math.round(100 * r.w / tot) : 50;
       return `<div class="st2h">${stAv(r.name, 'sm')}<b>vs ${escapeHtml(r.name)}</b><span class="st2split"><span class="st2sc"><span class="pos">${r.w}</span> – <span class="neg">${r.l}</span></span><span class="st2sb"><i style="width:${pct}%"></i></span></span></div>`; }).join('');
-    statsOut(`<div class="st2"><div class="st2phead"><button class="lobback" onclick="CATAN.openStats()" title="Back to stats">←</button><h3>${escapeHtml(d.name)}</h3></div>
+    statsOut(`<div class="st2" id="st2player"><div class="st2phead"><button class="lobback" onclick="CATAN.openStats()" title="Back to stats">←</button><h3>${escapeHtml(d.name)}</h3></div>
       <div class="st2ptop">${stAv(d.name, 'xl')}<div class="st2big"><b>${d.winpct}%</b><span>${d.w} win${d.w === 1 ? '' : 's'} from ${d.gp} game${d.gp === 1 ? '' : 's'}${rank >= 0 ? ' · #' + (rank + 1) : ' · not ranked yet'}</span><div class="st2form">${form}</div></div></div>
       <div class="st2tiles">${tiles}</div>
       <div class="st2sect">HEAD TO HEAD</div><div class="st2list">${h2h}</div>
@@ -5310,7 +5326,7 @@
       hero = mg.cup
         ? `<div class="lvhero hot"><div class="lvkick">🏆 ${escapeHtml(mg.cup.name.toUpperCase())} · GAME ${mg.cup.next} OF ${mg.cup.of} NEXT</div><div class="lvh1">Your cup is waiting for you</div>
         <div class="lvsub small">${mg.names.length ? `With ${escapeHtml(namesAnd(mg.names))}. ` : ''}The next game starts when everyone's ready.</div>
-        <button class="btn full lvbig" onclick="CATAN.lvRejoin('${mg.code}')">🏆 Back to the cup</button></div>`
+        <button class="btn full lvbig" onclick="CATAN.lvRejoin('${mg.code}')">🏆 Back to the cup</button></div><button class="linkbtn" onclick="CATAN.lvStart()">Start a separate game instead</button>`
         : `<div class="lvhero hot"><div class="lvkick"><span class="lvrec"></span>YOUR GAME IS STILL ON</div><div class="lvh1">${mg.names.length ? `You're playing with ${escapeHtml(namesAnd(mg.names))}` : 'You left a game running'}</div>
         <div class="lvsub small">Your seat is waiting. Everyone else sees you as offline until you're back.</div>
         <button class="btn full lvbig" onclick="CATAN.lvRejoin('${mg.code}')">Back to your game</button></div>`;
@@ -5380,6 +5396,7 @@
         <button class="btn full lvbig" onclick="CATAN.lobbyWatch()">👁 Watch</button></div>`;
     }
     const members = LOBBY.tableMembers(), ready = LOBBY.readyList(), host = lvRoomHost(), iAmHost = !!host && host.id === AUTH.me.id;
+    const creator = LOBBY.creatorOf(LOBBY.table), canEdit = iAmHost && (!creator || creator.id === AUTH.me.id);   // a stand-in host can start, not re-set the game
     const seated = ready.slice(0, 4), line = ready.slice(4);
     const iSeated = seated.some((p) => p.id === AUTH.me.id), inLine = line.some((p) => p.id === AUTH.me.id);
     const idle = members.filter((p) => pmode(p) === 'idle' && p.id !== AUTH.me.id), watching = members.filter((p) => pmode(p) === 'spectate');
@@ -5393,7 +5410,7 @@
     const onResults = members.filter((p) => pmode(p) === 'results' && p.id !== AUTH.me.id);
     if (onResults.length) extras.push(`<div class="lvline">🏁 <span><b>${escapeHtml(namesAnd(onResults.map((p) => p.name)))}</b> · still on the last game's results</span></div>`);
     const last = LV.last && LV.last.code === LOBBY.table && Date.now() - LV.last.at < 1800000 ? `<div class="lvlast">🏆 Last game: ${escapeHtml(LV.last.text)}</div>` : '';
-    const setl = `<${iAmHost ? 'button' : 'div'} class="lvsetl"${iAmHost ? ` onclick="CATAN.lvSheet('settings')"` : ''}><span>${lvSettingsLine(host || { id: AUTH.me.id }, playerN)}</span>${iAmHost ? '<b class="gold">Edit ›</b>' : ''}</${iAmHost ? 'button' : 'div'}>`;
+    const setl = `<${canEdit ? 'button' : 'div'} class="lvsetl"${canEdit ? ` onclick="CATAN.lvSheet('settings')"` : ''}><span>${lvSettingsLine(creator || host || { id: AUTH.me.id }, playerN)}</span>${canEdit ? '<b class="gold">Edit ›</b>' : ''}</${canEdit ? 'button' : 'div'}>`;
     let act;
     if (iSeated && iAmHost) {
       const wantGo = seated.filter((p) => p.id !== AUTH.me.id && Date.now() - (LV.gos[p.id] || 0) < GO_COUNT_MS).length;
@@ -5599,7 +5616,7 @@
   window.CATAN.quickEdit = (i, v) => { if (qmDraft && i < qmDraft.length) { qmDraft[i] = String(v).slice(0, 50); clearTimeout(qmSaveT); qmSaveT = setTimeout(persistQuick, 800); } };   // typing saves too (not only Add/Delete/Done)
   window.CATAN.quickDel = (i) => { if (qmDraft) { qmDraft.splice(i, 1); persistQuick(); manageQuickMsgs(); } };
   window.CATAN.quickAdd = () => { const el = $('qmNew'); const v = (el && el.value || '').trim().slice(0, 50); if (!v) return; if (!qmDraft) qmDraft = []; if (qmDraft.length >= 16) { toast('Max 16 messages'); return; } qmDraft.push(v); persistQuick(); manageQuickMsgs(); };
-  window.CATAN.quickDone = (from) => { persistQuick(); qmDraft = null; if (from === 'profile') manageProfile(); else { hideOverlay(); render(); } };
+  window.CATAN.quickDone = (from) => { clearTimeout(qmSaveT); persistQuick(); qmDraft = null; if (from === 'profile') manageProfile(); else { hideOverlay(); render(); } };
   window.CATAN.raiseFlag = () => { hideOverlay(); raiseFlag(); };
   window.CATAN.lowerFlag = () => { hideOverlay(); lowerFlag(); };
   window.CATAN.exitGame = () => {
