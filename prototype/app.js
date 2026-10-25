@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v200';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v201';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -286,8 +286,8 @@
     }
     let trade = null;
     if (action.type === 'confirmTrade' && state.pendingTrade) {
-      const pt = state.pendingTrade;
-      trade = { a: pt.from, b: action.with, give: pt.give, want: pt.want };
+      const pt = state.pendingTrade, terms = (pt.counters && pt.counters[action.with]) || pt;   // a counter trades on its own terms
+      trade = { a: pt.from, b: action.with, give: terms.give, want: terms.want };
     }
     let mono = null;
     if (action.type === 'playMonopoly') {   // capture who's losing how many BEFORE the swap
@@ -323,7 +323,7 @@
     if (trade) showTradeFly(trade.a, trade.b, trade.give, trade.want);   // bank fly fires once from tradeBank()
     if (mono) showMonopolyFly(mono.to, mono.res, mono.from);   // monopolised cards fly in, face-up
     if (yop) showYoPFly(yop.to, yop.resources);                // year-of-plenty cards fly in, face-down
-    if (bought) { if (!online || actor === myColor) showDevBought(bought.card); else showDevBuyFly(bought.buyer); }
+    if (bought && state.phase !== 'ended') { if (!online || actor === myColor) showDevBought(bought.card); else showDevBuyFly(bought.buyer); }   // a winning VP card: the results screen shows instead
     return true;
   }
   // is it this device's turn to act? (always true in pass-and-play)
@@ -752,6 +752,7 @@
       c.classList.toggle('droptarget', Number(c.getAttribute('data-id')) === id));
   }
   function startRobberDrag(e) {
+    if (robberDrag) return;   // a second finger never starts a second (orphaned) drag
     if (ui.mode !== 'moveRobber' || (online && !isMyTurn()) || !ASSETS.robber) return;
     e.preventDefault(); e.stopPropagation();
     const svg = $('board'), m = svg && svg.getScreenCTM ? svg.getScreenCTM() : null;
@@ -764,6 +765,14 @@
     ui.robberDragging = true; render();   // hide the resting robber while it's in hand
     document.addEventListener('pointermove', moveRobberDrag);
     document.addEventListener('pointerup', dropRobberDrag);
+    document.addEventListener('pointercancel', cancelRobberDrag);   // an iOS gesture took over: put it back
+  }
+  function cancelRobberDrag() {
+    document.removeEventListener('pointermove', moveRobberDrag);
+    document.removeEventListener('pointerup', dropRobberDrag);
+    document.removeEventListener('pointercancel', cancelRobberDrag);
+    if (robberDrag && robberDrag.img) robberDrag.img.remove();
+    robberDrag = null; ui.robberDragging = false; render();
   }
   function moveRobberDrag(e) {
     if (!robberDrag) return;
@@ -774,6 +783,7 @@
   function dropRobberDrag(e) {
     document.removeEventListener('pointermove', moveRobberDrag);
     document.removeEventListener('pointerup', dropRobberDrag);
+    document.removeEventListener('pointercancel', cancelRobberDrag);
     const hex = hexAtPoint(e.clientX, e.clientY);
     if (robberDrag && robberDrag.img) robberDrag.img.remove();
     robberDrag = null; ui.robberDragging = false; zoom.swallowClick = true;
@@ -873,6 +883,7 @@
       pill.innerHTML = state.cup ? `🏆 ${escapeHtml(cupTitle(state.cup))} · game <span class="rpsn">${state.cup.n}</span> of <span class="rpsn">${state.cup.games}</span>${state.friendly ? ' · 🤝 friendly' : ''}`
         : '🤝 Friendly game · not in stats';
     } else if (pill) pill.remove();
+    document.body.classList.toggle('hascuppill', !!$('cuppill'));
     const usedSeats = {}; state.players.forEach((_, i) => { usedSeats[seatKey(i)] = 1; });
     ['tl', 'tr', 'br', 'bl'].forEach((k) => { if (!usedSeats[k]) { const el = $('p-' + k); if (el) el.style.display = 'none'; } });
   }
@@ -986,12 +997,15 @@
   }
   function isFreshSetup() { return isFreshStart(state); }
   // big 3..2..1 countdown in the centre, then `done()` — runs on every screen at game start
+  let cdRunning = false;   // one countdown at a time; rows arriving meanwhile wait (NET.onRow), the newest is entered
   function showCountdown(done, from, label) {
     const el = $('countdown');
     if (!el) { if (done) done(); return; }
+    if (cdRunning) return;
+    cdRunning = true;
     let n = from || 3;
     (function step() {
-      if (n <= 0) { el.classList.add('hidden'); el.innerHTML = ''; if (done) done(); return; }
+      if (n <= 0) { el.classList.add('hidden'); el.innerHTML = ''; cdRunning = false; if (done) done(); return; }
       el.innerHTML = `${label ? `<div class="cd-label">${label}</div>` : ''}<div class="cd-num">${n}</div>`;   // re-set replays the pop animation
       el.classList.remove('hidden');
       playSound('click', 0.55);
@@ -1371,7 +1385,8 @@
       const o = a.players.find((x) => x.color === p.color);
       if (o && RES.some((r) => o.resources[r] !== p.resources[r])) { acc = p.color; break; }
     }
-    return acc ? { a: pt.from, b: acc, give: pt.give, want: pt.want } : null;
+    const terms = (acc && pt.counters && pt.counters[acc]) || pt;
+    return acc ? { a: pt.from, b: acc, give: terms.give, want: terms.want } : null;
   }
   // a remote discard: a player's pending-discard count dropped + their cards shrank
   function detectDiscard(a, s) {
@@ -1457,7 +1472,7 @@
     const p = activePlayer();
     if (online && !myColor) return `<span class="bdot" style="background:${PCOLOR[p.color]}"></span> 👁 Spectating — ${escapeHtml(p.name)}'s turn${clockHTML()}${watchingTag()}`;
     const phase = state.phase === 'setup' ? 'Setup' : (isMyTurn() ? 'your turn' : 'to play');
-    return `<span class="bdot" style="background:${PCOLOR[p.color]}"></span> ${escapeHtml(p.name)} — ${phase}${clockHTML()}${watchingTag()}`;
+    return `<span class="bdot" style="background:${PCOLOR[p.color]}"></span> <span class="bname">${escapeHtml(p.name)}</span><span class="bphase">— ${phase}</span>${clockHTML()}${watchingTag()}`;
   }
   // ---- soft turn timer + poke ("khalesna") -----------------------------------------------------
   // Online only. Each phone times the turn from when it saw it start (sync lag is a second or two).
@@ -1467,6 +1482,12 @@
   let turnKey = null, turnStart = 0, lastPokeAt = 0;
   const POKE_MERGE_MS = 3000, pokePile = { at: 0, names: [] };
   function turnLimit() { return TURN_LIMIT_MS; }
+  // who the table is actually waiting on: a player still discarding on a 7, else whoever's turn it is
+  function pokeTarget() {
+    const pd = state && state.turnPhase === 'discard' && state.pendingDiscards;
+    const c = pd && Object.keys(pd).find((k) => pd[k] > 0);
+    return c || activeColor();
+  }
   function pokeAfter() { return POKE_AFTER_MS; }
   function turnElapsed() {
     if (!state || (state.phase !== 'play' && state.phase !== 'setup')) return null;
@@ -1480,7 +1501,7 @@
     const e = turnElapsed(); if (e == null) return '';
     const left = turnLimit() - e;
     const t = left >= 0 ? `<span class="btimer${left < 20000 ? ' low' : ''}">⏳ ${fmtClock(left)}</span>` : `<span class="btimer over">⏳ +${fmtClock(-left)}</span>`;
-    const canPoke = myColor && !isMyTurn() && e >= pokeAfter() && Date.now() - lastPokeAt >= POKE_GAP_MS;
+    const canPoke = myColor && pokeTarget() !== myColor && e >= pokeAfter() && Date.now() - lastPokeAt >= POKE_GAP_MS;
     return t + (canPoke ? `<button class="bpoke${left < 0 ? ' hot' : ''}" onclick="event.stopPropagation();CATAN.poke()">👉 khalesna</button>` : '');
   }
   // tick the clock in place (re-rendering the banner every second would eat taps on the poke button)
@@ -1494,9 +1515,9 @@
     const np = tmp.querySelector('.bpoke'); if (np && pk) pk.className = np.className;
   }, 1000);
   function poke() {
-    if (!online || !myColor || isMyTurn() || Date.now() - lastPokeAt < POKE_GAP_MS) return;
+    if (!online || !myColor || pokeTarget() === myColor || Date.now() - lastPokeAt < POKE_GAP_MS) return;
     lastPokeAt = Date.now();
-    const target = activeColor(), tname = (state.players.find((p) => p.color === target) || {}).name || '';
+    const target = pokeTarget(), tname = (state.players.find((p) => p.color === target) || {}).name || '';
     const msg = { type: 'poke', text: `👉 ${tname}: khalesna!`, url: 'p:' + target, color: myColor,
       name: (AUTH.me && AUTH.me.name) || (state.players.find((p) => p.color === myColor) || {}).name || null,
       avatar: (AUTH.me && AUTH.me.avatar) || null, code: NET.code || LOBBY.table || null };
@@ -1952,8 +1973,9 @@
       net = Math.max(-cap, Math.min(maxGive, net));
       t.give[r] = net > 0 ? net * ratio : 0; t.want[r] = net < 0 ? -net : 0;
     } else {
-      // give capped by the actor's hand; receive capped by the counterparty (the offerer in a counter, else the bank)
-      let recvCap = state.bank[r];
+      // give capped by the actor's hand; receive capped by the counterparty (the offerer in a counter, else the
+      // most any other player holds: the bank running dry doesn't stop players trading what they have)
+      let recvCap = Math.max(0, ...state.players.filter((p) => p.color !== tActorColor()).map((p) => p.resources[r] || 0));
       if (t.mode === 'respond') { const from = state.players.find((p) => p.color === t.offerFrom); recvCap = from ? (from.resources[r] || 0) : 0; }
       net = Math.max(-recvCap, Math.min(hold, net));
       t.give[r] = Math.max(0, net); t.want[r] = Math.max(0, -net);
@@ -2198,6 +2220,7 @@
       `<div class="award"><span class="awic">${ic}</span><div><b>${t}</b><span>${why}</span></div></div>`).join('')}</div>`;
   }
   function showVictory(quiet) {   // quiet = returning from the dice stats: no fanfare/confetti replay
+    if (quittingNow) return;     // I just quit: no fanfare on my way out
     if (ARCHIVE) quiet = true;   // a past game: no fanfare
     victoryShownFor = gameKey(); victoryFinal = cupFinal(state);
     if (!quiet) playSound('win', 0.8);
@@ -2210,7 +2233,7 @@
     const rows = finishOrder(state);   // the real finish: winner first, a quitter last
     // Domination: the winner held every rival under 10 points (all VP revealed at game end)
     // (only a real win in a game to 10+: never after a quit, and a short game's target makes "under 10" meaningless)
-    const domination = rows.length > 1 && !state.quitBy && (state.targetPoints || 10) >= 10 && rows.every((s) => s.p.color === winner.color || s.vp < 10);
+    const domination = rows.length > 1 && !state.quitBy && (state.targetPoints || 10) >= 10 && rows[0].vp >= (state.targetPoints || 10) && rows.every((s) => s.p.color === winner.color || s.vp < 10);   // a real win (not a surrender at 6-5)
     const standings = rows
       .map(({ p, vp }, i) => `<div class="standing${p.color === winner.color ? ' win' : ''}" style="animation-delay:${(0.5 + i * 0.12).toFixed(2)}s"><span class="nm"><span class="dot" style="background:${PCOLOR[p.color]}"></span>${escapeHtml(p.name)}${p.color === state.quitBy ? ' <span class="quittag">🚪 quit</span>' : ''}</span><span class="pvp">${vp} VP</span></div>`)
       .join('');
@@ -2828,7 +2851,11 @@
     const root = $('rpsroot'), mode = rpsMode();
     const hideCard = () => { if (root) root.classList.add('hidden'); };
     if (!document.body.classList.contains('ingame')) { hideCard(); return; }   // only once the board (and its rotate gate) is up
-    if (mode === 'none' || mode === 'gone') { hideCard(); if (rpsLocal.key) { rpsBoardClear(); rpsLocal.key = null; rpsBanner = null; } return; }
+    if (mode === 'none' || mode === 'gone') {
+      hideCard(); if (rpsLocal.key) { rpsBoardClear(); rpsLocal.key = null; rpsBanner = null; }
+      if (mode === 'gone' && ui.spinning) { ui.spinning = false; afterAction(); render(); }   // the intro is over for this phone: setup can go on
+      return;
+    }
     const R = state.rps, now = Date.now(), gk = gameKey();
     let key = '';
     if (mode === 'pick' && R.kind === 'poker') {
@@ -2998,7 +3025,7 @@
   // and state.left = [colors who walked away]. Anyone left -> no rematch. Every seat must say yes;
   // one "not this time" or RM_MS without everyone ends it. All in -> a clear 5·4·3·2·1, then go.
   const RM_MS = 30000, rmSeen = {}, rmStarted = {};
-  let victoryShownFor = null, victoryFinal = false, cupQvDrawn = null;
+  let victoryShownFor = null, victoryFinal = false, cupQvDrawn = null, quittingNow = false;
   function gameKey() { return state && state.board ? state.board.hexes.map((h) => (h.terrain || '?')[0] + (h.token || '')).join('') + state.players.map((p) => p.color).join('') : ''; }
   function nameList(cs) { const ns = cs.map(nameOf); return ns.length < 2 ? (ns[0] || '') : ns.slice(0, -1).join(', ') + ' & ' + ns[ns.length - 1]; }
   function rmPending(rm) { return !!rm && !rm.no && !rm.lapsed; }
@@ -4353,7 +4380,7 @@
     const bd = $('board'); if (bd) bd.classList.add('enter');
     // the 3·2·1 countdown already ran over the lobby; on the island we go straight to
     // the who-goes-first spin, then begin setup
-    if (isFreshSetup() && s.rps && !s.rps.done && online) { syncRps(true); return; }   // rock-paper-scissors decides who starts
+    if (isFreshSetup() && s.rps && online) { syncRps(true); return; }   // rock-paper-scissors decides who starts (or just did: its result card, never the random spin too)
     if (isFreshSetup()) showFirstPlayerSpin(() => { afterAction(); render(); });
     else { afterAction(); render(); }
   }
@@ -4398,7 +4425,11 @@
     if (trade) lagTrade(trade.a, trade.b, trade.give, trade.want);
     if (bankTrade) RES.forEach((r) => { lagOut(bankTrade.color, r, (bankTrade.give && bankTrade.give[r]) || 0); lagIn(bankTrade.color, r, (bankTrade.want && bankTrade.want[r]) || 0); });
     if (disc) RES.forEach((r) => lagOut(disc.color, r, (disc.sel && disc.sel[r]) || 0));
-    afterAction(); render();
+    const keepMode = ['placeSettlement', 'placeCity', 'placeRoad'].includes(ui.mode) ? ui.mode : null;
+    afterAction();
+    // someone else's move (a trade answer, a flag) doesn't cancel the road/settlement I'm placing
+    if (keepMode && ui.mode === 'idle' && state.phase === 'play' && state.turnPhase === 'main' && isMyTurn()) ui.mode = keepMode;
+    render();
     if (rolled) showDiceReveal(s.dice);
     if (disc) showDiscardFly(disc.color, disc.sel);   // everyone watches each player's discard; end -> afterAction
     if (robberMoved) showRobberFly(a.robberHex, s.robberHex);
@@ -4440,15 +4471,33 @@
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: 'code=eq.' + code }, (p) => { if (p.new) NET.onMsg(p.new); })   // chat, fast path
         .subscribe();
       // only show messages from now on (not the whole history) — start the cursor at the current max id
-      c.from('messages').select('id').eq('code', code).order('id', { ascending: false }).limit(1)
-        .then(({ data }) => { NET.lastMsgId = (data && data[0]) ? data[0].id : 0; });
+      NET.msgReady = false;   // until the cursor is known, the poll doesn't fetch chat (it would replay old games' messages)
+      const cursor = () => c.from('messages').select('id').eq('code', code).order('id', { ascending: false }).limit(1)
+        .then(({ data, error }) => { if (error || NET.code !== code) return; NET.lastMsgId = Math.max(NET.lastMsgId || 0, (data && data[0]) ? data[0].id : 0); NET.msgReady = true; }, () => { });
+      NET.lastMsgId = 0; cursor(); NET.msgCursor = cursor;
       if (this.poll) clearInterval(this.poll);
+      NET.headKey = null;
       this.poll = setInterval(async () => {
-        if (!NET.code) return;
-        const { data, error } = await c.from('games').select('*').eq('code', NET.code).maybeSingle();
-        if (error) return;                      // transient network/DB blip -> keep the state we have (never boot on a failed fetch)
-        NET.onRow(data || { phase: 'idle' });   // realtime is primary; poll is the safety net
+        if (!NET.code || NET.polling) return;
+        NET.polling = true;
+        try {
+          // a tiny check first (version + phase); the full row (state + everyone's photos) only when it changed
+          // and realtime hasn't already delivered it, or this phone is re-syncing (version -1), or every 30s
+          const { data: head, error: herr } = await netTimeout(c.from('games').select('version,phase').eq('code', NET.code)).maybeSingle();
+          if (herr) return;   // transient network/DB blip -> keep the state we have (never boot on a failed fetch)
+          const hk = head ? head.version + ':' + head.phase : 'none';
+          const stale = Date.now() - (NET.fullAt || 0) > 30000;
+          const needFull = head && (NET.version === -1 || stale || hk !== NET.headKey || (NET.started && head.version !== NET.version));
+          if (!head) { NET.headKey = hk; NET.onRow({ phase: 'idle' }); }
+          else if (needFull) {
+            const { data, error } = await netTimeout(c.from('games').select('*').eq('code', NET.code)).maybeSingle();
+            if (error) return;
+            NET.headKey = hk; NET.fullAt = Date.now();
+            NET.onRow(data || { phase: 'idle' });   // realtime is primary; poll is the safety net
+          }
+        } finally { NET.polling = false; }
         // chat: poll new messages (the reliable fallback when realtime drops, esp. on iOS/PWA)
+        if (!NET.msgReady) { if (NET.msgCursor) NET.msgCursor(); return; }
         const { data: msgs } = await c.from('messages').select('*').eq('code', NET.code).gt('id', NET.lastMsgId).order('id', { ascending: true }).limit(50);
         if (msgs && msgs.length) msgs.forEach((m) => NET.onMsg(m));
       }, 2500);
@@ -4467,6 +4516,7 @@
       if (this.poll) { clearInterval(this.poll); this.poll = null; }
     },
     onRow(row) {
+      if (row && row.version != null) NET.headKey = row.version + ':' + row.phase;   // the poll's cheap check compares against this
       if (LOBBY.cupRow && !(row && row.state && row.state.phase === 'ended')) { LOBBY.cupRow = null; lobbySig = null; }
       if (!row || !row.state || (row.phase !== 'playing' && row.phase !== 'ended')) {
         LOBBY.lastRow = null;
@@ -4507,7 +4557,8 @@
       if (this.started) {
         myColor = seat ? seat.color : null;
         // a fresh game arriving while we're on an ended one = a rematch -> replay the 3·2·1 intro for everyone
-        if (isFreshStart(row.state) && state && state.phase === 'ended') { ui.svEnding = false; showCountdown(() => enterGame(row.state), 5, row.state.cup ? (row.state.cup.n > 1 ? 'Game ' + row.state.cup.n + ' in' : 'Cup starts in') : 'Rematch in'); return; }
+        if (cdRunning) return;   // the countdown enters the newest row (LOBBY.lastRow) when it ends
+        if (isFreshStart(row.state) && state && state.phase === 'ended') { ui.svEnding = false; showCountdown(() => enterGame((LOBBY.lastRow && LOBBY.lastRow.state) || row.state), 5, row.state.cup ? (row.state.cup.n > 1 ? 'Game ' + row.state.cup.n + ' in' : 'Cup starts in') : 'Rematch in'); return; }
         applyRemoteState(row.state); return;   // already in -> just sync
       }
       // not in the game yet: seated players + anyone who chose Spectate enter now;
@@ -4517,7 +4568,8 @@
         myColor = seat ? seat.color : null; online = true;
         LOBBY.enterAs(iSeated ? 'play' : 'spectate');
         this.started = true;
-        if (isFreshStart(row.state)) showCountdown(() => enterGame(row.state));   // 3·2·1 only on a real fresh start
+        const Rq = row.state.rps, underway = Rq && (Rq.done || Rq.round > 1 || Object.keys(Rq.picks || {}).length);   // rejoining: no replay
+        if (isFreshStart(row.state) && !underway) showCountdown(() => enterGame((LOBBY.lastRow && LOBBY.lastRow.state) || row.state));   // 3·2·1 only on a real fresh start
         else enterGame(row.state);
       } else {
         // a game is running and I'm idling in the lobby -> offer Watch. Only re-render on the
@@ -4628,6 +4680,8 @@
       const c = NET.init(); if (c) c.rpc('presence_beat', { p }).then(() => { }, () => { });
     },
     creatorOf(code) { return this.online().find((p) => (p.table || null) === code && p.created === code) || null; },
+    // who can start the room: its creator, unless their phone is asleep (then the first seated player who's here)
+    roomHost() { const cr = this.creatorOf(this.table), ready = this.readyList(); return (cr && !cr.away ? cr : null) || ready.find((p) => !p.away) || cr || ready[0] || null; },
     gameName(code) { if (code === HOME_CODE) return 'Main Game'; const c = this.creatorOf(code); return c ? c.name + "'s Game" : 'Game'; },
     // enter / switch tables (a table is a presence grouping keyed by a game code)
     enterTable(code) { LV.gos = {}; this.friendly = false; if (this.created !== code) this.created = null; try { localStorage.setItem('catanLastTable', code); } catch (_) { } this.table = code; NET.code = code; this.mode = 'idle'; this.readyAt = 0; this.inProgress = false; this.targetPoints = null; this.prefGame = undefined; NET.subscribe(); this.track(); lobbySig = null; renderLobby(); },
@@ -4710,7 +4764,7 @@
       try { await this.pollPresence(); } catch (_) { }   // the freshest roster: someone who just sat down (or left) a second ago
       const ready = this.readyList();
       if (ready.length < 2) { toast('Need at least 2 players ready'); return; }
-      const host = this.creatorOf(this.table) || ready[0];   // the game's creator starts it (fallback: first ready, if creator left)
+      const host = this.roomHost();   // the game's creator starts it (fallback: first seated player who's here)
       if (!host || host.id !== AUTH.me.id) { toast('Only the game creator can start'); return; }
       if (!ready.some((r) => r.id === host.id)) { toast('Ready up before starting'); return; }
       const asleep = ready.filter((p) => p.away && p.id !== AUTH.me.id);
@@ -4739,7 +4793,7 @@
       const { data: cur } = await c.from('games').select('*').eq('code', NET.code).maybeSingle();
       if (cur && cur.phase === 'playing' && cur.state && cur.state.phase !== 'ended') { toast('A game is already running at this table'); NET.onRow(cur); return; }
       if (cur && cupBetween(cur.state) && Date.now() - (this.cupKillAt || 0) > 6000) { this.cupKillAt = Date.now(); toast(`${cupTitle(cur.state.cup)} is paused here. Tap Start again to end it`); return; }
-      if (cur && cur.state && cur.state.phase === 'ended') { purgeVoice(NET.code); try { c.from('messages').delete().eq('code', NET.code); } catch (_) { } }   // the finished game's chat goes with it
+      if (cur && cur.state && cur.state.phase === 'ended') { purgeVoice(NET.code); try { c.rpc('clear_game_chat', { p_code: NET.code }).then(() => { }, () => { }); } catch (_) { } }   // the finished game's chat goes with it
       // write over exactly the row we just checked (version-guarded), so two Start taps can't both land
       let error = null;
       if (cur) {
@@ -4766,7 +4820,7 @@
           .eq('code', code).eq('version', cur.version).select('code');
         if (data && data.length) {
           purgeVoice(code);   // the game's over -> drop its voice clips
-          try { c.from('messages').delete().eq('code', code); } catch (_) { }   // ...and its chat
+          try { c.rpc('clear_game_chat', { p_code: code }).then(() => { }, () => { }); } catch (_) { }   // ...and its chat
           return;
         }
         await new Promise((r) => setTimeout(r, 150));   // raced a concurrent move -> re-read, try again
@@ -4844,7 +4898,8 @@
         .eq('code', 'LOBBY').gt('id', LCHAT.lastId).order('id', { ascending: !first }).limit(50);
       if (first && Array.isArray(data)) data = data.reverse();
       if (!error && Array.isArray(data) && data.length) {
-        data.forEach((m) => { if (m.id > LCHAT.lastId) { LCHAT.lastId = m.id; if (m.type !== 'voice') LCHAT.msgs.push(m); } });
+        data.forEach((m) => { if (m.id > LCHAT.lastId) { LCHAT.lastId = m.id; if (m.type !== 'voice' && !LCHAT.msgs.some((x) => x.id === m.id)) LCHAT.msgs.push(m); } });
+        LCHAT.msgs.sort((a, b) => a.id - b.id);   // my own sent message may already be in, ahead of one sent just before it
         if (LCHAT.msgs.length > 100) LCHAT.msgs = LCHAT.msgs.slice(-100);
         renderLobbyChat();
       }
@@ -4861,11 +4916,13 @@
       .insert({ code: 'LOBBY', name: AUTH.me.name, avatar: AUTH.me.avatar || null, sender: AUTH.me.id, type: 'text', body: text })
       .select('id,name,avatar,body,type,sender,created_at').maybeSingle();
     if (error) { toast('Message failed'); lchatDraft = text; renderLobbyChat(); return; }
-    if (data && !LCHAT.msgs.some((m) => m.id === data.id)) { LCHAT.msgs.push(data); LCHAT.lastId = Math.max(LCHAT.lastId, data.id || 0); renderLobbyChat(); }
+    // show it now, but leave the cursor alone: a friend's message posted just before mine still has to arrive
+    if (data && !LCHAT.msgs.some((m) => m.id === data.id)) { LCHAT.msgs.push(data); LCHAT.msgs.sort((a, b) => a.id - b.id); renderLobbyChat(); }
   }
   function renderLobbyChat() {
     lvFillPeek(); if (lvOn()) lvChrome();
     const el = $('lchatlist'); if (!el) return;
+    const nearBottom = !el.childElementCount || el.scrollHeight - el.scrollTop - el.clientHeight < 80 || (LCHAT.msgs.length && LCHAT.msgs[LCHAT.msgs.length - 1].sender === (AUTH.me && AUTH.me.id));
     if (LV.tab === 'chat') { lvMarkSeen(); lvChrome(); }
     const mineId = AUTH.me && AUTH.me.id;
     el.innerHTML = LCHAT.msgs.length
@@ -4875,7 +4932,7 @@
           + `${escapeHtml(m.body || '')}<span class="lvt">${t}</span></div></div>`;
       }).join('')
       : (LCHAT.loaded ? '<p class="lcempty">Say hi. Everyone in the group sees this.</p>' : '<p class="lcempty">Loading…</p>');
-    el.scrollTop = el.scrollHeight;
+    if (nearBottom) el.scrollTop = el.scrollHeight;   // don't yank someone reading older messages
   }
   let lobbySig = null;
   // Menu navigation (Switch player / Change PIN / Back to players / Back to lobby) fires on
@@ -5220,8 +5277,8 @@
   function lvGathering() { return lvTables().filter((t) => !t.playing).sort((a, b) => b.m.length - a.m.length); }
   function lvTableName(t) { return t.host ? t.host.name + "'s game" : 'A game'; }
   function lvRoomHost() {
-    const members = LOBBY.tableMembers(), ready = LOBBY.readyList();
-    return members.find((p) => p.created === LOBBY.table) || ready[0] || null;
+    const members = LOBBY.tableMembers();
+    return LOBBY.roomHost() || members.find((p) => p.created === LOBBY.table) || null;
   }
   function lvRoomName() {
     if (LOBBY.cupRow) return cupTitle(LOBBY.cupRow.state.cup);
@@ -5447,7 +5504,7 @@
     const sig = JSON.stringify([LV.tab, LV.sheet, LV.roster.length, lvGoKey(), LOBBY.friendly, LOBBY.table, LOBBY.inProgress, LOBBY.mode, LOBBY.targetPoints, LOBBY.whoStarts, LOBBY.cup, LOBBY.cupRow && LOBBY.cupRow.version, LOBBY.prefGame, LV.last && LV.last.at, live]);
     if (sig === lobbySig) return;
     const ae = document.activeElement;
-    if (ae && ae.tagName === 'INPUT' && ae.closest && ae.closest('#lv-sheet')) return;   // typing a name: redraw once you're done
+    if (ae && ae.tagName === 'INPUT' && ae.closest && (ae.closest('#lv-sheet') || ae.id === 'lchatIn')) return;   // typing (a name, a chat message): redraw once you're done
     lobbySig = sig;
     if (LV.tab === 'chat') { dynEl.innerHTML = lvChatHTML(); renderLobbyChat(); }
     else { dynEl.innerHTML = LOBBY.table ? lvRoomHTML() : lvPlayHTML(); lvFillPeek(); }
@@ -5538,7 +5595,8 @@
   window.CATAN.showMsgs = (color) => showMsgHistory(color);
   window.CATAN.openCustomMsg = () => openBroadcast();
   window.CATAN.manageQuick = (from) => manageQuickMsgs(from);
-  window.CATAN.quickEdit = (i, v) => { if (qmDraft && i < qmDraft.length) qmDraft[i] = String(v).slice(0, 50); };
+  let qmSaveT = null;
+  window.CATAN.quickEdit = (i, v) => { if (qmDraft && i < qmDraft.length) { qmDraft[i] = String(v).slice(0, 50); clearTimeout(qmSaveT); qmSaveT = setTimeout(persistQuick, 800); } };   // typing saves too (not only Add/Delete/Done)
   window.CATAN.quickDel = (i) => { if (qmDraft) { qmDraft.splice(i, 1); persistQuick(); manageQuickMsgs(); } };
   window.CATAN.quickAdd = () => { const el = $('qmNew'); const v = (el && el.value || '').trim().slice(0, 50); if (!v) return; if (!qmDraft) qmDraft = []; if (qmDraft.length >= 16) { toast('Max 16 messages'); return; } qmDraft.push(v); persistQuick(); manageQuickMsgs(); };
   window.CATAN.quickDone = (from) => { persistQuick(); qmDraft = null; if (from === 'profile') manageProfile(); else { hideOverlay(); render(); } };
@@ -5579,7 +5637,9 @@
     // table WITHOUT wiping the game row, so the others receive the ended state and record it too.
     if (!wasSpectator && state && state.phase === 'play' && state.players.length > 1) {
       let quit = false;
+      quittingNow = true;
       try { quit = await endByQuit(); } catch (_) { }
+      quittingNow = false;
       if (quit) { NET.started = false; online = false; myColor = null; NET.version = 0; exitGameUI(); LOBBY.leaveTable(); return; }
     }
     if (!wasSpectator && state && state.phase === 'ended') { markLeft(leaving); NET.started = false; online = false; myColor = null; NET.version = 0; LOBBY.toLobby(); return; }   // game's over -> just me; the others keep the final board
@@ -5590,7 +5650,7 @@
     try { await LOBBY.reset(); } catch (_) { }
     showLobby();
   };
-  window.CATAN.lobbyLogout = () => { LOBBY.leave(); AUTH.clear(); showIdentity('list'); };
+  window.CATAN.lobbyLogout = () => { clearTimeout(qmSaveT); qmDraft = null; LOBBY.leave(); AUTH.clear(); showIdentity('list'); };   // the next person on this phone starts from their own list
   window.CATAN.backToPlayers = () => showIdentity('list');   // offline setup -> homepage (player picker)
   window.CATAN.tableReset = () => LOBBY.reset();
   // leave a FINISHED game: only this device goes back to the lobby — the row keeps the ended game for
@@ -5630,15 +5690,17 @@
     me: null,
     async rpc(fn, args) {
       const c = NET.init(); if (!c) return { ok: false, error: 'offline' };
-      try { const { data, error } = await c.rpc(fn, args); if (error) return { ok: false, error: error.message }; return data; }
-      catch (e) { return { ok: false, error: String(e) }; }
+      try { const { data, error } = await c.rpc(fn, args); if (error) return { ok: false, error: error.message, net: true }; return data; }
+      catch (e) { return { ok: false, error: String(e), net: true }; }
     },
     saved() { try { return JSON.parse(localStorage.getItem('catanAuth') || 'null'); } catch (_) { return null; } },
     save(me) { this.me = me; try { localStorage.setItem('catanAuth', JSON.stringify(me)); } catch (_) { } },
     clear() { this.me = null; try { localStorage.removeItem('catanAuth'); } catch (_) { } },
     async resume() {
       const s = this.saved(); if (!s || !s.token) return false;
-      const r = await this.rpc('player_resume', { p_token: s.token });
+      let r = await this.rpc('player_resume', { p_token: s.token });
+      for (let i = 0; i < 2 && r && r.net; i++) { await new Promise((ok) => setTimeout(ok, 1500)); r = await this.rpc('player_resume', { p_token: s.token }); }
+      if (r && r.net) { this.me = Object.assign({}, s); return true; }   // can't reach the server: keep you signed in, it'll catch up
       if (r && r.ok) { this.me = { id: r.id, name: r.name, token: s.token, avatar: r.avatar || null, quickMsgs: Array.isArray(r.quick_msgs) ? r.quick_msgs : null, prefColor: r.pref_color || null }; applyProfileSettings(r.settings); return true; }
       return false;
     },
@@ -5670,8 +5732,13 @@
       return r;
     },
     // returns [{name, avatar}] (older server returned bare name strings — normalise both)
-    async list() { const r = await this.rpc('player_list', {}); return Array.isArray(r) ? r.map((p) => typeof p === 'string' ? { name: p, avatar: null } : p) : []; },
-    async setPin(oldPin, newPin) { if (!this.me) return { ok: false, error: 'Not logged in' }; return await this.rpc('player_set_pin', { p_token: this.me.token, p_old: oldPin, p_new: newPin }); },
+    async list() { const r = await this.rpc('player_list', {}); return Array.isArray(r) ? r.map((p) => typeof p === 'string' ? { name: p, avatar: null } : p) : (r && r.net ? null : []); },   // null = couldn't reach the server
+    async setPin(oldPin, newPin) {
+      if (!this.me) return { ok: false, error: 'Not logged in' };
+      const r = await this.rpc('player_set_pin', { p_token: this.me.token, p_old: oldPin, p_new: newPin });
+      if (r && r.ok && r.token) { this.me.token = r.token; this.save(this.me); }   // a new PIN comes with a new login (other devices sign in again)
+      return r;
+    },
     async setName(name) {
       if (!this.me) return { ok: false, error: 'Not logged in' };
       const r = await this.rpc('player_set_name', { p_token: this.me.token, p_name: name });
@@ -5704,10 +5771,12 @@
   }
   async function showIdentity(mode) {
     mode = mode || 'list';
-    const names = mode === 'list' ? await AUTH.list() : [];
+    const got = mode === 'list' ? await AUTH.list() : [];
+    const names = got || [];
     if (mode === 'list') {
-      const list = names.length
-        ? names.map((n) => `<button class="btn full authrow" onclick="CATAN.authPick('${encodeURIComponent(n.name)}')">${faceHTML(n.name, n.avatar)}<span class="anm">${escapeHtml(n.name)}</span></button>`).join('')
+      const list = got === null ? `<p class="muted" style="text-align:center;margin:8px 0">Can't reach the game server.</p><button class="btn full" onclick="CATAN.backToPlayers()">Try again</button>`
+        : names.length
+        ? names.map((n) => `<button class="btn full authrow" onclick="CATAN.authPick('${lvArg(n.name)}')">${faceHTML(n.name, n.avatar)}<span class="anm">${escapeHtml(n.name)}</span></button>`).join('')
         : `<p class="muted" style="text-align:center;margin:8px 0">No players yet — create one.</p>`;
       titleCard(`<div class="lobhead"><h3>Login</h3><div class="lobtools"><button class="lobtool" data-nav="stats" title="Stats & leaderboard">🏆</button></div></div>
         <div class="authlist">${list}</div>
@@ -5723,7 +5792,7 @@
       titleCard(`<div class="lobhead"><button class="lobback" onclick="CATAN.authBack()" title="Back">←</button><h3>${escapeHtml(name)}</h3></div>
         <input id="auPin" class="authin" type="password" inputmode="numeric" placeholder="Enter your PIN" autocomplete="off"/>
         <div id="auErr" class="auerr"></div>
-        <button class="btn full" onclick="CATAN.authLogin('${encodeURIComponent(name)}')">Log in</button>`);
+        <button class="btn full" onclick="CATAN.authLogin('${lvArg(name)}')">Log in</button>`);
       // focus SYNCHRONOUSLY, still inside the name-tap gesture, so iOS opens the keyboard
       const el = $('auPin'); if (el) el.focus();
     }

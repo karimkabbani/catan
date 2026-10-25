@@ -735,6 +735,28 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    Stats refetch when opened if older than 60s (`STATS.loadedAt`). Lobby: `startTableNow` polls presence first;
    the auto target counts seated players only (start and room preview). Automatic rematch re-reads the row and
    needs the server's all-yes. RPS: my local pick is used at resolve if my write hasn't landed (`rpsLocal.myPick`).
+35. ✅ **v201 (2026-10-25): Batches C (polish) + D (security).** Game poll checks `version,phase` first and
+   fetches the full row (state + photos) only when it changed and realtime hasn't delivered it, re-syncing
+   (`version -1`) or every 30s (`NET.headKey`, set in `onRow`; in-flight guard). Lobby: `LOBBY.roomHost()` skips
+   an asleep creator (Start + "Waiting for X"); sign-in: rpc errors carry `net`, `AUTH.resume` keeps you signed
+   in on a network blip, `AUTH.list` null -> "Can't reach the game server · Try again"; login buttons use `lvArg`
+   (apostrophes). Lobby chat: sending no longer moves the cursor (msgs merged + sorted by id), no auto-scroll
+   unless near the bottom, no redraw while typing in `#lchatIn`. Quick messages save while typing (debounced) and
+   reset on logout. Board: a remote update keeps my placement mode; counter-offer flies use the counter's terms;
+   robber drag ignores a 2nd finger + handles `pointercancel`; player trades can ask for what other players hold
+   (not capped by the bank); a winning VP card skips the "bought" pop-up; khalesna pokes the discarder
+   (`pokeTarget`). One countdown at a time (`cdRunning`, enters `LOBBY.lastRow`); no countdown/spin replay on a
+   rejoin once who-starts is under way; `syncRps` 'gone' unfreezes. Chat cursor only after it's known
+   (`NET.msgReady`). Layout: game-over/spectator bar sits between the bottom corners; bottom corners' robbed tag
+   under the cup pill (`top:36px`); reaction pill under the cup pill (`body.hascuppill`); banner name ellipsised
+   and turn line no-wrap (`.bname`, `.bphase`); offer bar above the hand; compact #rmbar + results header under
+   430px tall; body popups hidden behind the rotate gate; bigger 💬 / ✕ targets; no Domination after a surrender;
+   the quitter doesn't get the fanfare (`quittingNow`). Security (`server/migrate-security.sql`, Karim runs it):
+   RLS on `lobby_presence`, presence photo cap, PIN lockout (5 wrong -> 10 min), new token on PIN change (client
+   saves it), max 60 players, no anon delete on `messages` (`clear_game_chat(code)` RPC, server purges game chat
+   after 3h), size caps on messages/results. Tested on a local Postgres copy. supabase-js pinned to 2.117.0 with
+   crossorigin (cacheable). `deploy.sh` runs the engine tests first. Not done: games rows stay writable by the
+   app (moves are written by phones), voice bucket rules unchanged.
 
 ### Also shipped since multiplayer (2026-06)
 
