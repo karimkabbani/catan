@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v194';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v195';   // shown in the corner so you can confirm the live build (bump with the SW version)
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
   const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
@@ -3109,7 +3109,7 @@
       const away = absentColors(); if (!away.length) return null;
       const mins = Math.floor((Date.now() - Math.min(...away.map((c) => offSince[c]))) / 60000);
       return { cls: '', html: `<div class="rmbt"><div class="rmbh">💤 ${escapeHtml(nameList(away))} ${away.length > 1 ? 'have' : 'has'} been offline for ${mins} min</div>`
-        + `<div class="rmbsub">${state.friendly ? "End the game? It's friendly, so nothing is recorded." : 'End the game? Whoever is left votes on whether it counts.'}</div></div>`
+        + `<div class="rmbsub">End the game? It won't go in the stats.</div></div>`
         + `<button class="btn rmbyes" onclick="CATAN.endAbsent()">End the game</button>` };
     }
     if (!online || !myColor || !state || state.phase !== 'ended') return null;
@@ -3748,8 +3748,9 @@
     const winner = lead.c;
     const q = out[0];
     ui.svEnding = true;
-    // the others vote on whether this counts (see qvSettle); a friendly game never counts, so no vote
-    const qv = state.friendly ? { deadline: Date.now(), votes: {}, done: true, count: false } : { deadline: Date.now() + QV_MS, votes: {} };
+    // the others vote on whether this counts (see qvSettle). No vote when it can't count: a friendly game, or
+    // ended because someone went offline (being away isn't walking out, and the only voters would gain from it)
+    const qv = (state.friendly || absent) ? { deadline: Date.now(), votes: {}, done: true, count: false } : { deadline: Date.now() + QV_MS, votes: {} };
     // the quitter has left (no rematch can wait on them); a quit also ends a tournament there and then
     const quitMut = (s) => { if (s.phase !== 'play') return false; s.winner = winner; s.phase = 'ended'; s.quitBy = q; s.qv = qv; delete s.sv; s.left = (s.left || []).concat(out.filter((c) => !(s.left || []).includes(c))); if (absent) s.quitAbsent = true; if (s.cup) s.cup.stop = true; };
     if (!absent) quitMut(state);   // the quitter's phone moves on at once; the others get it via the write
@@ -4543,6 +4544,7 @@
       this.track();           // announce myself now…
       this.pollPresence();    // …and fetch the roster now
       pollLobbyChat();        // …and the group chat
+      this.findMyGame(true);  // …and whether I left a game running
       startHeartbeat();       // …then keep both fresh on a timer
       sweepOldVoice();   // best-effort cleanup of orphaned voice clips (throttled hourly)
     },
@@ -4575,6 +4577,19 @@
         type: msg.type || 'text', body: msg.text || null, url: msg.url || null, dur: msg.dur || null,
         sender: (AUTH.me && AUTH.me.id) || null,
       }).then(({ error }) => { if (error) toast('Message failed'); });
+    },
+    // a game I'm seated in that's still running (the app was closed mid-game): the lobby offers the way back
+    myGame: null, myGameAt: 0,
+    async findMyGame(force) {
+      const c = NET.init(); if (!c || !AUTH.me || NET.started) return;
+      if (!force && Date.now() - this.myGameAt < 10000) return;
+      this.myGameAt = Date.now();
+      const { data, error } = await c.from('games').select('code,players,sleft:state->left,sphase:state->>phase').eq('phase', 'playing');
+      if (error || !Array.isArray(data)) return;
+      const me = AUTH.me.id;
+      const row = data.find((r) => safeCode(r.code) && r.sphase !== 'ended' && (r.players || []).some((p) => p && p.playerId === me && !(r.sleft || []).includes(p.color)));
+      const g = row ? { code: row.code, names: row.players.filter((p) => p && p.playerId !== me).map((p) => p.name) } : null;
+      if (JSON.stringify(g) !== JSON.stringify(this.myGame)) { this.myGame = g; lobbySig = null; if (!NET.started) renderLobby(); }
     },
     // fetch the roster from the DB. A failed fetch keeps the roster we have (a blip never empties the lobby).
     async pollPresence() {
@@ -4717,7 +4732,7 @@
   };
   // A single 3s heartbeat while connected: expire stale presence-grace entries.
   let heartbeat = null;
-  function startHeartbeat() { if (heartbeat) return; heartbeat = setInterval(() => { try { LOBBY.track(); LOBBY.pollPresence(); if (!NET.started) pollLobbyChat(); } catch (_) { } }, 5000); }
+  function startHeartbeat() { if (heartbeat) return; heartbeat = setInterval(() => { try { LOBBY.track(); LOBBY.pollPresence(); if (!NET.started) { pollLobbyChat(); LOBBY.findMyGame(); } } catch (_) { } }, 5000); }
   function stopHeartbeat() { if (heartbeat) { clearInterval(heartbeat); heartbeat = null; } }
   // On wake (tab visible / window focus / network back), republish our presence right away so a
   // phone that slept doesn't linger as "away" on everyone else's screen, and refresh what we see.
@@ -5106,9 +5121,16 @@
   function lvPlayHTML() {
     const tabs = lvTables(), others = LOBBY.online().filter((p) => p.id !== AUTH.me.id);
     const gathering = tabs.filter((t) => !t.playing).sort((a, b) => b.m.length - a.m.length);
-    const live = tabs.filter((t) => t.playing);
+    const mg = LOBBY.myGame;
+    const live = tabs.filter((t) => t.playing && !(mg && t.code === mg.code));
     let hero, more = [];
-    if (gathering.length) {
+    if (mg) {   // the app was closed mid-game: that game waits for me
+      hero = `<div class="lvhero hot"><div class="lvkick"><span class="lvrec"></span>YOUR GAME IS STILL ON</div><div class="lvh1">${mg.names.length ? `You're playing with ${escapeHtml(namesAnd(mg.names))}` : 'You left a game running'}</div>
+        <div class="lvsub small">Your seat is waiting. Everyone else sees you as offline until you're back.</div>
+        <button class="btn full lvbig" onclick="CATAN.lvRejoin('${mg.code}')">Back to your game</button></div>`;
+      more = gathering.map((t) => `<button class="lvrowg" onclick="CATAN.lvJoin('${t.code}')"><span><b>${escapeHtml(lvTableName(t))}</b> · ${t.ready.length} seated</span><b class="gold">Join ›</b></button>`)
+        .concat(live.map((t) => `<button class="lvrowg" onclick="CATAN.lvWatchJoin('${t.code}')"><span><span class="lvrec"></span> <b>${escapeHtml(namesAnd(t.m.filter((p) => pmode(p) === 'playing').map((p) => p.name)))}</b> playing</span><b class="gold">Watch ›</b></button>`));
+    } else if (gathering.length) {
       const g = gathering[0], seated = g.ready.slice(0, 4), full = g.ready.length >= 4;
       const nobodyHosts = !g.m.some((p) => p.created === g.code) && !g.ready.length;
       const who = nobodyHosts ? 'Friends are gathering' : `${escapeHtml(g.host.name)} is getting a game going`;
@@ -5322,6 +5344,8 @@
     LOBBY.enterTable(code); LOBBY.mode = 'ready'; LOBBY.readyAt = Date.now(); LOBBY.track(); lobbySig = null; renderLobby();
   };
   // watch: into the room as a spectator; a running game takes spectators straight in (NET.onRow)
+  // back into a game I'm seated in: entering its table seats me again (NET.onRow finds my seat)
+  window.CATAN.lvRejoin = (code) => { LV.sheet = null; LV.tab = 'play'; LOBBY.myGame = null; LOBBY.enterTable(code); };
   window.CATAN.lvWatchJoin = (code) => {
     LV.sheet = null; LV.tab = 'play';
     LOBBY.enterTable(code); LOBBY.mode = 'spectate'; LOBBY.track(); lobbySig = null; renderLobby();

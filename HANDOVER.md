@@ -664,6 +664,13 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    leader among the rest wins, all absent colours go into `left`, `state.quitAbsent` changes the wording
    ("went offline"). Ranked: the usual unanimous quit vote. Friendly: no vote (qv pre-settled as not counted),
    also for a normal friendly quit, whose confirm text now says nothing is recorded.
+29. ✅ **v195 (2026-10-25).** An offline ending (`endByQuit(absent)`) never counts, ranked included: no vote,
+   qv pre-settled as not counted (in 2 players the only voter was the one who'd gain). Only a real Quit can
+   count against you. Way back into a game after the app was closed: `LOBBY.findMyGame` (on join, then every
+   10s from the lobby heartbeat) reads `games` rows with phase 'playing' (`state->left`, `state->>phase`
+   selected via PostgREST) for one where I hold a seat and haven't left; the Play tab then leads with
+   "YOUR GAME IS STILL ON · Back to your game" (`CATAN.lvRejoin` = `enterTable`, and `NET.onRow` seats me).
+   That game is dropped from the "Watch" rows. Works even when nobody is online (it doesn't rely on presence).
 
 ### Also shipped since multiplayer (2026-06)
 
