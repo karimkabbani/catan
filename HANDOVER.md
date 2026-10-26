@@ -792,6 +792,20 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    (an accept that turned into a counter meanwhile is refused; 1 new test, 33). `hideTradeSheets` also matches the
    pass-and-play `.menuscreen.trade`. Paused-cup card has "Start a separate game instead". SQL (migrate-security.sql,
    re-runnable): an expired PIN lock resets the count; game chat purged after 6h (cups) instead of 3h.
+37. ✅ **v203 (2026-10-26): poker start froze two phones (Kay/Ramzi/Lapen, 2026-10-25 21:24 UTC).** Supabase edge logs:
+   Kay started the game at 21:24:14; Lapen's (Android) and Ramzi's (iOS) phones reloaded at 21:24:16 / 21:24:23,
+   i.e. the v199 update reload (`controllerchange`) fired during the 3·2·1, which isn't `body.ingame`. After coming
+   back in, each phone made exactly one game read and then no GET at all for 2.5 min (POST heartbeats continued);
+   their Draws never reached the server, Kay's phone resolved at the deadline with random hands, the others only
+   moved when Kay's Leave idled the row. The exact phone-level stall couldn't be reproduced (a puppeteer + local
+   mock-Supabase harness in /private/tmp/claude-501/pp plays it fine, and a hung request recovers via netTimeout).
+   Fixes: (1) no update reload while `window.catanBusy()` (in a room, a countdown or a game); the pending reload
+   happens in the heartbeat at a calm lobby moment (not while typing) or on `showLobby` with no table;
+   (2) `LOBBY.join` walks straight back into a running game I'm seated in after any reload (was: paused cups only),
+   with `findMyGame` retrying that for a minute after opening (`rejoinUntil`); (3) `netWatchdog()` in the heartbeat:
+   nothing heard from the game (`NET.heardAt`: poll head OK / any onRow) for 12s -> re-subscribe; for 40s in a game ->
+   reload (then (2) puts the phone back). Harness: reload mid-countdown -> back in without a tap, all three draws
+   land; a 20s silence -> catches up; a 50s silence -> reloads, rejoins, catches up.
 
 ### Also shipped since multiplayer (2026-06)
 

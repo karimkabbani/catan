@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v202';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v203';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -997,7 +997,8 @@
   }
   function isFreshSetup() { return isFreshStart(state); }
   // big 3..2..1 countdown in the centre, then `done()` — runs on every screen at game start
-  let cdRunning = false;   // one countdown at a time; rows arriving meanwhile wait (NET.onRow), the newest is entered
+  let cdRunning = false;
+  window.catanBusy = () => !!(NET.started || LOBBY.table || cdRunning);   // index.html: no update reload while true   // one countdown at a time; rows arriving meanwhile wait (NET.onRow), the newest is entered
   function showCountdown(done, from, label) {
     const el = $('countdown');
     if (!el) { if (done) done(); return; }
@@ -4476,6 +4477,7 @@
       NET.lastMsgId = 0; cursor(); NET.msgCursor = cursor;
       if (this.poll) clearInterval(this.poll);
       NET.headKey = null; NET.polling = false;   // a poll stuck on the old subscription never blocks the new one
+      if (NET.subCode !== code) { NET.subCode = code; NET.heardAt = Date.now(); }   // (a watchdog re-wire keeps the silence clock running)
       this.poll = setInterval(async () => {
         if (!NET.code || NET.polling) return;
         NET.polling = true;
@@ -4484,6 +4486,7 @@
           // and realtime hasn't already delivered it, or this phone is re-syncing (version -1), or every 30s
           const { data: head, error: herr } = await netTimeout(c.from('games').select('version,phase').eq('code', NET.code)).maybeSingle();
           if (herr) return;   // transient network/DB blip -> keep the state we have (never boot on a failed fetch)
+          NET.heardAt = Date.now();
           const hk = head ? head.version + ':' + head.phase : 'none';
           const stale = Date.now() - (NET.fullAt || 0) > (NET.started ? 30000 : 5000);
           const needFull = head && (NET.version === -1 || stale || hk !== NET.headKey || (NET.started && head.version !== NET.version));
@@ -4515,6 +4518,7 @@
       if (this.poll) { clearInterval(this.poll); this.poll = null; }
     },
     onRow(row) {
+      NET.heardAt = Date.now();
       if (row && row.version != null) NET.headKey = row.version + ':' + row.phase;   // the poll's cheap check compares against this
       if (LOBBY.cupRow && !(row && row.state && row.state.phase === 'ended')) { LOBBY.cupRow = null; lobbySig = null; }
       if (!row || !row.state || (row.phase !== 'playing' && row.phase !== 'ended')) {
@@ -4650,8 +4654,12 @@
       const c = NET.init(); if (!c || !AUTH.me) return;
       if (!this.table) {   // the app was closed between tournament games: put me back at that table
         let last = null; try { last = localStorage.getItem('catanLastTable'); } catch (_) { }
-        if (last) c.from('games').select('state,players').eq('code', last).maybeSingle().then(({ data }) => {
-          const mine = data && data.state && cupBetween(data.state) && (data.players || []).some((p) => p.playerId === AUTH.me.id);
+        this.rejoinUntil = Date.now() + 60000;   // for a minute after opening, findMyGame also walks me back in (if this read fails)
+        if (last) netTimeout(c.from('games').select('state,players').eq('code', last)).maybeSingle().then(({ data }) => {
+          // a running game I'm seated in (the app reloaded mid-game) or a cup paused between games: back in, no tap
+          const seat = data && data.state && (data.players || []).find((p) => p && p.playerId === AUTH.me.id);
+          const live = seat && data.state.phase !== 'ended' && !(data.state.left || []).includes(seat.color);
+          const mine = seat && (live || cupBetween(data.state));
           if (mine && !this.table && !NET.started) this.enterTable(last);
         }, () => { });
       }
@@ -4711,21 +4719,23 @@
       // only rows with a seat for me (server-side containment), and only small columns: the `players`
       // column carries everyone's photos, so it is read for the one matching game and only when it changes
       // a running game, or a cup paused between games (its row is 'ended' until the next game starts)
-      const { data, error } = await c.from('games').select('code,phase,sphase:state->>phase,kc:state->cup').in('phase', ['playing', 'ended']).filter('players', 'cs', JSON.stringify([{ playerId: me }]));
+      const { data, error } = await netTimeout(c.from('games').select('code,phase,sphase:state->>phase,kc:state->cup').in('phase', ['playing', 'ended']).filter('players', 'cs', JSON.stringify([{ playerId: me }])));
       if (error || !Array.isArray(data)) return;
       const paused = (r) => r.phase === 'ended' && r.kc && !r.kc.stop && r.kc.n < r.kc.games;
       const hit = data.find((r) => safeCode(r.code) && r.phase === 'playing' && r.sphase !== 'ended') || data.find((r) => safeCode(r.code) && paused(r));
       let g = null;
       if (hit) {
         if (this.myGame && this.myGame.code === hit.code && !!this.myGame.cup === paused(hit) && Date.now() - (this.myGame.at || 0) < 60000) return;   // same game, recently checked
-        const { data: r, error: e2 } = await c.from('games').select('players,sleft:state->left').eq('code', hit.code).maybeSingle();
+        const { data: r, error: e2 } = await netTimeout(c.from('games').select('players,sleft:state->left').eq('code', hit.code)).maybeSingle();
         if (e2 || !r) return;
         const seat = (r.players || []).find((p) => p && p.playerId === me);
         if (seat && !(r.sleft || []).includes(seat.color)) g = { code: hit.code, names: r.players.filter((p) => p && p.playerId !== me).map((p) => p.name), at: Date.now(), cup: paused(hit) ? { name: cupTitle(hit.kc), next: hit.kc.n + 1, of: hit.kc.games } : null };
       }
       const key = (x) => (x ? x.code + ':' + x.names.join(',') + ':' + (x.cup ? x.cup.next : '') : '');
       if (key(g) === key(this.myGame)) { if (g) this.myGame.at = g.at; return; }
-      this.myGame = g; lobbySig = null; if (!NET.started) renderLobby();
+      this.myGame = g; lobbySig = null;
+      if (g && !g.cup && !NET.started && !this.table && Date.now() < (this.rejoinUntil || 0)) { this.rejoinUntil = 0; CATAN.lvRejoin(g.code); return; }   // just opened / reloaded: straight back in
+      if (!NET.started) renderLobby();
     },
     // fetch the roster from the DB. A failed fetch keeps the roster we have (a blip never empties the lobby).
     async pollPresence() {
@@ -4886,7 +4896,17 @@
   };
   // A single 3s heartbeat while connected: expire stale presence-grace entries.
   let heartbeat = null;
-  function startHeartbeat() { if (heartbeat) return; heartbeat = setInterval(() => { try { LOBBY.track(); LOBBY.pollPresence(); if (!NET.started) { pollLobbyChat(); LOBBY.findMyGame(); } } catch (_) { } }, 5000); }
+  function startHeartbeat() { if (heartbeat) return; heartbeat = setInterval(() => { try { LOBBY.track(); LOBBY.pollPresence(); if (!NET.started) { pollLobbyChat(); LOBBY.findMyGame(); } netWatchdog(); } catch (_) { } }, 5000); }
+  // The game must keep hearing from the server. If this phone has heard nothing for 12s it rebuilds its
+  // connection; after 40s it reloads (and walks straight back into the game: LOBBY.join).
+  function netWatchdog() {
+    const typing = document.activeElement && /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName);
+    if (window.catanUpdatePending && !window.catanBusy() && AUTH.me && !document.hidden && !ARCHIVE && !typing) { window.catanUpdatePending = false; location.reload(); return; }   // a waiting update: now's a calm moment
+    if (!NET.code || document.hidden) { NET.heardAt = Date.now(); return; }   // nothing to watch / asleep: start the clock afresh on wake
+    const quiet = Date.now() - (NET.heardAt || Date.now());
+    if (quiet > 40000 && NET.started) { toast('Reconnecting…'); location.reload(); return; }
+    if (quiet > 12000 && Date.now() - (NET.rewiredAt || 0) > 12000) { NET.rewiredAt = Date.now(); NET.subscribe(); }
+  }
   function stopHeartbeat() { if (heartbeat) { clearInterval(heartbeat); heartbeat = null; } }
   // On wake (tab visible / window focus / network back), republish our presence right away so a
   // phone that slept doesn't linger as "away" on everyone else's screen, and refresh what we see.
@@ -5827,7 +5847,7 @@
     hideOverlay();
   }
   function showLobby() {
-    if (window.catanUpdatePending && !NET.started) { window.catanUpdatePending = false; location.reload(); return; }   // a new build arrived mid-game: take it now
+    if (window.catanUpdatePending && !NET.started && !LOBBY.table) { window.catanUpdatePending = false; location.reload(); return; }   // a new build arrived mid-game: take it now
     if (!AUTH.me) { showIdentity(); return; }
     exitGameUI();      // clear any lingering game layer before the lobby paints
     lobbyShell();      // build the frame (title + footer + empty dyn slot) once
