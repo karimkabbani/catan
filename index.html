@@ -1757,7 +1757,8 @@
       var swReloaded = false;
       navigator.serviceWorker.addEventListener('controllerchange', function () {
         if (swReloaded) return;
-        if (document.body.classList.contains('ingame')) { window.catanUpdatePending = true; return; }
+        // never in a room, a countdown or a game (a reload there froze two phones mid-start): wait for the lobby
+        if (document.body.classList.contains('ingame') || (window.catanBusy && window.catanBusy())) { window.catanUpdatePending = true; return; }
         swReloaded = true; location.reload();
       });
     }
