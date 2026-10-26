@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v203';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v204';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -4655,10 +4655,11 @@
       if (!this.table) {   // the app was closed between tournament games: put me back at that table
         let last = null; try { last = localStorage.getItem('catanLastTable'); } catch (_) { }
         this.rejoinUntil = Date.now() + 60000;   // for a minute after opening, findMyGame also walks me back in (if this read fails)
-        if (last) netTimeout(c.from('games').select('state,players').eq('code', last)).maybeSingle().then(({ data }) => {
+        if (last) netTimeout(c.from('games').select('state,players,updated_at').eq('code', last)).maybeSingle().then(({ data }) => {
           // a running game I'm seated in (the app reloaded mid-game) or a cup paused between games: back in, no tap
           const seat = data && data.state && (data.players || []).find((p) => p && p.playerId === AUTH.me.id);
-          const live = seat && data.state.phase !== 'ended' && !(data.state.left || []).includes(seat.color);
+          // only a game that's actually going on (a move in the last 10 min): an abandoned one stays a card in the lobby
+          const live = seat && data.state.phase !== 'ended' && !(data.state.left || []).includes(seat.color) && Date.now() - new Date(data.updated_at).getTime() < 10 * 60000;
           const mine = seat && (live || cupBetween(data.state));
           if (mine && !this.table && !NET.started) this.enterTable(last);
         }, () => { });
@@ -4719,7 +4720,7 @@
       // only rows with a seat for me (server-side containment), and only small columns: the `players`
       // column carries everyone's photos, so it is read for the one matching game and only when it changes
       // a running game, or a cup paused between games (its row is 'ended' until the next game starts)
-      const { data, error } = await netTimeout(c.from('games').select('code,phase,sphase:state->>phase,kc:state->cup').in('phase', ['playing', 'ended']).filter('players', 'cs', JSON.stringify([{ playerId: me }])));
+      const { data, error } = await netTimeout(c.from('games').select('code,phase,updated_at,sphase:state->>phase,kc:state->cup').in('phase', ['playing', 'ended']).filter('players', 'cs', JSON.stringify([{ playerId: me }])));
       if (error || !Array.isArray(data)) return;
       const paused = (r) => r.phase === 'ended' && r.kc && !r.kc.stop && r.kc.n < r.kc.games;
       const hit = data.find((r) => safeCode(r.code) && r.phase === 'playing' && r.sphase !== 'ended') || data.find((r) => safeCode(r.code) && paused(r));
@@ -4729,12 +4730,12 @@
         const { data: r, error: e2 } = await netTimeout(c.from('games').select('players,sleft:state->left').eq('code', hit.code)).maybeSingle();
         if (e2 || !r) return;
         const seat = (r.players || []).find((p) => p && p.playerId === me);
-        if (seat && !(r.sleft || []).includes(seat.color)) g = { code: hit.code, names: r.players.filter((p) => p && p.playerId !== me).map((p) => p.name), at: Date.now(), cup: paused(hit) ? { name: cupTitle(hit.kc), next: hit.kc.n + 1, of: hit.kc.games } : null };
+        if (seat && !(r.sleft || []).includes(seat.color)) g = { code: hit.code, names: r.players.filter((p) => p && p.playerId !== me).map((p) => p.name), at: Date.now(), cup: paused(hit) ? { name: cupTitle(hit.kc), next: hit.kc.n + 1, of: hit.kc.games } : null, recent: Date.now() - new Date(hit.updated_at).getTime() < 10 * 60000 };
       }
       const key = (x) => (x ? x.code + ':' + x.names.join(',') + ':' + (x.cup ? x.cup.next : '') : '');
       if (key(g) === key(this.myGame)) { if (g) this.myGame.at = g.at; return; }
       this.myGame = g; lobbySig = null;
-      if (g && !g.cup && !NET.started && !this.table && Date.now() < (this.rejoinUntil || 0)) { this.rejoinUntil = 0; CATAN.lvRejoin(g.code); return; }   // just opened / reloaded: straight back in
+      if (g && !g.cup && g.recent && !NET.started && !this.table && Date.now() < (this.rejoinUntil || 0)) { this.rejoinUntil = 0; CATAN.lvRejoin(g.code); return; }   // just opened / reloaded: straight back in
       if (!NET.started) renderLobby();
     },
     // fetch the roster from the DB. A failed fetch keeps the roster we have (a blip never empties the lobby).

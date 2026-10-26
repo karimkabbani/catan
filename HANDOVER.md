@@ -806,6 +806,9 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    nothing heard from the game (`NET.heardAt`: poll head OK / any onRow) for 12s -> re-subscribe; for 40s in a game ->
    reload (then (2) puts the phone back). Harness: reload mid-countdown -> back in without a tap, all three draws
    land; a 20s silence -> catches up; a 50s silence -> reloads, rejoins, catches up.
+38. ✅ **v204 (2026-10-26).** The automatic walk-back-in (v203) only applies to a game with a move in the last 10 min
+   (`games.updated_at`, read by `LOBBY.join` and `findMyGame` as `g.recent`): an abandoned game (everyone closed the
+   app) stays a "Back to your game" card instead of pulling someone in alone until the 6h cleanup.
 
 ### Also shipped since multiplayer (2026-06)
 
