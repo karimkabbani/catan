@@ -825,6 +825,8 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    matches the awards, slider, one sentence, two tiles) + chart column, "How it's worked out" footer; fits 844x390.
    Settings: "New-feature tips: Show again" clears `SETTINGS.seen`. Headless gotcha: Chrome's --screenshot measures
    at a shorter viewport than it shoots, so fixed-position overlays look misplaced; use puppeteer setViewport.
+41. ✅ **v207 (2026-10-28).** More air around the luck gauge: gauge 6px off the corner, cup / robbed pills 28px,
+   flag 26px.
 
 ### Also shipped since multiplayer (2026-06)
 
