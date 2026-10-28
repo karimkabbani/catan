@@ -184,22 +184,35 @@ function tallyOf(s: GameState, color: PlayerColor): Tally {
   return (s.tally[color] ??= { robberCost: 0, numbersHit: 0, numbersNormal: 0 });
 }
 
-/** Every roll (7s included): did one of each player's numbers come up, and how often would it normally. */
+/** Every roll (7s included): did one of each player's numbers come up, how often would it normally, and the
+ *  same in cards (the luck meter). Then one entry in the luck log, so the app can chart luck over the game. */
 function tallyRoll(s: GameState, roll: number): void {
   for (const p of s.players) {
     const nums = new Set<number>();
+    let got = 0, fair = 0;
     for (const [vid, b] of Object.entries(s.settlements)) {
       if (b.owner !== p.color) continue;
+      const w = b.type === 'city' ? 2 : 1;
       for (const h of s.board.vertices[Number(vid)].hexes) {
         const t = s.board.hexes[h].token;
-        if (t) nums.add(t);
+        if (!t) continue;
+        nums.add(t);
+        fair += w * NUMBER_ODDS[t] / 36;
+        if (t === roll) got += w;
       }
     }
     if (nums.size === 0) continue;
     const t = tallyOf(s, p.color);
     for (const n of nums) t.numbersNormal += NUMBER_ODDS[n] / 36;
     if (nums.has(roll)) t.numbersHit++;
+    t.cardsGot = (t.cardsGot ?? 0) + got;
+    t.cardsFair = (t.cardsFair ?? 0) + fair;
   }
+  if (!s.luckLog && (s.rolls || []).length > 1) return;   // a game from before the log: a chart from mid-game would mislead
+  (s.luckLog ||= []).push([s.players.findIndex((p) => p.color === currentColor(s)), ...s.players.map((p) => {
+    const t = s.tally?.[p.color];
+    return t ? Math.round(((t.cardsGot ?? 0) - (t.cardsFair ?? 0)) * 10) : 0;
+  })]);
 }
 
 function produce(s: GameState, roll: number): void {

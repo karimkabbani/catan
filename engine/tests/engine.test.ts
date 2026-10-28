@@ -399,3 +399,27 @@ describe('confirm never trades on a counter the offerer did not see (v202)', () 
     expect(applyAction(sawAccept, { type: 'confirmTrade', with: other, tid, cv: 0 }, me).ok).toBe(true);  // no race: fine
   });
 });
+
+describe('luck meter (v205)', () => {
+  it('logs the luck of every player after every roll, in cards versus fair dice', () => {
+    let s = runSetup(createGame({ id: 'lk', players: PLAYERS, seed: 11 }));
+    for (let i = 0; i < 12; i++) {
+      const me = currentColor(s);
+      let r = applyAction(s, { type: 'rollDice' }, me); if (!r.ok) throw new Error(r.error);
+      s = r.state;
+      if (s.turnPhase !== 'main') break;   // a 7: stop here, the log is what we test
+      r = applyAction(s, { type: 'endTurn' }, me); if (!r.ok) throw new Error(r.error);
+      s = r.state;
+    }
+    const log = s.luckLog!;
+    expect(log.length).toBe(s.rolls.length);
+    expect(log[0].length).toBe(s.players.length + 1);
+    s.players.forEach((p, i) => {
+      const t = s.tally[p.color]!;
+      expect(t.cardsFair!).toBeGreaterThan(0);
+      expect(log[log.length - 1][i + 1]).toBe(Math.round((t.cardsGot! - t.cardsFair!) * 10));
+    });
+    // fair cards per roll: every setup settlement touches numbers, so the expectation grows every roll
+    expect(log.every((e) => e[0] >= 0 && e[0] < s.players.length)).toBe(true);
+  });
+});

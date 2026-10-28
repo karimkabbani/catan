@@ -141,8 +141,8 @@
     box-shadow:0 3px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,220,170,0.18); cursor:pointer; white-space:nowrap;}
   .probbed img{height:20px; width:auto; filter:drop-shadow(0 1px 1px rgba(0,0,0,0.6));}
   .probbed b{font-family:-apple-system, system-ui, 'Segoe UI', Roboto, sans-serif; color:var(--gold); font-size:15px; font-weight:800; line-height:1; text-shadow:0 1px 2px #000; font-variant-numeric:lining-nums tabular-nums;}   /* the display font draws 1 like a Roman I */
-  .corner.tl .probbed, .corner.bl .probbed{left:calc(100% + 9px);}
-  .corner.tr .probbed, .corner.br .probbed{right:calc(100% + 9px);}
+  .corner.tl .probbed, .corner.bl .probbed{left:calc(100% + 21px);}
+  .corner.tr .probbed, .corner.br .probbed{right:calc(100% + 21px);}
   .corner.bl .probbed, .corner.br .probbed{bottom:auto; top:36px;}   /* bottom corners: under the cup pill, above the hand bar (never on it) */
   .probbed.bump{animation:robbump .7s ease;}
   @keyframes robbump{0%{scale:1;} 25%{scale:1.45; rotate:-6deg;} 50%{scale:1.25; rotate:5deg;} 100%{scale:1; rotate:0deg;}}
@@ -506,8 +506,8 @@
   .pcup{position:absolute; z-index:6; top:6px; display:flex; align-items:center; gap:3px; height:24px; padding:0 8px 0 6px; border-radius:12px;
     background:rgba(30,16,4,0.85); border:1.5px solid var(--gold); font-size:13px; pointer-events:none;}
   .pcup b{font-family:-apple-system, system-ui, 'Segoe UI', Roboto, sans-serif; color:#ffd76b; font-size:14px; font-weight:800;}
-  .corner.tl .pcup, .corner.bl .pcup{left:calc(100% + 9px);}
-  .corner.tr .pcup, .corner.br .pcup{right:calc(100% + 9px);}
+  .corner.tl .pcup, .corner.bl .pcup{left:calc(100% + 21px);}
+  .corner.tr .pcup, .corner.br .pcup{right:calc(100% + 21px);}
   #cuppill{position:fixed; z-index:30; top:calc(env(safe-area-inset-top) + 50px); left:50%; transform:translateX(-50%); padding:3px 12px; border-radius:12px;
     background:rgba(0,0,0,0.55); border:1px solid rgba(233,196,90,0.5); font-size:12px; font-weight:800; color:#ffd76b; white-space:nowrap; pointer-events:none;}
   /* the choice, revealed to everyone: headline + the turn order it makes */
@@ -559,6 +559,47 @@
   .lobws{display:flex; flex-direction:column; gap:6px; margin:4px 2px;}
   .lobwsseg{display:flex;} .lobwsseg button{flex:1;}
 
+  /* luck meter: a slim level gauge on each corner's board-facing edge (die on top, number under).
+     The middle line is fair dice; it fills up (green) when the dice have paid more cards, down (blue) when fewer. */
+  .pluck{position:absolute; z-index:6; top:0; bottom:0; width:16px; display:flex; flex-direction:column; align-items:center; gap:2px; cursor:pointer;}
+  .corner.tl .pluck, .corner.bl .pluck{left:calc(100% + 3px);}
+  .corner.tr .pluck, .corner.br .pluck{right:calc(100% + 3px);}
+  .pluck img{width:15px; height:15px; flex:none; filter:drop-shadow(0 1px 1px rgba(0,0,0,0.6));}
+  .pluck .lkbar{position:relative; flex:1; width:11px; border-radius:6px; background:#0d0a05; border:1.5px solid var(--gold-edge); box-shadow:0 2px 6px rgba(0,0,0,0.5); overflow:hidden;}
+  .pluck .lkbar:after{content:''; position:absolute; left:0; right:0; top:calc(50% - 1px); height:2px; background:#fff3d6; opacity:0.85;}
+  .pluck .lkbar i{position:absolute; left:0; right:0; transition:height .5s ease, top .5s ease;}
+  .pluck .lkbar i.up{bottom:50%; background:linear-gradient(0deg, #4caf50, #9be59a);}
+  .pluck .lkbar i.down{top:50%; background:linear-gradient(180deg, #5c7bbd, #9fb7e8);}
+  .pluck b{font-family:-apple-system, system-ui, 'Segoe UI', Roboto, sans-serif; font-size:11px; font-weight:800; line-height:12px; color:#fff3d6; text-shadow:0 1px 2px #000; white-space:nowrap; font-variant-numeric:lining-nums tabular-nums;}
+  .pluck.warm{opacity:0.55;}
+  /* tap it: what the number means + luck over the game */
+  .sheet.lucksheet{width:min(640px,96vw); padding:10px 14px;}
+  .lucksheet h3{display:flex; align-items:center; gap:7px; margin:0 0 6px; font-size:16px;}
+  .lucksheet h3 img{width:20px; height:20px;}
+  .lkx{margin-left:auto; background:none; border:0; color:var(--muted); font-size:20px; line-height:1; padding:0 2px; cursor:pointer;}
+  .lkmean{font-size:13px; line-height:1.35; color:var(--ink); background:rgba(0,0,0,0.28); border:1px solid rgba(255,220,170,0.16); border-radius:10px; padding:7px 10px;}
+  .lkmean b{color:#fff3d6;}
+  .lkmean small{display:block; color:var(--muted); font-size:11.5px; line-height:1.35; margin-top:3px;}
+  .lkgot{color:var(--muted); font-size:12px;}
+  .lkchips{display:flex; flex-wrap:wrap; gap:6px; margin:6px 0 2px;}
+  .lkchip{display:flex; align-items:center; gap:5px; padding:3px 10px 3px 6px; border-radius:13px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,220,170,0.18); font-size:12px; font-weight:700; color:var(--muted); cursor:pointer;}
+  .lkchip i{width:10px; height:10px; border-radius:50%;}
+  .lkchip b{color:#fff3d6; font-family:-apple-system, system-ui, sans-serif; font-variant-numeric:tabular-nums;}
+  .lkchip.on{background:rgba(233,196,90,0.14); border-color:var(--gold); color:#fff3d6;}
+  .lkchart{display:block; width:100%; height:auto; touch-action:none; user-select:none; -webkit-user-select:none;}
+  .lkchart text{font-family:-apple-system, system-ui, sans-serif;}
+  .lkread{min-height:17px; font-size:12px; color:var(--muted); text-align:center; font-family:-apple-system, system-ui, sans-serif;}
+  .lkread b{color:#fff3d6;}
+  /* one-time "New: dice luck" card */
+  .lkintro{text-align:center;}
+  .lkintro h3{display:flex; align-items:center; justify-content:center; gap:8px; font-size:19px;}
+  .lkintro h3 img{width:24px; height:24px;}
+  .lkintro-row{display:flex; justify-content:center; gap:30px; margin:4px 0 10px;}
+  .lkintro-g{display:flex; flex-direction:column; align-items:center; gap:4px; font-size:12px; color:var(--muted);}
+  .lkintro-g .pluck{position:static; height:78px;}
+  .lkintro p{font-size:14px; line-height:1.4; margin:0 0 8px; color:var(--ink);}
+  .lkintro p b{color:#fff3d6; font-family:-apple-system, system-ui, sans-serif;}
+  .lkintro .lkintro-s{font-size:12.5px; color:var(--muted);}
   /* who-robbed-who sheet */
   .robsheet{min-width:min(400px,86vw);}
   .robsheet h3{display:flex; align-items:center; justify-content:center; gap:8px; font-family:var(--serif); color:var(--gold); font-size:20px; margin-bottom:10px;}
@@ -592,8 +633,8 @@
     filter:drop-shadow(0 1px 2px #000); transform-origin:bottom center; animation:flagwave 1.2s ease-in-out infinite;}
   /* raise the flag toward the board (inside the screen) so it isn't clipped at the edge:
      left corners -> flag on their right; right corners -> flag on their left */
-  .corner.tl .pflag, .corner.bl .pflag{left:calc(100% + 1px);}
-  .corner.tr .pflag, .corner.br .pflag{right:calc(100% + 1px);}
+  .corner.tl .pflag, .corner.bl .pflag{left:calc(100% + 19px);}
+  .corner.tr .pflag, .corner.br .pflag{right:calc(100% + 19px);}
   /* quick-chat bubble on your own corner (always bottom-left) -> pokes toward the board */
   .pchat{position:absolute; top:-17px; right:-14px; z-index:9; width:30px; height:30px; border-radius:50%; padding:0;
     border:1.5px solid var(--gold-edge); background:radial-gradient(circle at 38% 32%, #3d7fd6, #1f4f8f); color:#fff;

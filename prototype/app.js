@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v204';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v205';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -17,7 +17,7 @@
   // per-device preferences (each player's own phone) — persisted in localStorage. The
   // effects of these are wired up per-setting; here we just store + expose them.
   const SETTINGS = (() => {
-    const def = { music: true, sfx: true, anim: 'medium', autozoom: true };
+    const def = { music: true, sfx: true, anim: 'medium', autozoom: true, seen: [] };   // seen: one-time "what's new" cards already shown
     try { return Object.assign(def, JSON.parse(localStorage.getItem('catan-settings') || '{}')); } catch (_) { return def; }
   })();
   let settingsPush = null;
@@ -26,13 +26,14 @@
     // settings follow the LOGIN (like quick messages) — push to the profile, debounced
     if (AUTH && AUTH.me) {
       clearTimeout(settingsPush);
-      settingsPush = setTimeout(() => { AUTH.setSettings({ music: SETTINGS.music, sfx: SETTINGS.sfx, anim: SETTINGS.anim, autozoom: SETTINGS.autozoom }); }, 600);
+      settingsPush = setTimeout(() => { AUTH.setSettings({ music: SETTINGS.music, sfx: SETTINGS.sfx, anim: SETTINGS.anim, autozoom: SETTINGS.autozoom, seen: SETTINGS.seen || [] }); }, 600);
     }
   }
   // profile settings arriving at login/resume override the device cache
   function applyProfileSettings(s) {
     if (!s || typeof s !== 'object') return;
     ['music', 'sfx', 'anim', 'autozoom'].forEach((k) => { if (s[k] !== undefined) SETTINGS[k] = s[k]; });
+    if (Array.isArray(s.seen)) SETTINGS.seen = Array.from(new Set((SETTINGS.seen || []).concat(s.seen)));   // seen on any device counts
     try { localStorage.setItem('catan-settings', JSON.stringify(SETTINGS)); } catch (_) {}
   }
   // Animation speed setting -> a time multiplier applied to JS-timed animations.
@@ -349,7 +350,7 @@
     if (ui.discardWait && state.turnPhase !== 'discard') { ui.discardWait = false; if ($('dwait')) hideOverlay(); }
     // discards happen sequentially in turn order; promptDiscards picks who's up
     if (state.turnPhase === 'discard') { promptDiscards(); return; }
-    if (!isMyTurn()) { render(); return; }   // online: spectating another player's turn
+    if (!isMyTurn()) { render(); maybeNews(); return; }   // online: spectating another player's turn
     // start of turn: if you hold a playable Knight you may play it BEFORE rolling, so ask;
     // otherwise the dice roll automatically (no manual roll).
     if (state.phase === 'play' && state.turnPhase === 'roll') {
@@ -366,6 +367,20 @@
     if (state.turnPhase === 'steal') { promptSteal(); return; }
     if (state.turnPhase === 'placeRoad' && state.phase === 'play') { ui.mode = 'placeRoad'; return; }
     if (state.phase === 'setup') ui.mode = state.turnPhase === 'placeRoad' ? 'placeRoad' : 'placeSettlement';
+    maybeNews();
+  }
+  // one-time "what's new" cards: each shows once per player (remembered on the login, so not again on another
+  // phone), at a calm moment of a game that has the feature: in play, nothing else open, no animation running
+  const NEWS = [{ id: 'luck', ok: () => !!state.luckLog, html: () => luckIntro() }];
+  function maybeNews() {
+    if (!state || state.phase !== 'play' || state.turnPhase === 'discard' || ui.spinning || ui.diceRevealing || ui.mode !== 'idle') return;
+    if (!$('overlay').classList.contains('hidden')) return;
+    const n = NEWS.find((x) => !(SETTINGS.seen || []).includes(x.id) && x.ok());
+    if (n) showOverlay(n.html());
+  }
+  function newsDone(id) {
+    SETTINGS.seen = Array.from(new Set((SETTINGS.seen || []).concat(id))); saveSettings();
+    hideOverlay(); afterAction(); render();
   }
 
   // auto-roll the dice (the default start-of-turn action) with the big reveal animation
@@ -874,7 +889,7 @@
       const statusDot = online ? `<span class="pstatus ${off ? 'off' : 'on'}" title="${off ? 'Offline' : 'Online'}"></span>` : '';
       el.innerHTML = `${di}${tbadge}${chatBtn}${dot}
         <div class="pcol">${stat(bdg.res, cards, '🃏', 'Resource cards', false, cards > 7)}${stat(bdg.card, dev, '🎴', 'Development cards')}${stat(bdg.vp, vp, '⭐', 'Victory points')}${stat(bdg.army, p.playedKnights, '⚔️', 'Knights played', p.hasLargestArmy)}${stat(bdg.road, road, '🛣️', 'Longest road', p.hasLongestRoad)}</div>
-        <div class="pport"${tap}><div class="pava${flagged ? ' flagged' : ''}${off ? ' offline' : ''}" style="border-color:${PCOLOR[p.color]}">${av}${statusDot}</div><div class="pname">${escapeHtml(p.name)}</div></div>${flagged ? '<span class="pflag">🏳️</span>' : ''}${robbedPill(p.color)}${cupPts ? `<span class="pcup" title="Cup points">🏆<b>${cupPts[p.color]}</b></span>` : ''}`;
+        <div class="pport"${tap}><div class="pava${flagged ? ' flagged' : ''}${off ? ' offline' : ''}" style="border-color:${PCOLOR[p.color]}">${av}${statusDot}</div><div class="pname">${escapeHtml(p.name)}</div></div>${flagged ? '<span class="pflag">🏳️</span>' : ''}${luckStrip(p)}${robbedPill(p.color)}${cupPts ? `<span class="pcup" title="Cup points">🏆<b>${cupPts[p.color]}</b></span>` : ''}`;
     });
     // which game of the cup this is, under the banner
     let pill = $('cuppill');
@@ -941,6 +956,96 @@
     // the corners repaint often mid-animation: resume the shake where it was (negative delay) instead of restarting it
     const since = Date.now() - (robbedBumpAt[color] || 0), bump = since < 700;
     return `<span class="probbed${bump ? ' bump' : ''}"${bump ? ` style="animation-delay:-${since}ms"` : ''} title="Robbed ${n}×" onclick="event.stopPropagation();CATAN.robberies('${color}')">${robberImg()}<b>${n}</b></span>`;   // the board's own robber figure; tap -> who robbed who
+  }
+  // ---- luck meter: cards the dice paid each player vs what fair dice would have paid (engine: tally.cardsGot /
+  // cardsFair, and luckLog after every roll). Games started before v205 have no log -> no meter.
+  const LUCK_WARM_ROUNDS = 2, LUCK_FULL = 5;   // the first 2 rounds are too few rolls to mean anything; the bar is full at 5 cards
+  function luckOf(color) { const t = state.tally && state.tally[color]; return t && t.cardsFair != null ? t.cardsGot - t.cardsFair : 0; }
+  function luckWarm() { return (state.luckLog || []).length < LUCK_WARM_ROUNDS * state.players.length; }
+  function fmtLuck(v) { const n = Math.round(v); return n > 0 ? '+' + n : n < 0 ? '−' + (-n) : '0'; }
+  function dieImg() { return HUD.dice && HUD.dice[5] ? `<img src="${HUD.dice[5]}" alt="">` : '🎲'; }
+  function luckStrip(p) {
+    if (!state.luckLog || state.phase === 'setup') return '';
+    const warm = luckWarm(), v = warm ? 0 : luckOf(p.color), n = Math.round(v);
+    const fill = n ? `<i class="${n > 0 ? 'up' : 'down'}" style="height:${(Math.min(Math.abs(v) / LUCK_FULL, 1) * 50).toFixed(1)}%"></i>` : '';
+    return `<span class="pluck${warm ? ' warm' : ''}" title="Dice luck" onclick="event.stopPropagation();CATAN.luck('${p.color}')">${dieImg()}<span class="lkbar">${fill}</span><b>${warm ? '·' : fmtLuck(v)}</b></span>`;
+  }
+  function openLuck(focus) {
+    luckScrub = null;
+    const P = state.players, log = state.luckLog || [], rolls = state.rolls || [];
+    const fp = P.find((p) => p.color === focus) || P[0]; focus = fp.color;
+    const mine = (c) => online && c === myColor;
+    const nm = (c) => escapeHtml((P.find((p) => p.color === c) || {}).name || '?');
+    const t = (state.tally || {})[focus] || {}, v = Math.round(luckOf(focus)), warm = luckWarm();
+    const them = mine(focus) ? 'you' : nm(focus), cards = (k) => `${k} card${k === 1 ? '' : 's'}`;
+    const how = Math.abs(v) >= 3 ? '' : 'a little ';
+    const now = v > 0 ? `the dice have given ${them} <b>${cards(v)} more</b> than fair dice would have by now. ${how ? 'A little lucky' : 'Lucky'}.`
+      : v < 0 ? `the dice have given ${them} <b>${cards(-v)} fewer</b> than fair dice would have by now. ${how ? 'A little unlucky' : 'Unlucky'}.`
+      : `the dice have been exactly fair to ${them} so far.`;
+    const head = `<b>${nm(focus)} ${fmtLuck(v)}</b>: ${now}${warm ? ' Too early to tell yet: the meter on the corner wakes up after two rounds.' : ''}`;
+    const got = t.cardsFair != null ? ` <span class="lkgot">(dice paid ${t.cardsGot}, fair dice about ${Math.round(t.cardsFair)})</span>` : '';
+    const chips = P.map((p) => `<span class="lkchip${p.color === focus ? ' on' : ''}" onclick="CATAN.luck('${p.color}')"><i style="background:${PCOLOR[p.color]}"></i>${nm(p.color)}${mine(p.color) ? ' (you)' : ''} <b>${fmtLuck(luckOf(p.color))}</b></span>`).join('');
+    // the chart: everyone's luck after every roll; the focused player bold, the rest faint behind
+    const W = 600, H = 150, l = 26, r = 74, tp = 6, bt = 16, n = log.length;
+    let chart = `<div class="lkread">The chart starts with the first roll.</div>`;
+    if (n) {
+      const val = (i, k) => (i === 0 ? 0 : log[i - 1][k + 1] / 10);   // point 0 = the start, before any roll
+      let R = 4; log.forEach((e) => e.slice(1).forEach((x) => { R = Math.max(R, Math.ceil(Math.abs(x) / 20) * 2); }));
+      const X = (i) => l + i * (W - l - r) / n, Y = (y) => tp + (R - y) * (H - tp - bt) / (2 * R);
+      const o = [`<rect x="${l}" y="${tp}" width="${W - l - r}" height="${Y(0) - tp}" fill="#4caf50" opacity=".06"/><rect x="${l}" y="${Y(0)}" width="${W - l - r}" height="${H - bt - Y(0)}" fill="#5c7bbd" opacity=".08"/>`];
+      const step = R > 6 ? 4 : 2;
+      for (let y = -R; y <= R; y += step) if (y) o.push(`<line x1="${l}" x2="${W - r}" y1="${Y(y)}" y2="${Y(y)}" stroke="#d8c49a" stroke-opacity=".1"/><text x="${l - 5}" y="${Y(y) + 3.5}" text-anchor="end" font-size="9.5" fill="#a8916a">${fmtLuck(y)}</text>`);
+      o.push(`<line x1="${l}" x2="${W - r}" y1="${Y(0)}" y2="${Y(0)}" stroke="#fff3d6" stroke-opacity=".55" stroke-dasharray="4 3"/><text x="${l - 5}" y="${Y(0) + 3.5}" text-anchor="end" font-size="9.5" fill="#d8c49a">0</text><text x="${l + 4}" y="${Y(0) - 4}" font-size="9.5" fill="#d8c49a" opacity=".8">fair dice</text>`);
+      const per = P.length, rounds = Math.ceil(n / per), every = Math.max(1, Math.ceil(rounds / 10));
+      for (let k = 0; k < rounds; k++) {
+        if (k) o.push(`<line x1="${X(k * per)}" x2="${X(k * per)}" y1="${tp}" y2="${H - bt}" stroke="#d8c49a" stroke-opacity=".07"/>`);
+        if (k % every === 0) o.push(`<text x="${X(Math.min(k * per + per / 2, n))}" y="${H - 4}" text-anchor="middle" font-size="9.5" fill="#a8916a">${k ? '' : 'Round '}${k + 1}</text>`);
+      }
+      const order = P.map((p, k) => k).filter((k) => P[k].color !== focus).concat(P.findIndex((p) => p.color === focus));
+      order.forEach((k) => {
+        const on = P[k].color === focus, pts = [];
+        for (let i = 0; i <= n; i++) pts.push(`${X(i).toFixed(1)} ${Y(val(i, k)).toFixed(1)}`);
+        o.push(`<path d="M${pts.join(' L')}" fill="none" stroke="${PCOLOR[P[k].color]}" stroke-width="${on ? 3 : 1.6}" stroke-linejoin="round" stroke-linecap="round" opacity="${on ? 1 : 0.45}"/>`
+          + `<circle cx="${X(n)}" cy="${Y(val(n, k))}" r="${on ? 4.5 : 3}" fill="${PCOLOR[P[k].color]}" stroke="#1a0e04" stroke-width="2"/>`);
+      });
+      let last = -99;   // end labels, nudged apart so they never overlap
+      P.map((p, k) => ({ p, y: Y(val(n, k)), v: val(n, k) })).sort((a, b) => a.y - b.y).forEach((e) => {
+        const y = Math.max(e.y, last + 12); last = y;
+        o.push(`<text x="${X(n) + 8}" y="${y + 4}" font-size="11" font-weight="${e.p.color === focus ? 800 : 600}" fill="${e.p.color === focus ? '#fff3d6' : '#c9ad73'}">${nm(e.p.color)} ${fmtLuck(e.v)}</text>`);
+      });
+      o.push(`<g id="lkcur" style="display:none"><line id="lkcl" y1="${tp}" y2="${H - bt}" stroke="#fff3d6" stroke-opacity=".6"/>${P.map((p, k) => `<circle id="lkc${k}" r="3.5" fill="${PCOLOR[p.color]}" stroke="#1a0e04" stroke-width="1.5"/>`).join('')}</g>`);
+      chart = `<svg class="lkchart" id="lkchart" viewBox="0 0 ${W} ${H}">${o.join('')}</svg><div class="lkread" id="lkread">Drag along the chart to see any roll</div>`;
+      luckScrub = { X, Y, val, n, l, r, W, off: rolls.length - n };
+    }
+    showOverlay(`<div class="lucksheet-in"><h3>${dieImg()} Dice luck<button class="lkx" onclick="CATAN.close()" aria-label="Close">✕</button></h3>`
+      + `<div class="lkmean">${head}${got}<small>We count the cards each player's settlements and cities got from the dice (a city counts double) and compare that with what average dice would have given. Plus = luckier than average, minus = unluckier. Trades and the robber don't count.</small></div>`
+      + `<div class="lkchips">${chips}</div>${chart}</div>`);
+    const o = $('overlay'); if (o) { o.onclick = (e) => { if (e.target === o) CATAN.close(); }; const sh = o.querySelector('.sheet'); if (sh) sh.classList.add('lucksheet'); }
+    const svg = $('lkchart'); if (!svg || !luckScrub) return;
+    const move = (e) => {
+      const S = luckScrub, b = svg.getBoundingClientRect(), x = (e.clientX - b.left) * S.W / b.width;
+      const i = Math.max(1, Math.min(S.n, Math.round((x - S.l) / ((S.W - S.l - S.r) / S.n))));
+      $('lkcur').style.display = ''; const cl = $('lkcl'); cl.setAttribute('x1', S.X(i)); cl.setAttribute('x2', S.X(i));
+      P.forEach((p, k) => { const c = $('lkc' + k); c.setAttribute('cx', S.X(i)); c.setAttribute('cy', S.Y(S.val(i, k))); });
+      const e0 = log[i - 1], roller = P[e0[0]], rolled = rolls[i - 1 + S.off];
+      $('lkread').innerHTML = `Round ${Math.ceil(i / P.length)} · ${roller ? nm(roller.color) : '?'} rolled <b>${rolled != null ? rolled : '?'}</b> · `
+        + P.map((p, k) => `${nm(p.color)} <b>${fmtLuck(S.val(i, k))}</b>`).join(' · ');
+    };
+    svg.addEventListener('pointerdown', (e) => { move(e); try { svg.setPointerCapture(e.pointerId); } catch (_) {} });
+    svg.addEventListener('pointermove', move);
+  }
+  let luckScrub = null;
+  function luckIntro() {
+    const g = (v, word) => {
+      const fill = v ? `<i class="${v > 0 ? 'up' : 'down'}" style="height:${(Math.min(Math.abs(v) / LUCK_FULL, 1) * 50).toFixed(1)}%"></i>` : '';
+      return `<div class="lkintro-g"><span class="pluck">${dieImg()}<span class="lkbar">${fill}</span><b>${fmtLuck(v)}</b></span><span>${word}</span></div>`;
+    };
+    return `<div class="lkintro"><h3>${dieImg()} New: dice luck</h3>`
+      + `<div class="lkintro-row">${g(3, 'lucky')}${g(0, 'fair')}${g(-2, 'unlucky')}</div>`
+      + `<p>Next to every player's corner there's now a little gauge showing how kind the dice have been to them.</p>`
+      + `<p><b>+3</b> means the dice have given that player 3 more cards than fair dice would have. <b>−2</b> means 2 fewer. <b>0</b> is exactly average.</p>`
+      + `<p class="lkintro-s">It wakes up after two rounds. Tap any gauge to see everyone's luck over the game.</p>`
+      + `<button class="btn full" onclick="CATAN.newsDone('luck')">Got it</button></div>`;
   }
   const HUD = ASSETS.hud || {};
   function resIc(r) { return (HUD.res && HUD.res[r]) ? `<img class="ri" src="${HUD.res[r]}" alt="${r}">` : ICON[r]; }
@@ -1909,32 +2014,44 @@
       ${back}
     </div>`);
   }
-  // "luck so far": per player, how often a number their buildings touch came up vs how often it normally would
+  // one luck measure everywhere (v205): cards the dice paid vs what fair dice would have paid. Games from before
+  // v205 have no card counts, so they keep the old "times a number came up" measure.
+  function luckGap(t) {
+    if (!t) return null;
+    if (t.cardsFair != null) return { got: t.cardsGot, fair: t.cardsFair, cards: true };
+    return t.numbersNormal > 0 ? { got: t.numbersHit, fair: t.numbersNormal, cards: false } : null;
+  }
+  // "luck so far" in dice stats: per player, cards the dice paid vs fair dice
   function luckRows() {
     const T = (state && state.tally) || {};
-    const rows = state.players.filter((p) => T[p.color] && T[p.color].numbersNormal > 0).map((p) => {
-      const t = T[p.color];
+    let cards = true;
+    const rows = state.players.filter((p) => luckGap(T[p.color])).map((p) => {
+      const g = luckGap(T[p.color]); cards = g.cards;
       return `<div class="ds-luck"><span class="dot" style="background:${PCOLOR[p.color]}"></span><b>${escapeHtml(p.name)}</b>`
-        + `<span>hit ${t.numbersHit}× · normal ${Math.round(t.numbersNormal)}${robbedCount(p.color) ? ` · ${robberImg('rbi')}${robbedCount(p.color)}` : ''}</span></div>`;
+        + `<span>${g.cards ? `<b>${fmtLuck(g.got - g.fair)}</b> · got ${g.got} · fair ${Math.round(g.fair)}` : `hit ${g.got}× · normal ${Math.round(g.fair)}`}${robbedCount(p.color) ? ` · ${robberImg('rbi')}${robbedCount(p.color)}` : ''}</span></div>`;
     }).join('');
-    return rows ? `<div class="ds-lucks">${rows}</div><div class="ds-lucknote">Hit = rolls that paid that player · normal = usual with fair dice</div>` : '';
+    const note = cards ? 'Cards the dice paid vs what fair dice would have paid · a city counts double'
+      : 'Hit = rolls that paid that player · normal = usual with fair dice';
+    return rows ? `<div class="ds-lucks">${rows}</div><div class="ds-lucknote">${note}</div>` : '';
   }
   // end-of-game awards (only the ones that clear their bar): Robber magnet + Blessed / Cursed by the dice
-  const AWARD_MIN_ROBBED = 3, AWARD_MIN_LUCK = 4;
+  const AWARD_MIN_ROBBED = 3, AWARD_MIN_LUCK = 4, AWARD_MIN_LUCK_CARDS = 5;   // cards swing more than "times hit"
   function gameAwards() {
     const T = (state && state.tally) || {};
     const name = (c) => escapeHtml((state.players.find((p) => p.color === c) || {}).name || '?');
-    const ent = state.players.map((p) => ({ c: p.color, t: T[p.color] })).filter((e) => e.t);
+    const ent = state.players.map((p) => ({ c: p.color, t: T[p.color], g: luckGap(T[p.color]) })).filter((e) => e.t);
     const out = [];
     const robbed = (e) => robbedCount(e.c);
     const rob = ent.slice().sort((a, b) => robbed(b) - robbed(a))[0];
     if (rob && robbed(rob) >= AWARD_MIN_ROBBED) out.push(['🦹', 'Robber magnet', `${name(rob.c)} got robbed ${robbed(rob)} times.`]);
-    const gap = (e) => e.t.numbersHit - e.t.numbersNormal;
-    const luck = ent.filter((e) => e.t.numbersNormal > 0).sort((a, b) => gap(b) - gap(a));
-    const line = (e) => `${name(e.c)}'s numbers came up ${e.t.numbersHit} times. Normal is about ${Math.round(e.t.numbersNormal)}.`;
-    if (luck.length && gap(luck[0]) >= AWARD_MIN_LUCK) out.push(['🍀', 'Blessed by the dice', line(luck[0])]);
+    const gap = (e) => e.g.got - e.g.fair;
+    const luck = ent.filter((e) => e.g).sort((a, b) => gap(b) - gap(a));
+    const bar = luck.length && luck[0].g.cards ? AWARD_MIN_LUCK_CARDS : AWARD_MIN_LUCK;
+    const line = (e) => e.g.cards ? `The dice paid ${name(e.c)} ${e.g.got} cards. Fair dice would have paid about ${Math.round(e.g.fair)}.`
+      : `${name(e.c)}'s numbers came up ${e.g.got} times. Normal is about ${Math.round(e.g.fair)}.`;
+    if (luck.length && gap(luck[0]) >= bar) out.push(['🍀', 'Blessed by the dice', line(luck[0])]);
     const worst = luck[luck.length - 1];
-    if (worst && gap(worst) <= -AWARD_MIN_LUCK) out.push(['💀', 'Cursed by the dice', line(worst)]);
+    if (worst && gap(worst) <= -bar) out.push(['💀', 'Cursed by the dice', line(worst)]);
     return out;
   }
   function diceDetail(t) {
@@ -3990,6 +4107,8 @@
     rpsChoose: (k) => rpsChoose(k),
     robberInfo: () => { const by = state && state.robberBy; if (!by) return; const v = state.robberVictim; toast(`${nameOf(by)} put the robber here${v ? ` and robbed ${nameOf(v)}` : ''}`); },
     robberies: (c) => openRobberies(c),
+    luck: (c) => openLuck(c),
+    newsDone: (id) => newsDone(id),
     gg: () => sayGG(),
     rmVote: (v) => rmVote(v),
     qvVote: (y) => qvVote(!!y),

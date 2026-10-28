@@ -103,6 +103,7 @@ export function createGame(opts: {
     dice: null,
     rolls: [],
     tally: {},
+    luckLog: [],
     robberHex: desertHexId(board),
     bank,
     devDeck: deckShuffle.result,

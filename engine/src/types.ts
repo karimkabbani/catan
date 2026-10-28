@@ -102,6 +102,10 @@ export interface Tally {
   numbersHit: number;
   /** How many such hits are normal: per roll, the summed odds of this player's numbers. */
   numbersNormal: number;
+  /** Cards the dice paid this player (city = 2; the robber and an empty bank don't count). The luck meter. */
+  cardsGot?: number;
+  /** Cards fair dice would have paid by now: per roll, the average over all 36 outcomes. */
+  cardsFair?: number;
 }
 
 export type TurnPhase =
@@ -152,6 +156,8 @@ export interface GameState {
   rolls: number[];
   /** Per-player running tallies for the end-of-game awards + the dice-stats luck line. */
   tally: Partial<Record<PlayerColor, Tally>>;
+  /** After every roll: [index of who rolled, then each player's luck (cardsGot - cardsFair) x10, in players order]. */
+  luckLog?: number[][];
   robberHex: number;
   /** Rock-paper-scissors to decide who starts (driven by the app; the engine only blocks moves until done). */
   rps?: { done?: boolean; [k: string]: unknown } | null;
