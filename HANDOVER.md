@@ -809,6 +809,15 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
 38. ✅ **v204 (2026-10-26).** The automatic walk-back-in (v203) only applies to a game with a move in the last 10 min
    (`games.updated_at`, read by `LOBBY.join` and `findMyGame` as `g.recent`): an abandoned game (everyone closed the
    app) stays a "Back to your game" card instead of pulling someone in alone until the 6h cleanup.
+39. ✅ **v205 (2026-10-28). Dice luck meter.** Engine: `tally.cardsGot/cardsFair` (cards the dice paid vs the
+   36-outcome average; city = 2; robber/bank ignored) and `state.luckLog` (per roll: [roller index, each player's
+   luck x10]); new games only (`luckLog: []` in setup; old games never start a log). App: slim edge gauge (`.pluck`,
+   die on top, number under, full at ±5, dimmed + '·' for the first 2 rounds) on each corner's board side; cup /
+   robbed / flag pills moved 12px out. Tap -> `openLuck`: lay explanation, name chips, SVG chart of everyone's luck
+   per roll with finger scrub. Dice-stats rows + Blessed/Cursed awards switched to the card measure (award bar 5
+   cards; pre-v205 games keep the old 'times hit' measure, bar 4). One-time "New: dice luck" card (`NEWS` /
+   `SETTINGS.seen`, synced to the login's settings) at a calm moment in play. Dropped from the mock: robber marks on
+   the chart (robberies aren't logged per roll).
 
 ### Also shipped since multiplayer (2026-06)
 
