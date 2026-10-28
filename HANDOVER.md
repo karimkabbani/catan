@@ -818,6 +818,13 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    cards; pre-v205 games keep the old 'times hit' measure, bar 4). One-time "New: dice luck" card (`NEWS` /
    `SETTINGS.seen`, synced to the login's settings) at a calm moment in play. Dropped from the mock: robber marks on
    the chart (robberies aren't logged per roll).
+40. ✅ **v206 (2026-10-28). Luck meter polish.** Own icon (`luckIcon()`: two 3D dice, no face pointing at you, so it
+   never reads as a roll). The one-time card became a 3-step coach-mark tour (`coachStart/coachPlace/coachAct`:
+   dimmed screen, spotlight on the real gauge, pointing bubble; your gauge -> what the number means -> an opponent's
+   gauge with "Show me"); news id `luck-tour`. Luck panel redesigned: verdict column (big number, verdict word that
+   matches the awards, slider, one sentence, two tiles) + chart column, "How it's worked out" footer; fits 844x390.
+   Settings: "New-feature tips: Show again" clears `SETTINGS.seen`. Headless gotcha: Chrome's --screenshot measures
+   at a shorter viewport than it shoots, so fixed-position overlays look misplaced; use puppeteer setViewport.
 
 ### Also shipped since multiplayer (2026-06)
 
