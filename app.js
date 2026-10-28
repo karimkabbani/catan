@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v205';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v206';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -371,17 +371,14 @@
   }
   // one-time "what's new" cards: each shows once per player (remembered on the login, so not again on another
   // phone), at a calm moment of a game that has the feature: in play, nothing else open, no animation running
-  const NEWS = [{ id: 'luck', ok: () => !!state.luckLog, html: () => luckIntro() }];
+  const NEWS = [{ id: 'luck-tour', ok: () => !!state.luckLog && !!document.querySelector('.pluck'), run: () => coachStart(luckTour(), () => newsSeen('luck-tour')) }];
   function maybeNews() {
-    if (!state || state.phase !== 'play' || state.turnPhase === 'discard' || ui.spinning || ui.diceRevealing || ui.mode !== 'idle') return;
+    if (coach || !state || state.phase !== 'play' || state.turnPhase === 'discard' || ui.spinning || ui.diceRevealing || ui.mode !== 'idle') return;
     if (!$('overlay').classList.contains('hidden')) return;
     const n = NEWS.find((x) => !(SETTINGS.seen || []).includes(x.id) && x.ok());
-    if (n) showOverlay(n.html());
+    if (n) setTimeout(() => { if (!coach && $('overlay').classList.contains('hidden') && !ui.diceRevealing) n.run(); }, 600);   // let the corners settle first
   }
-  function newsDone(id) {
-    SETTINGS.seen = Array.from(new Set((SETTINGS.seen || []).concat(id))); saveSettings();
-    hideOverlay(); afterAction(); render();
-  }
+  function newsSeen(id) { SETTINGS.seen = Array.from(new Set((SETTINGS.seen || []).concat(id))); saveSettings(); }
 
   // auto-roll the dice (the default start-of-turn action) with the big reveal animation
   function doAutoRoll() {
@@ -963,12 +960,32 @@
   function luckOf(color) { const t = state.tally && state.tally[color]; return t && t.cardsFair != null ? t.cardsGot - t.cardsFair : 0; }
   function luckWarm() { return (state.luckLog || []).length < LUCK_WARM_ROUNDS * state.players.length; }
   function fmtLuck(v) { const n = Math.round(v); return n > 0 ? '+' + n : n < 0 ? '−' + (-n) : '0'; }
-  function dieImg() { return HUD.dice && HUD.dice[5] ? `<img src="${HUD.dice[5]}" alt="">` : '🎲'; }
+  // the meter's own icon: a pair of 3D dice (never a real die face, which reads as "what was rolled")
+  function luckIcon(cls) {
+    const die = (dx, dy) => {
+      const P = (pts) => pts.map(([x, y]) => `${x + dx},${y + dy}`).join(' ');
+      const pip = (x, y) => `<circle cx="${x + dx}" cy="${y + dy}" r="0.95" fill="#3a240c"/>`;
+      return `<polygon points="${P([[0, 4], [5, 1.5], [10, 4], [5, 6.5]])}" fill="#fff6df"/>`
+        + `<polygon points="${P([[0, 4], [5, 6.5], [5, 12.5], [0, 10]])}" fill="#e6cf9c"/>`
+        + `<polygon points="${P([[5, 6.5], [10, 4], [10, 10], [5, 12.5]])}" fill="#c49a4a"/>`
+        + `<path d="M${P([[0, 4], [5, 1.5], [10, 4], [10, 10], [5, 12.5], [0, 10]])}Z M${P([[0, 4], [5, 6.5], [10, 4]])} M${P([[5, 6.5], [5, 12.5]])}" fill="none" stroke="#3a240c" stroke-width="0.8" stroke-linejoin="round"/>`
+        + pip(5, 4) + pip(1.8, 6.6) + pip(3.3, 9.9) + pip(6.4, 7.2) + pip(7.5, 8.3) + pip(8.6, 9.4);
+    };
+    return `<svg class="${cls || 'lkico'}" viewBox="-0.5 -0.5 19.5 17" aria-hidden="true">${die(8.5, 0)}${die(0, 3.5)}</svg>`;
+  }
   function luckStrip(p) {
     if (!state.luckLog || state.phase === 'setup') return '';
     const warm = luckWarm(), v = warm ? 0 : luckOf(p.color), n = Math.round(v);
     const fill = n ? `<i class="${n > 0 ? 'up' : 'down'}" style="height:${(Math.min(Math.abs(v) / LUCK_FULL, 1) * 50).toFixed(1)}%"></i>` : '';
-    return `<span class="pluck${warm ? ' warm' : ''}" title="Dice luck" onclick="event.stopPropagation();CATAN.luck('${p.color}')">${dieImg()}<span class="lkbar">${fill}</span><b>${warm ? '·' : fmtLuck(v)}</b></span>`;
+    return `<span class="pluck${warm ? ' warm' : ''}" title="Dice luck" onclick="event.stopPropagation();CATAN.luck('${p.color}')">${luckIcon()}<span class="lkbar">${fill}</span><b>${warm ? '·' : fmtLuck(v)}</b></span>`;
+  }
+  // a word for the number, matching the end-of-game awards at the far ends
+  function luckVerdict(v, warm) {
+    if (warm) return ['Too early to tell', ''];
+    const a = Math.abs(v);
+    if (a < 1) return ['Right on average', ''];
+    if (v > 0) return [a >= AWARD_MIN_LUCK_CARDS ? 'Blessed by the dice' : a >= 3 ? 'Lucky' : 'A little lucky', 'up'];
+    return [a >= AWARD_MIN_LUCK_CARDS ? 'Cursed by the dice' : a >= 3 ? 'Unlucky' : 'A little unlucky', 'down'];
   }
   function openLuck(focus) {
     luckScrub = null;
@@ -976,50 +993,59 @@
     const fp = P.find((p) => p.color === focus) || P[0]; focus = fp.color;
     const mine = (c) => online && c === myColor;
     const nm = (c) => escapeHtml((P.find((p) => p.color === c) || {}).name || '?');
-    const t = (state.tally || {})[focus] || {}, v = Math.round(luckOf(focus)), warm = luckWarm();
+    const t = (state.tally || {})[focus] || {}, raw = luckOf(focus), v = Math.round(raw), warm = luckWarm();
     const them = mine(focus) ? 'you' : nm(focus), cards = (k) => `${k} card${k === 1 ? '' : 's'}`;
-    const how = Math.abs(v) >= 3 ? '' : 'a little ';
-    const now = v > 0 ? `the dice have given ${them} <b>${cards(v)} more</b> than fair dice would have by now. ${how ? 'A little lucky' : 'Lucky'}.`
-      : v < 0 ? `the dice have given ${them} <b>${cards(-v)} fewer</b> than fair dice would have by now. ${how ? 'A little unlucky' : 'Unlucky'}.`
-      : `the dice have been exactly fair to ${them} so far.`;
-    const head = `<b>${nm(focus)} ${fmtLuck(v)}</b>: ${now}${warm ? ' Too early to tell yet: the meter on the corner wakes up after two rounds.' : ''}`;
-    const got = t.cardsFair != null ? ` <span class="lkgot">(dice paid ${t.cardsGot}, fair dice about ${Math.round(t.cardsFair)})</span>` : '';
+    const [word, tone] = luckVerdict(v, warm);
+    const say = warm ? `Only ${log.length} roll${log.length === 1 ? '' : 's'} so far. The gauge wakes up after round ${LUCK_WARM_ROUNDS}.`
+      : v > 0 ? `The dice have paid ${them} <b>${cards(v)} more</b> than average dice would have.`
+      : v < 0 ? `The dice have paid ${them} <b>${cards(-v)} fewer</b> than average dice would have.`
+      : `The dice have paid ${them} just what average dice would have.`;
+    const pos = 50 + Math.max(-1, Math.min(1, raw / LUCK_FULL)) * 50;   // marker on the -5..+5 scale
+    const hfill = Math.round(raw) ? `<i class="${raw > 0 ? 'up' : 'down'}" style="${raw > 0 ? 'left:50%' : `left:${pos}%`};width:${Math.abs(pos - 50)}%"></i>` : '';
+    const hero = `<div class="lkhero">
+        <div class="lkwho"><i style="background:${PCOLOR[focus]}"></i>${nm(focus)}${mine(focus) ? ' <span>(you)</span>' : ''}</div>
+        <div class="lkbig ${warm ? '' : tone}">${fmtLuck(raw)}</div>
+        <div class="lkword ${warm ? '' : tone}">${word}</div>
+        <div class="lkscale"><span class="lkhbar">${hfill}<em style="left:${pos}%"></em></span><span class="lkends"><span>unlucky</span><span>fair</span><span>lucky</span></span></div>
+        <p class="lksay">${say}</p>
+        ${t.cardsFair != null ? `<div class="lktiles"><div><b>${t.cardsGot}</b><span>cards the dice paid</span></div><div><b>${Math.round(t.cardsFair)}</b><span>with average dice</span></div></div>` : ''}
+      </div>`;
     const chips = P.map((p) => `<span class="lkchip${p.color === focus ? ' on' : ''}" onclick="CATAN.luck('${p.color}')"><i style="background:${PCOLOR[p.color]}"></i>${nm(p.color)}${mine(p.color) ? ' (you)' : ''} <b>${fmtLuck(luckOf(p.color))}</b></span>`).join('');
     // the chart: everyone's luck after every roll; the focused player bold, the rest faint behind
-    const W = 600, H = 150, l = 26, r = 74, tp = 6, bt = 16, n = log.length;
-    let chart = `<div class="lkread">The chart starts with the first roll.</div>`;
+    const W = 520, H = 196, l = 30, r = 84, tp = 8, bt = 22, n = log.length;
+    let chart = `<div class="lkempty">The chart starts with the first roll.</div>`;
     if (n) {
       const val = (i, k) => (i === 0 ? 0 : log[i - 1][k + 1] / 10);   // point 0 = the start, before any roll
       let R = 4; log.forEach((e) => e.slice(1).forEach((x) => { R = Math.max(R, Math.ceil(Math.abs(x) / 20) * 2); }));
       const X = (i) => l + i * (W - l - r) / n, Y = (y) => tp + (R - y) * (H - tp - bt) / (2 * R);
-      const o = [`<rect x="${l}" y="${tp}" width="${W - l - r}" height="${Y(0) - tp}" fill="#4caf50" opacity=".06"/><rect x="${l}" y="${Y(0)}" width="${W - l - r}" height="${H - bt - Y(0)}" fill="#5c7bbd" opacity=".08"/>`];
+      const o = [`<rect x="${l}" y="${tp}" width="${W - l - r}" height="${Y(0) - tp}" fill="#4caf50" opacity=".07"/><rect x="${l}" y="${Y(0)}" width="${W - l - r}" height="${H - bt - Y(0)}" fill="#5c7bbd" opacity=".09"/>`];
       const step = R > 6 ? 4 : 2;
-      for (let y = -R; y <= R; y += step) if (y) o.push(`<line x1="${l}" x2="${W - r}" y1="${Y(y)}" y2="${Y(y)}" stroke="#d8c49a" stroke-opacity=".1"/><text x="${l - 5}" y="${Y(y) + 3.5}" text-anchor="end" font-size="9.5" fill="#a8916a">${fmtLuck(y)}</text>`);
-      o.push(`<line x1="${l}" x2="${W - r}" y1="${Y(0)}" y2="${Y(0)}" stroke="#fff3d6" stroke-opacity=".55" stroke-dasharray="4 3"/><text x="${l - 5}" y="${Y(0) + 3.5}" text-anchor="end" font-size="9.5" fill="#d8c49a">0</text><text x="${l + 4}" y="${Y(0) - 4}" font-size="9.5" fill="#d8c49a" opacity=".8">fair dice</text>`);
-      const per = P.length, rounds = Math.ceil(n / per), every = Math.max(1, Math.ceil(rounds / 10));
+      for (let y = -R; y <= R; y += step) if (y) o.push(`<line x1="${l}" x2="${W - r}" y1="${Y(y)}" y2="${Y(y)}" stroke="#d8c49a" stroke-opacity=".1"/><text x="${l - 6}" y="${Y(y) + 4}" text-anchor="end" font-size="12" fill="#a8916a">${fmtLuck(y)}</text>`);
+      o.push(`<line x1="${l}" x2="${W - r}" y1="${Y(0)}" y2="${Y(0)}" stroke="#fff3d6" stroke-opacity=".55" stroke-dasharray="5 4"/><text x="${l - 6}" y="${Y(0) + 4}" text-anchor="end" font-size="12" fill="#d8c49a">0</text><text x="${l + 5}" y="${Y(0) - 5}" font-size="11.5" fill="#d8c49a" opacity=".8">average dice</text>`);
+      const per = P.length, rounds = Math.ceil(n / per), every = Math.max(1, Math.ceil(rounds / 8));
       for (let k = 0; k < rounds; k++) {
         if (k) o.push(`<line x1="${X(k * per)}" x2="${X(k * per)}" y1="${tp}" y2="${H - bt}" stroke="#d8c49a" stroke-opacity=".07"/>`);
-        if (k % every === 0) o.push(`<text x="${X(Math.min(k * per + per / 2, n))}" y="${H - 4}" text-anchor="middle" font-size="9.5" fill="#a8916a">${k ? '' : 'Round '}${k + 1}</text>`);
+        if (k % every === 0) o.push(`<text x="${X(Math.min(k * per + per / 2, n))}" y="${H - 6}" text-anchor="middle" font-size="12" fill="#a8916a">${k ? '' : 'Round '}${k + 1}</text>`);
       }
       const order = P.map((p, k) => k).filter((k) => P[k].color !== focus).concat(P.findIndex((p) => p.color === focus));
       order.forEach((k) => {
         const on = P[k].color === focus, pts = [];
         for (let i = 0; i <= n; i++) pts.push(`${X(i).toFixed(1)} ${Y(val(i, k)).toFixed(1)}`);
-        o.push(`<path d="M${pts.join(' L')}" fill="none" stroke="${PCOLOR[P[k].color]}" stroke-width="${on ? 3 : 1.6}" stroke-linejoin="round" stroke-linecap="round" opacity="${on ? 1 : 0.45}"/>`
-          + `<circle cx="${X(n)}" cy="${Y(val(n, k))}" r="${on ? 4.5 : 3}" fill="${PCOLOR[P[k].color]}" stroke="#1a0e04" stroke-width="2"/>`);
+        o.push(`<path d="M${pts.join(' L')}" fill="none" stroke="${PCOLOR[P[k].color]}" stroke-width="${on ? 3.5 : 2}" stroke-linejoin="round" stroke-linecap="round" opacity="${on ? 1 : 0.4}"/>`
+          + `<circle cx="${X(n)}" cy="${Y(val(n, k))}" r="${on ? 5 : 3.5}" fill="${PCOLOR[P[k].color]}" stroke="#1a0e04" stroke-width="2"/>`);
       });
       let last = -99;   // end labels, nudged apart so they never overlap
       P.map((p, k) => ({ p, y: Y(val(n, k)), v: val(n, k) })).sort((a, b) => a.y - b.y).forEach((e) => {
-        const y = Math.max(e.y, last + 12); last = y;
-        o.push(`<text x="${X(n) + 8}" y="${y + 4}" font-size="11" font-weight="${e.p.color === focus ? 800 : 600}" fill="${e.p.color === focus ? '#fff3d6' : '#c9ad73'}">${nm(e.p.color)} ${fmtLuck(e.v)}</text>`);
+        const y = Math.max(e.y, last + 15); last = y;
+        o.push(`<text x="${X(n) + 9}" y="${y + 4.5}" font-size="13" font-weight="${e.p.color === focus ? 800 : 600}" fill="${e.p.color === focus ? '#fff3d6' : '#b89f74'}">${nm(e.p.color)} ${fmtLuck(e.v)}</text>`);
       });
-      o.push(`<g id="lkcur" style="display:none"><line id="lkcl" y1="${tp}" y2="${H - bt}" stroke="#fff3d6" stroke-opacity=".6"/>${P.map((p, k) => `<circle id="lkc${k}" r="3.5" fill="${PCOLOR[p.color]}" stroke="#1a0e04" stroke-width="1.5"/>`).join('')}</g>`);
-      chart = `<svg class="lkchart" id="lkchart" viewBox="0 0 ${W} ${H}">${o.join('')}</svg><div class="lkread" id="lkread">Drag along the chart to see any roll</div>`;
+      o.push(`<g id="lkcur" style="display:none"><line id="lkcl" y1="${tp}" y2="${H - bt}" stroke="#fff3d6" stroke-opacity=".6"/>${P.map((p, k) => `<circle id="lkc${k}" r="4" fill="${PCOLOR[p.color]}" stroke="#1a0e04" stroke-width="1.5"/>`).join('')}</g>`);
+      chart = `<svg class="lkchart" id="lkchart" viewBox="0 0 ${W} ${H}">${o.join('')}</svg><div class="lkread" id="lkread">Drag along the chart to replay any roll</div>`;
       luckScrub = { X, Y, val, n, l, r, W, off: rolls.length - n };
     }
-    showOverlay(`<div class="lucksheet-in"><h3>${dieImg()} Dice luck<button class="lkx" onclick="CATAN.close()" aria-label="Close">✕</button></h3>`
-      + `<div class="lkmean">${head}${got}<small>We count the cards each player's settlements and cities got from the dice (a city counts double) and compare that with what average dice would have given. Plus = luckier than average, minus = unluckier. Trades and the robber don't count.</small></div>`
-      + `<div class="lkchips">${chips}</div>${chart}</div>`);
+    showOverlay(`<div class="lkhead">${luckIcon()}<span>Dice luck</span><button class="lkx" onclick="CATAN.close()" aria-label="Close">✕</button></div>
+      <div class="lkgrid">${hero}<div class="lkside"><div class="lkchips">${chips}</div>${chart}</div></div>
+      <div class="lkhow"><b>How it's worked out:</b> every roll, each settlement next to the number rolled earns 1 card and each city 2. We compare what the dice paid with what an average roll pays. Trades, ports and the robber don't count.</div>`);
     const o = $('overlay'); if (o) { o.onclick = (e) => { if (e.target === o) CATAN.close(); }; const sh = o.querySelector('.sheet'); if (sh) sh.classList.add('lucksheet'); }
     const svg = $('lkchart'); if (!svg || !luckScrub) return;
     const move = (e) => {
@@ -1028,24 +1054,79 @@
       $('lkcur').style.display = ''; const cl = $('lkcl'); cl.setAttribute('x1', S.X(i)); cl.setAttribute('x2', S.X(i));
       P.forEach((p, k) => { const c = $('lkc' + k); c.setAttribute('cx', S.X(i)); c.setAttribute('cy', S.Y(S.val(i, k))); });
       const e0 = log[i - 1], roller = P[e0[0]], rolled = rolls[i - 1 + S.off];
-      $('lkread').innerHTML = `Round ${Math.ceil(i / P.length)} · ${roller ? nm(roller.color) : '?'} rolled <b>${rolled != null ? rolled : '?'}</b> · `
-        + P.map((p, k) => `${nm(p.color)} <b>${fmtLuck(S.val(i, k))}</b>`).join(' · ');
+      $('lkread').innerHTML = `<span>Round ${Math.ceil(i / P.length)} · ${roller ? nm(roller.color) : '?'} rolled <b>${rolled != null ? rolled : '?'}</b></span>`
+        + P.map((p, k) => `<span><i style="background:${PCOLOR[p.color]}"></i>${nm(p.color)} <b>${fmtLuck(S.val(i, k))}</b></span>`).join('');
     };
     svg.addEventListener('pointerdown', (e) => { move(e); try { svg.setPointerCapture(e.pointerId); } catch (_) {} });
     svg.addEventListener('pointermove', move);
   }
   let luckScrub = null;
-  function luckIntro() {
-    const g = (v, word) => {
-      const fill = v ? `<i class="${v > 0 ? 'up' : 'down'}" style="height:${(Math.min(Math.abs(v) / LUCK_FULL, 1) * 50).toFixed(1)}%"></i>` : '';
-      return `<div class="lkintro-g"><span class="pluck">${dieImg()}<span class="lkbar">${fill}</span><b>${fmtLuck(v)}</b></span><span>${word}</span></div>`;
-    };
-    return `<div class="lkintro"><h3>${dieImg()} New: dice luck</h3>`
-      + `<div class="lkintro-row">${g(3, 'lucky')}${g(0, 'fair')}${g(-2, 'unlucky')}</div>`
-      + `<p>Next to every player's corner there's now a little gauge showing how kind the dice have been to them.</p>`
-      + `<p><b>+3</b> means the dice have given that player 3 more cards than fair dice would have. <b>−2</b> means 2 fewer. <b>0</b> is exactly average.</p>`
-      + `<p class="lkintro-s">It wakes up after two rounds. Tap any gauge to see everyone's luck over the game.</p>`
-      + `<button class="btn full" onclick="CATAN.newsDone('luck')">Got it</button></div>`;
+  // ---- coach marks: dim the screen, spotlight a real element, a bubble pointing at it (one-time feature tours) ----
+  let coach = null;   // { steps: [{ target(), html, last? }], i, onDone, timer }
+  function coachStart(steps, onDone) {
+    coachEnd(false);
+    coach = { steps, i: 0, onDone, timer: setInterval(coachPlace, 300) };
+    window.addEventListener('resize', coachPlace);
+    coachPaint();
+  }
+  function coachEnd(done) {
+    if (!coach) return;
+    const c = coach; coach = null; clearInterval(c.timer); window.removeEventListener('resize', coachPlace);
+    const el = $('coach'); if (el) el.remove();
+    if (done && c.onDone) c.onDone();
+  }
+  function coachPaint() {
+    let el = $('coach');
+    if (!el) { el = document.createElement('div'); el.id = 'coach'; el.innerHTML = '<div class="coachspot"></div><div class="coachtip"></div>'; document.body.appendChild(el); }
+    const st = coach.steps[coach.i], last = coach.i === coach.steps.length - 1;
+    const dots = coach.steps.map((_, k) => `<i class="${k === coach.i ? 'on' : ''}"></i>`).join('');
+    const tip = el.querySelector('.coachtip');
+    tip.innerHTML = `<div class="coacharrow"></div>${st.html}<div class="coachfoot"><span class="coachdots">${dots}</span>`
+      + (last ? '' : `<button class="coachskip" onclick="CATAN.coach('skip')">Skip</button>`)
+      + (st.alt ? `<button class="coachalt" onclick="CATAN.coach('alt')">${st.alt}</button>` : '')
+      + `<button class="coachnext" onclick="CATAN.coach('next')">${last ? 'Got it' : 'Next'}</button></div>`;
+    tip.classList.remove('in'); void tip.offsetWidth; tip.classList.add('in');
+    coachPlace();
+  }
+  function coachPlace() {
+    if (!coach) return;
+    const st = coach.steps[coach.i], t = st.target && st.target();
+    if (!t || !t.getBoundingClientRect().width) { coachEnd(false); return; }   // the thing to point at is gone: try again another time
+    const r = t.getBoundingClientRect(), pad = 6, el = $('coach');
+    const spot = el.querySelector('.coachspot'), tip = el.querySelector('.coachtip'), arrow = tip.querySelector('.coacharrow');
+    Object.assign(spot.style, { left: (r.left - pad) + 'px', top: (r.top - pad) + 'px', width: (r.width + 2 * pad) + 'px', height: (r.height + 2 * pad) + 'px' });
+    const tw = tip.offsetWidth, th = tip.offsetHeight, vw = window.innerWidth, vh = window.innerHeight, gap = 16;
+    const right = r.left + r.width / 2 < vw / 2;   // point toward the middle of the screen
+    const left = right ? r.right + pad + gap : r.left - pad - gap - tw;
+    const cy = r.top + r.height / 2, top = Math.max(8, Math.min(vh - th - 8, cy - th / 2));
+    Object.assign(tip.style, { left: Math.max(8, Math.min(vw - tw - 8, left)) + 'px', top: top + 'px' });
+    tip.classList.toggle('toleft', !right);
+    arrow.style.top = Math.max(14, Math.min(th - 14, cy - top)) - 7 + 'px';
+  }
+  function coachAct(a) {
+    if (!coach) return;
+    const st = coach.steps[coach.i];
+    if (a === 'alt' && st.onAlt) { const f = st.onAlt; coachEnd(true); f(); return; }
+    if (a === 'skip' || coach.i === coach.steps.length - 1) { coachEnd(true); return; }
+    coach.i++; coachPaint();
+  }
+  // the dice-luck tour: your own gauge, what the number means, then someone else's (tap to open the story)
+  function luckTour() {
+    const P = state.players, meI = Math.max(0, P.findIndex((p) => online && p.color === myColor));
+    const other = P.findIndex((p, k) => k !== meI);
+    const gauge = (k) => () => document.querySelector('#p-' + seatKey(k) + ' .pluck');
+    const you = online && myColor ? 'you' : P[meI].name;
+    return [
+      { target: gauge(meI), html: `<div class="coachnew">New</div><h4>${luckIcon()} Dice luck</h4>
+          <p>This gauge shows how kind the dice have been to ${you}.</p>
+          <div class="coachkey"><span><i class="up"></i>Fills up green: lucky</span><span><i class="mid"></i>Middle line: average dice</span><span><i class="down"></i>Fills down blue: unlucky</span></div>` },
+      { target: gauge(meI), html: `<h4>What the number means</h4>
+          <div class="coachnums"><div><b class="up">+3</b><span>the dice paid 3 more cards than average dice would have</span></div>
+          <div><b>0</b><span>right on average</span></div><div><b class="down">−2</b><span>2 fewer cards than average</span></div></div>
+          <p class="coachs">It wakes up after round ${LUCK_WARM_ROUNDS}. Before that there are too few rolls to tell.</p>` },
+      { target: gauge(other >= 0 ? other : meI), alt: 'Show me', onAlt: () => openLuck(P[other >= 0 ? other : meI].color),
+        html: `<h4>Everyone has one</h4><p>Tap any gauge to see who the dice love, and how it changed roll by roll over the game.</p>` },
+    ];
   }
   const HUD = ASSETS.hud || {};
   function resIc(r) { return (HUD.res && HUD.res[r]) ? `<img class="ri" src="${HUD.res[r]}" alt="${r}">` : ICON[r]; }
@@ -1978,6 +2059,7 @@
       ${toggle('sfx', 'Sound effects')}
       ${seg}
       ${toggle('autozoom', 'Auto-zoom')}
+      <div class="setrow"><span class="setlbl">New-feature tips</span><button class="setbtn" onclick="CATAN.tipsAgain()"${(SETTINGS.seen || []).length ? '' : ' disabled'}>${(SETTINGS.seen || []).length ? 'Show again' : 'All unseen'}</button></div>
       <div class="setdiag">Sound engine: ${actx ? actx.state : 'not started'} · ${Object.keys(sndBuf).length}/${Object.keys(SFX).length} sounds · rebuilt ${audioRebuilds}×</div>
       <button class="btn full" onclick="CATAN.close()">Done</button>
     </div>`);
@@ -4108,7 +4190,8 @@
     robberInfo: () => { const by = state && state.robberBy; if (!by) return; const v = state.robberVictim; toast(`${nameOf(by)} put the robber here${v ? ` and robbed ${nameOf(v)}` : ''}`); },
     robberies: (c) => openRobberies(c),
     luck: (c) => openLuck(c),
-    newsDone: (id) => newsDone(id),
+    coach: (a) => coachAct(a),
+    tipsAgain: () => { SETTINGS.seen = []; saveSettings(); hideOverlay(); if (state && state.phase === 'play') { afterAction(); render(); } },   // replays the one-time tours
     gg: () => sayGG(),
     rmVote: (v) => rmVote(v),
     qvVote: (y) => qvVote(!!y),
