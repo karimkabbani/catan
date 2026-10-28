@@ -564,7 +564,7 @@
   .pluck{position:absolute; z-index:6; top:0; bottom:0; width:16px; display:flex; flex-direction:column; align-items:center; gap:2px; cursor:pointer;}
   .corner.tl .pluck, .corner.bl .pluck{left:calc(100% + 3px);}
   .corner.tr .pluck, .corner.br .pluck{right:calc(100% + 3px);}
-  .pluck img{width:15px; height:15px; flex:none; filter:drop-shadow(0 1px 1px rgba(0,0,0,0.6));}
+  .pluck .lkico{width:19px; height:17px; flex:none; margin:0 -2px; filter:drop-shadow(0 1px 1.5px rgba(0,0,0,0.7));}
   .pluck .lkbar{position:relative; flex:1; width:11px; border-radius:6px; background:#0d0a05; border:1.5px solid var(--gold-edge); box-shadow:0 2px 6px rgba(0,0,0,0.5); overflow:hidden;}
   .pluck .lkbar:after{content:''; position:absolute; left:0; right:0; top:calc(50% - 1px); height:2px; background:#fff3d6; opacity:0.85;}
   .pluck .lkbar i{position:absolute; left:0; right:0; transition:height .5s ease, top .5s ease;}
@@ -572,34 +572,86 @@
   .pluck .lkbar i.down{top:50%; background:linear-gradient(180deg, #5c7bbd, #9fb7e8);}
   .pluck b{font-family:-apple-system, system-ui, 'Segoe UI', Roboto, sans-serif; font-size:11px; font-weight:800; line-height:12px; color:#fff3d6; text-shadow:0 1px 2px #000; white-space:nowrap; font-variant-numeric:lining-nums tabular-nums;}
   .pluck.warm{opacity:0.55;}
-  /* tap it: what the number means + luck over the game */
-  .sheet.lucksheet{width:min(640px,96vw); padding:10px 14px;}
-  .lucksheet h3{display:flex; align-items:center; gap:7px; margin:0 0 6px; font-size:16px;}
-  .lucksheet h3 img{width:20px; height:20px;}
-  .lkx{margin-left:auto; background:none; border:0; color:var(--muted); font-size:20px; line-height:1; padding:0 2px; cursor:pointer;}
-  .lkmean{font-size:13px; line-height:1.35; color:var(--ink); background:rgba(0,0,0,0.28); border:1px solid rgba(255,220,170,0.16); border-radius:10px; padding:7px 10px;}
-  .lkmean b{color:#fff3d6;}
-  .lkmean small{display:block; color:var(--muted); font-size:11.5px; line-height:1.35; margin-top:3px;}
-  .lkgot{color:var(--muted); font-size:12px;}
-  .lkchips{display:flex; flex-wrap:wrap; gap:6px; margin:6px 0 2px;}
-  .lkchip{display:flex; align-items:center; gap:5px; padding:3px 10px 3px 6px; border-radius:13px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,220,170,0.18); font-size:12px; font-weight:700; color:var(--muted); cursor:pointer;}
-  .lkchip i{width:10px; height:10px; border-radius:50%;}
-  .lkchip b{color:#fff3d6; font-family:-apple-system, system-ui, sans-serif; font-variant-numeric:tabular-nums;}
-  .lkchip.on{background:rgba(233,196,90,0.14); border-color:var(--gold); color:#fff3d6;}
-  .lkchart{display:block; width:100%; height:auto; touch-action:none; user-select:none; -webkit-user-select:none;}
+  /* tap it: the story behind the number + luck over the game. Landscape: the verdict on the left, the chart right */
+  .sheet.lucksheet{width:min(720px,97vw); padding:10px 14px 9px; font-family:-apple-system, system-ui, 'Segoe UI', Roboto, sans-serif;}
+  .lkhead{display:flex; align-items:center; gap:8px; margin-bottom:6px; font-family:var(--serif); color:var(--gold); font-size:18px;}
+  .lkhead .lkico{width:26px; height:23px;}
+  .lkx{margin-left:auto; width:28px; height:28px; border-radius:50%; background:rgba(0,0,0,0.3); border:1px solid rgba(255,220,170,0.2); color:var(--muted); font-size:15px; line-height:1; cursor:pointer;}
+  .lkgrid{display:grid; grid-template-columns:205px 1fr; gap:14px; align-items:start;}
+  @media (max-width:560px){ .lkgrid{grid-template-columns:1fr;} }
+  .lkhero{display:flex; flex-direction:column; align-items:center; text-align:center; padding:8px 10px; border-radius:14px;
+    background:radial-gradient(120% 80% at 50% 0%, rgba(255,220,150,0.10), rgba(0,0,0,0.25)); border:1px solid rgba(255,220,170,0.16);}
+  .lkwho{display:flex; align-items:center; gap:6px; font-size:13px; font-weight:700; color:var(--ink);}
+  .lkwho i{width:10px; height:10px; border-radius:50%; box-shadow:0 0 0 2px rgba(0,0,0,0.35);}
+  .lkwho span{color:var(--muted); font-weight:600;}
+  .lkbig{font-size:38px; font-weight:800; line-height:1; margin-top:4px; color:#fff3d6; font-variant-numeric:lining-nums tabular-nums; letter-spacing:-1px;}
+  .lkbig.up{color:#a8eba2; text-shadow:0 0 18px rgba(76,175,80,0.45);}
+  .lkbig.down{color:#aec3ee; text-shadow:0 0 18px rgba(92,123,189,0.5);}
+  .lkword{font-size:12px; font-weight:800; letter-spacing:0.8px; text-transform:uppercase; color:var(--muted); margin-top:3px;}
+  .lkword.up{color:#9be59a;} .lkword.down{color:#9fb7e8;}
+  .lkscale{width:100%; margin:9px 0 2px;}
+  .lkhbar{position:relative; display:block; height:8px; border-radius:5px; background:#0d0a05; border:1px solid var(--gold-edge);}
+  .lkhbar:before{content:''; position:absolute; left:calc(50% - 1px); top:-3px; bottom:-3px; width:2px; background:#fff3d6; opacity:0.8;}
+  .lkhbar i{position:absolute; top:1px; bottom:1px; border-radius:3px;}
+  .lkhbar i.up{background:linear-gradient(90deg, #4caf50, #9be59a);} .lkhbar i.down{background:linear-gradient(270deg, #5c7bbd, #9fb7e8);}
+  .lkhbar em{position:absolute; top:50%; width:12px; height:12px; margin:-6px 0 0 -6px; border-radius:50%; background:#fff3d6; border:2px solid #2a1608; box-shadow:0 1px 3px rgba(0,0,0,0.6);}
+  .lkends{display:flex; justify-content:space-between; font-size:10px; color:var(--muted); margin-top:4px; letter-spacing:0.3px;}
+  .lksay{font-size:12.5px; line-height:1.35; color:var(--ink); margin:6px 0 7px;}
+  .lksay b{color:#fff3d6;}
+  .lktiles{display:flex; gap:6px; width:100%;}
+  .lktiles div{flex:1; display:flex; flex-direction:column; align-items:center; padding:5px 4px; border-radius:9px; background:rgba(0,0,0,0.3);}
+  .lktiles b{font-size:17px; color:#fff3d6; font-variant-numeric:lining-nums tabular-nums;}
+  .lktiles span{font-size:10px; color:var(--muted); line-height:1.2;}
+  .lkside{min-width:0;}
+  .lkchips{display:flex; flex-wrap:wrap; gap:5px; margin-bottom:4px;}
+  .lkchip{display:flex; align-items:center; gap:5px; padding:3px 9px 3px 6px; border-radius:13px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,220,170,0.18); font-size:12px; font-weight:700; color:var(--muted); cursor:pointer;}
+  .lkchip i{width:9px; height:9px; border-radius:50%;}
+  .lkchip b{color:#fff3d6; font-variant-numeric:tabular-nums;}
+  .lkchip.on{background:rgba(233,196,90,0.16); border-color:var(--gold); color:#fff3d6;}
+  .lkchart{display:block; width:100%; height:auto; touch-action:none; user-select:none; -webkit-user-select:none; cursor:crosshair;}
   .lkchart text{font-family:-apple-system, system-ui, sans-serif;}
-  .lkread{min-height:17px; font-size:12px; color:var(--muted); text-align:center; font-family:-apple-system, system-ui, sans-serif;}
+  .lkread{min-height:18px; display:flex; flex-wrap:wrap; justify-content:center; gap:3px 10px; font-size:11.5px; color:var(--muted);}
+  .lkread span{display:inline-flex; align-items:center; gap:4px;}
+  .lkread i{width:7px; height:7px; border-radius:50%;}
   .lkread b{color:#fff3d6;}
-  /* one-time "New: dice luck" card */
-  .lkintro{text-align:center;}
-  .lkintro h3{display:flex; align-items:center; justify-content:center; gap:8px; font-size:19px;}
-  .lkintro h3 img{width:24px; height:24px;}
-  .lkintro-row{display:flex; justify-content:center; gap:30px; margin:4px 0 10px;}
-  .lkintro-g{display:flex; flex-direction:column; align-items:center; gap:4px; font-size:12px; color:var(--muted);}
-  .lkintro-g .pluck{position:static; height:78px;}
-  .lkintro p{font-size:14px; line-height:1.4; margin:0 0 8px; color:var(--ink);}
-  .lkintro p b{color:#fff3d6; font-family:-apple-system, system-ui, sans-serif;}
-  .lkintro .lkintro-s{font-size:12.5px; color:var(--muted);}
+  .lkempty{padding:40px 0; text-align:center; color:var(--muted); font-size:13px;}
+  .lkhow{margin-top:6px; padding-top:6px; border-top:1px solid rgba(255,220,170,0.14); font-size:11px; line-height:1.4; color:var(--muted);}
+  .lkhow b{color:var(--ink);}
+  .setbtn{padding:6px 12px; border-radius:10px; border:1px solid var(--gold-edge); background:rgba(0,0,0,0.3); color:var(--ink); font-size:13px; font-weight:700; cursor:pointer;}
+  .setbtn:disabled{opacity:0.45; cursor:default;}
+  /* coach marks: a spotlight on the real thing + a bubble pointing at it */
+  #coach{position:fixed; inset:0; z-index:80;}
+  .coachspot{position:fixed; border-radius:12px; pointer-events:none; transition:left .35s ease, top .35s ease, width .35s ease, height .35s ease;
+    box-shadow:0 0 0 9999px rgba(6,4,2,0.74), 0 0 0 2px var(--gold), 0 0 22px 6px rgba(233,196,90,0.55); animation:coachglow 1.8s ease-in-out infinite;}
+  @keyframes coachglow{50%{box-shadow:0 0 0 9999px rgba(6,4,2,0.74), 0 0 0 2px #fff3d6, 0 0 30px 10px rgba(233,196,90,0.75);}}
+  .coachtip{position:fixed; width:min(272px,58vw); padding:12px 14px 10px; border-radius:15px; color:var(--ink); font-family:-apple-system, system-ui, 'Segoe UI', Roboto, sans-serif;
+    background:linear-gradient(180deg, #45290f, #1f1105); border:1.5px solid var(--gold); box-shadow:0 14px 34px rgba(0,0,0,0.65); transition:left .35s ease, top .35s ease;}
+  .coachtip.in{animation:coachin .3s cubic-bezier(.2,.9,.3,1.2);}
+  @keyframes coachin{from{opacity:0; transform:scale(0.92);}}
+  .coacharrow{position:absolute; left:-8px; width:14px; height:14px; background:#3b220c; border-left:1.5px solid var(--gold); border-bottom:1.5px solid var(--gold); transform:rotate(45deg);}
+  .coachtip.toleft .coacharrow{left:auto; right:-8px; transform:rotate(225deg);}
+  .coachnew{display:inline-block; padding:1px 8px; border-radius:8px; background:var(--gold); color:#2a1608; font-size:10px; font-weight:900; letter-spacing:0.8px; text-transform:uppercase; margin-bottom:5px;}
+  .coachtip h4{display:flex; align-items:center; gap:7px; margin:0 0 5px; font-family:var(--serif); font-size:17px; color:var(--gold); font-weight:normal;}
+  .coachtip h4 .lkico{width:24px; height:21px;}
+  .coachtip p{margin:0 0 7px; font-size:13.5px; line-height:1.4;}
+  .coachtip .coachs{font-size:12px; color:var(--muted);}
+  .coachkey{display:flex; flex-direction:column; gap:5px; margin:2px 0 6px; font-size:12.5px;}
+  .coachkey span{display:flex; align-items:center; gap:8px;}
+  .coachkey i{position:relative; width:9px; height:20px; border-radius:5px; background:#0d0a05; border:1.5px solid var(--gold-edge); overflow:hidden; flex:none;}
+  .coachkey i:after{content:''; position:absolute; left:0; right:0; height:50%;}
+  .coachkey i.up:after{bottom:50%; background:#7fd27a;} .coachkey i.down:after{top:50%; background:#8ea6d6;}
+  .coachkey i.mid:after{top:calc(50% - 1px); height:2px; background:#fff3d6;}
+  .coachnums{display:flex; flex-direction:column; gap:5px; margin:2px 0 7px;}
+  .coachnums div{display:flex; align-items:center; gap:9px; font-size:12.5px; line-height:1.3;}
+  .coachnums b{flex:none; width:38px; text-align:center; padding:2px 0; border-radius:8px; background:rgba(0,0,0,0.35); font-size:16px; font-weight:800; color:#fff3d6; font-variant-numeric:tabular-nums;}
+  .coachnums b.up{color:#a8eba2;} .coachnums b.down{color:#aec3ee;}
+  .coachfoot{display:flex; align-items:center; gap:8px; margin-top:4px;}
+  .coachdots{display:flex; gap:4px; margin-right:auto;}
+  .coachdots i{width:6px; height:6px; border-radius:50%; background:rgba(255,220,170,0.25);} .coachdots i.on{background:var(--gold);}
+  .coachfoot button{border:0; border-radius:10px; padding:6px 13px; font-size:13px; font-weight:800; cursor:pointer; font-family:inherit;}
+  .coachskip{background:none !important; color:var(--muted); padding:6px 4px !important;}
+  .coachalt{background:rgba(0,0,0,0.35); color:var(--ink); border:1px solid rgba(255,220,170,0.25) !important;}
+  .coachnext{background:linear-gradient(180deg, #f3d77a, #c99b32); color:#2a1608;}
   /* who-robbed-who sheet */
   .robsheet{min-width:min(400px,86vw);}
   .robsheet h3{display:flex; align-items:center; justify-content:center; gap:8px; font-family:var(--serif); color:var(--gold); font-size:20px; margin-bottom:10px;}
