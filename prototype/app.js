@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v211';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v212';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -26,13 +26,21 @@
     // settings follow the LOGIN (like quick messages) — push to the profile, debounced
     if (AUTH && AUTH.me) {
       clearTimeout(settingsPush);
-      settingsPush = setTimeout(() => { AUTH.setSettings({ music: SETTINGS.music, sfx: SETTINGS.sfx, walkie: SETTINGS.walkie, anim: SETTINGS.anim, autozoom: SETTINGS.autozoom, seen: SETTINGS.seen || [] }); }, 600);
+      settingsPush = setTimeout(() => {
+        const out = { music: SETTINGS.music, sfx: SETTINGS.sfx, walkie: SETTINGS.walkie, anim: SETTINGS.anim, autozoom: SETTINGS.autozoom, seen: SETTINGS.seen || [] };
+        // your own chat emojis ride along only if you changed them, and only while the whole thing fits the
+        // server's 500-character limit (otherwise they stay on this device rather than break the sync)
+        if (SETTINGS.emojis && JSON.stringify(Object.assign({ emojis: SETTINGS.emojis }, out)).length <= 490) out.emojis = SETTINGS.emojis;
+        else if (!SETTINGS.emojis) out.emojis = null;
+        AUTH.setSettings(out);
+      }, 600);
     }
   }
   // profile settings arriving at login/resume override the device cache
   function applyProfileSettings(s) {
     if (!s || typeof s !== 'object') return;
     ['music', 'sfx', 'walkie', 'anim', 'autozoom'].forEach((k) => { if (s[k] !== undefined) SETTINGS[k] = s[k]; });
+    if (s.emojis === null || typeof s.emojis === 'string') SETTINGS.emojis = s.emojis;   // your chat tray's emojis (null = the group's set)
     if (Array.isArray(s.seen)) SETTINGS.seen = Array.from(new Set((SETTINGS.seen || []).concat(s.seen)));   // seen on any device counts
     try { localStorage.setItem('catan-settings', JSON.stringify(SETTINGS)); } catch (_) {}
   }
@@ -889,7 +897,7 @@
         tbadge = `<div class="tbadge ${cls}"${tap}>${ico}</div>`;
       }
       // your OWN corner gets a 💬 bubble to open quick chat (online seated players only)
-      const chatBtn = (online && myColor && p.color === myColor) ? `<button class="pchat" onclick="CATAN.openEmojiTray()" aria-label="Quick chat">💬</button>` : '';
+      const chatBtn = (online && myColor && p.color === myColor) ? `<button class="pchat${$('emotray') ? ' on' : ''}" onclick="event.stopPropagation();CATAN.openEmojiTray()" aria-label="Chat">${CHAT_ICON}</button>` : '';
       // unread dot: a new message from another player, not yet reviewed (tap their portrait to see it)
       const dot = (online && p.color !== myColor && UNREAD[p.color]) ? `<span class="pmsgdot"></span>` : '';
       // tap any online player's portrait to review their recent messages
@@ -2577,7 +2585,7 @@
   }
   // ---- broadcast messages: quick chat every online player sees -------
   // Default quick-chat presets, used until a player saves their own (managed in-game or from profile).
-  const DEFAULT_QUICK_MSGS = ['yalla', 'nice move', 'wtf', 'hek sarit?', 'GG', 'haha', 'khalesna', 'tfeh', 'wleeee', 'khroti', 'slakh', 'fayyish', 'ma32oul?!', 'ya haram', 'shu hal 7azz'];
+  const DEFAULT_QUICK_MSGS = ['yalla', 'haha', 'wtf', 'hek sarit?', 'ma32oul?!', 'shu hal 7azz', 'fayyish', 'wleeee', 'tfeh', 'bel marra', 'ahbil', 'habibi', 'tizeh fik', 'nikouna'];
   const BC_COOLDOWN = 1500;   // min gap between messages (anti-spam) — replaces the old 3-per-game cap
   let lastBcAt = 0, bctoastT = null;
   function bcReady() { return online && myColor && (Date.now() - lastBcAt >= BC_COOLDOWN); }
@@ -3718,7 +3726,11 @@
   // A run of taps streams out in ~0.5s chunks; each carries its taps' ms offsets from the run's first
   // tap, so other screens replay your real rhythm with the counter climbing, even if chunks clump.
   // three rows of nine: faces; reactions, gestures + projectiles; then ❤️ 🥕 🐇 and the five resources (⋯ "more" ends it)
-  const EMOJI_TRAY = ['🙂', '😂', '😮', '😖', '😞', '😭', '😡', '🤮', '😈', '💀', '🫠', '🔥', '🙏', '👀', '🤘', '🖕', '🍅', '💩', '❤️', '🥕', '🐇', '🐑', '🪵', '🪨', '🧱', '🌾'];
+  const CHAT_ICON = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3C6.5 3 2 6.6 2 11c0 2.4 1.3 4.5 3.4 6L4.6 21l4.3-2.3c1 .2 2 .3 3.1.3 5.5 0 10-3.6 10-8s-4.5-8-10-8z"/></svg>';
+  // the chat tray's emojis (v212, Karim's set, in groups: laughs, pain, anger, love/hype, animals+food, resources,
+  // flags). A player who edits theirs gets SETTINGS.emojis (the same space-separated string, synced with their other settings); otherwise this default.
+  const EMOJI_DEFAULT = '😂 😜 🤡 😘 🫣 😮 😩 🤦 🤷 😭 💔 😒 😴 🥱 😡 🖕 🍅 💩 🤮 🐍 🍆 👎 ❤️ 👍 👏 💯 🔥 💪 🤝 🙏 🍻 🤑 👀 🧿 🐒 🐰 🐭 🐥 🍌 🥚 🥕 🌾 🪵 🪨 🐑 🧱 🇱🇧 🇸🇦 🇦🇪 🇮🇪 🇬🇷 🇳🇱';
+  function trayEmojis() { const v = SETTINGS.emojis; return (typeof v === 'string' && v.trim() ? v : EMOJI_DEFAULT).split(' ').filter((e) => e && e !== '|'); }
   const EMO_CHUNK_MS = 500, EMO_IDLE_MS = 700, EMO_MAX = 40, MOMENT_LIVE_MS = 8000, CHIP_MS = 4000, CHIP_GAP_MS = 10000;
   let emoRun = null, emoFlushT = null, emoIdleT = null, trayT = null, chipT = null, lastChipAt = 0, pillT = null;
   const emoPlay = {};   // incoming runs: run id -> { at: local time of its first tap, last: latest scheduled tap, n }
@@ -3848,7 +3860,7 @@
   }
   // replay a chunk at the sender's rhythm; a late (clumped) chunk still climbs, just a touch faster
   function showEmojiMsg(msg) {
-    const emoji = String(msg.text || '').slice(0, 8);
+    const emoji = String(msg.text || '').slice(0, 16);
     if (!emoji || !inGame()) return;
     const seg = {};
     String(msg.url || '').split('|').forEach((x) => { const i = x.indexOf(':'); if (i > 0) seg[x.slice(0, i)] = x.slice(i + 1); });
@@ -3872,27 +3884,130 @@
     clearTimeout(run.gc); run.gc = setTimeout(() => { delete emoPlay[runId]; }, 15000);
   }
   // the tray fans out of your portrait; it stays open while you tap (mash away), closes on an outside tap
+  // ---- the chat tray (v212): opens from your corner; emojis on the left (tap = burst, drag onto a player = throw),
+  //      your texts on the right (tap = send), then Type / Voice note / Edit. Edit makes the set yours.
+  const TRAY_W = 600;
   function openEmojiTray() {
     if ($('emotray')) { closeEmojiTray(); return; }
     const c = myCorner(); if (!c || !c.el) { openQuickChat(); return; }
     hideChip();
-    const o = avatarCentre(c), left = c.pos[1] === 'l';
     const t = document.createElement('div');
-    t.id = 'emotray'; t.className = left ? 'from-left' : 'from-right';
-    let hint = 0; try { hint = +localStorage.getItem('catanThrowHint') || 0; localStorage.setItem('catanThrowHint', hint + 1); } catch (_) { }
-    t.innerHTML = EMOJI_TRAY.map((e) => `<button class="emobtn" data-e="${e}">${e}</button>`).join('')
-      + `<button class="emobtn more" onclick="CATAN.emoMore()" aria-label="More">⋯</button>`
-      + (hint < 3 ? `<div class="emohint">Tap to react · drag onto a player to throw</div>` : '');
-    wireTrayDrag(t);
-    const r = c.el.getBoundingClientRect(), top = c.pos[0] === 't';
-    if (left) t.style.left = (r.right + 8) + 'px'; else t.style.right = (window.innerWidth - r.left + 8) + 'px';
+    t.id = 'emotray'; t.className = c.pos[1] === 'l' ? 'from-left' : 'from-right';
     document.body.appendChild(t);
-    // top corners: the tray hangs down from the portrait; bottom corners: it grows up, so its last row sits level with it
-    const h = t.offsetHeight, y = top ? o.y - 23 : o.y + 23 - h;
-    t.style.top = Math.max(6, Math.min(window.innerHeight - h - 6, y)) + 'px';
+    trayMain(t);
     requestAnimationFrame(() => t.classList.add('in'));
     bumpTray();
+    paintChatBtn();
   }
+  function paintChatBtn() { const b = document.querySelector('.pchat'); if (b) b.classList.toggle('on', !!$('emotray')); }
+  // size + place it beside my corner, bottom-aligned with it, as wide as the screen allows
+  function placeTray(t) {
+    const c = myCorner(); if (!c || !c.el) return;
+    const r = c.el.getBoundingClientRect(), left = c.pos[1] === 'l';
+    const room = left ? window.innerWidth - r.right - 14 : r.left - 14;
+    t.style.width = Math.max(280, Math.min(TRAY_W, room)) + 'px';
+    if (left) { t.style.left = (r.right + 6) + 'px'; t.style.right = ''; } else { t.style.right = (window.innerWidth - r.left + 6) + 'px'; t.style.left = ''; }
+    t.style.top = '0px';
+    const h = t.offsetHeight, bottom = c.pos[0] === 't' ? r.top + h : r.bottom;
+    t.style.top = Math.max(6, Math.min(window.innerHeight - h - 6, bottom - h)) + 'px';
+  }
+  function trayMain(t) {
+    t.classList.remove('editing'); t.style.height = '';
+    let hint = 0; try { hint = +localStorage.getItem('catanThrowHint') || 0; localStorage.setItem('catanThrowHint', hint + 1); } catch (_) { }
+    const emo = trayEmojis().map((e) => `<button class="emobtn" data-e="${escapeHtml(e)}">${e}</button>`).join('');
+    const txt = AUTH.quickList().map((m, i) => `<button class="etchip" onclick="CATAN.trayText(${i})">${escapeHtml(m)}</button>`).join('');
+    t.innerHTML = `<div class="etmain"><div class="etemo">${emo}</div><div class="ettxt"><div class="etlbl">Texts</div><div class="etchips">${txt}</div></div></div>
+      <div class="etfoot"><button class="etact" onclick="CATAN.trayType()">✏️ Type</button><button class="etact" onclick="CATAN.trayVoice()">🎤 Voice note</button>
+      <span class="emohint">${hint < 3 ? 'Tap to send · drag onto a player to throw' : ''}</span><button class="etact" onclick="CATAN.trayEdit()">⚙️ Edit</button></div>`;
+    wireTrayDrag(t);
+    placeTray(t);
+  }
+  // ---- edit: reorder / remove / add emojis and texts (saved as you go) ----
+  let trayDraft = null;   // { e: [emojis], t: [texts] } while editing
+  function trayEdit() {
+    const t = $('emotray'); if (!t) return;
+    clearTimeout(trayT);   // no auto-close while editing
+    if (!trayDraft) trayDraft = { e: trayEmojis(), t: AUTH.quickList().slice() };
+    t.classList.add('editing'); t.style.height = '';
+    const D = trayDraft;
+    const tiles = D.e.map((e, i) => `<span class="ettile" data-v="${escapeHtml(e)}">${e}<b class="etx" data-del="${i}">×</b></span>`).join('');
+    const chips = D.t.map((m, i) => `<span class="etchip" data-v="${escapeHtml(m)}">${escapeHtml(m)}<b class="etx" data-del="${i}">×</b></span>`).join('');
+    t.innerHTML = `<div class="ethead"><b>Edit your chat</b><button class="etact gold" onclick="CATAN.trayDone()">Done</button></div>
+      <div class="etmain"><div class="etemo" style="flex-direction:column;flex-wrap:nowrap"><div class="etlbl">Emojis · drag to move, × to remove</div>
+        <div class="etemo" id="etE">${tiles}<button class="etadd" onclick="CATAN.trayAdd()" aria-label="Add an emoji">＋</button></div></div>
+        <div class="ettxt"><div class="etlbl">Texts · drag to move</div>
+        <div class="etnew" style="margin:0 0 7px"><input id="etNew" maxlength="50" placeholder="Add a text" autocomplete="off" onkeydown="if(event.key==='Enter')CATAN.trayAddText()"><button class="etact" onclick="CATAN.trayAddText()">Add</button></div>
+        <div class="etchips" id="etT">${chips}</div></div></div>
+      <div class="etfoot"><button class="etact" onclick="CATAN.trayReset()">↺ Back to the group's set</button></div>`;
+    wireReorder($('etE'), '.ettile', (vals) => { D.e = vals; saveTrayEmojis(); });
+    wireReorder($('etT'), '.etchip', (vals) => { D.t = vals; saveTrayTexts(); });
+    t.querySelectorAll('.etx').forEach((x) => x.addEventListener('pointerdown', (ev) => {
+      ev.stopPropagation(); ev.preventDefault();
+      const i = +x.dataset.del, list = x.closest('#etE') ? D.e : D.t;
+      list.splice(i, 1); if (list === D.e) saveTrayEmojis(); else saveTrayTexts();
+      trayEdit();
+    }));
+    placeTray(t);
+  }
+  function saveTrayEmojis() {
+    const v = trayDraft.e.join(' ');
+    SETTINGS.emojis = (v === EMOJI_DEFAULT || !trayDraft.e.length) ? null : v;
+    saveSettings();
+  }
+  function saveTrayTexts() { qmDraft = trayDraft.t.slice(0, 16); if (AUTH.me) AUTH.me.quickMsgs = qmDraft.slice(); persistQuick(); }
+  // drag a tile/chip to a new spot: the node moves live; the order is read back from the DOM on release
+  function wireReorder(box, sel, done) {
+    if (!box) return;
+    box.querySelectorAll(sel).forEach((el) => el.addEventListener('pointerdown', (ev) => {
+      if (ev.target.classList.contains('etx')) return;
+      ev.preventDefault();
+      // listen on the document: moving the node in the DOM drops pointer capture, so events stop reaching it
+      const sx = ev.clientX, sy = ev.clientY, pid = ev.pointerId; let moved = false;
+      const move = (m) => {
+        if (m.pointerId !== pid) return;
+        if (!moved && Math.hypot(m.clientX - sx, m.clientY - sy) < 6) return;
+        moved = true; el.classList.add('drag');
+        el.style.pointerEvents = 'none';
+        const over = document.elementFromPoint(m.clientX, m.clientY);
+        el.style.pointerEvents = '';
+        const tgt = over && over.closest && over.closest(sel);
+        if (!tgt || tgt === el || tgt.parentNode !== box) return;
+        const items = [...box.querySelectorAll(sel)];
+        box.insertBefore(el, items.indexOf(tgt) > items.indexOf(el) ? tgt.nextSibling : tgt);
+      };
+      const up = (u) => {
+        if (u.pointerId !== pid) return;
+        document.removeEventListener('pointermove', move, true); document.removeEventListener('pointerup', up, true); document.removeEventListener('pointercancel', up, true);
+        el.classList.remove('drag');
+        if (moved) { done([...box.querySelectorAll(sel)].map((x) => x.dataset.v)); trayEdit(); }
+      };
+      document.addEventListener('pointermove', move, true); document.addEventListener('pointerup', up, true); document.addEventListener('pointercancel', up, true);
+    }));
+  }
+  // ＋ : search every emoji (the list loads the first time it's needed)
+  let EMOJI_ALL = null;
+  async function trayAdd() {
+    const t = $('emotray'); if (!t) return;
+    t.innerHTML = `<div class="ethead"><b>Add an emoji</b><button class="etact" onclick="CATAN.trayEdit()">Back</button></div>
+      <input class="etsearch" id="etQ" placeholder="Search: money, flag, cat, fire…" autocomplete="off"><div class="etres" id="etR"><span class="etlbl">Loading…</span></div>`;
+    t.style.height = Math.min(340, window.innerHeight - 12) + 'px';
+    placeTray(t);
+    if (!EMOJI_ALL) { try { EMOJI_ALL = await (await fetch('emoji-data.json')).json(); } catch (_) { const r = $('etR'); if (r) r.innerHTML = '<span class="etlbl">Couldn\'t load the list. Check your connection.</span>'; return; } }
+    const q = $('etQ'); if (!q) return;
+    const draw = () => {
+      const v = q.value.trim().toLowerCase(), have = new Set(trayDraft.e), r = $('etR'); if (!r) return;
+      const btn = (e, n) => `<button class="emobtn${have.has(e) ? ' had' : ''}" title="${escapeHtml(n)}" onclick="CATAN.trayPick('${e}')">${e}</button>`;
+      r.innerHTML = v ? EMOJI_ALL.flatMap(([, l]) => l.filter(([, n]) => n.includes(v)).map(([e, n]) => btn(e, n))).slice(0, 240).join('') || '<span class="etlbl">Nothing found</span>'
+        : EMOJI_ALL.map(([g, l]) => `<div class="etcat">${escapeHtml(g)}</div>` + l.map(([e, n]) => btn(e, n)).join('')).join('');
+    };
+    q.addEventListener('input', draw); draw();
+  }
+  function trayPick(e) {
+    if (!trayDraft || !e) return;
+    if (!trayDraft.e.includes(e)) { trayDraft.e.push(e); saveTrayEmojis(); toast('Added ' + e); }
+    trayEdit();
+  }
+  window.addEventListener('resize', () => { const t = $('emotray'); if (t) placeTray(t); });
   function nameOf(color) { return ((state && state.players.find((p) => p.color === color)) || {}).name || ''; }
   // which other player's portrait is under this point (null = nobody / yourself)
   function throwTargetAt(x, y) {
@@ -3924,8 +4039,8 @@
       });
     });
   }
-  function bumpTray() { clearTimeout(trayT); trayT = setTimeout(closeEmojiTray, 6000); }
-  function closeEmojiTray() { clearTimeout(trayT); const t = $('emotray'); if (t) t.remove(); }
+  function bumpTray() { clearTimeout(trayT); if (trayDraft) return; trayT = setTimeout(closeEmojiTray, 10000); }
+  function closeEmojiTray() { clearTimeout(trayT); trayDraft = null; const t = $('emotray'); if (t) t.remove(); paintChatBtn(); }
   document.addEventListener('pointerdown', (e) => {
     const t = $('emotray'); if (!t) return;
     if (t.contains(e.target) || (e.target.closest && e.target.closest('.pchat'))) return;
@@ -4395,6 +4510,23 @@
     poke: () => poke(),
     emo: (e) => { sendEmoji(e); bumpTray(); },
     emoMore: () => { closeEmojiTray(); openQuickChat(); },
+    trayText: (i) => { const m = AUTH.quickList()[i]; if (!m) return; closeEmojiTray(); quickSend(m); },
+    trayType: () => { closeEmojiTray(); openBroadcast(); },
+    trayVoice: () => {   // straight into recording (VOICE.start must begin inside this tap on iOS)
+      closeEmojiTray();
+      showOverlay(`<h3>Voice note</h3><button id="qcmic" class="qcmic">🎤 <span>Tap to record a voice note</span></button><button class="btn ghost full" onclick="CATAN.close()">Close</button>`);
+      attachMic(); startRecUI();
+    },
+    trayEdit: () => trayEdit(),
+    trayDone: () => { const t = $('emotray'); trayDraft = null; if (t) { trayMain(t); bumpTray(); } },
+    trayAdd: () => trayAdd(),
+    trayPick: (e) => trayPick(e),
+    trayAddText: () => {
+      const el = $('etNew'), v = (el && el.value || '').trim().slice(0, 50); if (!v || !trayDraft) return;
+      if (trayDraft.t.length >= 16) { toast('Max 16 texts'); return; }
+      trayDraft.t.push(v); saveTrayTexts(); trayEdit(); const n = $('etNew'); if (n) n.focus();
+    },
+    trayReset: () => { if (!trayDraft) return; trayDraft = { e: EMOJI_DEFAULT.split(' '), t: DEFAULT_QUICK_MSGS.slice() }; saveTrayEmojis(); saveTrayTexts(); trayEdit(); },
     viewBoard: () => { endView = true; hideOverlay(); render(); },   // dismiss the victory to study the final board
     showResults: () => { if (state && state.phase === 'ended') showVictory(true); },
     bannerTap: () => { if (state && state.phase === 'ended' && $('overlay').classList.contains('hidden')) showVictory(true); },
