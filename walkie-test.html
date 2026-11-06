@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Walkie-talkie test</title>
+<style>
+  body{margin:0;padding:14px 14px 40px;background:#1c1208;color:#f3e6c8;font:16px/1.4 -apple-system,system-ui,sans-serif}
+  h1{font-size:20px;margin:0 0 4px}
+  .sub{opacity:.75;font-size:14px;margin-bottom:12px}
+  #conn{display:inline-block;padding:3px 10px;border-radius:12px;background:#5a2a1a;font-weight:700;font-size:13px}
+  #conn.ok{background:#2f6a2a}
+  .step{background:#2b1b0b;border:1px solid #6b5326;border-radius:12px;padding:12px;margin:10px 0}
+  .step b.n{display:inline-block;width:24px;height:24px;border-radius:50%;background:#e9c45a;color:#2b1b0b;text-align:center;line-height:24px;margin-right:6px}
+  .step p{margin:6px 0;font-size:14px;opacity:.85}
+  button{font:inherit;font-weight:700;border:0;border-radius:10px;padding:12px 14px;margin:6px 6px 0 0;background:#e9c45a;color:#2b1b0b}
+  button.ans{background:#4a3a1c;color:#f3e6c8;padding:9px 12px;font-size:14px}
+  button.ans.on{background:#e9c45a;color:#2b1b0b}
+  button:disabled{opacity:.4}
+  .meter{height:10px;background:#000;border-radius:5px;overflow:hidden;margin-top:8px}
+  .meter i{display:block;height:100%;width:0;background:#6fd66a}
+  .res{font-size:13px;margin-top:6px;color:#9fe39a;white-space:pre-wrap}
+  #listen{display:none;position:fixed;left:50%;top:10px;transform:translateX(-50%);background:#e5483b;color:#fff;z-index:9}
+  #log{font:11px/1.35 ui-monospace,Menlo,monospace;white-space:pre-wrap;opacity:.7;margin-top:16px;max-height:220px;overflow:auto}
+</style>
+</head>
+<body>
+<h1>Walkie-talkie test</h1>
+<div class="sub">This page isn't the game. It only tests whether this phone can record and hear. Everything it finds goes straight to Claude on the laptop. <span id="conn">Laptop: not connected</span></div>
+<button id="listen" onclick="T.listen()">Tap to hear the laptop</button>
+
+<div class="step"><b class="n">1</b><b>Sound check</b>
+  <p>Ringer switch on, volume up. Tap: you should hear a short beep.</p>
+  <button onclick="T.beep(1)">Play beep</button>
+  <div><button class="ans" data-q="1">Heard it loud</button><button class="ans" data-q="1">Faint, from the top</button><button class="ans" data-q="1">Heard nothing</button></div>
+</div>
+
+<div class="step"><b class="n">2</b><b>Hear the laptop</b> (mic not used yet)
+  <p>The laptop speaks one sentence to you.</p>
+  <button onclick="T.ask(2)">Laptop, talk to me</button>
+  <div><button class="ans" data-q="2">Heard it loud</button><button class="ans" data-q="2">Faint, from the top</button><button class="ans" data-q="2">Heard nothing</button></div>
+</div>
+
+<div class="step"><b class="n">3</b><b>Record, the way v208 did</b>
+  <p>Tap, allow the microphone, then count out loud "one, two, three, four". It stops by itself after 4 seconds.</p>
+  <button onclick="T.recA(3)">Record (v208 way)</button>
+  <div class="meter"><i id="m3"></i></div><div class="res" id="r3"></div>
+</div>
+
+<div class="step"><b class="n">4</b><b>Hear the laptop again</b> (after using the mic)
+  <button onclick="T.ask(4)">Laptop, talk to me</button>
+  <div><button class="ans" data-q="4">Heard it loud</button><button class="ans" data-q="4">Faint, from the top</button><button class="ans" data-q="4">Heard nothing</button></div>
+</div>
+
+<div class="step"><b class="n">5</b><b>Fix try: back to the loudspeaker</b>
+  <p>Tells the phone we're done with the mic, then the laptop talks again.</p>
+  <button onclick="T.fixSpeaker(5)">Try the fix, then talk</button>
+  <div><button class="ans" data-q="5">Heard it loud</button><button class="ans" data-q="5">Faint, from the top</button><button class="ans" data-q="5">Heard nothing</button></div>
+</div>
+
+<div class="step"><b class="n">6</b><b>Record, the way voice notes do</b>
+  <p>Tap and count "one, two, three, four" again.</p>
+  <button onclick="T.recB(6)">Record (voice-note way)</button>
+  <div class="res" id="r6"></div>
+</div>
+
+<div class="step"><b class="n">7</b><b>Record, third way</b>
+  <p>Tap and count again.</p>
+  <button onclick="T.recC(7)">Record (third way)</button>
+  <div class="meter"><i id="m7"></i></div><div class="res" id="r7"></div>
+</div>
+
+<div class="step"><b class="n">8</b><b>Hear the laptop one last time</b>
+  <button onclick="T.ask(8)">Laptop, talk to me</button>
+  <div><button class="ans" data-q="8">Heard it loud</button><button class="ans" data-q="8">Faint, from the top</button><button class="ans" data-q="8">Heard nothing</button></div>
+</div>
+
+<p style="font-size:14px;opacity:.8">All done? Tell Claude on the laptop.</p>
+<div id="log"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.0/dist/umd/supabase.js" crossorigin="anonymous"></script>
+<script src="supabase-config.js"></script>
+<script>
+(function () {
+  const RATE = 16000, CHUNK_S = 0.5, REC_MS = 4000, LEAD = 0.3;
+  const $ = (id) => document.getElementById(id);
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  let ch = null, ready = false;
+  let actx = null, stale = false, rebuiltAt = 0, sessionEl = null;
+  let rx = { id: null, seq: -1, next: 0, pending: [], got: 0 };
+
+  function log(m, extra) {
+    const line = new Date().toISOString().slice(11, 23) + ' ' + m;
+    $('log').textContent = line + '\n' + $('log').textContent;
+    send('log', Object.assign({ m }, extra || {}));
+  }
+  function send(event, payload) {
+    if (!ch || !ready) return;
+    try { const r = ch.send({ type: 'broadcast', event, payload }); if (r && r.catch) r.catch(() => { }); } catch (_) { }
+  }
+  function st() {
+    return 'actx=' + (actx ? actx.state + '@' + actx.sampleRate : 'none') + (stale ? '(stale)' : '') +
+      ' session=' + (sessionEl ? (sessionEl.paused ? 'paused' : 'playing') : 'none') +
+      ' audioSession=' + (navigator.audioSession ? navigator.audioSession.type : 'unsupported');
+  }
+
+  // ---- connect to the laptop (Supabase broadcast, same as the game uses) ----
+  try {
+    const cl = window.supabase.createClient(window.SUPA.url, window.SUPA.anonKey);
+    ch = cl.channel('wtdiag')
+      .on('broadcast', { event: 'pong' }, () => { $('conn').textContent = 'Laptop: connected'; $('conn').classList.add('ok'); })
+      .on('broadcast', { event: 'wt' }, (m) => onChunk(m && m.payload))
+      .on('broadcast', { event: 'ack' }, (m) => { const p = m && m.payload; if (p && $('r' + p.step)) $('r' + p.step).textContent = 'Laptop got it: ' + p.text; })
+      .subscribe((s) => {
+        if (s === 'SUBSCRIBED') { ready = true; log('connected ' + navigator.userAgent); send('ping', {}); setInterval(() => send('ping', {}), 5000); }
+        else log('channel ' + s);
+      });
+  } catch (e) { $('log').textContent = 'connect failed: ' + e; }
+
+  // ---- the game's sound setup, copied: one context rebuilt on a tap when unhealthy + silent loop ----
+  function healthy() { return actx && !stale && actx.state === 'running'; }
+  function silentWav() {
+    const rate = 8000, n = rate / 2, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+    const w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+    w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVEfmt '); v.setUint32(16, 16, true);
+    v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, rate, true);
+    v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+    w(36, 'data'); v.setUint32(40, n * 2, true);
+    let b = ''; const u8 = new Uint8Array(buf); for (let i = 0; i < u8.length; i++) b += String.fromCharCode(u8[i]);
+    return 'data:audio/wav;base64,' + btoa(b);
+  }
+  function unlock() {
+    if (!healthy() && Date.now() - rebuiltAt > 1000) {
+      if (actx) { try { actx.close(); } catch (_) { } }
+      actx = new Ctx(); stale = false; rebuiltAt = Date.now();
+      if (actx.state !== 'running') actx.resume().catch(() => { });
+    }
+    if (!sessionEl) { sessionEl = new Audio(silentWav()); sessionEl.loop = true; sessionEl.volume = 0.01; }
+    if (sessionEl.paused) sessionEl.play().catch((e) => log('session play failed ' + e));
+  }
+  document.addEventListener('pointerdown', unlock, true);
+  document.addEventListener('touchend', unlock, true);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && actx) { stale = true; actx.resume().catch(() => { }); } });
+
+  function beep(step) {
+    setTimeout(() => {
+      try {
+        const o = actx.createOscillator(), g = actx.createGain();
+        o.frequency.value = 660; g.gain.value = 0.4; o.connect(g); g.connect(actx.destination);
+        o.start(); o.stop(actx.currentTime + 0.4);
+        log('step' + step + ' beep played ' + st());
+      } catch (e) { log('step' + step + ' beep failed ' + e + ' ' + st()); }
+    }, 80);
+  }
+  let askStep = 0;
+  function ask(step) { askStep = step; rx = { id: null, seq: -1, next: 0, pending: [], got: 0 }; setTimeout(() => { log('step' + step + ' ask laptop ' + st()); send('talk', { step }); }, 80); }
+
+  // ---- receive: same as v208 (play through the game's context, hold + Listen button if it can't) ----
+  function unb64(b64) {
+    const s = atob(b64), n = s.length >> 1, out = new Float32Array(n);
+    for (let i = 0; i < n; i++) { let v = s.charCodeAt(2 * i) | (s.charCodeAt(2 * i + 1) << 8); if (v & 0x8000) v -= 0x10000; out[i] = v / 0x8000; }
+    return out;
+  }
+  function onChunk(p) {
+    if (!p || typeof p.d !== 'string') return;
+    if (rx.id !== p.id) rx = { id: p.id, seq: -1, next: 0, pending: [], got: 0 };
+    if (p.s <= rx.seq) return; rx.seq = p.s; rx.got++;
+    const pcm = unb64(p.d);
+    if (rx.got === 1 || p.e) log('step' + askStep + ' rx chunk ' + p.s + (p.e ? ' (last)' : '') + ' healthy=' + !!healthy() + ' ' + st());
+    if (healthy()) play(pcm); else { rx.pending.push(pcm); $('listen').style.display = 'block'; }
+  }
+  function play(pcm) {
+    if (!pcm.length) return;
+    try {
+      const rate = actx.sampleRate, n = Math.max(1, Math.round(pcm.length * rate / RATE)), buf = actx.createBuffer(1, n, rate), out = buf.getChannelData(0), k = RATE / rate;
+      for (let i = 0; i < n; i++) { const x = i * k, j = x | 0, f = x - j, a = pcm[j] || 0, b = j + 1 < pcm.length ? pcm[j + 1] : a; out[i] = a + (b - a) * f; }
+      const now = actx.currentTime; if (rx.next < now + 0.05) rx.next = now + LEAD;
+      const s = actx.createBufferSource(); s.buffer = buf; s.connect(actx.destination); s.start(rx.next); rx.next += buf.duration;
+    } catch (e) { log('play failed ' + e); }
+  }
+  function listen() { $('listen').style.display = 'none'; setTimeout(() => { log('listen tapped ' + st()); rx.next = 0; rx.pending.splice(0).forEach(play); }, 80); }
+
+  // ---- send helpers ----
+  function b64(u8) { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); }
+  function down(f, inR) {
+    if (inR === RATE) return f;
+    const r = inR / RATE, n = Math.floor(f.length / r), o = new Float32Array(n);
+    for (let i = 0; i < n; i++) { const a = Math.floor(i * r), b = Math.min(f.length, Math.floor((i + 1) * r)); let s = 0; for (let j = a; j < b; j++) s += f[j]; o[i] = b > a ? s / (b - a) : 0; }
+    return o;
+  }
+  function pcmChunk(step, id, seq, parts, inR, last) {
+    let len = 0; parts.forEach((c) => { len += c.length; });
+    const flat = new Float32Array(len); let o = 0; parts.forEach((c) => { flat.set(c, o); o += c.length; });
+    const ds = down(flat, inR), pcm = new Int16Array(ds.length);
+    for (let i = 0; i < ds.length; i++) { const v = Math.max(-1, Math.min(1, ds[i])); pcm[i] = v < 0 ? v * 0x8000 : v * 0x7fff; }
+    send('rec', { step, id, s: seq, d: b64(new Uint8Array(pcm.buffer)), e: last ? 1 : 0 });
+  }
+  // a capture graph on context `ctx` that streams 0.5s chunks and drives a meter
+  function capture(step, ctx, stream, own) {
+    const id = Math.random().toString(36).slice(2, 8), inR = ctx.sampleRate;
+    let acc = [], accLen = 0, seq = 0, calls = 0, peak = 0, live = true;
+    const src = ctx.createMediaStreamSource(stream), proc = ctx.createScriptProcessor(4096, 1, 1);
+    proc.onaudioprocess = (e) => {
+      if (!live) return; calls++;
+      const d = new Float32Array(e.inputBuffer.getChannelData(0)); let m = 0; for (let i = 0; i < d.length; i++) m = Math.max(m, Math.abs(d[i]));
+      peak = Math.max(peak, m); $('m' + step).style.width = Math.min(100, m * 200) + '%';
+      acc.push(d); accLen += d.length; if (accLen >= inR * CHUNK_S) { pcmChunk(step, id, seq++, acc, inR, false); acc = []; accLen = 0; }
+    };
+    src.connect(proc); proc.connect(ctx.destination);
+    log('step' + step + ' recording ctx=' + ctx.state + '@' + inR + ' track=' + (stream.getAudioTracks()[0] || {}).readyState + ' ' + st());
+    const t1 = setTimeout(() => log('step' + step + ' after 1s: calls=' + calls + ' peak=' + peak.toFixed(3) + ' ctx=' + ctx.state), 1000);
+    setTimeout(() => {
+      clearTimeout(t1); live = false; pcmChunk(step, id, seq++, acc, inR, true);
+      try { proc.onaudioprocess = null; proc.disconnect(); src.disconnect(); } catch (_) { }
+      stream.getTracks().forEach((t) => t.stop());
+      if (own) { try { ctx.close(); } catch (_) { } }
+      stale = true;   // like the game: rebuild the sound context on the next tap
+      $('m' + step).style.width = '0';
+      log('step' + step + ' stopped: calls=' + calls + ' chunks=' + seq + ' peak=' + peak.toFixed(3) + ' ctx=' + ctx.state + ' ' + st());
+    }, REC_MS);
+  }
+  const MIC = { audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } };
+
+  // 3: exactly v208 - a second, separate context for the mic
+  async function recA(step) {
+    const ctx = new Ctx(); const rp = ctx.resume().catch(() => { });
+    let stream; try { stream = await navigator.mediaDevices.getUserMedia(MIC); } catch (e) { log('step' + step + ' mic refused ' + e); return; }
+    await rp; if (ctx.state === 'suspended') { try { await ctx.resume(); } catch (_) { } }
+    capture(step, ctx, stream, true);
+  }
+  // 7: one context for everything, with the iOS audio session switched to record while talking
+  async function recC(step) {
+    if (navigator.audioSession) { try { navigator.audioSession.type = 'play-and-record'; } catch (_) { } }
+    let stream; try { stream = await navigator.mediaDevices.getUserMedia(MIC); } catch (e) { log('step' + step + ' mic refused ' + e); return; }
+    if (!actx || actx.state === 'closed') { actx = new Ctx(); }
+    if (actx.state !== 'running') { try { await actx.resume(); } catch (_) { } }
+    capture(step, actx, stream, false);
+    setTimeout(() => { if (navigator.audioSession) { try { navigator.audioSession.type = 'playback'; } catch (_) { } } stale = false; log('step' + step + ' session back to playback ' + st()); }, REC_MS + 100);
+  }
+  // 6: MediaRecorder, like the game's voice notes
+  async function recB(step) {
+    let stream; try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); } catch (e) { log('step' + step + ' mic refused ' + e); return; }
+    const mt = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm'].find((t) => window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) || '';
+    let rec; try { rec = new MediaRecorder(stream, mt ? { mimeType: mt } : undefined); } catch (e) { log('step' + step + ' MediaRecorder failed ' + e); return; }
+    const parts = [];
+    rec.ondataavailable = (e) => { if (e.data && e.data.size) parts.push(e.data); };
+    rec.onstop = async () => {
+      stream.getTracks().forEach((t) => t.stop()); stale = true;
+      const blob = new Blob(parts, { type: rec.mimeType || mt }), u8 = new Uint8Array(await blob.arrayBuffer());
+      log('step' + step + ' recorded ' + u8.length + ' bytes ' + (rec.mimeType || mt) + ' ' + st());
+      const id = Math.random().toString(36).slice(2, 8), PART = 30000, n = Math.ceil(u8.length / PART);
+      for (let i = 0; i < n; i++) send('blob', { step, id, i, n, type: rec.mimeType || mt, d: b64(u8.subarray(i * PART, (i + 1) * PART)) });
+    };
+    rec.start(); log('step' + step + ' MediaRecorder started ' + (rec.mimeType || mt));
+    setTimeout(() => { try { rec.stop(); } catch (_) { } }, REC_MS);
+  }
+  // 5: ask iOS to go back to plain playback (loudspeaker), rebuild the context, then the laptop talks
+  function fixSpeaker(step) {
+    const had = !!navigator.audioSession;
+    if (had) { try { navigator.audioSession.type = 'playback'; } catch (e) { log('audioSession set failed ' + e); } }
+    if (actx) { try { actx.close(); } catch (_) { } }
+    actx = new Ctx(); stale = false; rebuiltAt = Date.now(); actx.resume().catch(() => { });
+    if (sessionEl) { try { sessionEl.pause(); sessionEl.play().catch(() => { }); } catch (_) { } }
+    log('step' + step + ' fix applied, audioSession supported=' + had + ' ' + st());
+    ask(step);
+  }
+
+  // answers ("heard it loud" etc.)
+  document.querySelectorAll('button.ans').forEach((b) => b.addEventListener('click', () => {
+    document.querySelectorAll('button.ans[data-q="' + b.dataset.q + '"]').forEach((x) => x.classList.toggle('on', x === b));
+    log('step' + b.dataset.q + ' ANSWER: ' + b.textContent + ' ' + st());
+  }));
+  window.T = { beep, ask, recA, recB, recC, fixSpeaker, listen };
+})();
+</script>
+</body>
+</html>
