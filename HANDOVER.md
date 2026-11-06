@@ -505,7 +505,7 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
      Photo size isn't a concern (avatars are already-loaded ~10–40 KB squares).
    - **Open decision:** full horned token replacing the robber, or a horned badge on the classic figure.
 
-12. ✅ **Walkie-talkie — BUILT v208 (2026-11-06), see item 42.** Original notes (2026-10-22): A 🎙 next to your portrait:
+12. ◐ **Walkie-talkie — built v208, ROLLED BACK v209 (2026-11-06): Karim found it buggy. Code saved on branch `walkie-v208`; see items 42-43.** Original notes (2026-10-22): A 🎙 next to your portrait:
    tap to start talking (red "LIVE" ring on your portrait), tap to stop, auto-cut at 15s. Not hold-to-talk
    (voice notes dropped press-and-hold in v87 because it was fragile on iOS). Speaker's portrait pulses
    sound waves while their audio plays; two speakers at once both play. Settings toggle "Walkie-talkie
@@ -846,6 +846,11 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    Chrome's fake mic: 2.6s -> 6 chunks with the end flag, held + Listen bar while locked, played after a tap, duplicates
    ignored, mute badge on/off, glow clears after playback; layouts at 844x390 and 667x375. NOT verified: real iPhones
    (auto-play after a tap, the record-mode switch after talking, speaker vs earpiece), real Supabase broadcast delivery.
+43. ↩ **v209 (2026-11-06). Walkie-talkie rolled back.** Karim: "it's buggy, it's not working" on real phones (no details
+   yet). `prototype/` restored to the v207 code exactly (only APP_VERSION / SW VERSION bumped to v209 so phones update).
+   The v208 code lives on branch `walkie-v208` (commit 104473b; `git diff 4d368db 104473b -- prototype/app.js
+   prototype/index.html` shows the whole feature). Before retrying: find out what failed on the phones (mic not
+   starting? nothing heard? only after talking? broadcast not arriving?) and test on two real phones before deploying.
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
