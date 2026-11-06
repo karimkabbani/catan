@@ -505,7 +505,7 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
      Photo size isn't a concern (avatars are already-loaded ~10–40 KB squares).
    - **Open decision:** full horned token replacing the robber, or a horned badge on the classic figure.
 
-12. ☐ **Walkie-talkie (push-to-talk) — liked, decisions pending (2026-10-22).** A 🎙 next to your portrait:
+12. ✅ **Walkie-talkie — BUILT v208 (2026-11-06), see item 42.** Original notes (2026-10-22): A 🎙 next to your portrait:
    tap to start talking (red "LIVE" ring on your portrait), tap to stop, auto-cut at 15s. Not hold-to-talk
    (voice notes dropped press-and-hold in v87 because it was fragile on iOS). Speaker's portrait pulses
    sound waves while their audio plays; two speakers at once both play. Settings toggle "Walkie-talkie
@@ -828,6 +828,24 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
 41. ✅ **v207 (2026-10-28).** More air around the luck gauge: gauge 6px off the corner, cup / robbed pills 28px,
    flag 26px.
 
+
+42. ✅ **v208 (2026-11-06). Walkie-talkie.** (Mockups: canvas row "Walkie-talkie: tap to talk, the whole table hears it",
+   drawn over a real v207 screenshot.) A mic (`.pwt`) in the strip beside MY corner, after the luck gauge; on screens
+   under 800px wide it sits above the corner, right of the 💬 (the resource bar reaches the strip there). Tap to talk,
+   tap to stop, auto-stop at 15s (`WT_MAX_MS`); while live: red Stop, a white ring running down, "LIVE 0:09" pill, and my
+   corner glows. Transport: realtime BROADCAST on the existing `game-<code>` channel (not the polled messages table, too
+   slow): event `wt` = { c: color, id: talk id, s: seq, d: base64 16 kHz int16 PCM, e: last } every ~0.5s (~22 KB
+   each), nothing stored. Receivers play chunks back to back on the SFX `actx` with a 0.3s lead (`wtPlay`, resampled to
+   the context rate). If `audioHealthy()` is false (no tap since open/return, or after a mic use marks `audioStale`)
+   chunks are held (max 16s) and a "Kay is talking · Listen" bar (`#wtlisten`) shows under the banner; Listen or any
+   tap (`unlockAudio` -> `wtFlushPending`) plays them. Talkers' corners get `.wtalk` (red glow) + a bouncing-bars badge
+   on the photo (`.pwteq`). Setting "Walkie-talkie sound" (`SETTINGS.walkie`, synced to the profile): off -> nothing
+   plays (glow still shows) and the phone announces `wtm` {c, m:1} on subscribe, on change and every 10s; others show a
+   crossed-out speaker (`.pwtmute`, 40s TTL). `keepAudioSession` now also runs for walkie (plays through the mute
+   switch). Voice notes and walkie block each other. `wtReset()` on enterGame / unsubscribeGame. Verified headless with
+   Chrome's fake mic: 2.6s -> 6 chunks with the end flag, held + Listen bar while locked, played after a tap, duplicates
+   ignored, mute badge on/off, glow clears after playback; layouts at 844x390 and 667x375. NOT verified: real iPhones
+   (auto-play after a tap, the record-mode switch after talking, speaker vs earpiece), real Supabase broadcast delivery.
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
