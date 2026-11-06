@@ -906,6 +906,14 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    Karim's order (set via https://claude.ai/artifact/B2kDf7n2z72zzVssd8zuxi): 😡🖕🤮😂💪🍅🥚🥕💩🍌🐰🐒🐭🐥👀👍👎😜❤️💔
    😮😩🤦🤷😭🤑😒😴🥱😘🫣🐑👏💯🔥🤝🙏🍻🧿🤡🌾🐍🪵🪨🧱🇱🇧🇸🇦🇦🇪🇮🇪🇬🇷🇳🇱🍆. Canvas row "Chat v3" (CV-1..4).
    Headless-verified at 874/667/568 (tap, swipe both ways, button toggles, throw, edits, who-starts); not on a phone.
+49. ✅ **v214 (2026-11-06). Talk buttons swap with the robbed counter + hold to pick up.** Karim: the row above the luck
+   meter made the trays start mid-screen. Now `.pemo/.pchat/.pwt` sit in the gap beside the corner (top:24px, +28/+72/+116,
+   just clears the resource bar's icons at 568-667 wide) and `.corner.bl:has(.pemo) .probbed` goes above the luck meter
+   (level with the dice); a cup game's `.pcup` sits beside it. 💬 is an outline icon like 😀/🎤. Emoji tray: side gutters
+   + 6px gaps, `touch-action:pan-y` (up/down scrolls natively even when starting on an emoji; sideways stays ours for
+   the tray swipe), height capped ~4½ rows. Gestures (`wireTrayDrag`, HOLD_MS 260): quick tap = send; move first =
+   scroll/flip; HOLD = the emoji lifts (ghost visible everywhere, inside the tray too) and a non-passive touchmove
+   blocks scrolling; drop on a player = throw, elsewhere = cancel. Verified headless incl. synthesized touch scroll.
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
