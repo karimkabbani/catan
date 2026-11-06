@@ -895,6 +895,17 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    lazy-loaded), add text, reset. SETTINGS.emojis syncs via player_set_settings only if it fits the 500-char limit
    (else device-only). Receivers now keep 16 chars of an emoji (was 8: cut long flags/ZWJ). Headless-verified at
    874/667/568 wide incl. drag, ×, search, reset, throw; not yet on a real phone.
+48. ✅ **v213 (2026-11-06). Chat v3: three buttons.** Karim felt v212's one big tray lost "few, big choices". Now `.pemo` 😀
+   (+4px), `.pchat` 💬 (+48px), `.pwt` 🎤 (+92px) sit in a row above the luck meter; during who-starts they stack
+   vertically above the corner (all widths: the card covers the row). `openTray('emo'|'txt')` (trayMode): emojis only
+   at 46px (`.etbig`, 8 per row, scrolls past ~32), or texts only (`.etpill` 15.5px) with an inline type box (Send /
+   Enter, never auto-closes while focused) and a red Voice note button. Trays open ABOVE the button row (placeTray
+   uses the buttons' box; beside it when there's <190px above, e.g. 568-wide phones). Swipe sideways inside a tray
+   flips emo<->txt (`wireTraySwipe`, capture-phase pointer listeners); in `wireTrayDrag` the throw ghost only appears
+   once the finger leaves the tray, and a moved-but-inside drag sends nothing. Edit is per tray. EMOJI_DEFAULT is
+   Karim's order (set via https://claude.ai/artifact/B2kDf7n2z72zzVssd8zuxi): 😡🖕🤮😂💪🍅🥚🥕💩🍌🐰🐒🐭🐥👀👍👎😜❤️💔
+   😮😩🤦🤷😭🤑😒😴🥱😘🫣🐑👏💯🔥🤝🙏🍻🧿🤡🌾🐍🪵🪨🧱🇱🇧🇸🇦🇦🇪🇮🇪🇬🇷🇳🇱🍆. Canvas row "Chat v3" (CV-1..4).
+   Headless-verified at 874/667/568 (tap, swipe both ways, button toggles, throw, edits, who-starts); not on a phone.
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
