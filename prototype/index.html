@@ -694,12 +694,15 @@
   .corner.tl .pflag, .corner.bl .pflag{left:calc(100% + 26px);}
   .corner.tr .pflag, .corner.br .pflag{right:calc(100% + 26px);}
   /* quick-chat bubble on your own corner (always bottom-left) -> pokes toward the board */
-  /* talk buttons (v213): 😀 emojis, 💬 texts, 🎤 walkie in one row just above the luck meter beside your corner
-     (always bottom-left); the same spot on every phone size (the resource bar reaches under the corner on small phones) */
-  .pemo, .pchat{position:absolute; bottom:calc(100% + 6px); z-index:9; width:38px; height:38px; border-radius:50%; padding:0;
+  /* talk buttons (v214): 😀 emojis, 💬 texts, 🎤 walkie in one row in the gap beside your corner (always bottom-left),
+     where the robbed counter used to be (high enough to clear the resource bar's icons on small phones); the trays open from there */
+  .pemo, .pchat{position:absolute; top:24px; z-index:9; width:38px; height:38px; border-radius:50%; padding:0;
     border:1.5px solid var(--gold-edge); background:linear-gradient(180deg,rgba(58,34,14,0.98),rgba(28,15,5,0.98)); color:#e9c45a;
     display:flex; align-items:center; justify-content:center; box-shadow:0 3px 8px rgba(0,0,0,0.55); cursor:pointer;}
-  .pemo{left:calc(100% + 4px);} .pchat{left:calc(100% + 48px);}
+  .pemo{left:calc(100% + 28px);} .pchat{left:calc(100% + 72px);}
+  /* ...and your robbed counter goes up, above the luck meter, level with the last roll's dice */
+  .corner.bl:has(.pemo) .probbed{top:auto; bottom:calc(100% + 8px); left:calc(100% + 4px);}
+  .corner.bl:has(.pemo) .pcup{top:auto; bottom:calc(100% + 9px); left:calc(100% + 58px);}   /* cup games: beside it */
   .pemo svg, .pchat svg{width:20px; height:20px;}
   .pemo::after, .pchat::after{content:''; position:absolute; inset:-3px;}
   .pemo:active, .pchat:active{transform:scale(0.92);}
@@ -713,11 +716,11 @@
   .pwt{position:absolute; bottom:2px; z-index:9; width:40px; height:40px; border-radius:50%; padding:0; cursor:pointer;
     display:flex; align-items:center; justify-content:center; color:#e9c45a;
     background:linear-gradient(180deg,rgba(58,34,14,0.98),rgba(28,15,5,0.98)); border:1.5px solid var(--gold-edge); box-shadow:0 3px 8px rgba(0,0,0,0.55);}
-  .corner.bl .pwt{left:calc(100% + 92px); bottom:calc(100% + 6px); width:38px; height:38px;}
+  .corner.bl .pwt{left:calc(100% + 116px); top:24px; bottom:auto; width:38px; height:38px;}
   /* while the who-starts card is up it covers that spot on most phones: stack the three straight above the corner */
-  body:has(#rpsroot:not(.hidden):not(.strip)) .corner.bl .pemo{left:4px;}
-  body:has(#rpsroot:not(.hidden):not(.strip)) .corner.bl .pchat{left:4px; bottom:calc(100% + 50px);}
-  body:has(#rpsroot:not(.hidden):not(.strip)) .corner.bl .pwt{left:4px; bottom:calc(100% + 94px);}
+  body:has(#rpsroot:not(.hidden):not(.strip)) .corner.bl .pemo{left:4px; top:auto; bottom:calc(100% + 6px);}
+  body:has(#rpsroot:not(.hidden):not(.strip)) .corner.bl .pchat{left:4px; top:auto; bottom:calc(100% + 50px);}
+  body:has(#rpsroot:not(.hidden):not(.strip)) .corner.bl .pwt{left:4px; top:auto; bottom:calc(100% + 94px);}
   .pwt svg{width:20px; height:20px;}
   .pwt::after{content:''; position:absolute; inset:-6px;}   /* bigger finger target */
   .pwt:active{transform:scale(0.92);}
@@ -963,8 +966,12 @@
   .ethead{display:flex; align-items:center; gap:8px;} .ethead b{color:#e9c45a; font-size:15px;}
   .ethead .etact{margin-left:auto;}
   /* v213 trays: big emojis / big text pills, page dots, slide when flipping */
-  .etbig{display:flex; flex-wrap:wrap; align-content:flex-start; overflow-y:auto; min-height:0; flex:1; overscroll-behavior:contain;}
-  #emotray .etbig .emobtn{width:46px; height:46px; font-size:31px; border-radius:12px; background:none;}
+  .etbig{display:flex; flex-wrap:wrap; align-content:flex-start; overflow-y:auto; min-height:0; flex:1; overscroll-behavior:contain; padding:0 10px; -webkit-overflow-scrolling:touch;}
+  #emotray{touch-action:pan-y;}   /* up/down scrolls natively; sideways stays ours (the swipe between trays) */
+  #emotray .etbig .emobtn{width:46px; height:46px; margin:3px; font-size:31px; border-radius:12px; background:none; touch-action:pan-y; -webkit-touch-callout:none; transition:transform .12s;}
+  #emotray .etbig .emobtn.lift{transform:scale(1.25); opacity:.35;}
+  #emotray.holding .etbig{overflow:hidden;}
+  .etpill{touch-action:pan-y;}
   #emotray .etbig .ettile{width:46px; height:46px; font-size:30px;} #emotray .etbig .ettile .etx{top:0; right:0;}
   #emotray .etbig .etadd{width:46px; height:46px;}
   .etpills{display:flex; flex-wrap:wrap; gap:7px; overflow-y:auto; min-height:0; align-content:flex-start;}
