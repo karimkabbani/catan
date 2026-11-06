@@ -505,7 +505,7 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
      Photo size isn't a concern (avatars are already-loaded ~10–40 KB squares).
    - **Open decision:** full horned token replacing the robber, or a horned badge on the classic figure.
 
-12. ◐ **Walkie-talkie — built v208, ROLLED BACK v209 (2026-11-06): Karim found it buggy. Code saved on branch `walkie-v208`; see items 42-43.** Original notes (2026-10-22): A 🎙 next to your portrait:
+12. ◐ **Walkie-talkie — built v208, rolled back v209, back with the iPhone earpiece fix in v210 (2026-11-06); see items 42-44.** Original notes (2026-10-22): A 🎙 next to your portrait:
    tap to start talking (red "LIVE" ring on your portrait), tap to stop, auto-cut at 15s. Not hold-to-talk
    (voice notes dropped press-and-hold in v87 because it was fragile on iOS). Speaker's portrait pulses
    sound waves while their audio plays; two speakers at once both play. Settings toggle "Walkie-talkie
@@ -851,6 +851,17 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    The v208 code lives on branch `walkie-v208` (commit 104473b; `git diff 4d368db 104473b -- prototype/app.js
    prototype/index.html` shows the whole feature). Before retrying: find out what failed on the phones (mic not
    starting? nothing heard? only after talking? broadcast not arriving?) and test on two real phones before deploying.
+44. ✅ **v210 (2026-11-06). Walkie-talkie back, with the iPhone fix.** Cause found with `prototype/walkie-test.html`
+   (a standalone diagnostic page, not linked from the game: it streams its log and recordings to a Node listener on
+   the laptop over the broadcast channel `wtdiag`). On Karim's iPhone (iOS 26): Supabase broadcast and the v208 mic
+   capture both worked; the bug was that once the page has used the mic, iOS plays its sound faintly through the
+   EARPIECE (and suspends Web Audio). Fix: `micSessionOn()` sets `navigator.audioSession.type = 'play-and-record'`
+   just before every getUserMedia, `micSessionOff()` sets it back to `'playback'` (loudspeaker) when the mic closes.
+   Note getUserMedia is REFUSED while the type is 'playback', so every mic use must call micSessionOn first (voice
+   notes do too now). With audioSession (iOS 17+) the walkie records on the SFX context `actx` itself (`WT.ownCtx`
+   false), which is the tested combination, and taps don't rebuild actx mid-talk; older iOS keeps the v208 path.
+   Verified: two headless tabs over real Supabase, both paths, plus a voice note after a walkie talk. Not yet
+   verified: the game on two real iPhones (Karim testing).
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
