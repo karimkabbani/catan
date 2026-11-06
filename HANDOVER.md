@@ -871,6 +871,13 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    (only `.rpscard` catches them) and, while it's up (`body:has(#rpsroot:not(.hidden))`), the corners go to z 38,
    bubbles / Listen bar 39, emoji tray / message history 40. Under 800px the bl mic sits straight above the corner
    while the card is up (the card covers its usual spot). Setup placement already had both.
+46. ☐ **Chat tray redesign (in discussion 2026-11-06).** Karim: the 💬 entry sits on the corner edge over the luck meter;
+   the mic overlaps the robbed pill on big iPhones (Pro Max landscape); texts are used less because they're behind ⋯.
+   Direction agreed: one fixed "talk" home for 💬 + 🎤 beside the corner; the tray's first screen = ~8 favourite emojis,
+   ~6 favourite texts as one-tap chips, then ✏️ Type and ⋯ More (all emojis, all texts, 🎤 voice note, edit). Voice
+   notes move into More (the walkie is the main mic now). FIXED order for now. Backlog: a "learning" tray that
+   reorders by each player's own use, and a context chip (e.g. 😡 tfeh right after you're robbed). Picker page for
+   Karim's favourites: https://claude.ai/artifact/6LhGjuvF7hns6GqPBaYgV1
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
