@@ -878,6 +878,12 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    notes move into More (the walkie is the main mic now). FIXED order for now. Backlog: a "learning" tray that
    reorders by each player's own use, and a context chip (e.g. 😡 tfeh right after you're robbed). Picker page for
    Karim's favourites: https://claude.ai/artifact/6LhGjuvF7hns6GqPBaYgV1
+   Karim's picks (2026-11-06), the set EVERYONE gets, each player can edit/reorder their own: 51 emojis in 7 groups
+   😂😜🤡😘🫣 | 😮😩🤦🤷😭💔😒😴🥱 | 😡🖕🍅💩🤮🐍🍆👎 | 👍👏💯🔥💪🤝🙏🍻🤑👀🧿 | 🐒🐰🐭🐥🍌🥚🥕 | 🌾🪵🪨🐑🧱 |
+   🇱🇧🇸🇦🇦🇪🇮🇪🇬🇷🇳🇱 ; 14 texts: yalla, haha, wtf, hek sarit?, ma32oul?!, shu hal 7azz, fayyish, wleeee, tfeh,
+   bel marra, ahbil, habibi, tizeh fik, nikouna. He wants it all on screen (bigger tray/pop-up, not a swipe strip).
+   Mocks on the canvas row "Chat v2" (CT-0..CT-E): capsule talk button, ideas A tray / B centre sheet / C drawer /
+   D tabs, E edit mode. Waiting for his pick.
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
