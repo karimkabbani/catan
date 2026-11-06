@@ -862,6 +862,10 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    false), which is the tested combination, and taps don't rebuild actx mid-talk; older iOS keeps the v208 path.
    Verified: two headless tabs over real Supabase, both paths, plus a voice note after a walkie talk. Not yet
    verified: the game on two real iPhones (Karim testing).
+   Karim's first two-iPhone test: voices came through both ways. Side effect: the game music gets louder while
+   your mic is on (iOS uses the call volume in play-and-record) and drops back after. Idea parked by Karim ("keep it
+   for now and see"): pause the music on the talker's phone, and on listeners' phones while a voice plays (iOS
+   ignores <audio>.volume, so pause rather than lower).
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
