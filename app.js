@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v207';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v208';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -17,7 +17,7 @@
   // per-device preferences (each player's own phone) — persisted in localStorage. The
   // effects of these are wired up per-setting; here we just store + expose them.
   const SETTINGS = (() => {
-    const def = { music: true, sfx: true, anim: 'medium', autozoom: true, seen: [] };   // seen: one-time "what's new" cards already shown
+    const def = { music: true, sfx: true, walkie: true, anim: 'medium', autozoom: true, seen: [] };   // seen: one-time "what's new" cards already shown
     try { return Object.assign(def, JSON.parse(localStorage.getItem('catan-settings') || '{}')); } catch (_) { return def; }
   })();
   let settingsPush = null;
@@ -26,13 +26,13 @@
     // settings follow the LOGIN (like quick messages) — push to the profile, debounced
     if (AUTH && AUTH.me) {
       clearTimeout(settingsPush);
-      settingsPush = setTimeout(() => { AUTH.setSettings({ music: SETTINGS.music, sfx: SETTINGS.sfx, anim: SETTINGS.anim, autozoom: SETTINGS.autozoom, seen: SETTINGS.seen || [] }); }, 600);
+      settingsPush = setTimeout(() => { AUTH.setSettings({ music: SETTINGS.music, sfx: SETTINGS.sfx, walkie: SETTINGS.walkie, anim: SETTINGS.anim, autozoom: SETTINGS.autozoom, seen: SETTINGS.seen || [] }); }, 600);
     }
   }
   // profile settings arriving at login/resume override the device cache
   function applyProfileSettings(s) {
     if (!s || typeof s !== 'object') return;
-    ['music', 'sfx', 'anim', 'autozoom'].forEach((k) => { if (s[k] !== undefined) SETTINGS[k] = s[k]; });
+    ['music', 'sfx', 'walkie', 'anim', 'autozoom'].forEach((k) => { if (s[k] !== undefined) SETTINGS[k] = s[k]; });
     if (Array.isArray(s.seen)) SETTINGS.seen = Array.from(new Set((SETTINGS.seen || []).concat(s.seen)));   // seen on any device counts
     try { localStorage.setItem('catan-settings', JSON.stringify(SETTINGS)); } catch (_) {}
   }
@@ -93,7 +93,7 @@
     return 'data:audio/wav;base64,' + btoa(b);
   }
   function keepAudioSession() {
-    if (!SETTINGS.sfx) { if (sessionEl && !sessionEl.paused) { try { sessionEl.pause(); } catch (_) { } } return; }
+    if (!SETTINGS.sfx && !SETTINGS.walkie) { if (sessionEl && !sessionEl.paused) { try { sessionEl.pause(); } catch (_) { } } return; }
     if (!sessionEl) { sessionEl = new Audio(silentWavURI()); sessionEl.loop = true; sessionEl.volume = 0.01; }
     if (sessionEl.paused) sessionEl.play().catch(() => { });   // lands inside the tap gesture; retried on the next tap
   }
@@ -101,6 +101,7 @@
     if (!audioHealthy() && Date.now() - audioRebuiltAt > 1000) initAudio();   // throttled: one tap fires 3 events
     else if (actx) loadSfx();
     keepAudioSession(); startMusic();
+    if (typeof wtFlushPending === 'function' && Object.keys(WT.rx).length) setTimeout(wtFlushPending, 60);
   }
   // back from the background: try a gesture-free resume now (covers an ended interruption) and
   // rebuild on the next tap in case the context came back silently broken
@@ -842,7 +843,7 @@
     state.players.forEach((p, i) => {
       const el = $('p-' + seatKey(i)); el.style.display = 'flex';
       // during the who-goes-first spinner, no corner shows .active (it would pre-reveal the result)
-      el.className = 'corner ' + seatKey(i) + (!ui.spinning && p.color === activeColor() ? ' active' : '') + rpsCornerClass(p.color);
+      el.className = 'corner ' + seatKey(i) + (!ui.spinning && p.color === activeColor() ? ' active' : '') + rpsCornerClass(p.color) + (wtTalking(p.color) ? ' wtalk' : '');
       // tint the panel with the player's colour
       const pc = PCOLOR[p.color];
       el.style.background = `linear-gradient(${hexA(pc, 0.92)}, ${hexA(pc, 0.62)}), var(--wood-tex)`;
@@ -884,9 +885,10 @@
       // online/offline status dot on the portrait (online games only) — greys out if they left the app
       const off = online && !isPlayerOnline(p.color);
       const statusDot = online ? `<span class="pstatus ${off ? 'off' : 'on'}" title="${off ? 'Offline' : 'Online'}"></span>` : '';
-      el.innerHTML = `${di}${tbadge}${chatBtn}${dot}
+      const wtb = wtCornerBits(p.color);
+      el.innerHTML = `${di}${tbadge}${chatBtn}${dot}${wtb.mic}
         <div class="pcol">${stat(bdg.res, cards, '🃏', 'Resource cards', false, cards > 7)}${stat(bdg.card, dev, '🎴', 'Development cards')}${stat(bdg.vp, vp, '⭐', 'Victory points')}${stat(bdg.army, p.playedKnights, '⚔️', 'Knights played', p.hasLargestArmy)}${stat(bdg.road, road, '🛣️', 'Longest road', p.hasLongestRoad)}</div>
-        <div class="pport"${tap}><div class="pava${flagged ? ' flagged' : ''}${off ? ' offline' : ''}" style="border-color:${PCOLOR[p.color]}">${av}${statusDot}</div><div class="pname">${escapeHtml(p.name)}</div></div>${flagged ? '<span class="pflag">🏳️</span>' : ''}${luckStrip(p)}${robbedPill(p.color)}${cupPts ? `<span class="pcup" title="Cup points">🏆<b>${cupPts[p.color]}</b></span>` : ''}`;
+        <div class="pport"${tap}><div class="pava${flagged ? ' flagged' : ''}${off ? ' offline' : ''}" style="border-color:${PCOLOR[p.color]}">${av}${statusDot}</div>${wtb.badge}<div class="pname">${escapeHtml(p.name)}</div></div>${flagged ? '<span class="pflag">🏳️</span>' : ''}${luckStrip(p)}${robbedPill(p.color)}${cupPts ? `<span class="pcup" title="Cup points">🏆<b>${cupPts[p.color]}</b></span>` : ''}`;
     });
     // which game of the cup this is, under the banner
     let pill = $('cuppill');
@@ -2057,6 +2059,7 @@
       <h3>Settings</h3>
       ${musicRow}
       ${toggle('sfx', 'Sound effects')}
+      ${toggle('walkie', 'Walkie-talkie sound')}
       ${seg}
       ${toggle('autozoom', 'Auto-zoom')}
       <div class="setrow"><span class="setlbl">New-feature tips</span><button class="setbtn" onclick="CATAN.tipsAgain()"${(SETTINGS.seen || []).length ? '' : ' disabled'}>${(SETTINGS.seen || []).length ? 'Show again' : 'All unseen'}</button></div>
@@ -2663,6 +2666,7 @@
     ctx: null, stream: null, proc: null, source: null, chunks: [], inRate: 48000, recording: false, startT: 0, timer: null,
     async start() {
       if (this.recording) return false;
+      if (WT.live) { toast('Stop talking first'); return false; }
       // Create the AudioContext + kick off getUserMedia synchronously (both must run inside the
       // user gesture on iOS), then await them.
       const Ctx = window.AudioContext || window.webkitAudioContext;
@@ -2743,6 +2747,178 @@
       await c.from('messages').delete().neq('code', 'LOBBY').lt('created_at', new Date(now - 3 * 36e5).toISOString());
     } catch (_) { }
   }
+  // ---- walkie-talkie: tap the mic beside your corner, talk (max 15s), tap again to stop ----------------
+  // Near-live: the mic is cut into ~0.5s chunks of 16 kHz PCM that go out as realtime broadcasts on the
+  // game's channel (event 'wt': { c: color, id: talk id, s: seq, d: base64 int16, e: last chunk }). Nothing is
+  // stored. Each phone plays them in order through the SFX AudioContext (already unlocked by the player's
+  // taps, so no tap is needed per message) with a short jitter buffer. If that context can't play (no tap
+  // since the app opened or came back, or the mic just flipped iOS into record mode), chunks are held and a
+  // "Kay is talking · Listen" bar asks for one tap. Turning "Walkie-talkie sound" off in Settings is
+  // announced every few seconds (event 'wtm'), so the others see a crossed-out speaker on that portrait.
+  const WT_MAX_MS = 15000, WT_RATE = 16000, WT_CHUNK_S = 0.5, WT_LEAD_S = 0.3, WT_MUTE_TTL = 40000;
+  const WT = {
+    live: false, ctx: null, stream: null, src: null, proc: null, acc: [], accLen: 0, inRate: 48000, id: null, seq: 0, startT: 0, timer: null, ticker: null,
+    talk: {},     // color -> ms until which that player's corner shows as talking
+    mutedAt: {},  // color -> when we last heard they have walkie sound off (0 = on)
+    rx: {},       // color -> { id, seq, next (actx time), pending: [Float32Array at WT_RATE] }
+    listenFor: null,
+  };
+  function wtAvailable() { return !!(online && myColor && state && state.phase !== 'ended' && !(state.left || []).includes(myColor) && navigator.mediaDevices && navigator.mediaDevices.getUserMedia); }
+  function wtIsMuted(color) { return !!(WT.mutedAt[color] && Date.now() - WT.mutedAt[color] < WT_MUTE_TTL); }
+  function wtTalking(color) { return color === myColor ? WT.live : (WT.talk[color] || 0) > Date.now(); }
+  function wtSend(event, payload) {
+    const ch = NET.channel; if (!ch) return;
+    try { const r = ch.send({ type: 'broadcast', event, payload }); if (r && r.catch) r.catch(() => { }); } catch (_) { }
+  }
+  function wtB64(int16) {
+    const u8 = new Uint8Array(int16.buffer, int16.byteOffset, int16.byteLength); let s = '';
+    for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+    return btoa(s);
+  }
+  function wtUnB64(b64) {
+    const s = atob(b64), n = s.length >> 1, out = new Float32Array(n);
+    for (let i = 0; i < n; i++) { let v = s.charCodeAt(2 * i) | (s.charCodeAt(2 * i + 1) << 8); if (v & 0x8000) v -= 0x10000; out[i] = v / 0x8000; }
+    return out;
+  }
+  function wtFlush(last) {
+    let len = 0; WT.acc.forEach((c) => { len += c.length; });
+    const flat = new Float32Array(len); let o = 0; WT.acc.forEach((c) => { flat.set(c, o); o += c.length; });
+    WT.acc = []; WT.accLen = 0;
+    if (!len && !last) return;
+    const ds = downsampleTo(flat, WT.inRate, WT_RATE), pcm = new Int16Array(ds.length);
+    for (let i = 0; i < ds.length; i++) { const v = Math.max(-1, Math.min(1, ds[i])); pcm[i] = v < 0 ? v * 0x8000 : v * 0x7fff; }
+    wtSend('wt', { c: myColor, id: WT.id, s: WT.seq++, d: wtB64(pcm), e: last ? 1 : 0 });
+  }
+  async function wtStart() {
+    if (WT.live || !wtAvailable()) return;
+    if (VOICE.recording) { toast('Finish your voice note first'); return; }
+    if (!NET.channel) { toast('Not connected'); return; }
+    // the context and getUserMedia both start inside the tap (iOS), then we await them
+    const Ctx = window.AudioContext || window.webkitAudioContext; if (!Ctx) { toast('Voice not supported here'); return; }
+    WT.live = true; WT.startT = Date.now(); WT.id = Math.random().toString(36).slice(2, 8); WT.seq = 0; WT.acc = []; WT.accLen = 0;
+    wtPaint();
+    const ctx = WT.ctx = new Ctx(); const resumeP = ctx.resume().catch(() => { });
+    let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }); }
+    catch (e) { WT.live = false; try { ctx.close(); } catch (_) { } WT.ctx = null; wtPaint(); toast('Microphone access needed'); return; }
+    await resumeP;
+    if (ctx.state === 'suspended') { try { await ctx.resume(); } catch (_) { } }
+    if (!WT.live || WT.ctx !== ctx) { try { stream.getTracks().forEach((t) => t.stop()); } catch (_) { } return; }   // stopped while the prompt was up
+    WT.stream = stream; WT.inRate = ctx.sampleRate;
+    WT.src = ctx.createMediaStreamSource(stream); WT.proc = ctx.createScriptProcessor(4096, 1, 1);
+    WT.proc.onaudioprocess = (e) => {
+      if (!WT.live) return;
+      const d = new Float32Array(e.inputBuffer.getChannelData(0)); WT.acc.push(d); WT.accLen += d.length;
+      if (WT.accLen >= WT.inRate * WT_CHUNK_S) wtFlush(false);
+    };
+    WT.src.connect(WT.proc); WT.proc.connect(ctx.destination);
+    WT.startT = Date.now();   // the 15s run from when the mic is actually open
+    clearTimeout(WT.timer); WT.timer = setTimeout(() => wtStop(), WT_MAX_MS);
+  }
+  function wtStop(silent) {
+    if (!WT.live) return;
+    WT.live = false; clearTimeout(WT.timer);
+    if (!silent && WT.proc) wtFlush(true);
+    try { WT.proc && (WT.proc.onaudioprocess = null, WT.proc.disconnect()); } catch (_) { }
+    try { WT.src && WT.src.disconnect(); } catch (_) { }
+    try { WT.stream && WT.stream.getTracks().forEach((t) => t.stop()); } catch (_) { }
+    try { WT.ctx && WT.ctx.close(); } catch (_) { }
+    WT.proc = WT.src = WT.stream = WT.ctx = null; WT.acc = []; WT.accLen = 0;
+    audioStale = true;   // the mic flips iOS into record mode -> rebuild the SFX context on the next tap
+    wtPaint();
+  }
+  // one chunk arrived from another phone
+  function wtOnChunk(p) {
+    if (!p || !p.c || p.c === myColor || !state || !state.players.some((x) => x.color === p.c) || typeof p.d !== 'string') return;
+    let r = WT.rx[p.c];
+    if (!r || r.id !== p.id) r = WT.rx[p.c] = { id: p.id, seq: -1, next: 0, pending: [] };
+    if (p.s <= r.seq) return;   // duplicate / late
+    r.seq = p.s;
+    let pcm; try { pcm = wtUnB64(p.d); } catch (_) { return; }
+    const dur = pcm.length / WT_RATE;
+    if (!SETTINGS.walkie) { WT.talk[p.c] = Date.now() + dur * 1000 + 600; wtPaint(); return; }   // muted: just show who's talking
+    if (audioHealthy()) wtPlay(p.c, pcm);
+    else {
+      r.pending.push(pcm);
+      let tot = 0; r.pending.forEach((x) => { tot += x.length; }); while (tot > WT_RATE * 16 && r.pending.length > 1) tot -= r.pending.shift().length;
+      WT.talk[p.c] = Date.now() + dur * 1000 + 1500;
+      wtShowListen(p.c);
+    }
+    wtPaint();
+  }
+  // schedule one chunk right after the previous one from the same talker (resampled to the context's rate)
+  function wtPlay(color, pcm) {
+    if (!actx || !pcm.length) return;
+    const r = WT.rx[color] || (WT.rx[color] = { id: null, seq: -1, next: 0, pending: [] });
+    try {
+      const rate = actx.sampleRate, n = Math.max(1, Math.round(pcm.length * rate / WT_RATE)), buf = actx.createBuffer(1, n, rate), out = buf.getChannelData(0), k = WT_RATE / rate;
+      for (let i = 0; i < n; i++) { const x = i * k, j = x | 0, f = x - j, a = pcm[j] || 0, b = j + 1 < pcm.length ? pcm[j + 1] : a; out[i] = a + (b - a) * f; }
+      const now = actx.currentTime; if (r.next < now + 0.05) r.next = now + WT_LEAD_S;
+      const s = actx.createBufferSource(); s.buffer = buf;
+      const g = actx.createGain(); g.gain.value = 1;
+      s.connect(g); g.connect(actx.destination); s.start(r.next);
+      r.next += buf.duration;
+      WT.talk[color] = Date.now() + (r.next - now) * 1000 + 250;
+    } catch (_) { }
+  }
+  // a tap unlocked the audio: play whatever was held back
+  function wtFlushPending() {
+    if (!audioHealthy()) return;
+    let any = false;
+    Object.keys(WT.rx).forEach((c) => { const r = WT.rx[c]; if (r.pending.length) { any = true; r.next = 0; r.pending.splice(0).forEach((pcm) => wtPlay(c, pcm)); } });
+    if (any || WT.listenFor) wtHideListen();
+    if (any) wtPaint();
+  }
+  function wtShowListen(color) {
+    WT.listenFor = color;
+    let b = $('wtlisten');
+    if (!b) { b = document.createElement('div'); b.id = 'wtlisten'; document.body.appendChild(b); }
+    const pl = state && state.players.find((x) => x.color === color);
+    b.innerHTML = `<b class="wtldot"></b><span>${escapeHtml((pl && pl.name) || 'Someone')} is talking</span><button onclick="CATAN.wtListen()">${WT_SPK}Listen</button>`;
+    clearTimeout(WT.listenT); WT.listenT = setTimeout(wtHideListen, 20000);
+  }
+  function wtHideListen() { WT.listenFor = null; clearTimeout(WT.listenT); const b = $('wtlisten'); if (b) b.remove(); }
+  function wtListen() { unlockAudio(); setTimeout(wtFlushPending, 60); wtHideListen(); }
+  // corner glow / badges / mic state, without a full re-render (renderPanels draws the same from WT)
+  function wtPaint() {
+    if (!state || !state.players) return;
+    state.players.forEach((p, i) => { const el = $('p-' + seatKey(i)); if (el) el.classList.toggle('wtalk', wtTalking(p.color)); });
+    const m = document.querySelector('.pwt'); if (m) { m.classList.toggle('live', WT.live); m.setAttribute('aria-label', WT.live ? 'Stop talking' : 'Talk to the table'); m.innerHTML = wtMicInner(); }
+  }
+  const WT_MIC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>';
+  const WT_SPK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/></svg>';
+  const WT_MUTE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M17 9l5 6M22 9l-5 6"/></svg>';
+  function wtMicInner() {
+    if (!WT.live) return WT_MIC;
+    const left = Math.max(0, WT_MAX_MS - (Date.now() - WT.startT)), frac = left / WT_MAX_MS;
+    return `<i class="wtstop"></i><svg class="wtring" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="21"/><circle class="wtrun" cx="24" cy="24" r="21" stroke-dasharray="132" stroke-dashoffset="${(132 * (1 - frac)).toFixed(1)}"/></svg><span class="wtlive"><b></b>LIVE 0:${String(Math.ceil(left / 1000)).padStart(2, '0')}</span>`;
+  }
+  // the markup renderPanels adds to a corner: my mic, a talking badge, a muted badge
+  function wtCornerBits(color) {
+    if (!online || !state || state.phase === 'ended') return { mic: '', badge: '' };
+    const mic = color === myColor && wtAvailable() ? `<button class="pwt${WT.live ? ' live' : ''}" onclick="event.stopPropagation();CATAN.wt()" aria-label="${WT.live ? 'Stop talking' : 'Talk to the table'}">${wtMicInner()}</button>` : '';
+    const badge = color !== myColor && wtIsMuted(color) ? `<span class="pwtmute" title="Walkie-talkie sound off">${WT_MUTE}</span>` : `<span class="pwteq"><i></i><i></i><i></i></span>`;
+    return { mic, badge };
+  }
+  // tell the table whether my walkie sound is off (on change, and every 10s while it's off)
+  function wtAnnounce() { if (online && myColor && NET.channel) wtSend('wtm', { c: myColor, m: SETTINGS.walkie ? 0 : 1 }); }
+  function wtOnMute(p) {
+    if (!p || !p.c || p.c === myColor) return;
+    const was = wtIsMuted(p.c); WT.mutedAt[p.c] = p.m ? Date.now() : 0;
+    if (was !== wtIsMuted(p.c) && state) renderPanels();
+  }
+  setInterval(() => {
+    if (WT.live) wtPaint();   // the LIVE countdown + ring
+    else if (state && Object.keys(WT.talk).some((c) => WT.talk[c] && WT.talk[c] < Date.now() + 400)) {
+      Object.keys(WT.talk).forEach((c) => { if (WT.talk[c] < Date.now()) delete WT.talk[c]; }); wtPaint();
+    }
+  }, 250);
+  setInterval(() => {
+    if (online && myColor && state && state.phase !== 'ended' && !SETTINGS.walkie) wtAnnounce();
+    if (state && Object.keys(WT.mutedAt).some((c) => WT.mutedAt[c] && !wtIsMuted(c))) { Object.keys(WT.mutedAt).forEach((c) => { if (!wtIsMuted(c)) WT.mutedAt[c] = 0; }); renderPanels(); }
+  }, 10000);
+  function wtReset() { wtStop(true); WT.talk = {}; WT.rx = {}; wtHideListen(); }
+
   // ---- per-player message history: the last few messages (text + voice) each player sent this
   //      game, re-openable by tapping their corner portrait. Cleared on game entry (enterGame).
   const MSG_KEEP = 30;   // keep a generous history per player; the popover scrolls
@@ -4155,7 +4331,9 @@
     },
     openDev, openTrade, openMonopoly, openYoP,
     openSettings,
-    setToggle: (key) => { SETTINGS[key] = !SETTINGS[key]; saveSettings(); openSettings(); if (key === 'music') { if (SETTINGS.music) startMusic(); else stopMusic(); } if (key === 'sfx') keepAudioSession(); },
+    wt: () => { if (WT.live) wtStop(); else wtStart(); },
+    wtListen: () => wtListen(),
+    setToggle: (key) => { SETTINGS[key] = !SETTINGS[key]; saveSettings(); openSettings(); if (key === 'music') { if (SETTINGS.music) startMusic(); else stopMusic(); } if (key === 'sfx' || key === 'walkie') keepAudioSession(); if (key === 'walkie') { wtAnnounce(); if (!SETTINGS.walkie) wtHideListen(); } },
     musicNext: () => musicSkip(1),
     musicPrev: () => musicSkip(-1),
     setAnim: (v) => { SETTINGS.anim = v; saveSettings(); openSettings(); },
@@ -4572,6 +4750,7 @@
   function enterGame(s) {
     if (!s.archived) ARCHIVE = null;
     Object.keys(offSince).forEach((k) => { delete offSince[k]; });   // offline clocks are per game
+    wtReset();
     state = s; ui = { mode: 'idle', pending: null }; resetZoom(); renderedBoardKey = null; specView = null; endView = false;
     lastBcAt = 0; clearMsgLog();   // reset chat cooldown + per-player message history on entry
     const t = $('title'); if (t) t.classList.add('hidden');
@@ -4671,7 +4850,9 @@
       this.channel = c.channel('game-' + code)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'games', filter: 'code=eq.' + code }, (p) => { if (p.new) NET.onRow(p.new); })
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: 'code=eq.' + code }, (p) => { if (p.new) NET.onMsg(p.new); })   // chat, fast path
-        .subscribe();
+        .on('broadcast', { event: 'wt' }, (m) => { if (NET.code === code) wtOnChunk(m && m.payload); })    // walkie-talkie audio
+        .on('broadcast', { event: 'wtm' }, (m) => { if (NET.code === code) wtOnMute(m && m.payload); })   // someone's walkie sound on/off
+        .subscribe((st) => { if (st === 'SUBSCRIBED' && !SETTINGS.walkie) setTimeout(wtAnnounce, 500); });
       // only show messages from now on (not the whole history) — start the cursor at the current max id
       NET.msgReady = false;   // until the cursor is known, the poll doesn't fetch chat (it would replay old games' messages)
       const cursor = () => c.from('messages').select('id').eq('code', code).order('id', { ascending: false }).limit(1)
@@ -4715,6 +4896,7 @@
       showBroadcast({ type: row.type || 'text', text: row.body, url: row.url, dur: row.dur, name: row.name, avatar: row.avatar, color: row.color, code: row.code });   // 'emoji': body = emoji, dur = tap count, url = 'm:<moment key>'
     },
     unsubscribeGame() {
+      wtReset();
       const c = this.init();
       if (c && this.channel) { try { c.removeChannel(this.channel); } catch (_) { } this.channel = null; }
       if (this.poll) { clearInterval(this.poll); this.poll = null; }
