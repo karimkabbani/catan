@@ -883,7 +883,18 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    🇱🇧🇸🇦🇦🇪🇮🇪🇬🇷🇳🇱 ; 14 texts: yalla, haha, wtf, hek sarit?, ma32oul?!, shu hal 7azz, fayyish, wleeee, tfeh,
    bel marra, ahbil, habibi, tizeh fik, nikouna. He wants it all on screen (bigger tray/pop-up, not a swipe strip).
    Mocks on the canvas row "Chat v2" (CT-0..CT-E): capsule talk button, ideas A tray / B centre sheet / C drawer /
-   D tabs, E edit mode. Waiting for his pick.
+   D tabs, E edit mode. Karim picked T2 + B-from-the-corner + E (and ❤️ added: 52 emojis).
+47. ✅ **v212 (2026-11-06). Chat v2 built.** `.pchat` (svg bubble) and `.pwt` are two 38px buttons side by side just above
+   the luck meter (`bottom:calc(100% + 6px)`, left +4 / +48): the bottom of the gap is under the resource bar on
+   small phones, so this is the one spot that works everywhere; the robbed pill stays put. During who-starts on
+   <800px they shift left over the corner. Tray `#emotray` (openEmojiTray → trayMain): from my corner, bottom-aligned,
+   width min(600, room); emojis left (`trayEmojis()` = SETTINGS.emojis or EMOJI_DEFAULT, space-separated), texts right
+   (AUTH.quickList, new DEFAULT_QUICK_MSGS = Karim's 14), footer Type / Voice note (straight into recording) / Edit.
+   Auto-close 10s (not while editing). Edit (`trayEdit`): wiggle tiles, drag reorder (`wireReorder`, document-level
+   pointer listeners because moving the node drops pointer capture), ×, ＋ = search `emoji-data.json` (1,914 emojis,
+   lazy-loaded), add text, reset. SETTINGS.emojis syncs via player_set_settings only if it fits the 500-char limit
+   (else device-only). Receivers now keep 16 chars of an emoji (was 8: cut long flags/ZWJ). Headless-verified at
+   874/667/568 wide incl. drag, ×, search, reset, throw; not yet on a real phone.
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
