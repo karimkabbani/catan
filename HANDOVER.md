@@ -866,6 +866,11 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    your mic is on (iOS uses the call volume in play-and-record) and drops back after. Idea parked by Karim ("keep it
    for now and see"): pause the music on the talker's phone, and on listeners' phones while a voice plays (iOS
    ignores <audio>.volume, so pause rather than lower).
+45. ✅ **v211 (2026-11-06). Chat + walkie during "who starts".** The rock-paper-scissors / poker card (`#rpsroot`, z 37,
+   full-screen dim) sat over the corners' 💬 and mic and over the chat layers. Now `#rpsroot` lets taps through
+   (only `.rpscard` catches them) and, while it's up (`body:has(#rpsroot:not(.hidden))`), the corners go to z 38,
+   bubbles / Listen bar 39, emoji tray / message history 40. Under 800px the bl mic sits straight above the corner
+   while the card is up (the card covers its usual spot). Setup placement already had both.
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
