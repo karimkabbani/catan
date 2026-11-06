@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v213';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v214';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -3730,7 +3730,7 @@
   // three rows of nine: faces; reactions, gestures + projectiles; then ❤️ 🥕 🐇 and the five resources (⋯ "more" ends it)
   const EMO_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 14.5c1 1.4 2.4 2 4 2s3-.6 4-2"/><circle cx="9" cy="10" r=".7" fill="currentColor"/><circle cx="15" cy="10" r=".7" fill="currentColor"/></svg>';
   const WAVE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2"/></svg>';
-  const CHAT_ICON = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3C6.5 3 2 6.6 2 11c0 2.4 1.3 4.5 3.4 6L4.6 21l4.3-2.3c1 .2 2 .3 3.1.3 5.5 0 10-3.6 10-8s-4.5-8-10-8z"/></svg>';
+  const CHAT_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 4C7 4 3 7.2 3 11.2c0 2.1 1.1 4 2.9 5.3L5.2 20l3.9-2c.9.2 1.9.3 2.9.3 5 0 9-3.2 9-7.1S17 4 12 4z"/></svg>';   // outline, like 😀 and 🎤
   // the chat tray's emojis (v213: Karim's set and order, most-used first). A player who edits theirs gets SETTINGS.emojis (the same space-separated string, synced with their other settings); otherwise this default.
   const EMOJI_DEFAULT = '😡 🖕 🤮 😂 💪 🍅 🥚 🥕 💩 🍌 🐰 🐒 🐭 🐥 👀 👍 👎 😜 ❤️ 💔 😮 😩 🤦 🤷 😭 🤑 😒 😴 🥱 😘 🫣 🐑 👏 💯 🔥 🤝 🙏 🍻 🧿 🤡 🌾 🐍 🪵 🪨 🧱 🇱🇧 🇸🇦 🇦🇪 🇮🇪 🇬🇷 🇳🇱 🍆';
   function trayEmojis() { const v = SETTINGS.emojis; return (typeof v === 'string' && v.trim() ? v : EMOJI_DEFAULT).split(' ').filter((e) => e && e !== '|'); }
@@ -3917,9 +3917,9 @@
     const box = bs.length ? { l: Math.min(...bs.map((r) => r.left)), t: Math.min(...bs.map((r) => r.top)), r: Math.max(...bs.map((r) => r.right)), b: Math.max(...bs.map((r) => r.bottom)) } : { l: cr.right + 4, t: cr.top, r: cr.right + 4, b: cr.bottom };
     const above = box.t - 12 >= 190;
     const left = above ? box.l : box.r + 6, room = window.innerWidth - left - 10;
-    const w = trayMode === 'emo' ? Math.min(8, Math.max(5, Math.floor((room - 26) / 46))) * 46 + 26 : Math.min(470, room);
+    const w = trayMode === 'emo' ? Math.min(8, Math.max(5, Math.floor((room - 47) / 52))) * 52 + 47 : Math.min(470, room);   // 46px emojis + 6px gaps + side gutters to scroll on
     t.style.width = w + 'px'; t.style.left = left + 'px'; t.style.right = '';
-    t.style.maxHeight = ((above ? box.t - 12 : window.innerHeight - 12)) + 'px';
+    t.style.maxHeight = Math.min(above ? box.t - 12 : window.innerHeight - 12, trayMode === 'emo' && !trayDraft ? 300 : 9999) + 'px';   // emojis: ~4½ rows, the rest scroll
     t.style.top = '0px';
     const h = t.offsetHeight, bottom = above ? box.t - 6 : box.b;
     t.style.top = Math.max(6, bottom - h) + 'px';
@@ -3930,7 +3930,7 @@
     if (trayMode === 'emo') {
       let hint = 0; try { hint = +localStorage.getItem('catanThrowHint') || 0; localStorage.setItem('catanThrowHint', hint + 1); } catch (_) { }
       const emo = trayEmojis().map((e) => `<button class="emobtn" data-e="${escapeHtml(e)}">${e}</button>`).join('');
-      t.innerHTML = `<div class="ethead"><span class="etlbl">${hint < 4 ? 'Tap to send · drag onto a player to throw' : 'Emojis'}</span><button class="etact sm" onclick="CATAN.trayEdit()">⚙️ Edit</button></div>
+      t.innerHTML = `<div class="ethead"><span class="etlbl">${hint < 4 ? 'Tap to send · hold and drag onto a player to throw' : 'Emojis'}</span><button class="etact sm" onclick="CATAN.trayEdit()">⚙️ Edit</button></div>
         <div class="etbig">${emo}</div>${trayDots()}`;
       wireTrayDrag(t);
     } else {
@@ -3944,9 +3944,10 @@
   // swipe sideways inside the tray = flip emojis <-> texts (a drag that ends outside the tray is a throw instead)
   function wireTraySwipe(t) {
     let st = null;
-    t.addEventListener('pointerdown', (e) => { st = (t.classList.contains('editing') || (e.target.closest && e.target.closest('input'))) ? null : { x: e.clientX, y: e.clientY, id: e.pointerId }; }, true);
+    t.addEventListener('pointerdown', (e) => { t._held = false; st = (t.classList.contains('editing') || (e.target.closest && e.target.closest('input'))) ? null : { x: e.clientX, y: e.clientY, id: e.pointerId }; }, true);
+    t.addEventListener('touchmove', (e) => { if (t.classList.contains('holding')) e.preventDefault(); }, { passive: false });   // an emoji is lifted: no scrolling
     t.addEventListener('pointerup', (e) => {
-      if (!st || e.pointerId !== st.id) return;
+      if (!st || e.pointerId !== st.id || t._held) { st = null; return; }
       const dx = e.clientX - st.x, dy = e.clientY - st.y; st = null;
       const r = t.getBoundingClientRect();
       if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) return;
@@ -4053,28 +4054,42 @@
     const c = i >= 0 ? state.players[i].color : null;
     return c && c !== myColor ? c : null;
   }
+  // emoji gestures (v214): quick tap = send; touch-and-move = scroll (up/down) or flip trays (sideways);
+  // HOLD a moment = the emoji lifts and follows your finger everywhere: drop it on a player to throw, elsewhere to cancel
+  const HOLD_MS = 260;
   function wireTrayDrag(t) {
     t.querySelectorAll('.emobtn[data-e]').forEach((b) => {
       b.addEventListener('pointerdown', (ev) => {
-        ev.preventDefault();
-        const e = b.dataset.e, sx = ev.clientX, sy = ev.clientY;
-        let ghost = null, over = null, moved = false;
-        try { b.setPointerCapture(ev.pointerId); } catch (_) { }
+        const e = b.dataset.e, sx = ev.clientX, sy = ev.clientY, pid = ev.pointerId;
+        let held = false, moved = false, ghost = null, over = null;
         const mark = (c) => { if (over === c) return; if (over && cornerOf(over)) cornerOf(over).el.classList.remove('throwtarget'); over = c; if (c && cornerOf(c)) cornerOf(c).el.classList.add('throwtarget'); };
         const inTray = (x, y) => { const r = t.getBoundingClientRect(); return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom; };
+        const holdT = setTimeout(() => {
+          if (moved || !b.isConnected) return;
+          held = true; t._held = true; t.classList.add('holding'); b.classList.add('lift');
+          try { b.setPointerCapture(pid); } catch (_) { }
+          ghost = document.createElement('span'); ghost.className = 'emoghost'; ghost.textContent = e;
+          ghost.style.left = sx + 'px'; ghost.style.top = sy + 'px'; document.body.appendChild(ghost);
+          clearTimeout(trayT);
+        }, HOLD_MS);
         const move = (m) => {
-          if (Math.hypot(m.clientX - sx, m.clientY - sy) > 10) moved = true;
-          const inside = inTray(m.clientX, m.clientY);
-          if (!ghost && moved && !inside) { ghost = document.createElement('span'); ghost.className = 'emoghost'; ghost.textContent = e; document.body.appendChild(ghost); }   // only once it leaves the tray (inside = a swipe)
-          if (ghost) { ghost.style.display = inside ? 'none' : ''; ghost.style.left = m.clientX + 'px'; ghost.style.top = m.clientY + 'px'; mark(inside ? null : throwTargetAt(m.clientX, m.clientY)); }
+          if (m.pointerId !== pid) return;
+          if (!held) { if (Math.hypot(m.clientX - sx, m.clientY - sy) > 8) { moved = true; clearTimeout(holdT); } return; }
+          ghost.style.left = m.clientX + 'px'; ghost.style.top = m.clientY + 'px';
+          mark(inTray(m.clientX, m.clientY) ? null : throwTargetAt(m.clientX, m.clientY));
         };
         const up = (u) => {
-          b.removeEventListener('pointermove', move); b.removeEventListener('pointerup', up); b.removeEventListener('pointercancel', up);
-          if (ghost) { ghost.remove(); const tgt = u.type === 'pointerup' && !inTray(u.clientX, u.clientY) ? throwTargetAt(u.clientX, u.clientY) : null; mark(null); if (tgt) sendEmoji(e, null, tgt); }
-          else if (u.type === 'pointerup' && !moved) sendEmoji(e);
+          if (u.pointerId !== pid) return;
+          document.removeEventListener('pointermove', move, true); document.removeEventListener('pointerup', up, true); document.removeEventListener('pointercancel', up, true);
+          clearTimeout(holdT); b.classList.remove('lift'); t.classList.remove('holding');
+          if (held) {
+            if (ghost) ghost.remove();
+            const tgt = u.type === 'pointerup' && !inTray(u.clientX, u.clientY) ? throwTargetAt(u.clientX, u.clientY) : null;
+            mark(null); if (tgt) sendEmoji(e, null, tgt);
+          } else if (u.type === 'pointerup' && !moved) sendEmoji(e);
           bumpTray();
         };
-        b.addEventListener('pointermove', move); b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up);
+        document.addEventListener('pointermove', move, true); document.addEventListener('pointerup', up, true); document.addEventListener('pointercancel', up, true);
       });
     });
   }
