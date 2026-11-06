@@ -150,6 +150,12 @@
   /* rock-paper-scissors: who starts */
   #rpsroot{position:fixed; inset:0; z-index:37; display:flex; align-items:center; justify-content:center; background:rgba(4,10,20,0.45);}
   #rpsroot.hidden{display:none;}
+  /* talk while deciding who starts: the dim lets taps through (only the card catches them) and the corners
+     (chat bubble, mic, portraits) plus the chat layers sit above it */
+  #rpsroot{pointer-events:none;} #rpsroot .rpscard{pointer-events:auto;}
+  body:has(#rpsroot:not(.hidden)) .corner{z-index:38;}
+  body:has(#rpsroot:not(.hidden)) .bcbubble, body:has(#rpsroot:not(.hidden)) #wtlisten{z-index:39;}
+  body:has(#rpsroot:not(.hidden)) #emotray, body:has(#rpsroot:not(.hidden)) #msghist{z-index:40;}
   .rpscard{width:min(470px,92vw); box-sizing:border-box; padding:16px 18px 14px; border-radius:16px; border:1.5px solid var(--gold);
     background:linear-gradient(180deg, rgba(74,46,18,0.97), rgba(36,20,7,0.97)); box-shadow:0 10px 34px rgba(0,0,0,0.6); color:var(--ink);
     display:flex; flex-direction:column; align-items:center; gap:10px;}
@@ -708,6 +714,8 @@
   @media (max-width: 799px){
     .corner.bl .pwt{left:calc(100% + 24px); bottom:calc(100% + 6px);}
     .corner.br .pwt{right:calc(100% + 24px); bottom:calc(100% + 6px);}
+    /* while the who-starts card is up it covers that spot: sit straight above the corner instead */
+    body:has(#rpsroot:not(.hidden):not(.strip)) .corner.bl .pwt{left:6px;}
   }
   .pwt svg{width:20px; height:20px;}
   .pwt::after{content:''; position:absolute; inset:-6px;}   /* bigger finger target */
