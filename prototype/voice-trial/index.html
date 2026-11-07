@@ -82,6 +82,7 @@
   </div>
   <label class="chk"><input type="checkbox" id="mixOn" checked onchange="V.logEv('setting',{sharedChannel:this.checked})">Shared sound channel (t2 fix; change it before joining)</label>
   <div class="row"><button class="sec" onclick="V.prime('button')">Fix sound</button><button class="sec" onclick="V.resub()">Fix sound (stronger)</button></div>
+  <div class="row"><button class="sec" onclick="V.newEngine()">Fix 3: new sound engine</button><button class="sec" onclick="V.rejoin()">Fix 4: rejoin the call</button></div>
   <label class="chk"><input type="checkbox" id="sessFix" checked onchange="V.logEv('setting',{sessFix:this.checked})">iPhone audio fix (switch to record mode only while my mic is on)</label>
 </div>
 
@@ -106,7 +107,7 @@
 <script>
 (function () {
   'use strict';
-  const TRIAL_VERSION = 't3';
+  const TRIAL_VERSION = 't4';
   const ROOM = 'trial';
   const LK = window.LivekitClient;
   const { Room, RoomEvent, Track } = LK;
@@ -176,6 +177,7 @@
   }
   async function sfx(name) {
     unlockAudio(); if (!actx) return;
+    logEv('sfx-tap', { name, engine: actx.state });
     try {
       if (!buffers[name]) { const ab = await (await fetch(`../assets/audio/${name}.mp3`)).arrayBuffer(); buffers[name] = await actx.decodeAudioData(ab); }
       const s = actx.createBufferSource(); s.buffer = buffers[name]; s.connect(actx.destination); s.start();
@@ -297,6 +299,30 @@
     logEv('prime', { how, before, now: actx ? actx.state : 'none', canPlay: room ? room.canPlaybackAudio : null, rebuilt });
     updateHear();
   }
+  // Fix 3: throw away the (possibly dead) sound engine and build a new one inside this tap, then move the call's
+  // voices and the game sounds onto it.
+  async function newEngine() {
+    const old = actx, oldState = old ? old.state : 'none';
+    try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { logEv('new-engine-error', { msg: e.message }); return; }
+    for (const k in buffers) delete buffers[k];
+    try { const b = actx.createBuffer(1, 441, 44100), src = actx.createBufferSource(); src.buffer = b; src.connect(actx.destination); src.start(); } catch (_) { }
+    if (room && room.options && room.options.webAudioMix) { room.options.webAudioMix = { audioContext: actx }; }
+    try { if (room) await room.startAudio(); } catch (e) { logEv('start-audio-error', { msg: e.message }); }
+    let rebuilt = 0;
+    remoteAudio().forEach(([p, pub]) => { if (pub.track) { pub.track.detach().forEach((el) => el.remove()); const el = pub.track.attach(); el.setAttribute('playsinline', ''); document.body.appendChild(el); rebuilt++; } });
+    try { if (old) old.close(); } catch (_) { }
+    logEv('new-engine', { oldState, now: actx.state, canPlay: room ? room.canPlaybackAudio : null, rebuilt });
+  }
+  // Fix 4: leave and join again (fresh connection, fresh engine), all inside this tap
+  async function rejoin() {
+    logEv('rejoin-start');
+    if (room) { const r0 = room; await r0.disconnect(); }
+    try { if (actx) actx.close(); } catch (_) { }
+    actx = null; for (const k in buffers) delete buffers[k];
+    unlockAudio();
+    await join();
+    logEv('rejoin-done', { engine: actx ? actx.state : 'none', canPlay: room ? room.canPlaybackAudio : null });
+  }
   async function resub() {
     const list = remoteAudio();
     list.forEach(([, pub]) => pub.setSubscribed(false));
@@ -386,7 +412,7 @@
     logEv('report-sent');
   }
 
-  window.V = { prime, resub, login, logout, join, leave, toggleMic, toggleCam, toggleMusic, sfx, ping, report, startAudio, logEv };
+  window.V = { prime, resub, newEngine, rejoin, login, logout, join, leave, toggleMic, toggleCam, toggleMusic, sfx, ping, report, startAudio, logEv };
   logEv('page-open', { standalone: STANDALONE, audioSession: HAS_AS, ua: navigator.userAgent });
   resume();
 })();
