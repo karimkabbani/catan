@@ -1870,6 +1870,7 @@
   .vb.vmic{right:2px;} .vb.vcam{left:2px;}
   /* bigger corner pictures (v217): about 1.7x on phones with room, 1.35x on small ones; badges grow with them */
   @media (min-width:600px) and (min-height:330px){ .pava{width:64px; height:74px;} .pname{max-width:76px;} .pava .vb{width:22px; height:22px;} .pava .vb svg{width:12px; height:12px;} .pava .vtag{font-size:9.5px;} }
+  @media (min-width:800px) and (min-height:390px){ .pava{width:104px !important; height:120px !important;} .pname{max-width:116px !important; font-size:12.5px;} .pava .vb{width:30px !important; height:30px !important;} .pava .vb svg{width:16px !important; height:16px !important;} .pava .vtag{font-size:12px !important;} body.vwin .corner .pava{transform:scale(1.15) !important;} }
   @media (min-width:740px) and (min-height:370px){ .pava{width:80px; height:92px;} .pname{max-width:92px;} .pava .vb{width:26px; height:26px; top:3px;} .pava .vb svg{width:14px; height:14px;} .pava .vb.vmic{right:3px;} .pava .vb.vcam{left:3px;} .pava .vtag{font-size:10.5px;} .pstatus{width:14px; height:14px;} }
   .vb.vgrey{background:#3a3430; border-color:#9a8f80; color:#e8dcc4;}
   button.vb::after{content:''; position:absolute; inset:-8px;}   /* a finger-sized target around the small badge */
@@ -1931,6 +1932,7 @@
   /* victory: the four corners grow while the results card is up, faces stay live; gold on the winner */
   .corner:not(.rps-out):has([data-vid].vtalk){filter:none !important;}   /* whoever is talking lights up, even when it isn't their turn */
   body.vwin .corner .pava{transform:scale(1.35); transition:transform .4s;}
+  body.vwin .pdice{display:none;}   /* the last roll's dice would sit on the grown picture */
   body.vwin .corner.tl .pava{transform-origin:top left;} body.vwin .corner.tr .pava{transform-origin:top right;}
   body.vwin .corner.bl .pava{transform-origin:bottom left;} body.vwin .corner.br .pava{transform-origin:bottom right;}
   body.vwin .corner.vwinner .pava::after{content:'👑'; position:absolute; top:1px; left:50%; transform:translateX(-50%); font-size:14px; line-height:1; z-index:12; filter:drop-shadow(0 1px 2px rgba(0,0,0,0.7));}
