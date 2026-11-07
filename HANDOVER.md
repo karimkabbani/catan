@@ -966,6 +966,12 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    LiveKit adaptiveStream pausing video whose element kept vanishing. Now each player's <video> plays in a hidden, fixed
    `#vholder` and every picture draws it onto a `canvas.vvid` (~15 fps, `vDraw` rAF loop); adaptiveStream off.
 
+53. ✅ **v217 (2026-11-07). Bigger corners + video aspect fix.** Karim: in-game video and badges too small; video
+   stretched in the room's "Talk to the table" chip and squashed on seats. `.pava` tiers (index.html, near the `.vb`
+   rules): 800+ wide & 390+ high 104x120 (badges 30px, victory grows 1.15x), 740+/370+ 80x92, 600+/330+ 64x74, else
+   48x56. Applies to everyone (layout, not voice). The video canvas now sizes itself to its picture box (cover crop, no
+   stretch); the chip shows a small round live face. Victory hides the last roll's dice.
+
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
