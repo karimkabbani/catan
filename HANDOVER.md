@@ -925,6 +925,17 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    own picture for Audio / Video, red badges = one-tap mute / camera off, asked once then remembered, "mute X for me"
    announced to the table, spectators included, victory corners grow 1.5x with live faces, walkie only as fallback,
    music never paused. Vendor lean: Daily (10k free min) over LiveKit (5k hard cap, then $50/mo).
+   **2026-11-07: Karim decided (D13-D22 in the doc), chose LiveKit, and the trial went live.** LiveKit Cloud project
+   "Karim-Catan-Mutliplayer" (sic), URL wss://karim-catan-mutliplayer-tzxbs8vf.livekit.cloud, API key APIt4WQZiH5PiJd
+   (secret only in Supabase Edge Function secrets; old key APIydyY33REnTLq unused, to delete). Supabase Edge Function
+   `voice-token` deployed by Karim via the dashboard editor (source: `server/functions/voice-token/index.ts`, Verify JWT
+   off, secrets LIVEKIT_URL / LIVEKIT_API_KEY / LIVEKIT_API_SECRET); checked: LiveKit's /rtc/validate accepts its tokens.
+   Trial page + its own home-screen app: https://karimkabbani.github.io/catan/voice-trial/ (`prototype/voice-trial/`,
+   self-hosted livekit-client 2.22.4, logs in as a real player, room "trial", sends diagnostics on the Supabase broadcast
+   channel `vtdiag`). Game untouched (still v214). Test players: test / test2. Notes: this cloud sandbox can't carry a
+   WebRTC call (HTTPS proxy only), so call quality is tested on Karim's iPhones; `deploy.sh`'s engine tests time out on
+   the slow sandbox (all 34 pass with --testTimeout=120000) and `git subtree push` needs a full clone (`git fetch
+   --unshallow`).
 
 ### Also shipped since multiplayer (2026-06)
 
