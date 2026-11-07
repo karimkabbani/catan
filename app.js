@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v216';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v217';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -3209,7 +3209,7 @@
       const pub = i && i.cam && LK ? i.p.getTrackPublication(LK.Track.Source.Camera) : null;
       if (pub && pub.track) {
         live[id] = true; voiceVideoEl(id, pub.track);
-        if (!cv) { cv = document.createElement('canvas'); cv.className = 'vvid' + (i.mine ? ' mine' : ''); cv.width = 120; cv.height = 140; box.appendChild(cv); }
+        if (!cv) { cv = document.createElement('canvas'); cv.className = 'vvid' + (i.mine ? ' mine' : ''); box.appendChild(cv); }
       } else if (cv) cv.remove();
     });
     Object.keys(LIVE.vids).forEach((id) => { if (!live[id] && !(r && voiceInfo(id) && voiceInfo(id).cam)) { const v = LIVE.vids[id]; try { v.srcObject = null; v.remove(); } catch (_) { } delete LIVE.vids[id]; } });
@@ -3221,6 +3221,9 @@
     document.querySelectorAll('canvas.vvid').forEach((cv) => {
       const box = cv.parentNode, id = box && box.getAttribute('data-vid'), v = id && LIVE.vids[id];
       if (!v || v.readyState < 2 || !v.videoWidth) return;
+      const dpr = Math.min(2, window.devicePixelRatio || 1), bw = Math.round(box.clientWidth * dpr), bh = Math.round(box.clientHeight * dpr);
+      if (bw < 4 || bh < 4) return;
+      if (cv.width !== bw || cv.height !== bh) { cv.width = bw; cv.height = bh; }   // same shape as the picture: never stretched
       const w = cv.width, h = cv.height, s = Math.max(w / v.videoWidth, h / v.videoHeight), dw = v.videoWidth * s, dh = v.videoHeight * s;
       try { cv.getContext('2d').drawImage(v, (w - dw) / 2, (h - dh) / 2, dw, dh); } catch (_) { }
     });
@@ -6403,7 +6406,7 @@
     if (line.length) extras.push(`<div class="lvline">⏳ <span><b>${escapeHtml(namesAnd(line.map((p) => p.name)))}</b> · first in line if a seat opens</span></div>`);
     if (idle.length) extras.push(`<div class="lvline">💤 <span><b>${escapeHtml(namesAnd(idle.map((p) => p.name)))}</b> · here, not seated</span></div>`);
     if (watching.length) extras.push(`<div class="lvline">👁 ${LIVE.room ? watching.map((w) => `<span class="vpic vmini" data-vid="${w.id}" onclick="CATAN.voiceWho('${w.id}',this)">${faceHTML(w.name, w.avatar, 'sm')}${voiceBadges(w.id)}</span>`).join('') : ''}<span><b>${escapeHtml(namesAnd(watching.map((p) => p.name)))}</b> · watching</span></div>`);
-    if (voiceOn() && !seated.some((p) => p.id === AUTH.me.id)) extras.push(`<button class="vchip vpic" data-vid="${AUTH.me.id}" onclick="CATAN.voiceCard(this)">${VI_MIC}<span>Talk to the table</span>${voiceBadges(AUTH.me.id, true)}</button>`);
+    if (voiceOn() && !seated.some((p) => p.id === AUTH.me.id)) extras.push(`<button class="vchip" onclick="CATAN.voiceCard(this)">${VI_MIC}<span>Talk to the table</span><span class="vpic vmini vchipface" data-vid="${AUTH.me.id}">${faceHTML(AUTH.me.name, AUTH.me.avatar, 'sm')}${voiceBadges(AUTH.me.id, true)}</span></button>`);
     const onResults = members.filter((p) => pmode(p) === 'results' && p.id !== AUTH.me.id);
     if (onResults.length) extras.push(`<div class="lvline">🏁 <span><b>${escapeHtml(namesAnd(onResults.map((p) => p.name)))}</b> · still on the last game's results</span></div>`);
     const last = LV.last && LV.last.code === LOBBY.table && Date.now() - LV.last.at < 1800000 ? `<div class="lvlast">🏆 Last game: ${escapeHtml(LV.last.text)}</div>` : '';
