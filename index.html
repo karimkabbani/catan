@@ -1872,9 +1872,9 @@
   .vb svg{width:10px; height:10px;}
   .vb.vmic{right:2px;} .vb.vcam{left:2px;}
   /* bigger corner pictures (v217): about 1.7x on phones with room, 1.35x on small ones; badges grow with them */
-  @media (min-width:600px) and (min-height:330px){ .pava{width:64px; height:74px;} .pname{max-width:76px;} .pava .vb{width:22px; height:22px;} .pava .vb svg{width:12px; height:12px;} .pava .vtag{font-size:9.5px;} }
-  @media (min-width:800px) and (min-height:390px){ .pava{width:104px !important; height:120px !important;} .pname{max-width:116px !important; font-size:12.5px;} .pava .vb{width:30px !important; height:30px !important;} .pava .vb svg{width:16px !important; height:16px !important;} .pava .vtag{font-size:12px !important;} body.vwin .corner .pava{transform:scale(1.15) !important;} .corner.bl .pemo, .corner.bl .pchat{top:auto; bottom:52px !important;} }
-  @media (min-width:740px) and (min-height:370px){ .corner.bl .pemo, .corner.bl .pchat{top:auto; bottom:34px;} .pava{width:80px; height:92px;} .pname{max-width:92px;} .pava .vb{width:26px; height:26px; top:3px;} .pava .vb svg{width:14px; height:14px;} .pava .vb.vmic{right:3px;} .pava .vb.vcam{left:3px;} .pava .vtag{font-size:10.5px;} .pstatus{width:14px; height:14px;} }
+  @media (min-width:600px) and (min-height:330px){ body.vlive .pava{width:64px; height:74px;} body.vlive .pname{max-width:76px;} body.vlive .pava .vb{width:22px; height:22px;} body.vlive .pava .vb svg{width:12px; height:12px;} body.vlive .pava .vtag{font-size:9.5px;} }
+  @media (min-width:800px) and (min-height:390px){ body.vlive .pava{width:104px !important; height:120px !important;} body.vlive .pname{max-width:116px !important; font-size:12.5px;} body.vlive .pava .vb{width:30px !important; height:30px !important;} body.vlive .pava .vb svg{width:16px !important; height:16px !important;} body.vlive .pava .vtag{font-size:12px !important;} body.vlive.vwin .corner .pava{transform:scale(1.15) !important;} body.vlive .corner.bl .pemo, body.vlive .corner.bl .pchat{top:auto; bottom:52px !important;} }
+  @media (min-width:740px) and (min-height:370px){ body.vlive .corner.bl .pemo, body.vlive .corner.bl .pchat{top:auto; bottom:34px;} body.vlive .pava{width:80px; height:92px;} body.vlive .pname{max-width:92px;} body.vlive .pava .vb{width:26px; height:26px; top:3px;} body.vlive .pava .vb svg{width:14px; height:14px;} body.vlive .pava .vb.vmic{right:3px;} body.vlive .pava .vb.vcam{left:3px;} body.vlive .pava .vtag{font-size:10.5px;} body.vlive .pstatus{width:14px; height:14px;} }
   .vb.vgrey{background:#3a3430; border-color:#9a8f80; color:#e8dcc4;}
   button.vb::after{content:''; position:absolute; inset:-8px;}   /* a finger-sized target around the small badge */
   .vvid{position:absolute; inset:0; width:100%; height:100%; z-index:5; background:#000;}
@@ -1891,6 +1891,8 @@
   .vpic.vmini{margin:0 2px; vertical-align:middle;} .vpic.vmini .face{width:24px; height:24px; font-size:12px;}
   .vpic.vmini .vb{top:-5px; right:-6px; width:14px; height:14px;} .vpic.vmini .vb svg{width:8px; height:8px;}
   .watchtag .vpic{cursor:pointer;}
+  .vpic.vmini .vb.vcam, .speceye .vb.vcam{display:none;}   /* tiny faces: the live picture already says 'camera on' */
+  .watchtag .vpic.vmini .face{width:30px; height:30px;}
   .speceye.vpic{border:0; background:none; padding:0; margin-right:4px; cursor:pointer;}
   .speceye.vpic .face{width:34px; height:34px; border:2px solid var(--gold-edge);}
   .speceye.vpic .vb{top:-4px; right:-6px; width:16px; height:16px;}
