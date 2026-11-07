@@ -1885,7 +1885,7 @@
   .speceye.vpic{border:0; background:none; padding:0; margin-right:4px; cursor:pointer;}
   .speceye.vpic .face{width:34px; height:34px; border:2px solid var(--gold-edge);}
   .speceye.vpic .vb{top:-4px; right:-6px; width:16px; height:16px;}
-  .vchip{display:flex; align-items:center; gap:8px; justify-content:center; padding:11px 14px; border-radius:14px; border:1.5px solid var(--gold-edge);
+  .vchip{position:relative; display:flex; align-items:center; gap:8px; justify-content:center; padding:11px 14px; border-radius:14px; border:1.5px solid var(--gold-edge);
     background:rgba(0,0,0,0.3); color:#e9c45a; font:inherit; font-weight:750; font-size:14px; width:100%;}
   .vchip svg{width:18px; height:18px;} .vchip .vb{top:-6px; right:-6px;}
   #vcard{position:fixed; z-index:36; width:min(230px,70vw); background:#f6ecd2; color:#2a1c0c; border-radius:12px; padding:10px 12px;
@@ -3211,7 +3211,7 @@
         const dev = `<span class="specdev">🎴 ${devs.length}${vpc ? ` · ⭐ ${vpc} VP` : ''}</span>`;
         return `<div class="spechand specview"><div class="specsel">${chips}</div><div class="specorbs">${orbs}</div>${dev}</div>`;
       }
-      const meBtn = voiceOn() && AUTH.me ? `<button class="speceye vpic" data-vid="${AUTH.me.id}" onclick="CATAN.voiceCard(this)" aria-label="Talk to the table">${faceHTML(AUTH.me.name, AUTH.me.avatar, 'sm')}${voiceBadges(AUTH.me.id)}</button>` : '<span class="speceye">👁</span>';
+      const meBtn = voiceOn() && AUTH.me ? `<button class="speceye vpic" data-vid="${AUTH.me.id}" onclick="CATAN.voiceCard(this)" aria-label="Talk to the table">${faceHTML(AUTH.me.name, AUTH.me.avatar, 'sm')}${voiceBadges(AUTH.me.id, true)}</button>` : '<span class="speceye">👁</span>';
       return `<div class="spechand specview">${meBtn}<div class="specsel">${chips}</div>`
         + `<div class="specorbs">${orbs}</div><button class="specleave" onclick="CATAN.exitGame()">Leave</button></div>`;
     }
@@ -4998,10 +4998,10 @@
     vids: {},         // identity -> persistent <video> for their camera
     askOpen: false, autoDone: null,
   };
-  function voiceOn() { return !!(LIVE.cfg && LIVE.cfg.enabled !== false && window.RTCPeerConnection && navigator.mediaDevices); }
+  function voiceOn() { return !!(!(LIVE.cfg && LIVE.cfg.enabled === false) && window.RTCPeerConnection && navigator.mediaDevices); }   // on unless voice-config.json says off
   function voiceDown() { return !voiceOn() || LIVE.fails >= 2; }   // the walkie-talkie button comes back as the fallback
   function voiceWanted() {
-    if (!voiceOn() || !AUTH.me || !AUTH.me.token || !LOBBY.table || ARCHIVE) return null;
+    if (!LIVE.cfg || !voiceOn() || !AUTH.me || !AUTH.me.token || !LOBBY.table || ARCHIVE) return null;
     const code = String(LOBBY.table).replace(/[^A-Za-z0-9]/g, '').slice(0, 12);
     return code.length >= 2 ? 'table-' + code : null;
   }
@@ -5152,8 +5152,9 @@
   const VI_SPKX = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M17 9l5 6M22 9l-5 6"/></svg>';
   const VI_DEAF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 14v-2a9 9 0 0 1 18 0v2"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/><path d="M3 3l18 18"/></svg>';
   // badges on a picture: my own are buttons (one tap = mute / camera off); others' are plain markers
-  function voiceBadges(id) {
+  function voiceBadges(id, plain) {   // plain: inside another button (no nested buttons)
     const i = voiceInfo(id); if (!i) return '';
+    if (plain && i.mine) i.mine = false;
     let s = '';
     if (i.cam) s += i.mine ? `<button class="vb vcam" onclick="event.stopPropagation();CATAN.voiceCam(false)" aria-label="Turn camera off">${VI_CAM}</button>` : `<span class="vb vcam">${VI_CAM}</span>`;
     if (i.forMe) s += `<button class="vb vgrey vmic" onclick="event.stopPropagation();CATAN.voiceMuteFor('${id}',false)" aria-label="Unmute for me">${VI_SPKX}</button>`;
@@ -5163,7 +5164,10 @@
     return s;
   }
   function voiceTag(id) {
-    const i = voiceInfo(id); if (!i || i.mine) return '';
+    const i = voiceInfo(id);
+    // at the table but not in the call after 30s: an older app version, or voice blocked on that phone
+    if (!i) return LIVE.room && id && !(AUTH.me && id === AUTH.me.id) && Date.now() - LIVE.joinedAt > 30000 && LOBBY.liveIds.has(id) ? '<span class="vtag" title="Not in the voice call (old app version?)">no voice</span>' : '';
+    if (i.mine) return '';
     if (i.forMe) return '<span class="vtag" title="Muted for you">muted</span>';
     if (i.mutedMe) return '<span class="vtag" title="Has you muted">muted you</span>';
     if (i.deaf) return '<span class="vtag" title="Not hearing voices">can\'t hear</span>';
@@ -8362,7 +8366,7 @@
     if (line.length) extras.push(`<div class="lvline">⏳ <span><b>${escapeHtml(namesAnd(line.map((p) => p.name)))}</b> · first in line if a seat opens</span></div>`);
     if (idle.length) extras.push(`<div class="lvline">💤 <span><b>${escapeHtml(namesAnd(idle.map((p) => p.name)))}</b> · here, not seated</span></div>`);
     if (watching.length) extras.push(`<div class="lvline">👁 ${LIVE.room ? watching.map((w) => `<span class="vpic vmini" data-vid="${w.id}">${faceHTML(w.name, w.avatar, 'sm')}${voiceBadges(w.id)}</span>`).join('') : ''}<span><b>${escapeHtml(namesAnd(watching.map((p) => p.name)))}</b> · watching</span></div>`);
-    if (voiceOn() && !seated.some((p) => p.id === AUTH.me.id)) extras.push(`<button class="vchip vpic" data-vid="${AUTH.me.id}" onclick="CATAN.voiceCard(this)">${VI_MIC}<span>Talk to the table</span>${voiceBadges(AUTH.me.id)}</button>`);
+    if (voiceOn() && !seated.some((p) => p.id === AUTH.me.id)) extras.push(`<button class="vchip vpic" data-vid="${AUTH.me.id}" onclick="CATAN.voiceCard(this)">${VI_MIC}<span>Talk to the table</span>${voiceBadges(AUTH.me.id, true)}</button>`);
     const onResults = members.filter((p) => pmode(p) === 'results' && p.id !== AUTH.me.id);
     if (onResults.length) extras.push(`<div class="lvline">🏁 <span><b>${escapeHtml(namesAnd(onResults.map((p) => p.name)))}</b> · still on the last game's results</span></div>`);
     const last = LV.last && LV.last.code === LOBBY.table && Date.now() - LV.last.at < 1800000 ? `<div class="lvlast">🏆 Last game: ${escapeHtml(LV.last.text)}</div>` : '';
@@ -8482,6 +8486,7 @@
     if (LV.tab === 'chat') { dynEl.innerHTML = lvChatHTML(); renderLobbyChat(); }
     else { dynEl.innerHTML = LOBBY.table ? lvRoomHTML() : lvPlayHTML(); lvFillPeek(); }
     const sh = $('lv-sheet'); if (sh) sh.innerHTML = lvSheetHTML();
+    voiceMountVideos();   // live camera pictures survive the redraw
   }
   window.CATAN.openStats = () => statsScreen();
   window.CATAN.statsSeason = (s) => { statsSeason = s; statsScreen(); };
