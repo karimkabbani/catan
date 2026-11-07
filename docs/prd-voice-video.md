@@ -172,3 +172,25 @@ Karim's setup (~10 min): LiveKit Cloud account, project "catan"; note the projec
 key (not secret); the API secret goes only into the Supabase Edge Function secrets (dashboard), never into the chat.
 Unverified until signup: whether Build includes Krisp noise cancellation (likely paid plans only), the exact
 cap behaviour, the bandwidth allowance.
+
+## 11. Trial findings (2026-11-07, Karim: iPhone as "test", iPad as "test2", both as home-screen apps, wifi)
+Trial versions t1-t6 at https://karimkabbani.github.io/catan/voice-trial/ ; diagnostics over Supabase broadcast `vtdiag`.
+- Works: join in 0.4-0.6 s, connection "excellent", mic and camera both ways, on/off reaches the other side at
+  once, game music + dice/robber sounds play during the call. Ping (data round trip via LiveKit) 58-109 ms.
+- Earpiece bug (walkie v208) NOT back: with the mic on, the iPhone plays the other side from the bottom speaker.
+- Volume step: with a mic on, iOS first plays at call volume; starting music switches it to media volume and it stays
+  there. Also happens when a remote voice starts on a device whose mic is on. Accepted (D14); document it.
+- Same player on two devices: LiveKit drops the older connection ("duplicate identity"). Newest device wins.
+- Short locks (under ~30 s): the call stays connected, nothing to do.
+- **Long lock (45 s+) without the game's audio setup: the returning iPhone's whole page went silent** (call voices AND
+  game sounds), while everything reported "running". Restarting voices, a new AudioContext, a full rejoin and
+  resetting navigator.audioSession did not help; only a reload did (t3-t5).
+- **Fix (t6): the game's own audio setup** (app.js `keepAudioSession` silent looping <audio> + `onAudioWake`
+  rebuild of the sound engine on the first tap after returning). With it, after a 55 s lock the sound worked, and
+  the iPhone was not even dropped from the call (the silent loop keeps the app alive in the background).
+  => Requirement for the build: the voice module uses the game's actx and keep-alive (webAudioMix with the game's
+  AudioContext), and rebuilds/moves voices onto the new context whenever the game rebuilds it.
+- Also adopted: webAudioMix (all voices through one AudioContext) so a returning player is heard without a new tap;
+  per-voice gain nodes still allow mute-for-me (and a voice volume slider later).
+- Still to test: 4G, AirPods in/out, an incoming phone call, camera on 20 min (heat/battery), clap test for real audio
+  delay, a third person, and a full game night.

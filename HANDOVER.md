@@ -936,6 +936,10 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    WebRTC call (HTTPS proxy only), so call quality is tested on Karim's iPhones; `deploy.sh`'s engine tests time out on
    the slow sandbox (all 34 pass with --testTimeout=120000) and `git subtree push` needs a full clone (`git fetch
    --unshallow`).
+   Trial t1-t6 results (same day): see `docs/prd-voice-video.md` section 11. Key one: after a 45 s+ lock the returning
+   iPhone went fully silent until the trial copied the game's audio setup (silent keep-alive loop + rebuild the sound
+   engine on the first tap after returning, app.js `keepAudioSession` / `onAudioWake`); with it, sound survived a
+   55 s lock and the call wasn't even dropped. The game build must reuse that setup for the voices.
 
 ### Also shipped since multiplayer (2026-06)
 
