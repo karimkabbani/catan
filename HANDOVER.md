@@ -978,6 +978,17 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    Tiny watcher faces show only the mic badge. v220 (Karim): victory keeps corners at 1x (gold frame + crown on the
    winner only). Canvas "Catan: Voice & video" bottom rows show every place video appears (real renders). Voice still
    limited to test/test2 via `voice-config.json` "only"; Karim decides when to open it to everyone.
+55. ✅ **v221 (2026-11-07). Design & UX sweep fixes** (canvas "Catan: Design & UX sweep",
+   https://claude.ai/artifact/1qJ3HEEkQytq4WD93NJDtF, items 1-6; 7 crown and 8 polish not done yet, Karim to look again).
+   1 voice badges: dark disc + gold rim + cream icon when on, red (`.vb.vred`) only for a muted mic. 2 talking: white
+   ring (not gold, gold = your turn) + live sound bars under the mic badge (`.vbars`, driven by `--vlv`). 3 `#vcard` and
+   `#msghist` are dark wood like the trays, placed by `popAt()` with a pointer to the picture, 44px close (`.popx`),
+   green switches, outline "Leave the call", "My recent messages" only when you sent some. 4 walkie `.pwt` sits in the
+   😀/💬 row with bigger corners; emoji tray never goes under the banner, shows whole rows + a faded peek (`.etbig.more`).
+   5+6 `fitDock()` (after every `renderPanels`): with `body.vlive`, the bottom bar keeps between the bottom corners and
+   their luck gauges (squeezes gaps; watcher strip names scroll with a fade, own face hidden under 800px since it's in
+   the banner); right-corner dice slide left off the menu button (for everyone). Popup restyle, tray and dice fixes
+   apply to all players; the rest only shows with voice. Checked headless at 932, 812, 667, 568 wide.
 
 ### Also shipped since multiplayer (2026-06)
 
