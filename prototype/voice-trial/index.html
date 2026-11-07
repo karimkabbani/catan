@@ -35,6 +35,7 @@
   .bd svg{width:14px;height:14px}
   .bd.mic{right:-6px}.bd.cam{left:-6px}
   .q{font-size:11px;color:var(--dim);font-weight:600}
+  #prime{display:none;position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 14px);transform:translateX(-50%);z-index:9;width:calc(100% - 28px);max-width:420px;padding:16px;font-size:16px;box-shadow:0 6px 20px rgba(0,0,0,.5)}
   #hear{display:none;position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 8px);transform:translateX(-50%);z-index:9;background:var(--red);color:#fff;box-shadow:0 6px 20px rgba(0,0,0,.5)}
   .stats{font:12px/1.45 ui-monospace,Menlo,monospace;white-space:pre-wrap;color:var(--dim)}
   #log{font:11px/1.35 ui-monospace,Menlo,monospace;white-space:pre-wrap;color:var(--dim);max-height:240px;overflow:auto}
@@ -45,6 +46,7 @@
 </head>
 <body>
 <button id="hear" onclick="V.startAudio()">Tap to hear the others</button>
+<button id="prime" onclick="V.prime('banner')">Back from the lock screen: tap to bring the sound back</button>
 <div class="top"><h1>Catan Voice Trial</h1><span class="pill" id="conn">not connected</span><span class="pill" id="ver"></span></div>
 <p class="note">This is not the game. It only tests live voice and video on this phone. What happens here is sent to Claude so we can fix things.</p>
 
@@ -78,6 +80,8 @@
     <button class="sec" onclick="V.sfx('dice_roll')">Dice sound</button>
     <button class="sec" onclick="V.sfx('robber')">Robber sound</button>
   </div>
+  <label class="chk"><input type="checkbox" id="mixOn" checked onchange="V.logEv('setting',{sharedChannel:this.checked})">Shared sound channel (t2 fix; change it before joining)</label>
+  <div class="row"><button class="sec" onclick="V.prime('button')">Fix sound</button><button class="sec" onclick="V.resub()">Fix sound (stronger)</button></div>
   <label class="chk"><input type="checkbox" id="sessFix" checked onchange="V.logEv('setting',{sessFix:this.checked})">iPhone audio fix (switch to record mode only while my mic is on)</label>
 </div>
 
@@ -102,7 +106,7 @@
 <script>
 (function () {
   'use strict';
-  const TRIAL_VERSION = 't2';
+  const TRIAL_VERSION = 't3';
   const ROOM = 'trial';
   const LK = window.LivekitClient;
   const { Room, RoomEvent, Track } = LK;
@@ -206,7 +210,7 @@
         adaptiveStream: true, dynacast: true,
         // t2: play every voice through ONE Web Audio context (the same one as the game sounds, unlocked by the
         // Join tap), so a player who comes back after locking their phone doesn't need a fresh tap to be heard
-        webAudioMix: actx ? { audioContext: actx } : true,
+        webAudioMix: $('mixOn').checked ? (actx ? { audioContext: actx } : true) : false,
         audioCaptureDefaults: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
         videoCaptureDefaults: { resolution: { width: 320, height: 240, frameRate: 15 }, facingMode: 'user' },
       });
@@ -214,7 +218,7 @@
       const c0 = Date.now();
       await room.connect(t.url, t.token, { autoSubscribe: true });
       joinedAt = Date.now();
-      logEv('joined', { ms: joinedAt - c0, others: room.remoteParticipants.size });
+      logEv('joined', { ms: joinedAt - c0, others: room.remoteParticipants.size, sharedChannel: $('mixOn').checked });
       setConn('connected', 'ok');
       $('leaveBtn').disabled = false; $('micBtn').disabled = false; $('camBtn').disabled = false;
       try { await room.startAudio(); } catch (_) { }
@@ -277,11 +281,43 @@
     render();
   }
   function updateHear() { $('hear').style.display = room && !room.canPlaybackAudio ? 'block' : 'none'; }
+  // t3: after a long lock the returning phone can stay silent although the call reconnects. Test what brings the
+  // sound back: any tap after returning (or the banner) resumes the sound engine, plays a silent blip and
+  // rebuilds the incoming voice path; "stronger" re-subscribes to everyone's audio.
+  let hiddenAt = 0, needPrime = false;
+  function remoteAudio() { const out = []; if (room) room.remoteParticipants.forEach((p) => { const pub = p.getTrackPublication(Track.Source.Microphone); if (pub) out.push([p, pub]); }); return out; }
+  async function prime(how) {
+    needPrime = false; $('prime').style.display = 'none';
+    const before = actx ? actx.state : 'none';
+    unlockAudio();
+    try { if (actx) { const b = actx.createBuffer(1, 441, 44100), src = actx.createBufferSource(); src.buffer = b; src.connect(actx.destination); src.start(); } } catch (_) { }
+    try { if (room) await room.startAudio(); } catch (e) { logEv('start-audio-error', { msg: e.message }); }
+    let rebuilt = 0;
+    remoteAudio().forEach(([p, pub]) => { if (pub.track) { pub.track.detach().forEach((el) => el.remove()); const el = pub.track.attach(); el.setAttribute('playsinline', ''); document.body.appendChild(el); rebuilt++; } });
+    logEv('prime', { how, before, now: actx ? actx.state : 'none', canPlay: room ? room.canPlaybackAudio : null, rebuilt });
+    updateHear();
+  }
+  async function resub() {
+    const list = remoteAudio();
+    list.forEach(([, pub]) => pub.setSubscribed(false));
+    await new Promise((ok) => setTimeout(ok, 600));
+    list.forEach(([, pub]) => pub.setSubscribed(true));
+    unlockAudio(); try { if (room) await room.startAudio(); } catch (_) { }
+    logEv('resubscribe', { n: list.length, engine: actx ? actx.state : 'none' });
+  }
+  document.addEventListener('pointerdown', (e) => { if (needPrime && !(e.target && e.target.closest && e.target.closest('#prime'))) prime('first-tap'); }, true);
+
   async function startAudio() { if (room) { try { await room.startAudio(); } catch (e) { logEv('start-audio-error', { msg: e.message }); } } unlockAudio(); updateHear(); }
 
   // locking the phone: iOS stops the mic; on return rejoin with mic and camera OFF (as in the game design)
   document.addEventListener('visibilitychange', () => {
     logEv('visibility', { state: document.visibilityState, connected: !!room });
+    if (document.visibilityState === 'hidden') hiddenAt = Date.now();
+    if (document.visibilityState === 'visible' && hiddenAt) {
+      const away = Math.round((Date.now() - hiddenAt) / 1000); hiddenAt = 0;
+      logEv('return', { awaySec: away, engine: actx ? actx.state : 'none', canPlay: room ? room.canPlaybackAudio : null, inCall: !!room });
+      if (away >= 10 && room) { needPrime = true; $('prime').style.display = 'block'; }
+    }
     if (document.visibilityState === 'hidden' && room) { if (wantMic) toggleMic(); if (wantCam) toggleCam(); }
     if (document.visibilityState === 'visible' && actx && actx.state !== 'running') {
       const before = actx.state;
@@ -350,7 +386,7 @@
     logEv('report-sent');
   }
 
-  window.V = { login, logout, join, leave, toggleMic, toggleCam, toggleMusic, sfx, ping, report, startAudio, logEv };
+  window.V = { prime, resub, login, logout, join, leave, toggleMic, toggleCam, toggleMusic, sfx, ping, report, startAudio, logEv };
   logEv('page-open', { standalone: STANDALONE, audioSession: HAS_AS, ua: navigator.userAgent });
   resume();
 })();
