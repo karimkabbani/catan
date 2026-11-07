@@ -918,6 +918,14 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    **Karim tested v214 in a real game (2026-11-07): working.** That also covers the v210 walkie and v212-v213 chat on real
    phones. No regression sweep has been run yet on the v208-v214 batch (Karim: not yet).
 
+50. ☐ **Voice & video at the table — in discussion, NOT to be built yet (2026-11-07).** Karim: refine the requirements
+   and mocks only, no code. Requirements, decisions, vendor costs and open questions: `docs/prd-voice-video.md`.
+   Mocks: canvas "Catan: Voice & video" https://claude.ai/artifact/DjkXUjLaeYMZzcH4tpz9QX (Take 2 P1-P3 + Take 3
+   T1-T6 are current). Gist: a real call (hosted WebRTC) for the whole table night, everyone hears everyone, tap your
+   own picture for Audio / Video, red badges = one-tap mute / camera off, asked once then remembered, "mute X for me"
+   announced to the table, spectators included, victory corners grow 1.5x with live faces, walkie only as fallback,
+   music never paused. Vendor lean: Daily (10k free min) over LiveKit (5k hard cap, then $50/mo).
+
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
@@ -1105,4 +1113,5 @@ State on 2026-11-07: v214 is live and Karim has played a real game on it. Pick f
 4. **Chat extras** (item 46): a tray that reorders by each player's own use; a context chip (😡 tfeh after a steal).
 5. Parked music idea (item 44): pause the music on the talker's phone, and on listeners' while a voice plays.
 6. Small open decision: horned robber, full piece or badge (item 11).
+Voice & video (item 50) is in requirements/mocks only: no code until Karim says so.
 Parked or blocked: game history / replay (item 8); 5-player (item 7, needs a fifth colour's art).
