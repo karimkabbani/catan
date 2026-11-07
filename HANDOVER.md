@@ -972,6 +972,13 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    48x56. Applies to everyone (layout, not voice). The video canvas now sizes itself to its picture box (cover crop, no
    stretch); the chip shows a small round live face. Victory hides the last roll's dice.
 
+54. ✅ **v218-v220 (2026-11-07).** v218: speaking glow drawn INSIDE the corner picture (`.pava[data-vid].vtalk::before`),
+   emoji/texts buttons lower beside bigger corners. v219: all v217 layout changes (bigger corners, lower buttons) only for
+   players with voice: `body.vlive` (set in `voiceSync` when `voiceOn()`); friends keep the old look until voice opens.
+   Tiny watcher faces show only the mic badge. v220 (Karim): victory keeps corners at 1x (gold frame + crown on the
+   winner only). Canvas "Catan: Voice & video" bottom rows show every place video appears (real renders). Voice still
+   limited to test/test2 via `voice-config.json` "only"; Karim decides when to open it to everyone.
+
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
