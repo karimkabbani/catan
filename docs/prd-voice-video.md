@@ -130,3 +130,13 @@ call token (the service's secret stays server-side).
 - Mute-for-me announced on all phones, badges correct on both sides, cleared on leave.
 - Quota/outage simulated: walkie fallback within a few seconds, call returns silently.
 - 2-hour session with two people on video: battery and heat noted on an older iPhone.
+
+## 8. Build note: keep it independent of the game architecture
+A separate session will decide the game architecture (stay as is, a Supabase referee, or a room server per
+table). Voice/video must not depend on that outcome:
+- Media goes phone ↔ call service (Daily/LiveKit) only, never through our game sync.
+- The voice module talks to the rest of the app through a narrow interface: in = table id, my identity, who is at
+  the table (players + watchers); out = speaking / mic / camera / mute-for-me events for the UI.
+- The call-token function is its own small server function.
+On an architecture change, only three things move: where the token comes from, where "who is at the table" comes
+from, and how mute-for-me announcements travel. Estimated rework: about half a day to a day.
