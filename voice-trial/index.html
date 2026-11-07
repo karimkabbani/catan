@@ -102,7 +102,7 @@
 <script>
 (function () {
   'use strict';
-  const TRIAL_VERSION = 't1';
+  const TRIAL_VERSION = 't2';
   const ROOM = 'trial';
   const LK = window.LivekitClient;
   const { Room, RoomEvent, Track } = LK;
@@ -204,6 +204,9 @@
       const t = await getToken();
       room = new Room({
         adaptiveStream: true, dynacast: true,
+        // t2: play every voice through ONE Web Audio context (the same one as the game sounds, unlocked by the
+        // Join tap), so a player who comes back after locking their phone doesn't need a fresh tap to be heard
+        webAudioMix: actx ? { audioContext: actx } : true,
         audioCaptureDefaults: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
         videoCaptureDefaults: { resolution: { width: 320, height: 240, frameRate: 15 }, facingMode: 'user' },
       });
@@ -238,7 +241,7 @@
     r.on(RoomEvent.Reconnecting, () => { setConn('reconnecting…', 'mid'); logEv('reconnecting'); });
     r.on(RoomEvent.Reconnected, () => { setConn('connected', 'ok'); logEv('reconnected'); });
     r.on(RoomEvent.Disconnected, (reason) => { logEv('disconnected', { reason }); cleanup(); });
-    r.on(RoomEvent.AudioPlaybackStatusChanged, () => { logEv('playback-allowed', { ok: r.canPlaybackAudio }); updateHear(); });
+    r.on(RoomEvent.AudioPlaybackStatusChanged, () => { logEv('playback-allowed', { ok: r.canPlaybackAudio, engine: actx ? actx.state : 'none' }); updateHear(); });
     r.on(RoomEvent.MediaDevicesError, (e) => logEv('device-error', { msg: e.message }));
     r.on(RoomEvent.DataReceived, (payload, p) => onData(payload, p));
   }
@@ -280,6 +283,10 @@
   document.addEventListener('visibilitychange', () => {
     logEv('visibility', { state: document.visibilityState, connected: !!room });
     if (document.visibilityState === 'hidden' && room) { if (wantMic) toggleMic(); if (wantCam) toggleCam(); }
+    if (document.visibilityState === 'visible' && actx && actx.state !== 'running') {
+      const before = actx.state;
+      actx.resume().then(() => logEv('sound-engine-resumed', { before, now: actx.state })).catch((e) => logEv('sound-engine-resume-failed', { before, msg: e.message }));
+    }
     if (document.visibilityState === 'visible' && me && !room && joinedAt) { logEv('auto-rejoin'); join(); }
   });
 
