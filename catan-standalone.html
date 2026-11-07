@@ -757,16 +757,16 @@
   #wtlisten button svg{width:16px; height:16px;}
   @media (prefers-reduced-motion: reduce){ .pwteq i{animation:none; height:9px;} }
   /* recent-messages popover, anchored to a corner */
-  #msghist{position:fixed; z-index:34; max-width:min(240px,60vw); max-height:52vh; overflow-y:auto; background:#f6ecd2; color:#2a1c0c;
-    border-radius:12px; padding:9px 12px 7px; box-shadow:0 5px 18px rgba(0,0,0,0.55); border:1px solid var(--gold-edge);}
-  #msghist .bcclose{color:#7a5316;}
+  #msghist{position:fixed; z-index:34; width:max-content; min-width:170px; max-width:min(240px,60vw); background:linear-gradient(180deg,#3a220e,#1c0f05); color:#f3e6c8; box-sizing:border-box;
+    border-radius:16px; padding:9px 12px 7px; box-shadow:0 8px 22px rgba(0,0,0,0.6); border:2px solid var(--gold-edge);}
+  .mhscroll{max-height:52vh; overflow-y:auto;}
   .bcclose::after{content:''; position:absolute; inset:-9px;}   /* a bigger finger target than the drawn button */
-  .mhhead{font-weight:800; color:#7a5316; font-size:12px; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:5px; padding-right:14px;}
-  .mhrow{display:flex; align-items:center; gap:8px; padding:5px 0; border-top:1px solid rgba(0,0,0,0.09); font-size:14px; font-weight:600;}
+  .mhhead{font-weight:800; color:#e9c45a; font-size:12px; text-transform:uppercase; letter-spacing:0.04em; margin:2px 0 6px; padding-right:30px; line-height:20px;}
+  .mhrow{display:flex; align-items:center; gap:8px; padding:5px 0; border-top:1px solid rgba(233,196,90,0.15); font-size:14px; font-weight:600;}
   .mhrow:first-of-type{border-top:none;}
   .mhtxt{word-break:break-word; min-width:0;}
-  .mhtime{margin-left:auto; flex:0 0 auto; padding-left:8px; font-size:10.5px; font-weight:600; color:#a08a63; white-space:nowrap;}
-  .mhrow.muted{color:#8a7a5c; font-style:italic; font-weight:400;}
+  .mhtime{margin-left:auto; flex:0 0 auto; padding-left:8px; font-size:10.5px; font-weight:600; color:#bfae8a; white-space:nowrap;}
+  .mhrow.muted{color:#a99a7c; font-style:italic; font-weight:400;}
   #msghist .bcplay{width:26px; height:26px; font-size:11px;}
   /* quick-chat picker (overlay): preset chips */
   .qcgrid{display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin:8px 0 8px;}
@@ -971,6 +971,7 @@
   #emotray .etbig .emobtn{width:46px; height:46px; margin:3px; font-size:31px; border-radius:12px; background:none; touch-action:pan-y; -webkit-touch-callout:none; transition:transform .12s;}
   #emotray .etbig .emobtn.lift{transform:scale(1.25); opacity:.35;}
   #emotray.holding .etbig{overflow:hidden;}
+  #emotray .etbig.more{-webkit-mask-image:linear-gradient(180deg,#000 calc(100% - 24px),transparent); mask-image:linear-gradient(180deg,#000 calc(100% - 24px),transparent);}
   .etpill{touch-action:pan-y;}
   #emotray .etbig .ettile{width:46px; height:46px; font-size:30px;} #emotray .etbig .ettile .etx{top:0; right:0;}
   #emotray .etbig .etadd{width:46px; height:46px;}
@@ -1645,6 +1646,17 @@
   /* spectator resource inspector: player chips + the selected player's resource orbs */
   .spechand.specview{gap:10px; max-width:calc(100vw - 2 * (clamp(108px,15vw,132px) + 8px));}   /* between the bottom corner plaques, never over them; the player chips scroll */
   .spechand.specview .specsel{min-width:0; flex:1 1 auto;}
+  body.vlive #hand > .spechand.specview{max-width:100%; min-width:0;}
+  @media (max-width:799px){   /* mid-size phones with the bigger corners: your face is already in the banner (tap it there), the orbs tighten */
+    body.vlive .spechand .speceye.vpic{display:none;}
+    body.vlive .spechand.specview{gap:8px; padding-left:4px; padding-right:4px;}
+    body.vlive .spechand .specorbs{gap:6px;} body.vlive .spechand .specorbs .res img{width:20px; height:20px;}
+    body.vlive .spechand .specleave{padding:4px 9px;}
+  }
+  body.vlive .spechand.specview .specsel{min-width:84px;}
+  @media (max-width:640px){ body.vlive .spechand.specview .specsel{min-width:60px;} body.vlive .spechand .specorbs{gap:4px;} body.vlive .spechand .specorbs .res img{width:18px; height:18px;} body.vlive .spechand .specorbs .rcount{font-size:12.5px;} body.vlive .spechand .specleave{padding:4px 7px; font-size:11.5px;} }
+  .specsel.more{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent); mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent);}
+  body.vlive .corner.tr .pdice, body.vlive .corner.br .pdice{left:0; transform:none;}   /* v221: off the round menu button */
   .speceye{flex:0 0 auto; font-size:15px;}
   .specsel{display:flex; align-items:center; gap:6px; overflow-x:auto; -webkit-overflow-scrolling:touch;}
   .specpl{display:flex; align-items:center; gap:5px; flex:0 0 auto; padding:5px 9px; border-radius:11px;
@@ -1863,18 +1875,24 @@
 
   /* ---- live voice & video (v215): badges, speaking glow, live camera pictures, the cards ---- */
   [data-vid]{transition:box-shadow .1s;}
-  [data-vid].vtalk{box-shadow:0 0 0 calc(2px + var(--vlv,0) * 4px) rgba(255,224,102,calc(0.4 + var(--vlv,0) * 0.4)), 0 0 calc(10px + var(--vlv,0) * 18px) calc(2px + var(--vlv,0) * 6px) rgba(255,224,102,calc(0.35 + var(--vlv,0) * 0.5)) !important; border-color:#ffe066 !important;}
+  [data-vid].vtalk{box-shadow:0 0 0 calc(2px + var(--vlv,0) * 3px) rgba(255,255,255,calc(0.55 + var(--vlv,0) * 0.4)), 0 0 calc(8px + var(--vlv,0) * 14px) calc(1px + var(--vlv,0) * 4px) rgba(255,255,255,calc(0.3 + var(--vlv,0) * 0.4)) !important; border-color:#fff !important;}
   .pava[data-vid].vtalk{box-shadow:0 2px 5px rgba(0,0,0,0.5) !important; border-color:#0006 !important;}
   .pava[data-vid].vtalk::before{content:''; position:absolute; inset:0; z-index:7; pointer-events:none; border-radius:inherit;
-    border:calc(3px + var(--vlv,0) * 2px) solid #ffe066; box-shadow:inset 0 0 calc(8px + var(--vlv,0) * 14px) rgba(255,224,102,calc(0.5 + var(--vlv,0) * 0.4));}
+    border:calc(2px + var(--vlv,0) * 2px) solid rgba(255,255,255,calc(0.75 + var(--vlv,0) * 0.25)); box-shadow:inset 0 0 calc(6px + var(--vlv,0) * 12px) rgba(255,255,255,calc(0.35 + var(--vlv,0) * 0.4));}
+  /* v221: white = talking (gold stays 'your turn'); live sound bars hang under the mic badge */
+  .vbars{position:absolute; top:calc(100% + 3px); left:50%; transform:translateX(-50%); display:none; align-items:flex-end; gap:2px; height:12px; pointer-events:none;}
+  .vbars i{width:3px; border-radius:2px; background:#fff; box-shadow:0 0 2px rgba(0,0,0,0.8); display:block; height:calc(3px + var(--vlv,0) * 9px); transition:height .1s;}
+  .vbars i:nth-child(2){height:calc(4px + var(--vlv,0) * 8px);} .vbars i:nth-child(3){height:calc(2px + var(--vlv,0) * 7px);}
+  .vtalk .vbars{display:flex;} .vpic.vmini .vbars{display:none !important;}
   .vb{position:absolute; top:2px; z-index:8; width:18px; height:18px; padding:0; border-radius:50%; display:flex; align-items:center; justify-content:center;
-    background:radial-gradient(circle at 50% 40%,#f0574a,#b8261b); border:1.5px solid #ffd2cc; color:#fff; box-shadow:0 1px 3px rgba(0,0,0,0.6);}
+    background:rgba(24,16,8,0.82); border:1.5px solid #e9c45a; color:#f3e6c8; box-shadow:0 1px 3px rgba(0,0,0,0.6);}
+  .vb.vred{background:radial-gradient(circle at 50% 40%,#f0574a,#b8261b); border-color:#ffd2cc; color:#fff;}   /* muted: the only red badge */
   .vb svg{width:10px; height:10px;}
   .vb.vmic{right:2px;} .vb.vcam{left:2px;}
   /* bigger corner pictures (v217): about 1.7x on phones with room, 1.35x on small ones; badges grow with them */
   @media (min-width:600px) and (min-height:330px){ body.vlive .pava{width:64px; height:74px;} body.vlive .pname{max-width:76px;} body.vlive .pava .vb{width:22px; height:22px;} body.vlive .pava .vb svg{width:12px; height:12px;} body.vlive .pava .vtag{font-size:9.5px;} }
-  @media (min-width:800px) and (min-height:390px){ body.vlive .pava{width:104px !important; height:120px !important;} body.vlive .pname{max-width:116px !important; font-size:12.5px;} body.vlive .pava .vb{width:30px !important; height:30px !important;} body.vlive .pava .vb svg{width:16px !important; height:16px !important;} body.vlive .pava .vtag{font-size:12px !important;} body.vlive .corner.bl .pemo, body.vlive .corner.bl .pchat{top:auto; bottom:52px !important;} }
-  @media (min-width:740px) and (min-height:370px){ body.vlive .corner.bl .pemo, body.vlive .corner.bl .pchat{top:auto; bottom:34px;} body.vlive .pava{width:80px; height:92px;} body.vlive .pname{max-width:92px;} body.vlive .pava .vb{width:26px; height:26px; top:3px;} body.vlive .pava .vb svg{width:14px; height:14px;} body.vlive .pava .vb.vmic{right:3px;} body.vlive .pava .vb.vcam{left:3px;} body.vlive .pava .vtag{font-size:10.5px;} body.vlive .pstatus{width:14px; height:14px;} }
+  @media (min-width:800px) and (min-height:390px){ body.vlive .pava{width:104px !important; height:120px !important;} body.vlive .pname{max-width:116px !important; font-size:12.5px;} body.vlive .pava .vb{width:30px !important; height:30px !important;} body.vlive .pava .vb svg{width:16px !important; height:16px !important;} body.vlive .pava .vtag{font-size:12px !important;} body.vlive .corner.bl .pemo, body.vlive .corner.bl .pchat, body.vlive .corner.bl .pwt{top:auto; bottom:52px !important;} }
+  @media (min-width:740px) and (min-height:370px){ body.vlive .corner.bl .pemo, body.vlive .corner.bl .pchat, body.vlive .corner.bl .pwt{top:auto; bottom:34px;} body.vlive .corner.bl .pwt{width:40px; height:40px;} body.vlive .pava{width:80px; height:92px;} body.vlive .pname{max-width:92px;} body.vlive .pava .vb{width:26px; height:26px; top:3px;} body.vlive .pava .vb svg{width:14px; height:14px;} body.vlive .pava .vb.vmic{right:3px;} body.vlive .pava .vb.vcam{left:3px;} body.vlive .pava .vtag{font-size:10.5px;} body.vlive .pstatus{width:14px; height:14px;} }
   .vb.vgrey{background:#3a3430; border-color:#9a8f80; color:#e8dcc4;}
   button.vb::after{content:''; position:absolute; inset:-8px;}   /* a finger-sized target around the small badge */
   .vvid{position:absolute; inset:0; width:100%; height:100%; z-index:5; background:#000;}
@@ -1899,21 +1917,27 @@
   .vchip{position:relative; display:flex; align-items:center; gap:8px; justify-content:center; padding:11px 14px; border-radius:14px; border:1.5px solid var(--gold-edge);
     background:rgba(0,0,0,0.3); color:#e9c45a; font:inherit; font-weight:750; font-size:14px; width:100%;}
   .vchip svg{width:18px; height:18px;} .vchipface{margin-left:6px;} .vchipface .face{width:30px; height:30px;}
-  #vcard{position:fixed; z-index:36; width:min(230px,70vw); background:#f6ecd2; color:#2a1c0c; border-radius:12px; padding:10px 12px;
-    box-shadow:0 5px 18px rgba(0,0,0,0.55); border:1px solid var(--gold-edge);}
+  #vcard{position:fixed; z-index:36; width:min(240px,70vw); background:linear-gradient(180deg,#3a220e,#1c0f05); color:#f3e6c8; border-radius:16px; padding:10px 12px; box-sizing:border-box;
+    box-shadow:0 8px 22px rgba(0,0,0,0.6); border:2px solid var(--gold-edge);}
+  /* v221: one popup style: a small pointer back to the picture you tapped, a thumb-sized close */
+  #vcard::after, #msghist::after{content:''; position:absolute; left:calc(var(--px,20px) - 8px); width:13px; height:13px; transform:rotate(45deg); display:none; pointer-events:none;}
+  #vcard.pdn::after, #msghist.pdn::after{display:block; top:-9px; background:#3a220e; border-left:2px solid var(--gold-edge); border-top:2px solid var(--gold-edge);}
+  #vcard.pup::after, #msghist.pup::after{display:block; bottom:-9px; background:#1c0f05; border-right:2px solid var(--gold-edge); border-bottom:2px solid var(--gold-edge);}
+  .popx{position:absolute; top:2px; right:2px; width:32px; height:32px; border:0; padding:0; background:none; color:#e9c45a; font-size:22px; line-height:32px; font-weight:700; cursor:pointer; z-index:2;}
+  .popx::after{content:''; position:absolute; inset:-6px;}   /* 44px finger target */
   body:has(#rpsroot:not(.hidden)) #vcard{z-index:40;}
-  .vch{font-weight:800; color:#7a5316; font-size:12px; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:8px;}
+  .vch{font-weight:800; color:#e9c45a; font-size:12px; text-transform:uppercase; letter-spacing:0.04em; margin:2px 30px 8px 0; line-height:20px;}
   .vcrow{display:flex; gap:8px;}
   .vcbig{flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:10px 6px 9px; border-radius:12px; background:#4a3a1c; border:1.5px solid #b8913f; color:#f3e6c8; font:inherit;}
   .vcbig svg{width:24px; height:24px; color:#e9c45a;} .vcbig b{font-size:14px;} .vcbig small{font-size:10.5px; color:#cbb991; font-weight:600;}
-  .vcsw{display:flex; align-items:center; gap:9px; width:100%; padding:7px 2px; background:none; border:0; font:inherit; font-weight:750; font-size:14px; color:#2a1c0c;}
-  .vcsw svg{width:18px; height:18px; color:#7a5316;} .vcsw span{flex:1; text-align:left;}
-  .vcsw .sw{width:38px; height:22px; border-radius:11px; background:#bfae8a; position:relative; flex:none;}
+  .vcsw{display:flex; align-items:center; gap:9px; width:100%; padding:7px 2px; background:none; border:0; font:inherit; font-weight:750; font-size:14px; color:#f3e6c8;}
+  .vcsw svg{width:18px; height:18px; color:#e9c45a;} .vcsw span{flex:1; text-align:left;}
+  .vcsw .sw{width:38px; height:22px; border-radius:11px; background:rgba(255,255,255,0.2); position:relative; flex:none;}
   .vcsw .sw::after{content:''; position:absolute; top:3px; left:3px; width:16px; height:16px; border-radius:50%; background:#fff;}
-  .vcsw .sw.on{background:#d8402f;} .vcsw .sw.on::after{left:19px;}
-  .vcend{margin-top:6px; width:100%; border:0; border-radius:10px; background:#7a2a20; color:#fff; font:inherit; font-weight:750; font-size:13px; padding:8px;}
-  .vclink{display:block; width:100%; margin-top:8px; padding:6px 0 0; border:0; border-top:1px solid rgba(0,0,0,0.1); background:none; font:inherit; font-weight:700; font-size:12.5px; color:#7a5316; text-align:left;}
-  .vcnote{font-size:11px; color:#7a6a4c; margin:6px 0 0; line-height:1.35;}
+  .vcsw .sw.on{background:#3fae55;} .vcsw .sw.on::after{left:19px;}
+  .vcend{margin-top:6px; width:100%; border:1.5px solid rgba(233,196,90,0.55); border-radius:10px; background:transparent; color:#e9c45a; font:inherit; font-weight:750; font-size:13px; padding:8px;}
+  .vclink{display:block; width:100%; margin-top:8px; padding:6px 0 0; border:0; border-top:1px solid rgba(233,196,90,0.2); background:none; font:inherit; font-weight:700; font-size:12.5px; color:#e9c45a; text-align:left;}
+  .vcnote{font-size:11px; color:#cbb991; margin:6px 0 0; line-height:1.35;}
   .vmuterow{display:flex; align-items:center; gap:8px; width:100%; margin:2px 0 4px; padding:8px 10px; border-radius:10px; border:1.5px solid #b8913f; background:#4a3a1c; color:#f3e6c8; font:inherit; font-weight:750; font-size:13px; text-align:left;}
   .vmuterow svg{width:17px; height:17px; color:#e9c45a; flex:none;}
   #vask{position:fixed; inset:0; z-index:60; background:rgba(6,3,1,0.6); display:flex; align-items:flex-end; justify-content:center;}
@@ -2042,7 +2066,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v220';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v221';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -2963,7 +2987,36 @@
     document.body.classList.toggle('hascuppill', !!$('cuppill'));
     const usedSeats = {}; state.players.forEach((_, i) => { usedSeats[seatKey(i)] = 1; });
     ['tl', 'tr', 'br', 'bl'].forEach((k) => { if (!usedSeats[k]) { const el = $('p-' + k); if (el) el.style.display = 'none'; } });
+    requestAnimationFrame(fitDock);
   }
+  // v221: with the bigger voice corners, keep the bottom bar (your resources, or the watcher's strip) between the
+  // two bottom corners and their luck gauges, so nothing from a corner sits on it. Squeezes the gaps first.
+  function fitDock() {
+    const d = $('dock'), h = $('hand'); if (!d || !h) return;
+    // the right-hand corners' dice: slide left until they clear the round menu button
+    const m = $('radialtab'), mr = m && m.offsetWidth ? m.getBoundingClientRect() : null;
+    document.querySelectorAll('.corner.tr .pdice, .corner.br .pdice').forEach((x) => {
+      x.style.marginLeft = ''; if (!mr) return;
+      const a = x.getBoundingClientRect();
+      if (a.right > mr.left - 6 && a.bottom > mr.top - 4 && a.top < mr.bottom + 4) x.style.marginLeft = -(a.right - mr.left + 8) + 'px';
+    });
+    d.style.maxWidth = ''; h.style.gap = ''; h.style.paddingLeft = h.style.paddingRight = '';
+    if (!state || !document.body.classList.contains('vlive')) return;
+    let lim = 0;
+    document.querySelectorAll('.corner.bl, .corner.br').forEach((c) => {
+      if (c.style.display === 'none' || !c.offsetWidth) return;
+      [c, c.querySelector('.pluck')].forEach((e) => { if (!e) return; const r = e.getBoundingClientRect(); if (r.width) lim = Math.max(lim, c.classList.contains('bl') ? r.right : window.innerWidth - r.left); });
+    });
+    if (!lim) return;
+    const room = window.innerWidth - 2 * (lim + 8);
+    d.style.maxWidth = room + 'px';
+    if (!h.querySelector('.spechand')) {
+      for (const g of [30, 24, 18, 14, 10]) { h.style.gap = g + 'px'; if (h.scrollWidth <= room) break; }
+      if (h.scrollWidth > room) h.style.paddingLeft = h.style.paddingRight = '12px';
+    }
+    const sel = h.querySelector('.specsel'); if (sel) sel.classList.toggle('more', sel.scrollWidth > sel.clientWidth + 2);
+  }
+  window.addEventListener('resize', () => requestAnimationFrame(fitDock));
 
   // times robbed, as a number on a tag hanging off the corner's inner edge (from the first robbery on)
   const robbedSeen = {}, robbedBumpAt = {};
@@ -5197,14 +5250,15 @@
   const VI_SPKX = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M17 9l5 6M22 9l-5 6"/></svg>';
   const VI_DEAF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 14v-2a9 9 0 0 1 18 0v2"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/><path d="M3 3l18 18"/></svg>';
   // badges on a picture: my own are buttons (one tap = mute / camera off); others' are plain markers
+  const VBARS = '<span class="vbars"><i></i><i></i><i></i></span>';   // live sound bars (shown while talking)
   function voiceBadges(id, plain) {   // plain: inside another button (no nested buttons)
     const i = voiceInfo(id); if (!i) return '';
     if (plain && i.mine) i.mine = false;
     let s = '';
     if (i.cam) s += i.mine ? `<button class="vb vcam" onclick="event.stopPropagation();CATAN.voiceCam(false)" aria-label="Turn camera off">${VI_CAM}</button>` : `<span class="vb vcam">${VI_CAM}</span>`;
     if (i.forMe) s += `<button class="vb vgrey vmic" onclick="event.stopPropagation();CATAN.voiceMuteFor('${id}',false)" aria-label="Unmute for me">${VI_SPKX}</button>`;
-    else if (i.mic) s += i.mine ? `<button class="vb vmic" onclick="event.stopPropagation();CATAN.voiceMic(false)" aria-label="Mute">${VI_MIC}</button>` : `<span class="vb vmic">${VI_MIC}</span>`;
-    else if (i.micMuted) s += i.mine ? `<button class="vb vgrey vmic" onclick="event.stopPropagation();CATAN.voiceMic(true)" aria-label="Unmute">${VI_MICX}</button>` : `<span class="vb vgrey vmic">${VI_MICX}</span>`;
+    else if (i.mic) s += i.mine ? `<button class="vb vmic" onclick="event.stopPropagation();CATAN.voiceMic(false)" aria-label="Mute">${VI_MIC}${VBARS}</button>` : `<span class="vb vmic">${VI_MIC}${VBARS}</span>`;
+    else if (i.micMuted) s += i.mine ? `<button class="vb vred vmic" onclick="event.stopPropagation();CATAN.voiceMic(true)" aria-label="Unmute">${VI_MICX}</button>` : `<span class="vb vred vmic">${VI_MICX}</span>`;
     else if (i.deaf) s += `<span class="vb vgrey vmic" title="Not hearing voices">${VI_DEAF}</span>`;
     return s;
   }
@@ -5309,6 +5363,17 @@
     });
   }
   // ---- the card on your own picture ----
+  // v221: place a popup next to the picture that opened it, with a small pointer back to it
+  function popAt(el, ar) {
+    const W = window.innerWidth, H = window.innerHeight, w = el.offsetWidth, h = el.offsetHeight, cx = ar.left + ar.width / 2;
+    const left = Math.min(W - w - 6, Math.max(6, cx < W / 2 ? ar.left : ar.right - w));
+    const below = ar.top + ar.height / 2 < H / 2, want = below ? ar.bottom + 11 : ar.top - h - 11;
+    const top = Math.max(6, Math.min(H - h - 6, want));
+    Object.assign(el.style, { left: left + 'px', top: top + 'px', right: '', bottom: '', transform: '' });
+    el.classList.remove('pdn', 'pup');
+    if (Math.abs(top - want) < 1) { el.classList.add(below ? 'pdn' : 'pup'); el.style.setProperty('--px', Math.max(16, Math.min(w - 16, cx - left)) + 'px'); }
+  }
+  const POPX = '<button class="popx" data-a="x" aria-label="Close">×</button>';
   function voiceCard(anchor) {
     const old = document.getElementById('vcard'); if (old) { old.remove(); return; }
     const c = document.createElement('div'); c.id = 'vcard';
@@ -5321,15 +5386,13 @@
         <button class="vcsw" data-a="mic">${VI_MIC}<span>Mic</span><i class="sw${LIVE.mic ? ' on' : ''}"></i></button>
         <button class="vcsw" data-a="cam">${VI_CAM}<span>Camera</span><i class="sw${LIVE.cam ? ' on' : ''}"></i></button>
         <button class="vcend" data-a="end">Leave the call</button><p class="vcnote">You'll still hear everyone.</p>`;
-    if (state && online && myColor && document.body.classList.contains('ingame')) c.innerHTML += `<button class="vclink" data-a="msgs">My recent messages</button>`;
-    else if (LOBBY.table && !state) c.innerHTML += `<button class="vclink" data-a="colour">Change my colour</button>`;
+    if (state && online && myColor && document.body.classList.contains('ingame')) { if ((MSGLOG[myColor] || []).length) c.innerHTML += `<button class="vclink" data-a="msgs">My recent messages ›</button>`; }   // nothing to open when you sent none
+    else if (LOBBY.table && !state) c.innerHTML += `<button class="vclink" data-a="colour">Change my colour ›</button>`;
+    c.innerHTML = POPX + c.innerHTML;
     document.body.appendChild(c);
     const ar = anchor && anchor.getBoundingClientRect();
-    if (ar) {
-      const below = ar.top < window.innerHeight / 2, left = ar.left < window.innerWidth / 2;
-      if (below) c.style.top = (ar.bottom + 8) + 'px'; else c.style.bottom = (window.innerHeight - ar.top + 8) + 'px';
-      if (left) c.style.left = Math.max(6, ar.left) + 'px'; else c.style.right = Math.max(6, window.innerWidth - ar.right) + 'px';
-    } else { c.style.top = '50%'; c.style.left = '50%'; c.style.transform = 'translate(-50%,-50%)'; }
+    if (ar && ar.width) popAt(c, ar);
+    else { c.style.top = '50%'; c.style.left = '50%'; c.style.transform = 'translate(-50%,-50%)'; }
     const kill = () => { c.remove(); document.removeEventListener('pointerdown', outside, true); };
     const outside = (e) => { if (!c.contains(e.target)) kill(); };
     setTimeout(() => document.addEventListener('pointerdown', outside, true), 0);
@@ -5351,9 +5414,10 @@
     const row = voiceMuteRow(id); if (!row) return;
     const c = document.createElement('div'); c.id = 'vcard';
     const watching = LOBBY.spectators().some((w) => w.id === id);
-    c.innerHTML = `<div class="vch">${escapeHtml(voiceNameOf(id) || '')}${watching ? ' · watching' : ''}</div>${row}`;
+    c.innerHTML = `${POPX}<div class="vch">${escapeHtml(voiceNameOf(id) || '')}${watching ? ' · watching' : ''}</div>${row}`;
     document.body.appendChild(c);
-    const ar = anchor.getBoundingClientRect(); c.style.top = (ar.bottom + 8) + 'px'; c.style.left = Math.max(6, Math.min(window.innerWidth - 240, ar.left - 100)) + 'px';
+    popAt(c, anchor.getBoundingClientRect());
+    c.querySelector('.popx').onclick = () => kill();
     const kill = () => { c.remove(); document.removeEventListener('pointerdown', outside, true); };
     const outside = (e) => { if (!c.contains(e.target)) kill(); };
     setTimeout(() => document.addEventListener('pointerdown', outside, true), 0);
@@ -5403,18 +5467,16 @@
       : `<div class="mhrow muted">No messages yet</div>`;
     const b = document.createElement('div');
     b.id = 'msghist';
-    b.innerHTML = `<button class="bcclose" aria-label="Close">×</button><div class="mhhead">${escapeHtml((pl && pl.name) || '')}</div>${voiceMuteRow(seatPlayerId(color))}${rows}`;
+    b.innerHTML = `<button class="popx" aria-label="Close">×</button><div class="mhscroll"><div class="mhhead">${escapeHtml((pl && pl.name) || '')}</div>${voiceMuteRow(seatPlayerId(color))}${rows}</div>`;
     document.body.appendChild(b);
-    // anchor near the corner (fall back to centred if no corner, e.g. offline)
-    if (corner) {
-      const top = pos[0] === 't', left = pos[1] === 'l', cr = corner.getBoundingClientRect(), gap = 8;
-      if (top) b.style.top = (cr.bottom + gap) + 'px'; else b.style.bottom = (window.innerHeight - cr.top + gap) + 'px';
-      if (left) b.style.left = Math.max(6, cr.left) + 'px'; else b.style.right = Math.max(6, window.innerWidth - cr.right) + 'px';
-    } else { b.style.top = '50%'; b.style.left = '50%'; b.style.transform = 'translate(-50%,-50%)'; }
+    // anchor to the player's picture (fall back to centred if no corner, e.g. offline)
+    const pic = corner && (corner.querySelector('.pava') || corner);
+    if (pic && pic.getBoundingClientRect().width) popAt(b, pic.getBoundingClientRect());
+    else { b.style.top = '50%'; b.style.left = '50%'; b.style.transform = 'translate(-50%,-50%)'; }
     b.querySelectorAll('.mhplay').forEach((btn) => wireVoicePlay(btn, btn.getAttribute('data-url')));
     const kill = () => { b.remove(); document.removeEventListener('pointerdown', outside, true); };
     const outside = (e) => { if (!b.contains(e.target)) kill(); };
-    b.querySelector('.bcclose').onclick = kill;
+    b.querySelector('.popx').onclick = kill;
     setTimeout(() => document.addEventListener('pointerdown', outside, true), 0);   // tap outside to dismiss
     renderPanels();   // refresh to drop the unread dot
   }
@@ -6337,10 +6399,21 @@
     const left = above ? box.l : box.r + 6, room = window.innerWidth - left - 10;
     const w = trayMode === 'emo' ? Math.min(8, Math.max(5, Math.floor((room - 47) / 52))) * 52 + 47 : Math.min(470, room);   // 46px emojis + 6px gaps + side gutters to scroll on
     t.style.width = w + 'px'; t.style.left = left + 'px'; t.style.right = '';
-    t.style.maxHeight = Math.min(above ? box.t - 12 : window.innerHeight - 12, trayMode === 'emo' && !trayDraft ? 300 : 9999) + 'px';   // emojis: ~4½ rows, the rest scroll
+    const bn = $('banner'), bnr = bn && bn.offsetWidth ? bn.getBoundingClientRect() : null;
+    const ceil = bnr && left < bnr.right && left + w > bnr.left ? bnr.bottom + 6 : 6;   // v221: never under the turn banner
+    t.style.maxHeight = Math.min(above ? box.t - 6 - ceil : window.innerHeight - 6 - ceil, trayMode === 'emo' && !trayDraft ? 300 : 9999) + 'px';   // emojis: ~4½ rows, the rest scroll
     t.style.top = '0px';
+    const g = t.querySelector('.etbig');
+    if (g && !trayDraft) {   // whole rows only, and a fade at the bottom when more scroll
+      g.style.maxHeight = ''; g.classList.remove('more');
+      const extra = t.offsetHeight - g.clientHeight, avail = parseFloat(t.style.maxHeight) - extra;
+      if (g.scrollHeight > avail) {   // whole rows, plus a faded peek of the next one to say "scroll"
+        const fit = Math.max(1, Math.floor((avail - 18) / 52));
+        g.style.maxHeight = (fit * 52 + 18) + 'px'; g.style.flex = 'none'; g.classList.add('more');
+      }
+    }
     const h = t.offsetHeight, bottom = above ? box.t - 6 : box.b;
-    t.style.top = Math.max(6, bottom - h) + 'px';
+    t.style.top = Math.max(ceil, bottom - h) + 'px';
   }
   function trayDots() { return `<div class="etdots"><i class="${trayMode === 'emo' ? 'on' : ''}"></i><i class="${trayMode === 'txt' ? 'on' : ''}"></i></div>`; }
   function trayMain(t) {
