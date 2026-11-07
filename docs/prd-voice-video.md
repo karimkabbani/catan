@@ -26,6 +26,16 @@ VO/VI rows above them are superseded).
 | D10 | Spectators get everything players get (hear, talk, video, mute-for-me) | Karim, mock T6 |
 | D11 | Music is NOT paused or ducked when people talk ("people like their music") | Karim |
 | D12 | Walkie-talkie stays only as the fallback when the call can't connect | design, mock VO4 |
+| D13 | Remembered Video never auto-starts the camera: you start on Audio, video one tap away | Karim (Q1) |
+| D14 | First-time card carries one line about the iPhone side effect (music at call volume, AirPods at call quality while your mic is on) | Karim (Q2) |
+| D15 | Mute-for-me lasts one table night, never carried over | Karim (Q3) |
+| D16 | Voice ships as a forced update. A phone on an old version shows "Update to hear the table"; others see a marker on that corner | Karim (Q4) |
+| D17 | Video chosen but camera permission refused: fall back to Audio with a note | Karim (Q5) |
+| D18 | Watchers can be muted-for-me with the same announcement | Karim (Q6) |
+| D19 | "Hear voices" on/off in settings (replaces "Walkie-talkie sound"); a crossed speaker on your corner when off | Karim (Q7) |
+| D20 | No host power to mute someone for everyone (friends only; revisit if public) | Karim (Q8) |
+| D21 | Audio AND video ship together (no audio-only phase) | Karim (Q9) |
+| D22 | Vendor: LiveKit Cloud first (Karim opening the account); Daily stays plan B if the free cap bites | Karim |
 
 ## 3. Requirements
 
@@ -113,15 +123,12 @@ Server side either way: one small Supabase Edge Function that checks the caller 
 call token (the service's secret stays server-side).
 
 ## 6. Open questions
-- Q1. Video default (D6/R7): if someone's remembered choice is Video, turn the camera on automatically at the next
-  table, or always start them on Audio with video one tap away? (Proposal: audio, camera one tap away.)
-- Q2. Can a watcher be muted-for-me by players during their turn without it feeling hostile? (Same rule as players.)
-- Q3. Mention the iPhone call-volume / AirPods effect in the first-time sheet, or leave it?
-- Q4. Should "mute for me" carry over to the next night? (Proposal: no.)
-- Q5. Phone with no camera permission granted: the Video choice asks for camera permission at that moment; if
-  refused, fall back to Audio with a note.
-- Q6. Old app versions at the same table can't hear the call. Show "update to hear voice" on their phones, and a
-  marker on their corner for everyone else?
+All earlier questions answered (D13-D22). New:
+- Q7. Minute strategy on LiveKit's free cap (5,000 participant-minutes, hard stop). Table-long listening plus
+  spectators lands "regular" use (~5,400) just over it. Options: (a) lazy connect: phones join the call only while
+  someone at the table has mic or camera on, and leave after ~2 min of silence (cuts silent listening minutes,
+  first second of a new conversation can be lost); (b) pay $50/month (Ship); (c) move to Daily (10,000 free).
+  Decide after the trial night, using the real minute counts from the log.
 
 ## 7. Acceptance checks (when built)
 - Two iPhones + one Android, 4G and wifi. Clap test under ~0.3 s.
@@ -140,3 +147,28 @@ table). Voice/video must not depend on that outcome:
 - The call-token function is its own small server function.
 On an architecture change, only three things move: where the token comes from, where "who is at the table" comes
 from, and how mute-for-me announcements travel. Estimated rework: about half a day to a day.
+
+## 9. Plan
+| Phase | What | Effort |
+|---|---|---|
+| 0. Trial | A separate trial page and home-screen app (`/catan/voice-trial/`), never the game. Log in as a real player (Test, test2), join one call, mic + camera toggles, speaking glow, badges, game music and sound effects playing during the call, a live stats panel (delay, connection quality, audio route), a "send diagnostics" button. Tested by Karim on two iPhones (his + Yasmine's) over wifi and 4G. | ~1 day + one evening of testing |
+| 1. Build | Audio + video in the game per this document, with the off switch, minute guard, logging and the regression sweep | ~5 days + sweep |
+
+Trial checklist (Karim, two iPhones): clap test; lock and unlock; incoming phone call; AirPods on/off mid-call;
+game music + dice sounds while a mic is open (echo? volume?); camera on for 20 min (heat, battery %); 4G vs wifi;
+Low Power Mode; one phone kills the app and reopens.
+
+## 10. LiveKit: what we get and what we build
+Get from LiveKit: the media servers worldwide; the browser SDK (`livekit-client`) with automatic reconnection,
+audio levels and active-speaker events (for the glow), mute events (for badges), simulcast + adaptive stream (each
+phone receives only the video size it shows); per-participant attributes (mic/camera state everyone sees);
+webhooks for room and participant join/leave (for the minute counter); a usage dashboard; a server API to list or
+remove participants (moderation later).
+We build: the token function (Supabase Edge Function: checks the player's session token, signs a LiveKit token for
+room `table-<code>`, identity = player id, name = player name); the voice module in the app; a `voice_log` table and
+a webhook function that records join/leave so minutes per month are counted (warning at 80% of the cap); the off
+switch (one config row).
+Karim's setup (~10 min): LiveKit Cloud account, project "catan"; note the project URL (wss://…livekit.cloud) and API
+key (not secret); the API secret goes only into the Supabase Edge Function secrets (dashboard), never into the chat.
+Unverified until signup: whether Build includes Krisp noise cancellation (likely paid plans only), the exact
+cap behaviour, the bandwidth allowance.
