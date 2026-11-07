@@ -1,1 +1,1 @@
-{ "enabled": true }
+{ "enabled": true, "only": ["test", "test2"] }

@@ -5000,7 +5000,12 @@
     vids: {},         // identity -> persistent <video> for their camera
     askOpen: false, autoDone: null,
   };
-  function voiceOn() { return !!(!(LIVE.cfg && LIVE.cfg.enabled === false) && window.RTCPeerConnection && navigator.mediaDevices); }   // on unless voice-config.json says off
+  function voiceOn() {   // on unless voice-config.json says off; "only": [names] limits it to those players (staged rollout)
+    const c = LIVE.cfg;
+    if (c && c.enabled === false) return false;
+    if (c && Array.isArray(c.only) && !(AUTH.me && c.only.some((n) => String(n).toLowerCase() === String(AUTH.me.name || '').toLowerCase()))) return false;
+    return !!(window.RTCPeerConnection && navigator.mediaDevices);
+  }
   function voiceDown() { return !voiceOn() || !LIVE.room; }   // no call right now: the walkie-talkie button is the fallback
   function voiceWanted() {
     if (!LIVE.cfg || !voiceOn() || !AUTH.me || !AUTH.me.token || !LOBBY.table || ARCHIVE) return null;
