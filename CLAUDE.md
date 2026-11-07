@@ -6,8 +6,12 @@ https://karimkabbani.github.io/catan/. The full history, every feature and its d
 
 ## How Karim works
 - Plain, direct English. No em dashes. Explain things in lay terms when asked.
-- Mock it first when he asks for mocks: the design canvas is https://claude.ai/artifact/NRTc83WMEbQWPfp2UtYmNB
-  (one board per file; publish each file before writing the next). Otherwise build straight away.
+- Mock it first when he asks for mocks. Three design canvases (one board per file; publish each file before writing
+  the next), split on 2026-11-07 so each loads fast. Put new mocks on the one that fits the topic:
+  - Game UI (lobby, in-game, chat, stats, robber, luck meter, tournaments): https://claude.ai/artifact/NRTc83WMEbQWPfp2UtYmNB
+  - Voice & video (walkie-talkie, open mic, camera): https://claude.ai/artifact/DjkXUjLaeYMZzcH4tpz9QX
+  - Rebrand art (app-store art exploration; takes 1 to 6 saved as images): https://claude.ai/artifact/N1qFgEmZW1mChosELAffsA
+  Otherwise build straight away.
 - **Deploy only when he says so** ("deploy", "build and deploy"). After deploying, confirm the live version.
 - Report what you verified and what you couldn't (real-phone behaviour can't be tested headless).
 

@@ -914,6 +914,15 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    the tray swipe), height capped ~4½ rows. Gestures (`wireTrayDrag`, HOLD_MS 260): quick tap = send; move first =
    scroll/flip; HOLD = the emoji lifts (ghost visible everywhere, inside the tray too) and a non-passive touchmove
    blocks scrolling; drop on a player = throw, elsewhere = cancel. Verified headless incl. synthesized touch scroll.
+50. 🧪 **App-store rebrand: art exploration (2026-11-07), not built.** Publishing as "Catan" with the ripped official art
+   would be taken down (trademark + copyright). Explored original art that keeps the feel: 7 takes on the Rebrand art
+   canvas (https://claude.ai/artifact/N1qFgEmZW1mChosELAffsA). Current direction = take 7: same hex board and resource
+   hues (sampled from the official tiles), Caudex numbers straight on the land (red disc only on 6/8), white stone
+   houses with a player-colour roof on an oval base, square-tower cities, kerbed roads, big port badges with plank
+   bridges, hooded robber, no outlines, one top-left light. Placeholder name "Jazira" (no trademark search yet).
+   Open: decide direction, then scope the full set (about 60 images + sounds, also ripped) and the name. Swapping is a
+   file swap via `window.CATAN_ASSETS` in index.html. The design canvas was split the same day (see CLAUDE.md):
+   game UI, voice & video, rebrand art.
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
