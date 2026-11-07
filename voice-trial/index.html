@@ -59,6 +59,14 @@
   <div class="note" id="loginMsg"></div>
 </div>
 
+<div class="card" id="afterCard" style="display:none;border-color:#e9c45a">
+  <h2>After unlocking: try these in order on THIS phone</h2>
+  <p class="note">After each step, say out loud whether you hear the song. Stop at the first one that brings it back.</p>
+  <div class="row"><button onclick="V.sfx('dice_roll')">1 · Dice sound</button></div>
+  <p class="note">2 · Hold the phone to your ear: is the song there, quietly, from the top?</p>
+  <div class="row"><button onclick="V.resetMode()">3 · Reset iPhone audio mode</button></div>
+  <div class="row"><button onclick="V.reloadApp()">4 · Reload the app</button></div>
+</div>
 <div class="card" id="callCard" style="display:none">
   <h2>2 · The call</h2>
   <div class="row"><span class="note" style="margin:0 8px 0 0">Logged in as <b id="me"></b></span><button class="sec" onclick="V.logout()">Switch player</button></div>
@@ -107,7 +115,7 @@
 <script>
 (function () {
   'use strict';
-  const TRIAL_VERSION = 't4';
+  const TRIAL_VERSION = 't5';
   const ROOM = 'trial';
   const LK = window.LivekitClient;
   const { Room, RoomEvent, Track } = LK;
@@ -299,6 +307,24 @@
     logEv('prime', { how, before, now: actx ? actx.state : 'none', canPlay: room ? room.canPlaybackAudio : null, rebuilt });
     updateHear();
   }
+  // t5 Fix 5: after a long lock iOS may leave this app's audio session stuck (or routed to the earpiece). Reset the
+  // mode through 'auto' and back, inside the tap, then rebuild the voices on a fresh engine.
+  async function resetMode() {
+    const before = HAS_AS ? navigator.audioSession.type : 'n/a';
+    if (HAS_AS) {
+      try { navigator.audioSession.type = 'auto'; } catch (e) { logEv('reset-mode-error', { step: 'auto', msg: e.message }); }
+      await new Promise((ok) => setTimeout(ok, 250));
+      try { navigator.audioSession.type = wantMic ? 'play-and-record' : 'playback'; } catch (e) { logEv('reset-mode-error', { step: 'back', msg: e.message }); }
+    }
+    logEv('reset-mode', { before, now: HAS_AS ? navigator.audioSession.type : 'n/a' });
+    await newEngine();
+  }
+  // Fix 6: reload the whole app (the call needs a Join tap again afterwards)
+  function reloadApp() {
+    logEv('reload-app');
+    try { sessionStorage.setItem('vt_reloaded', String(Date.now())); } catch (_) { }
+    setTimeout(() => location.reload(), 300);
+  }
   // Fix 3: throw away the (possibly dead) sound engine and build a new one inside this tap, then move the call's
   // voices and the game sounds onto it.
   async function newEngine() {
@@ -341,8 +367,8 @@
     if (document.visibilityState === 'hidden') hiddenAt = Date.now();
     if (document.visibilityState === 'visible' && hiddenAt) {
       const away = Math.round((Date.now() - hiddenAt) / 1000); hiddenAt = 0;
-      logEv('return', { awaySec: away, engine: actx ? actx.state : 'none', canPlay: room ? room.canPlaybackAudio : null, inCall: !!room });
-      if (away >= 10 && room) { needPrime = true; $('prime').style.display = 'block'; }
+      logEv('return', { awaySec: away, engine: actx ? actx.state : 'none', canPlay: room ? room.canPlaybackAudio : null, inCall: !!room, sessionType: HAS_AS ? navigator.audioSession.type : null, sessionState: HAS_AS ? navigator.audioSession.state : null });
+      if (away >= 10 && room) { $('afterCard').style.display = ''; window.scrollTo(0, 0); }
     }
     if (document.visibilityState === 'hidden' && room) { if (wantMic) toggleMic(); if (wantCam) toggleCam(); }
     if (document.visibilityState === 'visible' && actx && actx.state !== 'running') {
@@ -412,8 +438,9 @@
     logEv('report-sent');
   }
 
-  window.V = { prime, resub, newEngine, rejoin, login, logout, join, leave, toggleMic, toggleCam, toggleMusic, sfx, ping, report, startAudio, logEv };
-  logEv('page-open', { standalone: STANDALONE, audioSession: HAS_AS, ua: navigator.userAgent });
+  window.V = { resetMode, reloadApp, prime, resub, newEngine, rejoin, login, logout, join, leave, toggleMic, toggleCam, toggleMusic, sfx, ping, report, startAudio, logEv };
+  let reloadedAt = null; try { reloadedAt = sessionStorage.getItem('vt_reloaded'); sessionStorage.removeItem('vt_reloaded'); } catch (_) { }
+  logEv('page-open', { standalone: STANDALONE, audioSession: HAS_AS, sessionType: HAS_AS ? navigator.audioSession.type : null, afterReload: !!reloadedAt, ua: navigator.userAgent });
   resume();
 })();
 </script>
