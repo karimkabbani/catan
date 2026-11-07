@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v218';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v219';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -2452,7 +2452,7 @@
   function showVictory(quiet) {   // quiet = returning from the dice stats: no fanfare/confetti replay
     if (quittingNow) return;     // I just quit: no fanfare on my way out
     if (ARCHIVE) quiet = true;   // a past game: no fanfare
-    victoryShownFor = gameKey(); victoryFinal = cupFinal(state); document.body.classList.add('vwin');   // corners grow, faces stay live
+    victoryShownFor = gameKey(); victoryFinal = cupFinal(state); if (voiceOn() && LIVE.room) document.body.classList.add('vwin');   // with voice on: corners grow, faces stay live
     if (!quiet) playSound('win', 0.8);
     if (state.cup) { showCupVictory(quiet); return; }
     if (!ARCHIVE) STATS.loaded = false;   // a game just ended -> every client refetches stats on the next lobby visit
@@ -2983,7 +2983,7 @@
     const code = String(LOBBY.table).replace(/[^A-Za-z0-9]/g, '').slice(0, 12);
     return code.length >= 2 ? 'table-' + code : null;
   }
-  fetch('voice-config.json', { cache: 'no-store' }).then((r) => r.json()).then((c) => { LIVE.cfg = c || {}; voiceSync(); }).catch(() => { LIVE.cfg = { enabled: true }; });
+  fetch('voice-config.json', { cache: 'no-store' }).then((r) => r.json()).then((c) => { LIVE.cfg = c || {}; voiceSync(); if (state) try { renderPanels(); } catch (_) { } }).catch(() => { LIVE.cfg = { enabled: true }; });
   function voiceLoadLib() {
     if (window.LivekitClient) return Promise.resolve(window.LivekitClient);
     if (!LIVE.libP) LIVE.libP = new Promise((ok, no) => { const s = document.createElement('script'); s.src = LIVE_LIB; s.onload = () => ok(window.LivekitClient); s.onerror = () => { LIVE.libP = null; no(new Error('lib')); }; document.head.appendChild(s); });
@@ -2991,6 +2991,7 @@
   }
   // keep the call matching where I am: join my table's call, leave it when I leave the table
   function voiceSync() {
+    document.body.classList.toggle('vlive', !!(LIVE.cfg && AUTH.me && voiceOn()));   // bigger corners etc. only for players with voice
     const want = voiceWanted();
     if (LIVE.roomName && LIVE.roomName !== want) voiceLeave();
     if (want && !LIVE.room && !LIVE.connecting && actx && Date.now() >= LIVE.retryAt) voiceJoin(want);
