@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v215';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v216';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -3185,21 +3185,45 @@
     else if (typeof renderLobby === 'function' && AUTH.me && LV.tab === 'play') { lobbySig = null; try { renderLobby(); } catch (_) { } }   // the chat tab keeps its scroll
     voiceMountVideos();
   }
+  // live camera pictures: each player's <video> plays in a hidden holder that never moves (iOS won't paint a
+  // <video> inside the dimmed, often-redrawn corners), and every picture showing them gets a <canvas> that copies
+  // its frames ~15 times a second. Works under any CSS filter / transform and survives every redraw.
+  function voiceVideoEl(id, track) {
+    let v = LIVE.vids[id];
+    if (!v) {
+      let h = document.getElementById('vholder');
+      if (!h) { h = document.createElement('div'); h.id = 'vholder'; document.body.appendChild(h); }
+      v = document.createElement('video'); v.muted = true; v.playsInline = true; v.autoplay = true; v.setAttribute('playsinline', ''); v.setAttribute('muted', '');
+      h.appendChild(v); LIVE.vids[id] = v;
+    }
+    if (v._track !== track) { try { track.attach(v); } catch (_) { } v._track = track; }
+    if (v.paused) v.play().catch(() => { });
+    return v;
+  }
   function voiceMountVideos() {
-    const r = LIVE.room, LK = window.LivekitClient;
+    const r = LIVE.room, LK = window.LivekitClient, live = {};
     document.querySelectorAll('[data-vid]').forEach((box) => {
       const id = box.getAttribute('data-vid'), i = r && voiceInfo(id);
-      let v = LIVE.vids[id];
-      if (i && i.cam) {
-        const pub = i.p.getTrackPublication(LK.Track.Source.Camera);
-        if (!pub || !pub.track) return;
-        if (!v) { v = document.createElement('video'); v.className = 'vvid' + (i.mine ? ' mine' : ''); v.muted = true; v.playsInline = true; v.setAttribute('playsinline', ''); v.autoplay = true; LIVE.vids[id] = v; }
-        if (v._track !== pub.track) { pub.track.attach(v); v._track = pub.track; }
-        if (v.parentNode !== box) box.appendChild(v);
-        if (v.paused) v.play().catch(() => { });
-      } else if (v && v.parentNode === box) v.remove();
+      let cv = box.querySelector(':scope > canvas.vvid');
+      const pub = i && i.cam && LK ? i.p.getTrackPublication(LK.Track.Source.Camera) : null;
+      if (pub && pub.track) {
+        live[id] = true; voiceVideoEl(id, pub.track);
+        if (!cv) { cv = document.createElement('canvas'); cv.className = 'vvid' + (i.mine ? ' mine' : ''); cv.width = 120; cv.height = 140; box.appendChild(cv); }
+      } else if (cv) cv.remove();
     });
+    Object.keys(LIVE.vids).forEach((id) => { if (!live[id] && !(r && voiceInfo(id) && voiceInfo(id).cam)) { const v = LIVE.vids[id]; try { v.srcObject = null; v.remove(); } catch (_) { } delete LIVE.vids[id]; } });
   }
+  let vDrawAt = 0;
+  (function vDraw(t) {
+    requestAnimationFrame(vDraw);
+    if (!LIVE.room || t - vDrawAt < 66) return; vDrawAt = t;
+    document.querySelectorAll('canvas.vvid').forEach((cv) => {
+      const box = cv.parentNode, id = box && box.getAttribute('data-vid'), v = id && LIVE.vids[id];
+      if (!v || v.readyState < 2 || !v.videoWidth) return;
+      const w = cv.width, h = cv.height, s = Math.max(w / v.videoWidth, h / v.videoHeight), dw = v.videoWidth * s, dh = v.videoHeight * s;
+      try { cv.getContext('2d').drawImage(v, (w - dw) / 2, (h - dh) / 2, dw, dh); } catch (_) { }
+    });
+  })(0);
   // speaking glow: brighter when louder (LiveKit audio levels, 8x a second)
   setInterval(() => {
     const r = LIVE.room; if (!r) return;
