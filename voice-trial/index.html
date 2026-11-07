@@ -61,11 +61,10 @@
 
 <div class="card" id="afterCard" style="display:none;border-color:#e9c45a">
   <h2>After unlocking: try these in order on THIS phone</h2>
-  <p class="note">After each step, say out loud whether you hear the song. Stop at the first one that brings it back.</p>
-  <div class="row"><button onclick="V.sfx('dice_roll')">1 · Dice sound</button></div>
-  <p class="note">2 · Hold the phone to your ear: is the song there, quietly, from the top?</p>
-  <div class="row"><button onclick="V.resetMode()">3 · Reset iPhone audio mode</button></div>
-  <div class="row"><button onclick="V.reloadApp()">4 · Reload the app</button></div>
+  <p class="note">Listen about 5 seconds after each step. Stop at the first one that brings the song back.</p>
+  <div class="row"><button class="sec" onclick="V.logEv('tap-blank')">1 · Tap here once (any tap)</button></div>
+  <div class="row"><button onclick="V.sfx('dice_roll')">2 · Dice sound</button></div>
+  <div class="row"><button onclick="V.reloadApp()">3 · Reload the app</button></div>
 </div>
 <div class="card" id="callCard" style="display:none">
   <h2>2 · The call</h2>
@@ -88,6 +87,7 @@
     <button class="sec" onclick="V.sfx('dice_roll')">Dice sound</button>
     <button class="sec" onclick="V.sfx('robber')">Robber sound</button>
   </div>
+  <label class="chk"><input type="checkbox" id="keepOn" checked onchange="V.logEv('setting',{gameAudioSetup:this.checked})">Game's audio setup (silent keep-alive + rebuild on first tap after unlocking)</label>
   <label class="chk"><input type="checkbox" id="mixOn" checked onchange="V.logEv('setting',{sharedChannel:this.checked})">Shared sound channel (t2 fix; change it before joining)</label>
   <div class="row"><button class="sec" onclick="V.prime('button')">Fix sound</button><button class="sec" onclick="V.resub()">Fix sound (stronger)</button></div>
   <div class="row"><button class="sec" onclick="V.newEngine()">Fix 3: new sound engine</button><button class="sec" onclick="V.rejoin()">Fix 4: rejoin the call</button></div>
@@ -115,7 +115,7 @@
 <script>
 (function () {
   'use strict';
-  const TRIAL_VERSION = 't5';
+  const TRIAL_VERSION = 't6';
   const ROOM = 'trial';
   const LK = window.LivekitClient;
   const { Room, RoomEvent, Track } = LK;
@@ -179,6 +179,25 @@
   // ---- game sounds ----
   const music = new Audio('../assets/audio/ingame_01.mp3'); music.loop = true; music.preload = 'none';
   let actx = null; const buffers = {};
+  // t6: copy the GAME's audio setup. The game keeps a silent looping <audio> element playing (app.js
+  // keepAudioSession) and, after coming back from the background, rebuilds its sound engine on the next tap
+  // (onAudioWake). The trial had neither: suspected reason the iPhone stayed silent after a long lock.
+  let sessionEl = null, stale = false;
+  function silentWavURI() {
+    const rate = 8000, n = rate / 2, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+    const w = (o, s2) => { for (let i = 0; i < s2.length; i++) v.setUint8(o + i, s2.charCodeAt(i)); };
+    w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVEfmt '); v.setUint32(16, 16, true);
+    v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, rate, true);
+    v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+    w(36, 'data'); v.setUint32(40, n * 2, true);
+    let b = ''; const u8 = new Uint8Array(buf); for (let i = 0; i < u8.length; i++) b += String.fromCharCode(u8[i]);
+    return 'data:audio/wav;base64,' + btoa(b);
+  }
+  function keepAudioSession() {
+    if (!$('keepOn').checked) return;
+    if (!sessionEl) { sessionEl = new Audio(silentWavURI()); sessionEl.loop = true; sessionEl.volume = 0.01; sessionEl.setAttribute('playsinline', ''); }
+    if (sessionEl.paused) sessionEl.play().then(() => logEv('keepalive-playing')).catch((e) => logEv('keepalive-error', { msg: e.message }));
+  }
   function unlockAudio() {
     if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (_) { } }
     if (actx && actx.state === 'suspended') actx.resume();
@@ -357,6 +376,10 @@
     unlockAudio(); try { if (room) await room.startAudio(); } catch (_) { }
     logEv('resubscribe', { n: list.length, engine: actx ? actx.state : 'none' });
   }
+  document.addEventListener('pointerdown', () => {
+    keepAudioSession();
+    if (stale && $('keepOn').checked) { stale = false; logEv('first-tap-after-return'); newEngine(); }
+  }, true);
   document.addEventListener('pointerdown', (e) => { if (needPrime && !(e.target && e.target.closest && e.target.closest('#prime'))) prime('first-tap'); }, true);
 
   async function startAudio() { if (room) { try { await room.startAudio(); } catch (e) { logEv('start-audio-error', { msg: e.message }); } } unlockAudio(); updateHear(); }
@@ -365,6 +388,7 @@
   document.addEventListener('visibilitychange', () => {
     logEv('visibility', { state: document.visibilityState, connected: !!room });
     if (document.visibilityState === 'hidden') hiddenAt = Date.now();
+    if (document.visibilityState === 'visible') stale = true;
     if (document.visibilityState === 'visible' && hiddenAt) {
       const away = Math.round((Date.now() - hiddenAt) / 1000); hiddenAt = 0;
       logEv('return', { awaySec: away, engine: actx ? actx.state : 'none', canPlay: room ? room.canPlaybackAudio : null, inCall: !!room, sessionType: HAS_AS ? navigator.audioSession.type : null, sessionState: HAS_AS ? navigator.audioSession.state : null });
