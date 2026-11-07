@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v220';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v221';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -926,7 +926,36 @@
     document.body.classList.toggle('hascuppill', !!$('cuppill'));
     const usedSeats = {}; state.players.forEach((_, i) => { usedSeats[seatKey(i)] = 1; });
     ['tl', 'tr', 'br', 'bl'].forEach((k) => { if (!usedSeats[k]) { const el = $('p-' + k); if (el) el.style.display = 'none'; } });
+    requestAnimationFrame(fitDock);
   }
+  // v221: with the bigger voice corners, keep the bottom bar (your resources, or the watcher's strip) between the
+  // two bottom corners and their luck gauges, so nothing from a corner sits on it. Squeezes the gaps first.
+  function fitDock() {
+    const d = $('dock'), h = $('hand'); if (!d || !h) return;
+    // the right-hand corners' dice: slide left until they clear the round menu button
+    const m = $('radialtab'), mr = m && m.offsetWidth ? m.getBoundingClientRect() : null;
+    document.querySelectorAll('.corner.tr .pdice, .corner.br .pdice').forEach((x) => {
+      x.style.marginLeft = ''; if (!mr) return;
+      const a = x.getBoundingClientRect();
+      if (a.right > mr.left - 6 && a.bottom > mr.top - 4 && a.top < mr.bottom + 4) x.style.marginLeft = -(a.right - mr.left + 8) + 'px';
+    });
+    d.style.maxWidth = ''; h.style.gap = ''; h.style.paddingLeft = h.style.paddingRight = '';
+    if (!state || !document.body.classList.contains('vlive')) return;
+    let lim = 0;
+    document.querySelectorAll('.corner.bl, .corner.br').forEach((c) => {
+      if (c.style.display === 'none' || !c.offsetWidth) return;
+      [c, c.querySelector('.pluck')].forEach((e) => { if (!e) return; const r = e.getBoundingClientRect(); if (r.width) lim = Math.max(lim, c.classList.contains('bl') ? r.right : window.innerWidth - r.left); });
+    });
+    if (!lim) return;
+    const room = window.innerWidth - 2 * (lim + 8);
+    d.style.maxWidth = room + 'px';
+    if (!h.querySelector('.spechand')) {
+      for (const g of [30, 24, 18, 14, 10]) { h.style.gap = g + 'px'; if (h.scrollWidth <= room) break; }
+      if (h.scrollWidth > room) h.style.paddingLeft = h.style.paddingRight = '12px';
+    }
+    const sel = h.querySelector('.specsel'); if (sel) sel.classList.toggle('more', sel.scrollWidth > sel.clientWidth + 2);
+  }
+  window.addEventListener('resize', () => requestAnimationFrame(fitDock));
 
   // times robbed, as a number on a tag hanging off the corner's inner edge (from the first robbery on)
   const robbedSeen = {}, robbedBumpAt = {};
@@ -3160,14 +3189,15 @@
   const VI_SPKX = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M17 9l5 6M22 9l-5 6"/></svg>';
   const VI_DEAF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 14v-2a9 9 0 0 1 18 0v2"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/><path d="M3 3l18 18"/></svg>';
   // badges on a picture: my own are buttons (one tap = mute / camera off); others' are plain markers
+  const VBARS = '<span class="vbars"><i></i><i></i><i></i></span>';   // live sound bars (shown while talking)
   function voiceBadges(id, plain) {   // plain: inside another button (no nested buttons)
     const i = voiceInfo(id); if (!i) return '';
     if (plain && i.mine) i.mine = false;
     let s = '';
     if (i.cam) s += i.mine ? `<button class="vb vcam" onclick="event.stopPropagation();CATAN.voiceCam(false)" aria-label="Turn camera off">${VI_CAM}</button>` : `<span class="vb vcam">${VI_CAM}</span>`;
     if (i.forMe) s += `<button class="vb vgrey vmic" onclick="event.stopPropagation();CATAN.voiceMuteFor('${id}',false)" aria-label="Unmute for me">${VI_SPKX}</button>`;
-    else if (i.mic) s += i.mine ? `<button class="vb vmic" onclick="event.stopPropagation();CATAN.voiceMic(false)" aria-label="Mute">${VI_MIC}</button>` : `<span class="vb vmic">${VI_MIC}</span>`;
-    else if (i.micMuted) s += i.mine ? `<button class="vb vgrey vmic" onclick="event.stopPropagation();CATAN.voiceMic(true)" aria-label="Unmute">${VI_MICX}</button>` : `<span class="vb vgrey vmic">${VI_MICX}</span>`;
+    else if (i.mic) s += i.mine ? `<button class="vb vmic" onclick="event.stopPropagation();CATAN.voiceMic(false)" aria-label="Mute">${VI_MIC}${VBARS}</button>` : `<span class="vb vmic">${VI_MIC}${VBARS}</span>`;
+    else if (i.micMuted) s += i.mine ? `<button class="vb vred vmic" onclick="event.stopPropagation();CATAN.voiceMic(true)" aria-label="Unmute">${VI_MICX}</button>` : `<span class="vb vred vmic">${VI_MICX}</span>`;
     else if (i.deaf) s += `<span class="vb vgrey vmic" title="Not hearing voices">${VI_DEAF}</span>`;
     return s;
   }
@@ -3272,6 +3302,17 @@
     });
   }
   // ---- the card on your own picture ----
+  // v221: place a popup next to the picture that opened it, with a small pointer back to it
+  function popAt(el, ar) {
+    const W = window.innerWidth, H = window.innerHeight, w = el.offsetWidth, h = el.offsetHeight, cx = ar.left + ar.width / 2;
+    const left = Math.min(W - w - 6, Math.max(6, cx < W / 2 ? ar.left : ar.right - w));
+    const below = ar.top + ar.height / 2 < H / 2, want = below ? ar.bottom + 11 : ar.top - h - 11;
+    const top = Math.max(6, Math.min(H - h - 6, want));
+    Object.assign(el.style, { left: left + 'px', top: top + 'px', right: '', bottom: '', transform: '' });
+    el.classList.remove('pdn', 'pup');
+    if (Math.abs(top - want) < 1) { el.classList.add(below ? 'pdn' : 'pup'); el.style.setProperty('--px', Math.max(16, Math.min(w - 16, cx - left)) + 'px'); }
+  }
+  const POPX = '<button class="popx" data-a="x" aria-label="Close">×</button>';
   function voiceCard(anchor) {
     const old = document.getElementById('vcard'); if (old) { old.remove(); return; }
     const c = document.createElement('div'); c.id = 'vcard';
@@ -3284,15 +3325,13 @@
         <button class="vcsw" data-a="mic">${VI_MIC}<span>Mic</span><i class="sw${LIVE.mic ? ' on' : ''}"></i></button>
         <button class="vcsw" data-a="cam">${VI_CAM}<span>Camera</span><i class="sw${LIVE.cam ? ' on' : ''}"></i></button>
         <button class="vcend" data-a="end">Leave the call</button><p class="vcnote">You'll still hear everyone.</p>`;
-    if (state && online && myColor && document.body.classList.contains('ingame')) c.innerHTML += `<button class="vclink" data-a="msgs">My recent messages</button>`;
-    else if (LOBBY.table && !state) c.innerHTML += `<button class="vclink" data-a="colour">Change my colour</button>`;
+    if (state && online && myColor && document.body.classList.contains('ingame')) { if ((MSGLOG[myColor] || []).length) c.innerHTML += `<button class="vclink" data-a="msgs">My recent messages ›</button>`; }   // nothing to open when you sent none
+    else if (LOBBY.table && !state) c.innerHTML += `<button class="vclink" data-a="colour">Change my colour ›</button>`;
+    c.innerHTML = POPX + c.innerHTML;
     document.body.appendChild(c);
     const ar = anchor && anchor.getBoundingClientRect();
-    if (ar) {
-      const below = ar.top < window.innerHeight / 2, left = ar.left < window.innerWidth / 2;
-      if (below) c.style.top = (ar.bottom + 8) + 'px'; else c.style.bottom = (window.innerHeight - ar.top + 8) + 'px';
-      if (left) c.style.left = Math.max(6, ar.left) + 'px'; else c.style.right = Math.max(6, window.innerWidth - ar.right) + 'px';
-    } else { c.style.top = '50%'; c.style.left = '50%'; c.style.transform = 'translate(-50%,-50%)'; }
+    if (ar && ar.width) popAt(c, ar);
+    else { c.style.top = '50%'; c.style.left = '50%'; c.style.transform = 'translate(-50%,-50%)'; }
     const kill = () => { c.remove(); document.removeEventListener('pointerdown', outside, true); };
     const outside = (e) => { if (!c.contains(e.target)) kill(); };
     setTimeout(() => document.addEventListener('pointerdown', outside, true), 0);
@@ -3314,9 +3353,10 @@
     const row = voiceMuteRow(id); if (!row) return;
     const c = document.createElement('div'); c.id = 'vcard';
     const watching = LOBBY.spectators().some((w) => w.id === id);
-    c.innerHTML = `<div class="vch">${escapeHtml(voiceNameOf(id) || '')}${watching ? ' · watching' : ''}</div>${row}`;
+    c.innerHTML = `${POPX}<div class="vch">${escapeHtml(voiceNameOf(id) || '')}${watching ? ' · watching' : ''}</div>${row}`;
     document.body.appendChild(c);
-    const ar = anchor.getBoundingClientRect(); c.style.top = (ar.bottom + 8) + 'px'; c.style.left = Math.max(6, Math.min(window.innerWidth - 240, ar.left - 100)) + 'px';
+    popAt(c, anchor.getBoundingClientRect());
+    c.querySelector('.popx').onclick = () => kill();
     const kill = () => { c.remove(); document.removeEventListener('pointerdown', outside, true); };
     const outside = (e) => { if (!c.contains(e.target)) kill(); };
     setTimeout(() => document.addEventListener('pointerdown', outside, true), 0);
@@ -3366,18 +3406,16 @@
       : `<div class="mhrow muted">No messages yet</div>`;
     const b = document.createElement('div');
     b.id = 'msghist';
-    b.innerHTML = `<button class="bcclose" aria-label="Close">×</button><div class="mhhead">${escapeHtml((pl && pl.name) || '')}</div>${voiceMuteRow(seatPlayerId(color))}${rows}`;
+    b.innerHTML = `<button class="popx" aria-label="Close">×</button><div class="mhscroll"><div class="mhhead">${escapeHtml((pl && pl.name) || '')}</div>${voiceMuteRow(seatPlayerId(color))}${rows}</div>`;
     document.body.appendChild(b);
-    // anchor near the corner (fall back to centred if no corner, e.g. offline)
-    if (corner) {
-      const top = pos[0] === 't', left = pos[1] === 'l', cr = corner.getBoundingClientRect(), gap = 8;
-      if (top) b.style.top = (cr.bottom + gap) + 'px'; else b.style.bottom = (window.innerHeight - cr.top + gap) + 'px';
-      if (left) b.style.left = Math.max(6, cr.left) + 'px'; else b.style.right = Math.max(6, window.innerWidth - cr.right) + 'px';
-    } else { b.style.top = '50%'; b.style.left = '50%'; b.style.transform = 'translate(-50%,-50%)'; }
+    // anchor to the player's picture (fall back to centred if no corner, e.g. offline)
+    const pic = corner && (corner.querySelector('.pava') || corner);
+    if (pic && pic.getBoundingClientRect().width) popAt(b, pic.getBoundingClientRect());
+    else { b.style.top = '50%'; b.style.left = '50%'; b.style.transform = 'translate(-50%,-50%)'; }
     b.querySelectorAll('.mhplay').forEach((btn) => wireVoicePlay(btn, btn.getAttribute('data-url')));
     const kill = () => { b.remove(); document.removeEventListener('pointerdown', outside, true); };
     const outside = (e) => { if (!b.contains(e.target)) kill(); };
-    b.querySelector('.bcclose').onclick = kill;
+    b.querySelector('.popx').onclick = kill;
     setTimeout(() => document.addEventListener('pointerdown', outside, true), 0);   // tap outside to dismiss
     renderPanels();   // refresh to drop the unread dot
   }
@@ -4300,10 +4338,21 @@
     const left = above ? box.l : box.r + 6, room = window.innerWidth - left - 10;
     const w = trayMode === 'emo' ? Math.min(8, Math.max(5, Math.floor((room - 47) / 52))) * 52 + 47 : Math.min(470, room);   // 46px emojis + 6px gaps + side gutters to scroll on
     t.style.width = w + 'px'; t.style.left = left + 'px'; t.style.right = '';
-    t.style.maxHeight = Math.min(above ? box.t - 12 : window.innerHeight - 12, trayMode === 'emo' && !trayDraft ? 300 : 9999) + 'px';   // emojis: ~4½ rows, the rest scroll
+    const bn = $('banner'), bnr = bn && bn.offsetWidth ? bn.getBoundingClientRect() : null;
+    const ceil = bnr && left < bnr.right && left + w > bnr.left ? bnr.bottom + 6 : 6;   // v221: never under the turn banner
+    t.style.maxHeight = Math.min(above ? box.t - 6 - ceil : window.innerHeight - 6 - ceil, trayMode === 'emo' && !trayDraft ? 300 : 9999) + 'px';   // emojis: ~4½ rows, the rest scroll
     t.style.top = '0px';
+    const g = t.querySelector('.etbig');
+    if (g && !trayDraft) {   // whole rows only, and a fade at the bottom when more scroll
+      g.style.maxHeight = ''; g.classList.remove('more');
+      const extra = t.offsetHeight - g.clientHeight, avail = parseFloat(t.style.maxHeight) - extra;
+      if (g.scrollHeight > avail) {   // whole rows, plus a faded peek of the next one to say "scroll"
+        const fit = Math.max(1, Math.floor((avail - 18) / 52));
+        g.style.maxHeight = (fit * 52 + 18) + 'px'; g.style.flex = 'none'; g.classList.add('more');
+      }
+    }
     const h = t.offsetHeight, bottom = above ? box.t - 6 : box.b;
-    t.style.top = Math.max(6, bottom - h) + 'px';
+    t.style.top = Math.max(ceil, bottom - h) + 'px';
   }
   function trayDots() { return `<div class="etdots"><i class="${trayMode === 'emo' ? 'on' : ''}"></i><i class="${trayMode === 'txt' ? 'on' : ''}"></i></div>`; }
   function trayMain(t) {
