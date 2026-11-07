@@ -941,7 +941,7 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    engine on the first tap after returning, app.js `keepAudioSession` / `onAudioWake`); with it, sound survived a
    55 s lock and the call wasn't even dropped. The game build must reuse that setup for the voices.
 
-51. ✅ **v215 built (2026-11-07), NOT deployed yet: live voice & video at the table.** Spec `docs/prd-voice-video.md`,
+51. ✅ **v215 (2026-11-07), deployed with voice limited to the test players test / test2 (voice-config.json "only"): live voice & video at the table.** Spec `docs/prd-voice-video.md`,
    mocks on the "Catan: Voice & video" canvas (Take 3). Code: the `LIVE` object + `voice*` functions in app.js (after
    the walkie block; NB the older `VOICE` object is the voice-NOTE recorder, different thing). One LiveKit call per table
    (`table-<LOBBY.table>`), joined as listener by `voiceSync` (every 2s) once the game's AudioContext exists; voices play
