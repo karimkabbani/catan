@@ -961,6 +961,11 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    old phones (the existing auto-update on the lobby covers it; others see "no voice"). Headless-verified with faked
    participants; a real in-game call needs phones.
 
+52. ✅ **v216 (2026-11-07). In-game live video fix.** Karim: video showed on the room seats but not in the game corners
+   (badges + audio fine). Likely causes: the corners' dim filter, their constant innerHTML redraws moving the <video>, and
+   LiveKit adaptiveStream pausing video whose element kept vanishing. Now each player's <video> plays in a hidden, fixed
+   `#vholder` and every picture draws it onto a `canvas.vvid` (~15 fps, `vDraw` rAF loop); adaptiveStream off.
+
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
