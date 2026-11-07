@@ -85,21 +85,21 @@ VO/VI rows above them are superseded).
 ## 5. Vendor and cost (checked 2026-11-07; vendor sites were blocked from this session, numbers are from vendor
 ## docs found by search and third-party summaries: re-check on signup)
 
-Usage model (minutes = every connected person, listeners included, for the whole table night):
+Usage model, assuming roughly 70% audio-only / 30% on video for the per-minute prices (minutes = every connected person, listeners included, for the whole table night):
 
 | Scenario | Nights / month | Hours / night | People connected | Minutes / month |
 |---|---|---|---|---|
-| Light | 4 | 2.5 | 4.5 | ~2,900 |
-| Regular | 8 | 2.5 | 4.5 | ~5,800 |
-| Heavy (cups, spectators) | 12 | 3 | 5 | ~11,600 |
+| Light | 4 | 2.5 | 4.5 | ~2,700 |
+| Regular | 8 | 2.5 | 4.5 | ~5,400 |
+| Heavy (cups, spectators) | 12 | 3 | 5 | ~10,800 |
 
 Video data at ~200 px: roughly 1 GB per 4-player hour with everyone on camera; audio ~0.1 GB.
 
 | Service | Free | Beyond free | Light | Regular | Heavy |
 |---|---|---|---|---|---|
 | LiveKit Cloud | 5,000 min + ~50 GB, hard cap (calls fail at the cap) | Ship plan $50/mo: 150k min, 250 GB | $0 | cap hit → $50/mo | $50/mo |
-| Daily | 10,000 min/mo | pay as you go: ~$0.001/min audio, ~$0.004/min video | $0 | $0 | ~$3/mo |
-| Cloudflare RealtimeKit | free while in beta | after GA ~$0.0005/min audio, $0.002/min video, no free tier listed | ~$3 | ~$6 | ~$11 |
+| Daily | 10,000 min/mo | pay as you go: ~$0.001/min audio, ~$0.004/min video | $0 | $0 | ~$2/mo |
+| Cloudflare RealtimeKit | free while in beta | after GA ~$0.0005/min audio, $0.002/min video, no free tier listed | ~$3 | ~$5 | ~$10 |
 
 Recommendation (moderate confidence): **Daily** first, LiveKit second. Table-long listening (D5) plus spectators
 (D10) roughly doubles minutes versus game-only voice, which pushes "regular" use past LiveKit's free cap and onto a
