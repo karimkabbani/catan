@@ -36,7 +36,8 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ ok: false, error: 'POST only' }, 405);
 
   const apiKey = Deno.env.get('LIVEKIT_API_KEY'), apiSecret = Deno.env.get('LIVEKIT_API_SECRET'), lkUrl = Deno.env.get('LIVEKIT_URL');
-  const supaUrl = Deno.env.get('SUPABASE_URL'), anon = Deno.env.get('SUPABASE_ANON_KEY');
+  // Newer Supabase projects may not provide SUPABASE_ANON_KEY: fall back to the public key the app sends.
+  const supaUrl = Deno.env.get('SUPABASE_URL'), anon = Deno.env.get('SUPABASE_ANON_KEY') || req.headers.get('apikey') || '';
   if (!apiKey || !apiSecret || !lkUrl || !supaUrl || !anon) return json({ ok: false, error: 'Server not configured' }, 500);
 
   let body: { token?: string; room?: string };
@@ -48,7 +49,7 @@ Deno.serve(async (req) => {
   // Who is this? Same check the app uses for auto-login.
   const r = await fetch(`${supaUrl}/rest/v1/rpc/player_resume`, {
     method: 'POST',
-    headers: { apikey: anon, Authorization: `Bearer ${anon}`, 'Content-Type': 'application/json' },
+    headers: { apikey: anon, ...(anon.startsWith('eyJ') ? { Authorization: `Bearer ${anon}` } : {}), 'Content-Type': 'application/json' },
     body: JSON.stringify({ p_token: body.token }),
   });
   const me = r.ok ? await r.json() : null;
