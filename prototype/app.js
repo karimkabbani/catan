@@ -2963,7 +2963,7 @@
   const LIVE_LIB = 'livekit-client-2.22.4.umd.js';
   const LIVE = {
     cfg: null, lib: null, libP: null,
-    room: null, roomName: null, connecting: false, fails: 0, retryAt: 0, joinedAt: 0,
+    room: null, roomName: null, connecting: false, fails: 0, retryAt: 0, joinedAt: 0, gen: 0, blocked: null, downNoted: false, wasLive: false,
     mic: false, cam: false,
     peers: {},        // identity -> { deaf } from their data messages
     mutedForMe: {},   // identity -> true: I muted them (only on my phone)
@@ -2972,13 +2972,13 @@
     askOpen: false, autoDone: null,
   };
   function voiceOn() { return !!(!(LIVE.cfg && LIVE.cfg.enabled === false) && window.RTCPeerConnection && navigator.mediaDevices); }   // on unless voice-config.json says off
-  function voiceDown() { return !voiceOn() || LIVE.fails >= 2; }   // the walkie-talkie button comes back as the fallback
+  function voiceDown() { return !voiceOn() || !LIVE.room; }   // no call right now: the walkie-talkie button is the fallback
   function voiceWanted() {
     if (!LIVE.cfg || !voiceOn() || !AUTH.me || !AUTH.me.token || !LOBBY.table || ARCHIVE) return null;
     const code = String(LOBBY.table).replace(/[^A-Za-z0-9]/g, '').slice(0, 12);
     return code.length >= 2 ? 'table-' + code : null;
   }
-  fetch('voice-config.json?x=' + Date.now(), { cache: 'no-store' }).then((r) => r.json()).then((c) => { LIVE.cfg = c || {}; voiceSync(); }).catch(() => { LIVE.cfg = { enabled: true }; });
+  fetch('voice-config.json', { cache: 'no-store' }).then((r) => r.json()).then((c) => { LIVE.cfg = c || {}; voiceSync(); }).catch(() => { LIVE.cfg = { enabled: true }; });
   function voiceLoadLib() {
     if (window.LivekitClient) return Promise.resolve(window.LivekitClient);
     if (!LIVE.libP) LIVE.libP = new Promise((ok, no) => { const s = document.createElement('script'); s.src = LIVE_LIB; s.onload = () => ok(window.LivekitClient); s.onerror = () => { LIVE.libP = null; no(new Error('lib')); }; document.head.appendChild(s); });
@@ -2992,33 +2992,45 @@
   }
   setInterval(voiceSync, 2000);
   async function voiceJoin(name) {
+    const gen = ++LIVE.gen;   // a newer join or a leave makes this one stale
     LIVE.connecting = true; LIVE.roomName = name;
+    const stale = () => gen !== LIVE.gen || voiceWanted() !== name;
+    let room = null;
     try {
       const LK = await voiceLoadLib();
       const r = await fetch(`${window.SUPA.url}/functions/v1/voice-token`, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: window.SUPA.anonKey }, body: JSON.stringify({ token: AUTH.me.token, room: name }) });
       const t = await r.json().catch(() => ({}));
       if (!r.ok || !t.ok) throw new Error(t.error || ('token ' + r.status));
-      if (voiceWanted() !== name) { LIVE.connecting = false; LIVE.roomName = null; return; }   // left the table meanwhile
-      const room = new LK.Room({
+      if (stale()) { if (gen === LIVE.gen) { LIVE.connecting = false; LIVE.roomName = null; } return; }   // left the table meanwhile
+      room = new LK.Room({
         adaptiveStream: true, dynacast: true,
         webAudioMix: { audioContext: actx },
+        publishDefaults: { stopMicTrackOnMute: true },   // mic off really releases the mic (iPhone: back to normal playback)
         audioCaptureDefaults: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
         videoCaptureDefaults: { resolution: { width: 320, height: 240, frameRate: 15 }, facingMode: 'user' },
       });
       voiceWire(room, LK);
       await room.connect(t.url, t.token, { autoSubscribe: true });
-      LIVE.room = room; LIVE.joinedAt = Date.now(); LIVE.fails = 0; LIVE.connecting = false;
+      if (stale()) { try { room.disconnect(); } catch (_) { } if (gen === LIVE.gen) { LIVE.connecting = false; LIVE.roomName = null; } return; }
+      LIVE.room = room; LIVE.joinedAt = Date.now(); LIVE.fails = 0; LIVE.connecting = false; LIVE.downNoted = false;
       try { await room.startAudio(); } catch (_) { }
       voiceSendState(); voiceVolumes(); voiceRefresh();
       voiceAfterJoin();
     } catch (e) {
+      if (room) { try { room.disconnect(); } catch (_) { } }
+      if (gen !== LIVE.gen) return;
       LIVE.connecting = false; LIVE.room = null; LIVE.roomName = null;
       LIVE.fails++; LIVE.retryAt = Date.now() + Math.min(60000, 5000 * LIVE.fails);
-      voiceRefresh();
+      voiceDownNote(); voiceRefresh();
     }
   }
+  function voiceDownNote() {   // once per table: the walkie-talkie is back because voice can't connect
+    if (LIVE.downNoted || !voiceDown() || !LOBBY.table) return;
+    LIVE.downNoted = true; toast('Voice isn\'t available right now · the 🎤 walkie-talkie is back');
+  }
   function voiceLeave() {
-    const r = LIVE.room; LIVE.room = null; LIVE.roomName = null; LIVE.connecting = false;
+    LIVE.gen++;
+    const r = LIVE.room; LIVE.room = null; LIVE.roomName = null; LIVE.connecting = false; LIVE.autoDone = null; LIVE.blocked = null; LIVE.downNoted = false; LIVE.retryAt = 0; LIVE.fails = 0;
     if (LIVE.mic || LIVE.cam) micSessionOff();
     LIVE.mic = false; LIVE.cam = false; LIVE.peers = {}; LIVE.mutedForMe = {}; LIVE.mutedMe = {};
     Object.keys(LIVE.vids).forEach((k) => { try { LIVE.vids[k].remove(); } catch (_) { } }); LIVE.vids = {};
@@ -3027,21 +3039,32 @@
   }
   function voiceWire(room, LK) {
     const E = LK.RoomEvent, again = () => { voiceVolumes(); voiceRefresh(); };
-    room.on(E.TrackSubscribed, again).on(E.TrackUnsubscribed, (track) => { try { track.detach(); } catch (_) { } again(); })
+    room.on(E.TrackSubscribed, (track) => { if (track.kind === 'audio') { try { track.attach(); } catch (_) { } } again(); })   // with webAudioMix, attach() wires the voice into the game's sound engine.on(E.TrackUnsubscribed, (track) => { try { track.detach(); } catch (_) { } again(); })
       .on(E.TrackMuted, again).on(E.TrackUnmuted, again).on(E.LocalTrackPublished, again).on(E.LocalTrackUnpublished, again)
       .on(E.ParticipantConnected, () => { voiceSendState(); again(); })
       .on(E.ParticipantDisconnected, (p) => { delete LIVE.peers[p.identity]; delete LIVE.mutedMe[p.identity]; const v = LIVE.vids[p.identity]; if (v) { v.remove(); delete LIVE.vids[p.identity]; } again(); })
       .on(E.DataReceived, (payload, p) => voiceOnData(payload, p))
-      .on(E.Disconnected, () => { if (LIVE.room === room) { LIVE.room = null; LIVE.roomName = null; LIVE.mic = false; LIVE.cam = false; micSessionOff(); LIVE.retryAt = Date.now() + 2000; voiceRefresh(); } })
+      .on(E.Disconnected, (reason) => {
+        if (LIVE.room !== room) return;
+        LIVE.room = null; LIVE.roomName = null; LIVE.mic = false; LIVE.cam = false; micSessionOff();
+        const R = LK.DisconnectReason || {};
+        if (reason === R.DUPLICATE_IDENTITY || reason === R.PARTICIPANT_REMOVED || reason === R.ROOM_DELETED) {
+          LIVE.blocked = LIVE.roomName || 'x'; LIVE.retryAt = Infinity;   // another of my devices took over: don't fight it
+          if (reason === R.DUPLICATE_IDENTITY) toast('Voice moved to your other device');
+        } else { LIVE.fails++; LIVE.retryAt = Date.now() + Math.min(60000, 2000 * LIVE.fails); }
+        voiceDownNote(); voiceRefresh();
+      })
       .on(E.AudioPlaybackStatusChanged, () => { if (!room.canPlaybackAudio) audioStale = true; });   // the next tap rebuilds + restarts
   }
   // the game rebuilt its AudioContext (first tap after the lock screen, a voice note...): move the voices onto it
   function voiceOnCtx() {
     const r = LIVE.room; if (!r || !actx) return;
-    try { r.options.webAudioMix = { audioContext: actx }; } catch (_) { }
-    r.startAudio().catch(() => { });
-    r.remoteParticipants.forEach((p) => p.audioTrackPublications.forEach((pub) => { if (pub.track) { pub.track.detach(); pub.track.attach(); } }));
-    voiceVolumes();
+    try {
+      r.options.webAudioMix = { audioContext: actx };
+      r.startAudio().catch(() => { });
+      r.remoteParticipants.forEach((p) => p.audioTrackPublications.forEach((pub) => { if (pub.track) { pub.track.detach(); pub.track.attach(); } }));
+      voiceVolumes();
+    } catch (_) { }   // never let voice break the game's sound
   }
   async function voiceSetMic(on) {
     const r = LIVE.room; if (!r) return;
@@ -3049,7 +3072,7 @@
       if (on) { wtStop(); micSessionOn(); }
       await r.localParticipant.setMicrophoneEnabled(on);
       LIVE.mic = on;
-    } catch (e) { LIVE.mic = false; toast('Your mic is blocked: allow it in Settings › Safari'); }
+    } catch (e) { LIVE.mic = false; toast('Your mic is blocked: allow the microphone for this app in your phone\'s settings'); }
     if (!LIVE.mic) micSessionOff();
     voiceRefresh();
   }
@@ -3061,7 +3084,11 @@
   }
   // locking the phone / switching apps: mic and camera go off, and stay off on return (no surprise broadcast)
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden && LIVE.room && (LIVE.mic || LIVE.cam)) { if (LIVE.cam) voiceSetCam(false); if (LIVE.mic) voiceSetMic(false); }
+    if (document.hidden && LIVE.room && (LIVE.mic || LIVE.cam)) { LIVE.wasLive = true; if (LIVE.cam) voiceSetCam(false); if (LIVE.mic) voiceSetMic(false); }
+    if (!document.hidden && LIVE.room) {
+      if (LIVE.mic || LIVE.cam) { if (LIVE.cam) voiceSetCam(false); if (LIVE.mic) voiceSetMic(false); }   // the background switch-off may not have finished
+      if (LIVE.wasLive) { LIVE.wasLive = false; toast('Voice back on · your mic is off'); }
+    }
   });
   // what everyone needs to know about me: am I hearing voices at all ("Hear voices" in Settings)
   function voiceSend(obj, to) {
@@ -3074,10 +3101,11 @@
     if (!p || !m) return;
     const me = AUTH.me && AUTH.me.id;
     if (m.t === 'st') {
+      const was = JSON.stringify([LIVE.peers[p.identity], !!LIVE.mutedMe[p.identity]]);
       LIVE.peers[p.identity] = { deaf: !!m.deaf };
       const has = Array.isArray(m.mutes) && m.mutes.indexOf(me) >= 0;
       if (has) LIVE.mutedMe[p.identity] = true; else delete LIVE.mutedMe[p.identity];
-      voiceRefresh();
+      if (was !== JSON.stringify([LIVE.peers[p.identity], !!LIVE.mutedMe[p.identity]])) voiceRefresh();   // the 15s heartbeat mustn't redraw anything
     } else if (m.t === 'mute') {
       if (m.target === me) { if (m.on) LIVE.mutedMe[p.identity] = true; else delete LIVE.mutedMe[p.identity]; }
       voiceSay(`${voiceNameOf(p.identity) || 'Someone'} ${m.on ? 'muted' : 'unmuted'} ${m.target === me ? 'you' : (voiceNameOf(m.target) || 'someone')}`);
@@ -3149,7 +3177,7 @@
   // a picture element carries data-vid="<player id>": glow follows the voice, video replaces the photo
   function voiceRefresh() {
     if (state && document.body.classList.contains('ingame')) { try { renderPanels(); } catch (_) { } }
-    else if (typeof renderLobby === 'function' && AUTH.me) { lobbySig = null; try { renderLobby(); } catch (_) { } }
+    else if (typeof renderLobby === 'function' && AUTH.me && LV.tab === 'play') { lobbySig = null; try { renderLobby(); } catch (_) { } }   // the chat tab keeps its scroll
     voiceMountVideos();
   }
   function voiceMountVideos() {
@@ -3201,6 +3229,7 @@
       ${LIVE_IOS ? '<p class="vasknote">On iPhone, while your mic is on, music plays at call volume and AirPods switch to call quality.</p>' : ''}
       <p class="vasknote">We'll remember this. Change it any time by tapping your picture.</p></div>`;
     document.body.appendChild(d);
+    d.addEventListener('click', (e) => { if (e.target === d) { d.remove(); LIVE.askOpen = false; } });   // not now: asked again at the next table
     d.querySelectorAll('.vopt').forEach((b) => b.onclick = () => {
       const m = b.getAttribute('data-m'); SETTINGS.voice = m; saveSettings();
       d.remove(); LIVE.askOpen = false;
@@ -3221,6 +3250,8 @@
         <button class="vcsw" data-a="mic">${VI_MIC}<span>Mic</span><i class="sw${LIVE.mic ? ' on' : ''}"></i></button>
         <button class="vcsw" data-a="cam">${VI_CAM}<span>Camera</span><i class="sw${LIVE.cam ? ' on' : ''}"></i></button>
         <button class="vcend" data-a="end">Leave the call</button><p class="vcnote">You'll still hear everyone.</p>`;
+    if (state && online && myColor && document.body.classList.contains('ingame')) c.innerHTML += `<button class="vclink" data-a="msgs">My recent messages</button>`;
+    else if (LOBBY.table && !state) c.innerHTML += `<button class="vclink" data-a="colour">Change my colour</button>`;
     document.body.appendChild(c);
     const ar = anchor && anchor.getBoundingClientRect();
     if (ar) {
@@ -3238,6 +3269,8 @@
       else if (a === 'mic') await voiceSetMic(!LIVE.mic);
       else if (a === 'cam') await voiceSetCam(!LIVE.cam);
       else if (a === 'end') { await voiceSetCam(false); await voiceSetMic(false); }
+      else if (a === 'msgs') showMsgHistory(myColor);
+      else if (a === 'colour') CATAN.lvSheet('colour');
     });
   }
   // tap a watcher's face (beside the banner): their name and the mute-for-me line
@@ -3246,7 +3279,8 @@
     if (AUTH.me && id === AUTH.me.id) { voiceCard(anchor); return; }
     const row = voiceMuteRow(id); if (!row) return;
     const c = document.createElement('div'); c.id = 'vcard';
-    c.innerHTML = `<div class="vch">${escapeHtml(voiceNameOf(id) || '')} · watching</div>${row}`;
+    const watching = LOBBY.spectators().some((w) => w.id === id);
+    c.innerHTML = `<div class="vch">${escapeHtml(voiceNameOf(id) || '')}${watching ? ' · watching' : ''}</div>${row}`;
     document.body.appendChild(c);
     const ar = anchor.getBoundingClientRect(); c.style.top = (ar.bottom + 8) + 'px'; c.style.left = Math.max(6, Math.min(window.innerWidth - 240, ar.left - 100)) + 'px';
     const kill = () => { c.remove(); document.removeEventListener('pointerdown', outside, true); };
@@ -6310,7 +6344,7 @@
     const mine = p.id === AUTH.me.id, pref = mine ? LOBBY.myPref() : p.pref, col = pref && PCOLOR[pref];
     return `<div class="lvseat${isHost ? ' host' : ''}${mine ? ' mine' : ''}${p.away ? ' away' : ''}"${mine ? ` onclick="CATAN.lvSheet('colour')"` : ''}>`
       + `${isHost ? '<span class="lvcrown">👑</span>' : ''}<span class="lvcd${col ? '' : ' any'}"${col ? ` style="background:${col}"` : ''}></span>`
-      + `${Date.now() - (LV.gos[p.id] || 0) < GO_SHOW_MS ? '<span class="lvgo">👉 Go!</span>' : ''}<span class="vpic vseat" data-vid="${p.id}"${mine && voiceOn() ? ` onclick="event.stopPropagation();CATAN.voiceCard(this)"` : ''}>${faceHTML(p.name, p.avatar, 'xl')}${voiceBadges(p.id)}</span><b>${escapeHtml(p.name)}${mine ? ' (you)' : ''}</b>${voiceTag(p.id)}${mine ? '<span class="lvhint">tap for colour</span>' : p.away ? '<span class="lvhint">away…</span>' : ''}</div>`;
+      + `${Date.now() - (LV.gos[p.id] || 0) < GO_SHOW_MS ? '<span class="lvgo">👉 Go!</span>' : ''}<span class="vpic vseat" data-vid="${p.id}"${LIVE.room ? ` onclick="event.stopPropagation();CATAN.${mine ? 'voiceCard(this)' : `voiceWho('${p.id}',this)`}"` : ''}>${faceHTML(p.name, p.avatar, 'xl')}${voiceBadges(p.id)}</span><b>${escapeHtml(p.name)}${mine ? ' (you)' : ''}</b>${voiceTag(p.id)}${mine ? `<span class="lvhint">${LIVE.room ? 'tap your face to talk · seat for colour' : 'tap for colour'}</span>` : p.away ? '<span class="lvhint">away…</span>' : ''}</div>`;
   }
   function lvRoomHTML() {
     // a cup paused between games that I'm in: the whole tab is the cup
@@ -6338,7 +6372,7 @@
     const extras = [];
     if (line.length) extras.push(`<div class="lvline">⏳ <span><b>${escapeHtml(namesAnd(line.map((p) => p.name)))}</b> · first in line if a seat opens</span></div>`);
     if (idle.length) extras.push(`<div class="lvline">💤 <span><b>${escapeHtml(namesAnd(idle.map((p) => p.name)))}</b> · here, not seated</span></div>`);
-    if (watching.length) extras.push(`<div class="lvline">👁 ${LIVE.room ? watching.map((w) => `<span class="vpic vmini" data-vid="${w.id}">${faceHTML(w.name, w.avatar, 'sm')}${voiceBadges(w.id)}</span>`).join('') : ''}<span><b>${escapeHtml(namesAnd(watching.map((p) => p.name)))}</b> · watching</span></div>`);
+    if (watching.length) extras.push(`<div class="lvline">👁 ${LIVE.room ? watching.map((w) => `<span class="vpic vmini" data-vid="${w.id}" onclick="CATAN.voiceWho('${w.id}',this)">${faceHTML(w.name, w.avatar, 'sm')}${voiceBadges(w.id)}</span>`).join('') : ''}<span><b>${escapeHtml(namesAnd(watching.map((p) => p.name)))}</b> · watching</span></div>`);
     if (voiceOn() && !seated.some((p) => p.id === AUTH.me.id)) extras.push(`<button class="vchip vpic" data-vid="${AUTH.me.id}" onclick="CATAN.voiceCard(this)">${VI_MIC}<span>Talk to the table</span>${voiceBadges(AUTH.me.id, true)}</button>`);
     const onResults = members.filter((p) => pmode(p) === 'results' && p.id !== AUTH.me.id);
     if (onResults.length) extras.push(`<div class="lvline">🏁 <span><b>${escapeHtml(namesAnd(onResults.map((p) => p.name)))}</b> · still on the last game's results</span></div>`);

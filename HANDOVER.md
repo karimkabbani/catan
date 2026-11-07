@@ -941,6 +941,26 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    engine on the first tap after returning, app.js `keepAudioSession` / `onAudioWake`); with it, sound survived a
    55 s lock and the call wasn't even dropped. The game build must reuse that setup for the voices.
 
+51. ✅ **v215 built (2026-11-07), NOT deployed yet: live voice & video at the table.** Spec `docs/prd-voice-video.md`,
+   mocks on the "Catan: Voice & video" canvas (Take 3). Code: the `LIVE` object + `voice*` functions in app.js (after
+   the walkie block; NB the older `VOICE` object is the voice-NOTE recorder, different thing). One LiveKit call per table
+   (`table-<LOBBY.table>`), joined as listener by `voiceSync` (every 2s) once the game's AudioContext exists; voices play
+   through the game's `actx` (webAudioMix) and move onto a rebuilt context in `initAudio` -> `voiceOnCtx` (the t6 fix).
+   Pass from the Supabase function `voice-token`. Tap own picture -> `voiceCard` (Audio/Video, or Mic/Camera switches +
+   Leave + My recent messages / Change my colour); badges via `voiceBadges` (own = one-tap buttons), tags via `voiceTag`
+   (muted / muted you / can't hear / no voice), glow = `.vtalk` class from audio levels, camera <video> kept per player in
+   `LIVE.vids` and re-mounted after every corner/lobby/banner redraw (`voiceMountVideos`). Ask once (`voiceAsk`) ->
+   `SETTINGS.voice` (synced); remembered Audio/Video turns the mic on only on the first join of a table (`autoDone`).
+   Mute for me = per-voice gain 0 + data message 'mute' + announcement; 'st' heartbeat (15s) carries deaf / my mutes.
+   Hide -> mic/cam off, "Voice back on · your mic is off" on return. Walkie button shows whenever there's no call
+   (`voiceDown`). Off switch: `prototype/voice-config.json` {"enabled": false} + deploy. Lib self-hosted:
+   `prototype/livekit-client-2.22.4.umd.js`, lazy-loaded. Regression sweep (3 reviewers) found and fixed: incoming audio
+   never attached (nobody would have heard anyone), stale join after leaving a table, duplicate-device reconnect loop,
+   mic not released on mute (stopMicTrackOnMute), lobby/chat redraw every 15s, own-seat colour tap, rps-out grey, SW cache
+   growth. Not built: monthly minute counter / 80% warning (needs a table + LiveKit webhook), "Update to hear" screen on
+   old phones (the existing auto-update on the lobby covers it; others see "no voice"). Headless-verified with faked
+   participants; a real in-game call needs phones.
+
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
