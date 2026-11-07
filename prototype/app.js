@@ -3008,7 +3008,8 @@
       if (!r.ok || !t.ok) throw new Error(t.error || ('token ' + r.status));
       if (stale()) { if (gen === LIVE.gen) { LIVE.connecting = false; LIVE.roomName = null; } return; }   // left the table meanwhile
       room = new LK.Room({
-        adaptiveStream: true, dynacast: true,
+        adaptiveStream: false,   // the pictures are tiny and drawn from a hidden player: never let LiveKit pause a video it thinks nobody watches
+        dynacast: true,
         webAudioMix: { audioContext: actx },
         publishDefaults: { stopMicTrackOnMute: true },   // mic off really releases the mic (iPhone: back to normal playback)
         audioCaptureDefaults: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
