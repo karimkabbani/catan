@@ -22,7 +22,7 @@ VO/VI rows above them are superseded).
 | D6 | Asked once (first time at a table after release): Audio / Video / Just listen. Remembered as your default after that | Karim, mock T1, T2 |
 | D7 | Mic always comes back OFF after the phone was locked or the app backgrounded (no surprise broadcast) | design |
 | D8 | "Mute X for me": tap another player's picture. Announced to the whole table: "Karim muted Kay" (and "unmuted") | Karim, mock T3, T4 |
-| D9 | Victory screen: corners grow ~1.5×, videos live, card untouched. No big video view anywhere else | Karim, mock T5 |
+| D9 | Victory screen: corners stay their (already bigger, v217) size; winner gets a gold frame + small crown; videos live; card untouched. No big video view anywhere | Karim, mock T5; size kept 1x per Karim 2026-11-07 |
 | D10 | Spectators get everything players get (hear, talk, video, mute-for-me) | Karim, mock T6 |
 | D11 | Music is NOT paused or ducked when people talk ("people like their music") | Karim |
 | D12 | Walkie-talkie stays only as the fallback when the call can't connect | design, mock VO4 |
@@ -69,8 +69,7 @@ VO/VI rows above them are superseded).
 - R12. Mic on: red mic badge. Muted by self: grey crossed mic. Camera on: the picture IS the live video + red camera badge.
 - R13. Watchers: a small row beside the top banner on every phone (eye + their circles); glow when talking; video
   in the circle if on camera (mock T6). In the room: "Also here: Lapen (watching)" with the same badges (mock T2).
-- R14. Victory screen: all four corners grow ~1.5× while the card is up; winner gets a gold ring + crown; back to
-  normal on leaving the screen or on rematch (mock T5).
+- R14. Victory screen: corners keep their size; the winner gets a gold frame + small crown while the card is up.
 
 ### 3.4 Mute for me
 - R15. Tap another player's or watcher's picture: card "Mute Kay for me" (mock T3). Only your phone stops playing Kay.
