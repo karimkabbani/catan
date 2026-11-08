@@ -1000,7 +1000,7 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    through `applyRemoteState` like real remote players: greedy setup by pips, roll (knight if robbed), robber on you,
    city > settlement > road > dev card > bank trade, discard biggest piles, answer your trade offers. Leave/Play again go
    back to the practice table. Bot seats have `playerId: null` (always "online").
-57. ✅ **v223 (2026-11-08, built, not deployed).** Practice table: pretend video/voice for the computer players (only
+57. ✅ **v223 (2026-11-08, deployed).** Practice table: pretend video/voice for the computer players (only
    alongside a real call, only on this phone): `PRACTICE.fake` participants returned by `voicePart`; Zaatar "on video"
    (a canvas captureStream of his portrait with a gentle sway), Kibbeh on audio and sometimes self-muted (red badge);
    every 9-18s one says a line via speechSynthesis with the white ring + sound bars (`practiceTalk`). Mute-for-me works on
