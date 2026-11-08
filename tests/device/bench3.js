@@ -16,6 +16,8 @@ const PAGE = CFG.startsWith('v214') ? '_v214.html' : CFG.includes('side') ? '_ro
   if (CFG.includes('nohas')) console.log('has-rules removed:', await f.evaluate(() => { let n = 0; for (const sh of document.styleSheets) { let rs; try { rs = sh.cssRules; } catch (e) { continue; } for (let i = rs.length - 1; i >= 0; i--) { const walk = (list, del) => { for (let j = list.length - 1; j >= 0; j--) { const r = list[j]; if (r.cssRules && !r.selectorText) walk(r.cssRules, (k) => r.deleteRule(k)); else if (r.selectorText && r.selectorText.includes(':has(')) { del(j); n++; } } }; walk([rs[i]], () => { sh.deleteRule(i); }); } } return n; }));
   if (CFG.includes('nopulse')) await f.addStyleTag({ content: '.corner.active, .corner.active::after{animation:none!important}' });
   if (CFG.includes('nofilter')) await f.addStyleTag({ content: '.corner:not(.active){filter:none!important}' });   // what the dim filter costs with video inside
+  if (CFG.includes('nodraw')) await f.addStyleTag({ content: 'canvas.vvid{display:none!important}' });   // diagnostic: cameras run, pictures neither drawn nor painted
+  if (CFG.includes('nopaint')) await f.addStyleTag({ content: 'canvas.vvid{visibility:hidden!important}' });   // diagnostic: drawn (drawImage) but not painted
   if (CFG.includes('willchange')) await f.addStyleTag({ content: '.corner{will-change:transform}' });   // corners as their own layers
   const rot = side ? await p.evaluate(() => document.getElementById('app').style.transform) : '';
   if (side && !rot.includes('rotate')) { console.log(CFG + ',' + RUN + ',NOT-TURNED'); await b.close(); return; }

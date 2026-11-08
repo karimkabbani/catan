@@ -22,5 +22,9 @@ fs.writeFileSync(path.join(P, '_rot.html'), rot.replace("frame.src = 'index.html
 fs.writeFileSync(path.join(P, '_rot2.html'), rot.replace("frame.src = 'index.html'", "frame.src = '_t2.html'"));
 const v214 = require('child_process').execSync('git show aa9ab15:prototype/catan-standalone.html', { cwd: P, maxBuffer: 64 << 20 }).toString();
 fs.writeFileSync(path.join(P, '_v214.html'), inject(v214, hooksAll));
-console.log('built _t _t2 _rot _rot2 _v214 in', P);
+// badge2.js compares the badge before/after the honest-camera fix: the page from the commit before it (2cc84ba)
+const old = require('child_process').execSync('git show 2cc84ba:prototype/catan-standalone.html', { cwd: P, maxBuffer: 64 << 20 }).toString();
+fs.writeFileSync(path.join(P, '_t_old.html'), inject(old, hooksAll));
+fs.writeFileSync(path.join(P, '_rot_old.html'), rot.replace("frame.src = 'index.html'", "frame.src = '_t_old.html'"));
+console.log('built _t _t2 _rot _rot2 _v214 _t_old _rot_old in', P);
 JS
