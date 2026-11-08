@@ -63,6 +63,12 @@
                            : 'translate(' + (left + w) + 'px,' + top + 'px) rotate(90deg)';
     }
     document.body.classList.toggle('ingame', !!st.ingame);
+    postAngle();
+  }
+  // the app inside turns camera pictures back by this angle (the phone films on its side while the board is turned)
+  function postAngle() {
+    var a = !frame.style.transform || frame.style.transform.indexOf('rotate') < 0 ? 0 : (flip() ? -90 : 90);
+    try { frame.contentWindow.postMessage({ catanSideAngle: a }, location.origin); } catch (e) { }
   }
   window.addEventListener('message', function (e) {
     if (e.origin !== location.origin || e.source !== frame.contentWindow) return;
@@ -72,7 +78,7 @@
     // signed in as someone else (and not mid-game): back to the normal app
     if (st.user && !SIDE_USER.test(String(st.user).trim()) && !st.ingame) { location.replace('index.html'); return; }
     if (d.flipped !== undefined) last = '';
-    layout();
+    layout(); postAngle();
   });
   window.addEventListener('resize', layout);
   window.addEventListener('orientationchange', function () { setTimeout(layout, 80); setTimeout(layout, 400); });
