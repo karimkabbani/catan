@@ -935,38 +935,53 @@
     document.body.classList.toggle('hascuppill', !!$('cuppill'));
     const usedSeats = {}; state.players.forEach((_, i) => { usedSeats[seatKey(i)] = 1; });
     ['tl', 'tr', 'br', 'bl'].forEach((k) => { if (!usedSeats[k]) { const el = $('p-' + k); if (el) el.style.display = 'none'; } });
-    requestAnimationFrame(fitDock);
+    fitDockSoon();
   }
   // v221: with the bigger voice corners, keep the bottom bar (your resources, or the watcher's strip) between the
   // two bottom corners and their luck gauges, so nothing from a corner sits on it. Squeezes the gaps first.
+  let fitDockQ = 0;   // v237: many redraws in one frame share one fit
+  function fitDockSoon() { if (fitDockQ) return; fitDockQ = requestAnimationFrame(() => { fitDockQ = 0; fitDock(); }); }
   function fitDock() {
+    // v237: READ everything first, then WRITE once, and skip when nothing moved. The old version reset styles, measured,
+    // set, measured again in a loop, every second and after every redraw: each measure forced a full page layout
+    // (1.6 s of the busy time in a 26-move replay on a slowed Pixel 7).
     const d = $('dock'), h = $('hand'); if (!d || !h) return;
-    // the right-hand corners' dice: slide left until they clear the round menu button
+    const W = window.innerWidth, vl = !!state && document.body.classList.contains('vlive');
+    // reads
     const m = $('radialtab'), mr = m && m.offsetWidth ? m.getBoundingClientRect() : null;
-    document.querySelectorAll('.corner.tr .pdice, .corner.br .pdice').forEach((x) => {
-      x.style.marginLeft = ''; if (!mr) return;
-      const a = x.getBoundingClientRect();
-      if (a.right > mr.left - 6 && a.bottom > mr.top - 4 && a.top < mr.bottom + 4) x.style.marginLeft = -(a.right - mr.left + 8) + 'px';
-    });
-    d.style.maxWidth = ''; h.style.gap = ''; h.style.paddingLeft = h.style.paddingRight = '';
-    if (!state || !document.body.classList.contains('vlive')) return;
+    const dice = [...document.querySelectorAll('.corner.tr .pdice, .corner.br .pdice')].map((x) => ({ x, r: x.getBoundingClientRect(), ml: parseFloat(x.style.marginLeft) || 0 }));
     let lim = 0;
-    document.querySelectorAll('.corner.bl, .corner.br').forEach((c) => {
+    if (vl) document.querySelectorAll('.corner.bl, .corner.br').forEach((c) => {
       if (c.style.display === 'none' || !c.offsetWidth) return;
-      [c, c.querySelector('.pluck')].forEach((e) => { if (!e) return; const r = e.getBoundingClientRect(); if (r.width) lim = Math.max(lim, c.classList.contains('bl') ? r.right : window.innerWidth - r.left); });
+      [c, c.querySelector('.pluck')].forEach((e) => { if (!e) return; const r = e.getBoundingClientRect(); if (r.width) lim = Math.max(lim, c.classList.contains('bl') ? r.right : W - r.left); });
     });
-    if (!lim) return;
-    const room = window.innerWidth - 2 * (lim + 8);
-    d.style.maxWidth = room + 'px';
-    if (!h.querySelector('.spechand')) {
-      for (const g of [30, 24, 18, 14, 10]) { h.style.gap = g + 'px'; if (h.scrollWidth <= room) break; }
-      if (h.scrollWidth > room) h.style.paddingLeft = h.style.paddingRight = '12px';
+    const spec = !!h.querySelector('.spechand'), kids = spec ? [] : [...h.children];
+    const cs = kids.length ? getComputedStyle(h) : null;
+    const pad = cs ? (parseFloat(cs.borderLeftWidth) || 0) + (parseFloat(cs.borderRightWidth) || 0) : 0;
+    const kw = kids.reduce((a, k) => a + k.getBoundingClientRect().width, 0);
+    const sel = h.querySelector('.specsel'), selMore = !!sel && sel.scrollWidth > sel.clientWidth + 2;
+    // writes (only when they change)
+    const set = (el, k, v) => { if (el.style[k] !== v) el.style[k] = v; };
+    dice.forEach(({ x, r, ml }) => {
+      let want = '';
+      if (mr) { const right = r.right - ml; if (right > mr.left - 6 && r.bottom > mr.top - 4 && r.top < mr.bottom + 4) want = -(right - mr.left + 8) + 'px'; }
+      set(x, 'marginLeft', want);
+    });
+    if (!vl || !lim) { set(d, 'maxWidth', ''); set(h, 'gap', ''); set(h, 'paddingLeft', ''); set(h, 'paddingRight', ''); return; }
+    const room = W - 2 * (lim + 8);
+    set(d, 'maxWidth', room + 'px');
+    if (!spec) {
+      let gap = 10, sidePad = 38;
+      for (const g of [30, 24, 18, 14, 10]) { if (kw + g * Math.max(0, kids.length - 1) + 2 * 38 + pad <= room) { gap = g; break; } gap = g; }
+      if (kw + gap * Math.max(0, kids.length - 1) + 2 * 38 + pad > room) sidePad = 12;
+      set(h, 'gap', gap + 'px'); set(h, 'paddingLeft', sidePad === 38 ? '' : sidePad + 'px'); set(h, 'paddingRight', sidePad === 38 ? '' : sidePad + 'px');
+      if (sidePad === 12 && h.scrollWidth > room) { set(h, 'paddingLeft', '6px'); set(h, 'paddingRight', '6px'); }   // one check, only on the tightest phones
     }
-    const sel = h.querySelector('.specsel'); if (sel) sel.classList.toggle('more', sel.scrollWidth > sel.clientWidth + 2);
+    if (sel) sel.classList.toggle('more', selMore);
   }
-  window.addEventListener('resize', () => requestAnimationFrame(fitDock));
+  window.addEventListener('resize', () => fitDockSoon());
   // the bottom corners can shift after a redraw (a photo or font arriving, a badge row appearing): re-fit every second too
-  setInterval(() => { if (state && document.body.classList.contains('vlive') && document.body.classList.contains('ingame')) fitDock(); }, 1000);   // cheap; same-frame reset + set, so no flicker
+  setInterval(() => { if (state && document.body.classList.contains('vlive') && document.body.classList.contains('ingame') && !document.hidden) fitDock(); }, 2000);   // v237: reads only unless something moved
 
   // times robbed, as a number on a tag hanging off the corner's inner edge (from the first robbery on)
   const robbedSeen = {}, robbedBumpAt = {};
@@ -3123,21 +3138,25 @@
       if (on) { wtStop(); micSessionOn(); }
       await r.localParticipant.setMicrophoneEnabled(on);
       LIVE.mic = on;
-    } catch (e) { LIVE.mic = false; toast('Your mic is blocked: allow the microphone for this app in your phone\'s settings'); }
+    } catch (e) { LIVE.mic = voiceLiveMic(); if (on) toast('Your mic is blocked: allow the microphone for this app in your phone\'s settings'); }   // v237: never claim off when it isn't
     if (!LIVE.mic) micSessionOff();
     voiceRefresh();
   }
   async function voiceSetCam(on) {
     const r = LIVE.room; if (!r) return;
     try { await r.localParticipant.setCameraEnabled(on); LIVE.cam = on; }
-    catch (e) { LIVE.cam = false; if (on) { toast('Camera blocked: you\'re on audio'); if (!LIVE.mic) await voiceSetMic(true); } }
+    catch (e) { LIVE.cam = voiceLiveCam(); if (on) { toast('Camera blocked: you\'re on audio'); if (!LIVE.mic) await voiceSetMic(true); } }   // v237: a failed switch-off stays 'on' (honest badge), and is retried
     voiceRefresh();
   }
+  // v237: what the call is really sending (a switch-off attempted while the app was in the background can fail on Android)
+  function voiceLiveMic() { const lp = LIVE.room && LIVE.room.localParticipant; try { return !!(lp && lp.isMicrophoneEnabled); } catch (_) { return false; } }
+  function voiceLiveCam() { const lp = LIVE.room && LIVE.room.localParticipant; try { return !!(lp && lp.isCameraEnabled); } catch (_) { return false; } }
   // locking the phone / switching apps: mic and camera go off, and stay off on return (no surprise broadcast)
   document.addEventListener('visibilitychange', () => {
     if (document.hidden && LIVE.room && (LIVE.mic || LIVE.cam)) { LIVE.wasLive = true; if (LIVE.cam) voiceSetCam(false); if (LIVE.mic) voiceSetMic(false); }
     if (!document.hidden && LIVE.room) {
-      if (LIVE.mic || LIVE.cam) { if (LIVE.cam) voiceSetCam(false); if (LIVE.mic) voiceSetMic(false); }   // the background switch-off may not have finished
+      // the background switch-off may not have finished, or may have failed: ask the call itself, not our own flags
+      if (LIVE.mic || LIVE.cam || voiceLiveMic() || voiceLiveCam()) { if (LIVE.cam || voiceLiveCam()) voiceSetCam(false); if (LIVE.mic || voiceLiveMic()) voiceSetMic(false); }
       if (LIVE.wasLive) { LIVE.wasLive = false; toast('Voice back on · your mic is off'); }
     }
   });
@@ -5470,6 +5489,7 @@
   if (FRAMED) window.addEventListener('message', (e) => {
     if (e.origin !== location.origin || e.source !== window.parent || !e.data || e.data.catanSideAngle === undefined) return;
     const a = e.data.catanSideAngle === 90 || e.data.catanSideAngle === -90 ? e.data.catanSideAngle : 0;
+    document.documentElement.classList.toggle('sideturned', a !== 0);   // v237: the phone's up/down is the game's sideways (touch-action axes swap)
     if (a !== SIDE_ANGLE) { SIDE_ANGLE = a; voiceSendState(); }
   });
   if (window.MutationObserver) { try { new MutationObserver(() => sidewaysSync()).observe(document.body, { attributes: true, attributeFilter: ['class'] }); } catch (_) { } }

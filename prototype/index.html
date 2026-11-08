@@ -981,6 +981,9 @@
   #emotray.holding .etbig{overflow:hidden;}
   #emotray .etbig.more{-webkit-mask-image:linear-gradient(180deg,#000 calc(100% - 24px),transparent); mask-image:linear-gradient(180deg,#000 calc(100% - 24px),transparent);}
   .etpill{touch-action:pan-y;}
+  /* v237: on the turned board (rotate.html) the browser reads pan-y along the PHONE, i.e. the game's sideways: swap, so the
+     tray still scrolls up/down and the sideways swipe between trays stays ours */
+  html.sideturned #emotray, html.sideturned #emotray .etbig .emobtn, html.sideturned .etpill{touch-action:pan-x;}
   #emotray .etbig .ettile{width:46px; height:46px; font-size:30px;} #emotray .etbig .ettile .etx{top:0; right:0;}
   #emotray .etbig .etadd{width:46px; height:46px;}
   .etpills{display:flex; flex-wrap:wrap; gap:7px; overflow-y:auto; min-height:0; align-content:flex-start;}

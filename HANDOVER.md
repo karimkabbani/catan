@@ -1089,6 +1089,24 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    numbers are noisy, real GPU differs); the gold pulse on the active corner repaints the corner every frame.
    Still to check on a real Android: faces turned 90 degrees (item 65's assumed sign), own badges red while own
    video still showed, and what Lapen means by "screen cut".
+70. 🔧 **Saved-branch Android test pass (2026-11-09, not live).** Chrome with the Pixel 7 profile (Android 14, 412x839,
+   DPR 2.625, touch), real CDP touch events, CPU throttled 4x. No KVM here, so no real Android emulator.
+   - Touch sweep (scratchpad px/sweep.js, 10 checks: pinch, pan, menu tap, emoji tray open/send/scroll/flip, emoji throw,
+     robber drag + confirm): sideways upright, sideways flipped and plain landscape all 10/10 after the fixes.
+   - Fixed: emoji tray would not scroll or swipe on the turned board. touch-action pan-y is read along the PHONE, i.e.
+     the game's sideways: `html.sideturned` (set from the host's angle) swaps to pan-x.
+   - Fixed: own camera badge lied after leaving the app (Lapen's red badges with live video). A background switch-off can
+     fail on Android; the code then marked the camera off anyway and the on-return retry skipped it, so the camera kept
+     sending under a red badge (privacy). Now `voiceLiveCam/Mic()` ask LiveKit what is really sent, a failed switch-off
+     keeps the badge 'on', and the return retry uses the real state. Verified with a camera stub that refuses while hidden.
+   - Faces were NOT turned: read in the game's orientation, Lapen's screenshot shows every face upright (earlier claim withdrawn).
+   - Speed (26 identical recorded moves replayed, medians of 3, 4x CPU): v214 52 fps / 3% dropped frames / 2.3 s of
+     >50 ms stalls; saved code no video 50 / 4% / 5.5 s; sideways frame costs nothing (51 / 3%); 4 videos 33-34 fps /
+     18-21% dropped; gold pulse off 37 / 14%. `fitDock` rewritten (read once, write once, skip when unchanged, one
+     queued call per frame): stalls 5.5 -> 4.8 s. Removing the `:has()` rules would save ~0.8 s more (not done). The rest
+     of the 2x vs v214 is spread over the bigger corners/badges. Bot thinking is excluded (it is far heavier than a real game).
+   - Pre-existing (also before today): at 568 wide with 4 players the resource bar overflows by a few px.
+   Still unverifiable here: real LiveKit camera on Android, what Lapen means by "screen cut", real GPU paint cost.
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
