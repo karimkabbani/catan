@@ -1107,6 +1107,43 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
      of the 2x vs v214 is spread over the bigger corners/badges. Bot thinking is excluded (it is far heavier than a real game).
    - Pre-existing (also before today): at 568 wide with 4 players the resource bar overflows by a few px.
    Still unverifiable here: real LiveKit camera on Android, what Lapen means by "screen cut", real GPU paint cost.
+71. 🔧 **v237 (2026-11-09, branch `claude/voice-video-sideways-perf-48ku4d`, not live): voice & video and the sideways board
+   made cheaper and gated for a staged return.** Built on the saved branch (items 69-70). Live is still v236 (= v214).
+   - **Measured first** (`tests/device/prof.js`, CDP profiler over the 26-move replay): without video the newer code's script
+     is only +0.1 s and style/layout unchanged vs v214; the earlier "2x per-move work" was the stall metric exaggerating
+     (same work in fewer, longer tasks). Video is the real cost: +1.5 s script (half of it the harness's fake cameras) and
+     +1.4 s native paint. So the work went into paint, not logic.
+   - Video pictures (`vDraw`): drawn only when the camera delivered a new frame (`requestVideoFrameCallback`; a 1 s silence
+     falls back to the old 66 ms timer, so an unpainted <video> still shows), 15 fps cap kept, nothing drawn while the app is
+     hidden, one 2d context per canvas, canvas at 1.5x pixel density (was 2x). `body.vlive .corner{will-change:transform}`:
+     each corner is its own layer, so the dim filter and glow are composited instead of re-rasterised with every frame.
+   - Gold "your turn" pulse kept, but as an opacity animation on `.corner.active::after` (compositor only) instead of an
+     animated box-shadow that repainted the corner, video included, every frame.
+   - All 11 `:has()` rules replaced by classes: `body.rpsup` / `.rpsstrip` (`rpsBodySync`, the who-starts card),
+     `.corner.haschat` (own corner with the talk buttons), `.corner.vtalkin` (someone talking, set by the glow loop),
+     `#title.lvmode` (already there). The 125 ms glow loop writes only when a level changed.
+   - `renderCounts` (a card landing/lifting) now writes the resource number in place; it rebuilt all four corners per card.
+     `CATAN.specView` only redraws the bottom bar.
+   - **Staged rollout gate:** voice-config.json `"sidewaysOnly": [names]` limits the turned board to those players
+     (`sidewaysUser`); the others run unturned (= the plain look). The answer is cached in localStorage `catanSideOK` for
+     index.html's launch redirect. No list = everyone, as before. Voice keeps its own `"only"` list.
+   - **Numbers** (bench3, emulated Pixel 7, 4x CPU, medians of 3; headless software paint, so fps is directional, the
+     new "busy ms" column (main-thread TaskDuration) is the steadiest): no video: stalls 4.1 -> 3.35 s, busy 17.2 -> 15.5 s
+     (v214: 2.2 s / 23.4 s busy, so the new code does LESS total work than v214 but in longer tasks); 4 videos plain:
+     40 -> 45 fps, 12 -> 8% dropped, busy 23.3 -> 22.6 s; 4 videos sideways: 39 -> 43 fps, 13 -> 9%. The harness's
+     fake cameras alone cost ~1 fps. Of the CSS variants only will-change measured (+3 fps); pulse and filter changes are
+     GPU-side and can only show on a phone.
+   - **Verified headless:** `sweep.js` 10/10 on six combinations (Pixel 7 and iPhone 15 profiles x sideways upright, sideways
+     flipped, plain landscape); `verify.js` 11/11 (the behaviours above); `badge2.js` honest camera badge after returning;
+     `handfit.js` clear at 932/874/812/667, the 568-wide 4-player overflow is pre-existing. Engine: 34 tests pass.
+     `tests/device/make-pages.sh` builds every test page (incl. the v214 and pre-badge-fix baselines), `runbench.sh` +
+     `med.js` run and summarise the benchmark, `README.md` there explains all of it.
+   - **Needs a real phone** (checklist: `docs/phone-test-v237.md`): Safari/WebKit touch feel in the turned frame, camera
+     permission re-prompting in the home-screen app, audio after a lock, AirPods, an incoming call, 4G, 10 min of camera
+     (heat/battery), the camera turn sign (item 65), what Lapen's "screen cut" is, real GPU frame rate with 4 videos.
+   - **Release plan:** (1) voice-config.json `{ "enabled": true, "only": ["test", "test2"], "sidewaysOnly": ["test", "test2"] }`
+     + deploy v237 (friends get v214 behaviour plus the perf fixes); (2) two-phone test; (3) drop both lists. Practice table
+     stays test-only. Only one session deploys; main had no foreign commits on 2026-11-09.
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
@@ -1286,10 +1323,12 @@ live. This is the current reality (last refreshed 2026-11-07; CLAUDE.md has the 
     500px, so phone screenshots are laid out at 500 wide.
 
 ### What's next
-State on 2026-11-08: v235 is live. Voice & video is on for everyone (items 50-64), and so is the sideways board
-(items 63-68: keep rotation lock on, the board turns itself). Watch first, **sideways board in real games:** confirm
-faces show upright on other phones (item 65's assumed sign), that taps and pinch feel right on a real iPhone and
-Android, and how the chat keyboard feels sideways. Then pick from section 8, in order:
+State on 2026-11-09: **v236 is live = the v214 app** (rolled back 2026-11-08 after friends hit bugs). Voice & video, the
+sideways board, the practice table and all fixes since live on branch `claude/voice-video-sideways-perf-48ku4d` as **v237**
+(item 71; the untouched snapshot is `saved-v234-voice-sideways`). Next: Karim's two-phone test (`docs/phone-test-v237.md`),
+then the staged release in item 71 (test players via voice-config.json lists, then everyone). Still to confirm on phones:
+faces upright (item 65's sign), touch feel on a real iPhone and Android, the chat keyboard sideways, "screen cut". Then pick
+from section 8, in order:
 0. **Voice & video follow-ups:** watch the first real games (3-4 people, 4G, AirPods, an incoming call, 20 min of camera);
    build the monthly minute counter + 80% warning (needs a table + LiveKit webhook); check whether iPhone re-asks camera/mic
    permission each session; delete the old LiveKit key APIydyY33REnTLq; a regression sweep over v215-v231.
