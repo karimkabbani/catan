@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v224';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v225';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -909,11 +909,14 @@
       const tap = online ? (p.color === myColor && voiceOn() ? ` onclick="CATAN.voiceCard(this)"` : ` onclick="CATAN.showMsgs('${p.color}')"`) : '';
       // online/offline status dot on the portrait (online games only) — greys out if they left the app
       const off = online && !isPlayerOnline(p.color);
+      // v225: with voice, the mic/camera badges sit in the plaque's name row (off the picture, and out of the
+      // phone's camera cutout, which in landscape is always mid-height on a side edge)
+      const vbs = pid ? voiceBadges(pid) : '', vrow = !!(vbs && document.body.classList.contains('vlive'));
       const statusDot = online ? `<span class="pstatus ${off ? 'off' : 'on'}" title="${off ? 'Offline' : 'Online'}"></span>` : '';
       const wtb = wtCornerBits(p.color);
       el.innerHTML = `${di}${tbadge}${chatBtn}${dot}${wtb.mic}
         <div class="pcol">${stat(bdg.res, cards, '🃏', 'Resource cards', false, cards > 7)}${stat(bdg.card, dev, '🎴', 'Development cards')}${stat(bdg.vp, vp, '⭐', 'Victory points')}${stat(bdg.army, p.playedKnights, '⚔️', 'Knights played', p.hasLargestArmy)}${stat(bdg.road, road, '🛣️', 'Longest road', p.hasLongestRoad)}</div>
-        <div class="pport"${tap}><div class="pava${flagged ? ' flagged' : ''}${off ? ' offline' : ''}"${pid ? ` data-vid="${pid}"` : ''} style="border-color:${PCOLOR[p.color]}">${av}${statusDot}${pid ? voiceBadges(pid) + voiceTag(pid) : ''}</div>${wtb.badge}<div class="pname">${escapeHtml(p.name)}</div></div>${flagged ? '<span class="pflag">🏳️</span>' : ''}${luckStrip(p)}${robbedPill(p.color)}${cupPts ? `<span class="pcup" title="Cup points">🏆<b>${cupPts[p.color]}</b></span>` : ''}`;
+        <div class="pport"${tap}><div class="pava${flagged ? ' flagged' : ''}${off ? ' offline' : ''}"${pid ? ` data-vid="${pid}"` : ''} style="border-color:${PCOLOR[p.color]}">${av}${statusDot}${pid ? (vrow ? '' : vbs) + voiceTag(pid) : ''}</div>${wtb.badge}${vrow ? `<div class="pname prow"><span class="nm">${escapeHtml(p.name)}</span><span class="vrow">${vbs}</span></div>` : `<div class="pname">${escapeHtml(p.name)}</div>`}</div>${flagged ? '<span class="pflag">🏳️</span>' : ''}${luckStrip(p)}${robbedPill(p.color)}${cupPts ? `<span class="pcup" title="Cup points">🏆<b>${cupPts[p.color]}</b></span>` : ''}`;
     });
     voiceMountVideos();   // live camera pictures survive the corner re-render
     // which game of the cup this is, under the banner
@@ -5400,6 +5403,17 @@
   fitAppHeight();
   window.addEventListener('resize', fitAppHeight);
   window.addEventListener('orientationchange', () => setTimeout(fitAppHeight, 80));
+  // v225: in landscape the camera cutout (notch / Dynamic Island / punch-hole) is mid-height on one side edge.
+  // Mark which side, so the few things that live mid-height on an edge (the round menu button) step away from it.
+  // window.orientation: 90 = turned so the phone's top is on the left; -90 = on the right.
+  function markCutSide() {
+    let a = typeof window.orientation === 'number' ? window.orientation : (screen.orientation && typeof screen.orientation.angle === 'number' ? (screen.orientation.angle === 270 ? -90 : screen.orientation.angle) : 0);
+    document.body.classList.toggle('cut-l', a === 90);
+    document.body.classList.toggle('cut-r', a === -90);
+  }
+  markCutSide();
+  window.addEventListener('orientationchange', () => setTimeout(markCutSide, 60));
+  window.addEventListener('resize', markCutSide);
   window.addEventListener('pageshow', fitAppHeight);
   window.addEventListener('resize', fitTitle);
   window.addEventListener('load', scheduleFit);
