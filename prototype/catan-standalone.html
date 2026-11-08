@@ -1818,6 +1818,7 @@
 
   /* ---- motion / animation ---- */
   .corner.active{animation:panelpulse 1.6s ease-in-out infinite;}
+  #board.rdragging .restrob{visibility:hidden;}   /* v237: the robber is in your hand */
   @keyframes panelpulse{0%,100%{box-shadow:0 0 10px rgba(233,196,90,0.45),0 4px 10px rgba(0,0,0,0.45);}
     50%{box-shadow:0 0 20px rgba(233,196,90,0.85),0 4px 10px rgba(0,0,0,0.45);}}
   .dice img.rolling, .pdice img.rolling{animation:tumble .6s cubic-bezier(.3,1.4,.5,1);}
@@ -2737,9 +2738,11 @@
     // just the transparent sprite (matches the flying robber); the drawn silhouette is
     // only a fallback when no art is supplied.
     const rbBy = state.robberBy && state.players.find((p) => p.color === state.robberBy);
+    P.push('<g class="restrob">');   // v237: hidden by a class while dragged (no redraw under the finger)
     if (rbBy) P.push(robberTokenSVG(rb, rbBy, ui.mode === 'idle'));   // it wears the face of whoever last moved it
     else if (ASSETS.robber) P.push(`<image href="${ASSETS.robber}" x="${rb.cx - 0.42}" y="${rb.cy - 0.55}" width="0.84" height="0.95" preserveAspectRatio="xMidYMid meet"/>`);
     else P.push(`<g filter="url(#soft)"><ellipse cx="${rb.cx}" cy="${rb.cy + 0.34}" rx="0.18" ry="0.05" fill="#000" opacity="0.3"/><path d="M ${rb.cx} ${rb.cy - 0.34} q 0.2 0 0.2 0.28 l 0.05 0.34 q 0 0.08 -0.1 0.08 l -0.3 0 q -0.1 0 -0.1 -0.08 l 0.05 -0.34 q 0 -0.28 0.2 -0.28 z" fill="#33312f" stroke="#111" stroke-width="0.02"/><circle cx="${rb.cx}" cy="${rb.cy - 0.28}" r="0.11" fill="#33312f" stroke="#111" stroke-width="0.02"/></g>`);
+    P.push('</g>');
     }
 
     // roads — authentic wooden road sprite rotated to each edge angle (falls
@@ -2893,7 +2896,11 @@
     img.style.left = e.clientX + 'px'; img.style.top = e.clientY + 'px';
     document.body.appendChild(img);
     robberDrag = { img, over: undefined };
-    ui.robberDragging = true; render();   // hide the resting robber while it's in hand
+    // v237: never redraw the board here: that removed the robber under the finger, and inside a frame (the sideways
+    // board) Chrome then delivered no more moves or the lift, stranding the copy in the sea. Hide it by class instead,
+    // and capture the finger on <body>, which no redraw removes.
+    ui.robberDragging = true; const bd = $('board'); if (bd) bd.classList.add('rdragging');
+    try { document.body.setPointerCapture(e.pointerId); } catch (_) { }
     document.addEventListener('pointermove', moveRobberDrag);
     document.addEventListener('pointerup', dropRobberDrag);
     document.addEventListener('pointercancel', cancelRobberDrag);   // an iOS gesture took over: put it back
@@ -2903,7 +2910,7 @@
     document.removeEventListener('pointerup', dropRobberDrag);
     document.removeEventListener('pointercancel', cancelRobberDrag);
     if (robberDrag && robberDrag.img) robberDrag.img.remove();
-    robberDrag = null; ui.robberDragging = false; render();
+    robberDrag = null; ui.robberDragging = false; const bd = $('board'); if (bd) bd.classList.remove('rdragging'); render();
   }
   function moveRobberDrag(e) {
     if (!robberDrag) return;
@@ -2917,7 +2924,7 @@
     document.removeEventListener('pointercancel', cancelRobberDrag);
     const hex = hexAtPoint(e.clientX, e.clientY);
     if (robberDrag && robberDrag.img) robberDrag.img.remove();
-    robberDrag = null; ui.robberDragging = false; zoom.swallowClick = true;
+    robberDrag = null; ui.robberDragging = false; zoom.swallowClick = true; const bd = $('board'); if (bd) bd.classList.remove('rdragging');
     if (hex != null && hex !== state.robberHex) {
       // the drop is tentative — confirm with the ✓ / ✗ (no fly on ✓; you dragged it there)
       ui.confirm = { action: { type: 'moveRobber', hex }, color: activeColor(), dragged: true };

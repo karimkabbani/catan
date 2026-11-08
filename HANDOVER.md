@@ -1078,6 +1078,17 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    back to index.html" branch and the leftover `SIDE_USER` check (the frame turns for anyone signed in); comments in
    rotate.html, index.html and app.js no longer say test2. HANDOVER items 63-67 renumbered and rewritten to match the
    code; §5.1 lists rotate.html; §5.3 explains when the rotate overlay still shows.
+69. 🔧 **Saved-branch fix (2026-11-08, not live): robber drag stuck inside the sideways frame.** Lapen (Pixel 7) saw the
+   robber stranded in the sea, none on the board, and no menu button: he had rolled a 7 and started dragging the robber.
+   Reproduced in Chrome with the Pixel 7 profile and real touch events: inside rotate.html's frame (turned or not) the
+   game got pointerdown only, never move/up/cancel. Cause: `startRobberDrag` called render(), which removed the robber
+   element under the finger; a plain page re-targets the touch, a frame does not. Fix: the resting robber sits in
+   `<g class="restrob">`, hidden by `#board.rdragging` (no redraw), and the drag captures the pointer on <body>.
+   Verified: framed upright, framed landscape and plain page all deliver 8 moves + lift and land on the right hex.
+   Also found: video roughly halves the frame rate during play under a 4x-slowed CPU (~28 vs ~52 fps; headless
+   numbers are noisy, real GPU differs); the gold pulse on the active corner repaints the corner every frame.
+   Still to check on a real Android: faces turned 90 degrees (item 65's assumed sign), own badges red while own
+   video still showed, and what Lapen means by "screen cut".
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
