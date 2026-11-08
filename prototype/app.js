@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v232';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v233';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -5418,6 +5418,7 @@
   // v230: running inside rotate.html's frame (the test2 sideways board). The frame is sized to the safe area by the
   // host page, so the iPhone viewport fixes and the camera-cutout nudges below must stay off in here.
   const FRAMED = (function () { try { return window.top !== window; } catch (_) { return true; } })();
+  if (FRAMED) document.documentElement.classList.add('framed');   // v233: safe-area margins are zero in here (index.html --sa-*)
   function fitAppHeight() {
     const root = document.documentElement;
     if (FRAMED || window.navigator.standalone !== true) { root.classList.remove('ios-pwa'); return; }   // only the iOS home-screen app
