@@ -1,0 +1,12 @@
+const { chromium, devices } = require('playwright'); const fs = require('fs');
+(async () => { const b = await chromium.launch(); const ctx = await b.newContext(devices['Pixel 7 landscape']); await ctx.route(/supabase\.co|livekit\.cloud/, (r) => r.abort());
+  const p = await ctx.newPage(); const errs = []; p.on('pageerror', (e) => errs.push(e.message));
+  await p.addInitScript(() => { let x = 12345; Math.random = () => { x = (x * 16807) % 2147483647; return x / 2147483647; }; });
+  await p.goto('http://localhost:8766/_t2.html'); await p.waitForTimeout(2500);
+  await p.evaluate(() => CATAN._gameN(3, 3 * 7919)); await p.waitForTimeout(3000);
+  const n = await p.evaluate(() => CATAN._record(26)); const rec = await p.evaluate(() => JSON.stringify(window._REC));
+  fs.writeFileSync('px/rec.json', rec); console.log('recorded', n, 'moves,', Math.round(rec.length / 1024), 'KB', errs);
+  const q = await ctx.newPage(); const e2 = []; q.on('pageerror', (e) => e2.push(e.message));
+  await q.goto('http://localhost:8766/_v214.html'); await q.waitForTimeout(2500);
+  console.log('v214 page:', await q.evaluate(() => [typeof CATAN._gameN, typeof CATAN._replay, (document.body.innerText.match(/v2\d\d/) || [''])[0]]), e2);
+  await b.close(); })();

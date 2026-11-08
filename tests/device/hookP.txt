@@ -1,0 +1,38 @@
+window.CATAN = { _login: () => { AUTH.me = { id: 'a1b2c3d4-0000-4000-8000-123456789abc', name: 'test', token: 'x', avatar: null }; showLobby(); return 'ok'; },
+_proom: () => { CATAN.practice(); return PRACTICE.room; },
+_pstate: () => state ? { phase: state.phase, tp: state.turnPhase, cur: activeColor(), me: myColor, bots: PRACTICE.bots, vp: state.players.map((p) => p.name + ':' + C.victoryPoints(state, p.color)), rolls: (state.rolls || []).length, setts: Object.keys(state.settlements).length, roads: Object.keys(state.roads).length, winner: state.winner, ov: !!document.querySelector('#overlay:not(.hidden)'), ovt: (document.querySelector('#overlay h3, #overlay h2') || {}).textContent } : null,
+_autome: (t) => { if (t) state.targetPoints = t; PRACTICE.bots.push(PRACTICE.me); PRACTICE.me = null; return 1; },
+_ptick: () => PRACTICE.busyUntil,
+_ui: () => [ui.mode, ui.spinning, ui.pending], 
+_myroom: () => { LIVE.cfg = { enabled: true }; window.LivekitClient = window.LivekitClient || { Track: { Source: { Microphone: 'microphone', Camera: 'camera' } } };
+  const lp = { identity: AUTH.me.id, name: AUTH.me.name, audioLevel: 0, getTrackPublication: (src) => src === 'microphone' ? { isMuted: false, track: {} } : null, audioTrackPublications: new Map(), publishData: () => Promise.resolve() };
+  LIVE.room = { localParticipant: lp, remoteParticipants: new Map(), options: {}, startAudio: () => Promise.resolve(), disconnect: () => { }, state: 'connected' }; LIVE.roomName = 'table-' + practiceRoomCode(); LIVE.mic = true; LIVE.cam = false; voiceRefresh(); return LIVE.roomName; },
+_talkNow: () => { PRACTICE.talkAt = 0; return 1; },
+_fake: () => Object.values(PRACTICE.fake).map((f) => f.name + ':' + f.mic + ':' + f.cam + ':' + f.audioLevel.toFixed(2)),
+_myroomCam: () => { const lp = LIVE.room.localParticipant; const c = document.createElement('canvas'); c.width = 160; c.height = 120; const g = c.getContext('2d'); setInterval(() => { g.fillStyle = '#556'; g.fillRect(0, 0, 160, 120); g.fillStyle = '#d8b08f'; g.beginPath(); g.ellipse(80, 55, 26, 32, 0, 0, 7); g.fill(); }, 100); const st = c.captureStream(10); lp.getTrackPublication = (src) => src === 'microphone' ? { isMuted: false, track: {} } : { isMuted: false, track: { attach: (v) => { v.srcObject = st; return v; } } }; LIVE.cam = true; voiceRefresh(); return 1; },
+_seven: () => { state.turnPhase = 'moveRobber'; state.hasRolledThisTurn = true; state.dice = [4, 3]; ui.diceRevealing = false; afterAction(); render(); return [ui.mode, state.robberHex]; },
+_hexXY: (id) => { const r = hexScreenXY(id, 0); return r && [r.x, r.y]; },
+_dragState: () => ({ mode: ui.mode, dragging: !!ui.robberDragging, imgs: document.querySelectorAll('.robberdrag').length, confirm: ui.confirm && ui.confirm.action, robber: state.robberHex, radial: (document.getElementById('radialtab') || {}).className }),
+_z: () => ({ s: +zoom.s.toFixed(2), tx: Math.round(zoom.tx), ty: Math.round(zoom.ty) }),
+_myMain: () => { const me = myColor; state.currentPlayerIndex = state.order.indexOf(me); state.turnPhase = 'main'; state.hasRolledThisTurn = true; state.dice = [2, 3]; ui.diceRevealing = false; PRACTICE.bots = PRACTICE.bots.filter((c) => c !== me); afterAction(); render(); return [activeColor(), state.turnPhase, ui.mode]; },
+_trayMode: () => (document.getElementById('emotray') ? trayMode : null),
+_noBots: () => { PRACTICE.on && (PRACTICE.busyUntil = Date.now() + 1e9); return 1; },
+_noTips: () => { SETTINGS.seen = Array.from(new Set((SETTINGS.seen || []).concat(NEWS.map((n) => n.id), ['luck-tour']))); coachEnd(false); hideOverlay(); return SETTINGS.seen.length; },
+_zreset: () => { resetZoom(); return zoom.s; }, _etScroll: () => { const g = document.querySelector('#emotray .etbig'); return g ? [g.scrollTop, g.scrollHeight - g.clientHeight] : null; },
+_record: (n) => { let s = JSON.parse(JSON.stringify(state)); const out = []; let key = null, acts = 0;
+  for (let i = 0; i < n * 20 && out.length < n; i++) {
+    if (s.phase !== 'play') break;
+    let col = null; if (s.turnPhase === 'discard') { const d = s.order.find((c) => (s.pendingDiscards[c] || 0) > 0); col = d; } else col = C.currentColor(s);
+    const k = s.currentPlayerIndex + ':' + (s.rolls ? s.rolls.length : 0); if (k !== key) { key = k; acts = 0; }
+    const a = botMove(s, col, acts); if (!a) break; const r = C.applyAction(s, a, col); if (!r.ok) break; s = r.state; if (s.turnPhase === 'main') acts++;
+    if (a.type === 'rollDice' || a.type.startsWith('build') || a.type === 'moveRobber' || a.type === 'steal' || a.type === 'endTurn' || a.type === 'buyDevCard' || a.type === 'bankTrade') out.push(JSON.parse(JSON.stringify(s)));
+  }
+  window._REC = out; PRACTICE.busyUntil = Date.now() + 1e9; return out.length; },
+_replay: (i) => { const s = window._REC[i]; if (!s) return false; applyRemoteState(JSON.parse(JSON.stringify(s))); return true; },
+_stubborn: () => { NET.started = true; NET.code = 'TEST'; const lp = LIVE.room.localParticipant; lp.isCameraEnabled = true; lp.isMicrophoneEnabled = true; LIVE.cam = true; LIVE.mic = true;
+  lp.setCameraEnabled = async (on) => { if (document.hidden && !on) throw new Error('background: camera busy'); lp.isCameraEnabled = on; };
+  lp.setMicrophoneEnabled = async (on) => { lp.isMicrophoneEnabled = on; }; voiceRefresh(); return 1; },
+_hide: (h) => { NET.heardAt = Date.now(); window.catanUpdatePending = false; window.__reloads = (window.__reloads || 0); Object.defineProperty(document, 'hidden', { configurable: true, get: () => h }); document.dispatchEvent(new Event('visibilitychange')); return h; },
+_camState: () => { const lp = LIVE.room.localParticipant; window.__lc = LIVE.cam; const b = document.querySelector('.corner.bl .vb.vcam'); return { badge: b ? (b.classList.contains('vred') ? 'OFF (red)' : 'on') : 'none', reallySending: !!lp.isCameraEnabled, ownVideoShown: !!document.querySelector('.corner.bl canvas.vvid'), LIVEcam: LIVE.cam, badges: document.querySelectorAll('.corner.bl .vb').length, bl: (document.querySelector('.corner.bl .pname') || {}).textContent }; },
+_trace: () => { const lp = LIVE.room.localParticipant; const out = []; let n = 0; const iv = setInterval(() => { out.push([LIVE.cam, lp.isCameraEnabled, (document.querySelector('.corner.bl .vb.vcam') || {}).className]); if (++n > 12) clearInterval(iv); }, 100); window.__trace = out; return 1; },
+_rp: () => { renderPanels(); const me = AUTH.me && AUTH.me.id; return { me, live: LIVE.cam, badgesHTML: voiceBadges(me).replace(/<svg.*?<\/svg>/g, '').slice(0, 200), seat: (gameSeats || []).map((s) => s.color + ':' + s.playerId).join(' '), bl: document.querySelector('.corner.bl').innerHTML.replace(/<svg.*?<\/svg>/g, '').match(/class="vb[^"]*"/g) }; },
