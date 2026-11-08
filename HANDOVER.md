@@ -1034,6 +1034,9 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    the face, same look as in the game (yours = switches, red when off). First-time question is now a NEW-feature card,
    "Talk while you play": Video and voice / Voice only / Just listen (mic and camera off, still hear and see everyone).
    v229: "Pick how you join:", all three options styled alike, a "Decide later" link; no instruction line under your seat.
+62. ✅ **2026-11-08: voice & video opened to everyone** (`voice-config.json` → `{ "enabled": true }`, no "only" list).
+   Kill switch: set `"enabled": false` (read network-first by every phone, takes effect within ~2s of the next check).
+   Practice table stays test/test2 only. Still not built: monthly minute counter + 80% warning (watch the LiveKit dashboard).
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
