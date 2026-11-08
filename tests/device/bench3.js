@@ -19,9 +19,11 @@ const PAGE = CFG.startsWith('v214') ? '_v214.html' : CFG.includes('side') ? '_ro
   const rot = side ? await p.evaluate(() => document.getElementById('app').style.transform) : '';
   if (side && !rot.includes('rotate')) { console.log(CFG + ',' + RUN + ',NOT-TURNED'); await b.close(); return; }
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 }); await p.waitForTimeout(2500);
+  await cdp.send('Performance.enable'); const met = async () => (await cdp.send('Performance.getMetrics')).metrics.reduce((a, m) => (a[m.name] = m.value, a), {}); const m0 = await met();
   await f.evaluate(() => { window._lt = []; window._po = new PerformanceObserver((l) => l.getEntries().forEach((e) => window._lt.push(e.duration))); window._po.observe({ entryTypes: ['longtask'] }); window._fr = []; let last = performance.now(); window._stop = false; (function k(t) { window._fr.push(t - last); last = t; if (!window._stop) requestAnimationFrame(k); })(last); });
   const n = await f.evaluate(() => window._REC.length);
   for (let i = 0; i < n; i++) { await f.evaluate((j) => { CATAN._noTips && CATAN._noTips(); CATAN._replay(j); }, i); await p.waitForTimeout(GAP); }
   const r = await f.evaluate(() => { window._stop = true; window._po.disconnect(); const fr = window._fr.slice(1), lt = window._lt; const secs = fr.reduce((a, x) => a + x, 0) / 1000; return { fps: Math.round(fr.length / secs), jank: Math.round(fr.filter((d) => d > 33.4).length / fr.length * 100), stalls: lt.length, ms: Math.round(lt.reduce((a, x) => a + x, 0)), worst: Math.round(Math.max(0, ...lt)) }; });
-  console.log([CFG, RUN, r.fps, r.jank, r.stalls, r.ms, r.worst].join(','));
+  const m1 = await met(); r.busy = Math.round((m1.TaskDuration - m0.TaskDuration) * 1000);   // main thread busy ms (script + style + layout + paint recording): the steadiest number here
+  console.log([CFG, RUN, r.fps, r.jank, r.stalls, r.ms, r.worst, r.busy].join(','));
   await b.close(); })();

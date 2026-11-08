@@ -15,7 +15,7 @@
 <title>Catan</title>
 <script>/* sideways board: every signed-in player runs inside rotate.html (see rotate.html, app.js sidewaysSync) */
 (function () { try { if (window.top !== window || !/^https?:$/.test(location.protocol)) return; var a = JSON.parse(localStorage.getItem('catanAuth') || 'null');
-  if (a && String(a.name || '').trim()) location.replace('rotate.html' + location.search + location.hash); } catch (e) { } })();</script>
+  if (a && String(a.name || '').trim() && localStorage.getItem('catanSideOK') !== '0') location.replace('rotate.html' + location.search + location.hash); } catch (e) { } })();</script>
 <style>
   /* safe-area margins (notch, island, home bar). v233: inside rotate.html's sideways frame the host already keeps the
      frame within the safe area, but iPhone still reports the phone's portrait margins to the frame, which then landed

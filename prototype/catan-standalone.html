@@ -15,7 +15,7 @@
 <title>Catan</title>
 <script>/* sideways board: every signed-in player runs inside rotate.html (see rotate.html, app.js sidewaysSync) */
 (function () { try { if (window.top !== window || !/^https?:$/.test(location.protocol)) return; var a = JSON.parse(localStorage.getItem('catanAuth') || 'null');
-  if (a && String(a.name || '').trim()) location.replace('rotate.html' + location.search + location.hash); } catch (e) { } })();</script>
+  if (a && String(a.name || '').trim() && localStorage.getItem('catanSideOK') !== '0') location.replace('rotate.html' + location.search + location.hash); } catch (e) { } })();</script>
 <style>
   /* safe-area margins (notch, island, home bar). v233: inside rotate.html's sideways frame the host already keeps the
      frame within the safe area, but iPhone still reports the phone's portrait margins to the frame, which then landed
@@ -3519,7 +3519,21 @@
   function lagTot(color) { return sumMap(ui.lag && ui.lag[color]); }
   function outTot(color) { return sumMap(ui.out && ui.out[color]); }
   // repaint both the corner totals AND your own per-resource hand orbs (a card just landed/lifted)
-  function renderCounts() { renderPanels(); const h = $('hand'); if (h) h.innerHTML = handBar(); }
+  // v237: a landing/lifting card only changes the resource NUMBER on each corner, so write that in place instead of
+  // rebuilding all four corners (a roll paying 7 cards rebuilt them 7 times, badges, pictures and all); the next
+  // render() still redraws everything. Falls back to the full redraw if a corner is not laid out as expected.
+  function renderCounts() {
+    let ok = true;
+    state.players.forEach((p) => {
+      const el = $('p-' + seatKey(state.players.indexOf(p))), st = el && el.querySelector('.pcol .pstat'), b = st && st.querySelector('b');
+      if (!b) { ok = false; return; }
+      const cards = RES.reduce((n, r) => n + p.resources[r], 0) - lagTot(p.color) + outTot(p.color);
+      if (b.textContent !== String(cards)) b.textContent = cards;
+      st.classList.toggle('over', cards > 7);
+    });
+    if (!ok) renderPanels();
+    const h = $('hand'); if (h) h.innerHTML = handBar();
+  }
   // screen-pixel position of a hex centre (accounts for viewBox + pan/zoom via the SVG CTM)
   function hexScreenXY(hexId, dyAdj) {
     const svg = $('board');
@@ -7592,12 +7606,21 @@
   // turns it 90 degrees while the board is up and the phone is upright, so nobody has to rotate the phone. Framed: tell
   // the host who is signed in and whether the board is showing. Not framed: signing in here moves you to rotate.html
   // (only from the plain lobby, never from a room or a game); index.html's head script does the same at launch.
-  function sidewaysUser() { return !!(AUTH.me && String(AUTH.me.name || '').trim()); }   // anyone signed in
+  // v237: staged rollout. Anyone signed in, unless voice-config.json carries "sidewaysOnly": [names]; then only those
+  // players get the turned board (the others run unturned in the frame, i.e. like the plain page). Before the config
+  // has been read nobody is sent to rotate.html. index.html's head script reads the cached answer (catanSideOK).
+  function sidewaysUser() {
+    if (!(AUTH.me && String(AUTH.me.name || '').trim())) return false;
+    const c = LIVE.cfg; if (!c) return false;
+    if (Array.isArray(c.sidewaysOnly) && !c.sidewaysOnly.some((n) => String(n).toLowerCase() === String(AUTH.me.name).toLowerCase())) return false;
+    return true;
+  }
   let sideSig = '';
   function sidewaysSync() {
     const ingame = document.body.classList.contains('ingame');
+    if (AUTH.me && LIVE.cfg) { try { localStorage.setItem('catanSideOK', sidewaysUser() ? '1' : '0'); } catch (_) { } }
     if (FRAMED) {
-      const user = AUTH.me ? AUTH.me.name : null, sig = ingame + '|' + user;
+      const user = sidewaysUser() ? AUTH.me.name : null, sig = ingame + '|' + user;
       if (sig === sideSig) return; sideSig = sig;
       try { window.parent.postMessage({ catanSideways: 1, ingame, user }, location.origin); } catch (_) { }
       return;
@@ -7606,7 +7629,7 @@
   }
   window.CATAN.sideFlip = () => {
     try { localStorage.setItem('catanSideFlip', localStorage.getItem('catanSideFlip') === '1' ? '0' : '1'); } catch (_) { }
-    try { window.parent.postMessage({ catanSideways: 1, ingame: document.body.classList.contains('ingame'), user: AUTH.me ? AUTH.me.name : null, flipped: 1 }, location.origin); } catch (_) { }
+    try { window.parent.postMessage({ catanSideways: 1, ingame: document.body.classList.contains('ingame'), user: sidewaysUser() ? AUTH.me.name : null, flipped: 1 }, location.origin); } catch (_) { }
   };
   setInterval(sidewaysSync, 1000);
   if (FRAMED) window.addEventListener('message', (e) => {
@@ -9144,7 +9167,7 @@
   window.CATAN.lchatSend = () => sendLobbyChat();
   window.CATAN.openQuickChat = () => openQuickChat();
   // spectator taps a player chip -> view their resources; tapping the active one again returns to follow-the-turn
-  window.CATAN.specView = (color) => { specView = (specView === color) ? null : color; renderCounts(); };
+  window.CATAN.specView = (color) => { specView = (specView === color) ? null : color; const h = $('hand'); if (h) h.innerHTML = handBar(); };   // v237: only the bottom bar changes
   window.CATAN.quickSendIdx = (i) => { const t = AUTH.quickList()[i]; if (t) quickSend(t); };
   window.CATAN.recStop = () => finishRec(false);
   window.CATAN.recCancel = () => finishRec(true);
