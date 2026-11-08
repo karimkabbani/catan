@@ -2066,7 +2066,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v221';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v222';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -2982,7 +2982,7 @@
     if ((state.cup || state.friendly) && state.phase !== 'ended') {
       if (!pill) { pill = document.createElement('div'); pill.id = 'cuppill'; document.body.appendChild(pill); }
       pill.innerHTML = state.cup ? `🏆 ${escapeHtml(cupTitle(state.cup))} · game <span class="rpsn">${state.cup.n}</span> of <span class="rpsn">${state.cup.games}</span>${state.friendly ? ' · 🤝 friendly' : ''}`
-        : '🤝 Friendly game · not in stats';
+        : PRACTICE.on ? '🧪 Practice game · only you see this' : '🤝 Friendly game · not in stats';
     } else if (pill) pill.remove();
     document.body.classList.toggle('hascuppill', !!$('cuppill'));
     const usedSeats = {}; state.players.forEach((_, i) => { usedSeats[seatKey(i)] = 1; });
@@ -4564,7 +4564,7 @@
         <div class="winava" style="background:${PCOLOR[winner.color]}">${wav}</div></div>
       <h2 id="vtitle">${victoryTitle()}</h2>
       ${ARCHIVE ? `<div class="pastnote">📅 Final board · ${pastWhen()}</div>` : ''}
-      ${state.friendly ? '<div class="quitnote">🤝 Friendly game: not recorded in Stats.</div>' : ''}
+      ${PRACTICE.on ? '<div class="quitnote">🧪 Practice game: nothing recorded.</div>' : state.friendly ? '<div class="quitnote">🤝 Friendly game: not recorded in Stats.</div>' : ''}
       ${quitNoteHTML()}
       ${PRACTICE.on ? `<button class="btn full" onclick="CATAN.practiceStart(false)">Play again</button>` : myColor ? `<div id="rmpanel">${rematchPanelHTML()}</div>` : ''}
       ${domBadge}
@@ -5555,11 +5555,15 @@
     let guard = 0;
     const step = (col, acts) => { const a = botMove(s, col, acts); if (!a) return false; const r = C.applyAction(s, a, col); if (!r.ok) return false; s = r.state; return true; };
     while (s.phase === 'setup' && guard++ < 50) { if (!step(s.order[s.setupOrder[s.setupIndex]], 0)) break; }
-    const rounds = 5 + ((Math.random() * 3) | 0);
+    const rounds = 8 + ((Math.random() * 3) | 0);
     for (let t = 0; t < rounds * all.length + 1 && guard++ < 2000; t++) {
       const cur = C.currentColor(s);
       if (t >= rounds * all.length && cur === me) break;
-      if (s.players.some((p) => C.victoryPoints(s, p.color) >= target - 3)) { if (cur === me) break; }
+      if (s.players.some((p) => C.victoryPoints(s, p.color) >= target - 4)) { if (cur === me) break; }
+      // fast-forward: a few extra cards each turn so the board fills up (towns, cities, long roads, dev cards),
+      // but nobody gets close to winning before I play
+      const pl = s.players.find((p) => p.color === cur);
+      if (C.victoryPoints(s, cur) < target - 4) for (let k = 0; k < 4; k++) { const r = RES[(Math.random() * RES.length) | 0]; if (s.bank[r] > 0) { s.bank[r]--; pl.resources[r]++; } }
       let acts = 0, inner = 0;
       while (C.currentColor(s) === cur && s.phase === 'play' && inner++ < 40) {
         if (s.turnPhase === 'discard') { all.forEach((c) => { while ((s.pendingDiscards[c] || 0) > 0 && step(c, 0)) { } }); continue; }
