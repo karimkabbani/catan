@@ -1,7 +1,11 @@
 const { chromium, devices } = require('playwright');
-const MODE = process.argv[2] || 'side', FLIP = process.argv[3] === 'flip';   // side = Pixel 7 upright, sideways frame | plain = Pixel 7 landscape, no frame
+// sweep.js side|plain [flip] [iphone]: side = phone upright in the sideways frame | plain = landscape, no frame.
+// Default phone is the Pixel 7 (Android Chrome); 'iphone' uses Playwright's iPhone 15 profile (viewport 393x659 / 3x,
+// Safari user agent, so the app's iOS code paths run) in Chromium: WebKit itself is not installed here.
+const ARGS = process.argv.slice(2), MODE = ARGS[0] || 'side', FLIP = ARGS.includes('flip'), IPHONE = ARGS.includes('iphone');
+const PHONE = IPHONE ? 'iPhone 15' : 'Pixel 7';
 (async () => { const b = await chromium.launch();
-  const ctx = await b.newContext(devices[MODE === 'side' ? 'Pixel 7' : 'Pixel 7 landscape']); await ctx.route(/supabase\.co|livekit\.cloud/, (r) => r.abort());
+  const ctx = await b.newContext(devices[MODE === 'side' ? PHONE : PHONE + ' landscape']); await ctx.route(/supabase\.co|livekit\.cloud/, (r) => r.abort());
   const p = await ctx.newPage(); const errs = [];
   if (FLIP) await p.addInitScript(() => { try { localStorage.setItem('catanSideFlip', '1'); } catch (e) { } });
   await p.goto(MODE === 'side' ? 'http://localhost:8766/_rot.html' : 'http://localhost:8766/_t2.html'); await p.waitForTimeout(3500);
@@ -75,7 +79,7 @@ const MODE = process.argv[2] || 'side', FLIP = process.argv[3] === 'flip';   // 
   const tick = await centre('#confirmbar .yes, #confirmbar button, .cfm.yes, [onclick*="confirmYes"]');
   if (tick) await tap(tick);
   const moved = await f.evaluate(() => CATAN._dragState()); ok('tap ✓ places the robber', moved.robber === (ds.confirm && ds.confirm.hex), `robber on ${moved.robber}`);
-  console.log(`== ${MODE === 'side' ? (FLIP ? 'Pixel 7, sideways frame FLIPPED' : 'Pixel 7, sideways frame (upright)') : 'Pixel 7 landscape, plain page (control)'} ${T}`); R.forEach((x) => console.log('  ' + x));
+  console.log(`== ${PHONE}, ${MODE === 'side' ? (FLIP ? 'sideways frame FLIPPED' : 'sideways frame (upright)') : 'landscape, plain page (control)'} ${T}`); R.forEach((x) => console.log('  ' + x));
   if (errs.length) console.log('  page errors:', errs.slice(0, 4));
-  await p.screenshot({ path: `px/sweep-${MODE}.png` });
+  await p.screenshot({ path: `px/sweep-${PHONE.replace(/ /g, '')}-${MODE}${FLIP ? '-flip' : ''}.png` });
   await b.close(); })();

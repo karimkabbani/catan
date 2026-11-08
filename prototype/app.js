@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v235';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v237';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -907,6 +907,7 @@
       // your OWN corner gets a 💬 bubble to open quick chat (online seated players only)
       // your own corner (always bottom-left): 😀 emojis and 💬 texts, beside the walkie-talkie's 🎤 (v213)
       const trayOn = (m) => ($('emotray') && trayMode === m ? ' on' : '');
+      if (online && myColor && p.color === myColor) el.classList.add('haschat');   // v237: was .corner.bl:has(.pemo)
       const chatBtn = (online && myColor && p.color === myColor) ? `<button class="pemo${trayOn('emo')}" onclick="event.stopPropagation();CATAN.openTray('emo')" aria-label="Emojis">${EMO_ICON}</button><button class="pchat${trayOn('txt')}" onclick="event.stopPropagation();CATAN.openTray('txt')" aria-label="Texts">${CHAT_ICON}</button>` : '';
       // unread dot: a new message from another player, not yet reviewed (tap their portrait to see it)
       const dot = (online && p.color !== myColor && UNREAD[p.color]) ? `<span class="pmsgdot"></span>` : '';
@@ -3270,7 +3271,7 @@
       let h = document.getElementById('vholder');
       if (!h) { h = document.createElement('div'); h.id = 'vholder'; document.body.appendChild(h); }
       v = document.createElement('video'); v.muted = true; v.playsInline = true; v.autoplay = true; v.setAttribute('playsinline', ''); v.setAttribute('muted', '');
-      h.appendChild(v); LIVE.vids[id] = v;
+      h.appendChild(v); LIVE.vids[id] = v; v._id = id; vWatch(v);
     }
     if (v._track !== track) { try { track.attach(v); } catch (_) { } v._track = track; }
     if (v.paused) v.play().catch(() => { });
@@ -3289,13 +3290,26 @@
     });
     Object.keys(LIVE.vids).forEach((id) => { if (!live[id] && !(r && voiceInfo(id) && voiceInfo(id).cam)) { const v = LIVE.vids[id]; try { v.srcObject = null; v.remove(); } catch (_) { } delete LIVE.vids[id]; } });
   }
+  // v237: a picture is only redrawn when its camera delivered a NEW frame (requestVideoFrameCallback where the browser
+  // has it; if that stays silent for a second, e.g. an unpainted <video>, the 66 ms timer takes over as before), at most
+  // 15x a second, never while the app is hidden, with one 2d context per canvas. Before, every picture was redrawn
+  // 15x a second whatever the camera did.
   let vDrawAt = 0;
+  const VFC = typeof HTMLVideoElement !== 'undefined' && 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
+  function vWatch(v) {
+    if (!VFC || v._vfc) return; v._vfc = true;
+    const tick = () => { v._fresh = true; v._vfcAt = performance.now(); if (LIVE.vids[v._id] === v) v.requestVideoFrameCallback(tick); else v._vfc = false; };
+    v.requestVideoFrameCallback(tick);
+  }
   (function vDraw(t) {
     requestAnimationFrame(vDraw);
-    if (!LIVE.room || t - vDrawAt < 66) return; vDrawAt = t;
+    if (!LIVE.room || document.hidden || t - vDrawAt < 66) return; vDrawAt = t;
+    let drew = false;
     document.querySelectorAll('canvas.vvid').forEach((cv) => {
       const box = cv.parentNode, id = box && box.getAttribute('data-vid'), v = id && LIVE.vids[id];
       if (!v || v.readyState < 2 || !v.videoWidth) return;
+      if (VFC && !v._fresh && cv.width && v._vfcAt && t - v._vfcAt < 1000) return;   // same frame as last time: nothing to draw
+      drew = true;
       const dpr = Math.min(2, window.devicePixelRatio || 1), bw = Math.round(box.clientWidth * dpr), bh = Math.round(box.clientHeight * dpr);
       if (bw < 4 || bh < 4) return;
       if (cv.width !== bw || cv.height !== bh) { cv.width = bw; cv.height = bh; }   // same shape as the picture: never stretched
@@ -3303,20 +3317,24 @@
       const w = cv.width, h = cv.height, vw = rot ? v.videoHeight : v.videoWidth, vh = rot ? v.videoWidth : v.videoHeight;
       const s = Math.max(w / vw, h / vh), dw = v.videoWidth * s, dh = v.videoHeight * s;
       try {
-        const g = cv.getContext('2d');
+        const g = cv._g || (cv._g = cv.getContext('2d'));
         if (!rot) g.drawImage(v, (w - dw) / 2, (h - dh) / 2, dw, dh);
         else { g.save(); g.translate(w / 2, h / 2); g.rotate(rot * Math.PI / 180); g.drawImage(v, -dw / 2, -dh / 2, dw, dh); g.restore(); }
       } catch (_) { }
     });
+    if (drew) for (const id in LIVE.vids) LIVE.vids[id]._fresh = false;
   })(0);
   // speaking glow: brighter when louder (LiveKit audio levels, 8x a second)
   setInterval(() => {
-    const r = LIVE.room; if (!r) return;
+    const r = LIVE.room; if (!r || document.hidden) return;
     document.querySelectorAll('[data-vid]').forEach((el) => {
       const p = voicePart(el.getAttribute('data-vid')), lv = p ? Math.min(1, (p.audioLevel || 0) * 3) : 0;
-      const on = lv > 0.06 && !(p && LIVE.mutedForMe[p.identity]);
+      const on = lv > 0.06 && !(p && LIVE.mutedForMe[p.identity]), val = on ? lv.toFixed(2) : '0';
+      if (el._vlv === val) return;   // v237: nothing changed -> no style work (this ran 8x a second on every picture)
+      el._vlv = val;
       el.classList.toggle('vtalk', on);
-      el.style.setProperty('--vlv', on ? lv.toFixed(2) : '0');
+      el.style.setProperty('--vlv', val);
+      const c = el.closest('.corner'); if (c) c.classList.toggle('vtalkin', on || !!c.querySelector('[data-vid].vtalk'));   // v237: was a :has() rule
     });
   }, 125);
   setInterval(() => { if (LIVE.room) voiceSendState(); }, 15000);   // late joiners learn who's deaf / who muted whom
@@ -3978,7 +3996,12 @@
   let rpsBanner = null;   // the banner's line while the showdown runs (null = "Deciding who starts…")
   function setRpsBanner(line) { if (rpsBanner !== line) { rpsBanner = line; renderBanner(); } }
   // draws whichever moment we're in; only rebuilds what changed (so taps on the card survive)
-  function syncRps(force) {
+  function rpsBodySync() {   // v237: body.rpsup / .rpsstrip mirror the card (the CSS used body:has(#rpsroot...), costly on every DOM change)
+    const r = $('rpsroot'), up = !!(r && !r.classList.contains('hidden'));
+    document.body.classList.toggle('rpsup', up); document.body.classList.toggle('rpsstrip', up && r.classList.contains('strip'));
+  }
+  function syncRps(force) { syncRpsInner(force); rpsBodySync(); }
+  function syncRpsInner(force) {
     const root = $('rpsroot'), mode = rpsMode();
     const hideCard = () => { if (root) root.classList.add('hidden'); };
     if (!document.body.classList.contains('ingame')) { hideCard(); return; }   // only once the board (and its rotate gate) is up
@@ -7254,7 +7277,7 @@
     const rr = $('radialroot'); if (rr) { rr.classList.remove('open'); rr.classList.add('hidden'); }
     document.querySelectorAll('.flyres, .robberdrag, .emofloat, .emocombo, .emothrow, .emosplat, .emoghost, #cuppill, #rmbar').forEach((el) => el.remove());
     document.body.classList.remove('inlobby');
-    closeEmojiTray(); hideChip(); const mp = $('momentpill'); if (mp) mp.classList.add('hidden'); const rpr = $('rpsroot'); if (rpr) rpr.classList.add('hidden'); rpsBoardClear();
+    closeEmojiTray(); hideChip(); const mp = $('momentpill'); if (mp) mp.classList.add('hidden'); const rpr = $('rpsroot'); if (rpr) rpr.classList.add('hidden'); rpsBodySync(); rpsBoardClear();
     document.body.classList.remove('ingame', 'trading', 'gameover');
     hideOverlay();
   }

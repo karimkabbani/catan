@@ -1,6 +1,7 @@
 const { chromium, devices } = require('playwright'); const fs = require('fs');
 const CFG = process.argv[2], RUN = +process.argv[3] || 1, GAP = 1500;
-const PAGE = { 'new-plain-nohas': '_t2.html', 'v214-plain-nohas': '_v214.html', 'v214-plain': '_v214.html', 'new-plain': '_t2.html', 'new-plain-video': '_t2.html', 'new-side': '_rot2.html', 'new-side-video': '_rot2.html', 'new-side-video-nopulse': '_rot2.html' }[CFG];
+// cfg = <build>-<plain|side>[-video][-nohas][-nopulse][-nofilter][-willchange]; build v214 -> _v214.html, anything else -> the current code
+const PAGE = CFG.startsWith('v214') ? '_v214.html' : CFG.includes('side') ? '_rot2.html' : '_t2.html';
 (async () => { const b = await chromium.launch(); const side = CFG.includes('side');
   const ctx = await b.newContext(devices[side ? 'Pixel 7' : 'Pixel 7 landscape']); await ctx.route(/supabase\.co|livekit\.cloud/, (r) => r.abort());
   const p = await ctx.newPage(); const cdp = await ctx.newCDPSession(p);
@@ -12,7 +13,9 @@ const PAGE = { 'new-plain-nohas': '_t2.html', 'v214-plain-nohas': '_v214.html', 
   await f.evaluate((rec) => { window._REC = JSON.parse(rec); CATAN._noTips && CATAN._noTips(); }, fs.readFileSync('px/rec.json', 'utf8'));
   if (CFG.includes('video')) await f.evaluate(() => { CATAN._voice4(); });
   if (CFG.includes('nohas')) console.log('has-rules removed:', await f.evaluate(() => { let n = 0; for (const sh of document.styleSheets) { let rs; try { rs = sh.cssRules; } catch (e) { continue; } for (let i = rs.length - 1; i >= 0; i--) { const walk = (list, del) => { for (let j = list.length - 1; j >= 0; j--) { const r = list[j]; if (r.cssRules && !r.selectorText) walk(r.cssRules, (k) => r.deleteRule(k)); else if (r.selectorText && r.selectorText.includes(':has(')) { del(j); n++; } } }; walk([rs[i]], () => { sh.deleteRule(i); }); } } return n; }));
-  if (CFG.includes('nopulse')) await f.addStyleTag({ content: '.corner.active{animation:none!important}' });
+  if (CFG.includes('nopulse')) await f.addStyleTag({ content: '.corner.active, .corner.active::after{animation:none!important}' });
+  if (CFG.includes('nofilter')) await f.addStyleTag({ content: '.corner:not(.active){filter:none!important}' });   // what the dim filter costs with video inside
+  if (CFG.includes('willchange')) await f.addStyleTag({ content: '.corner{will-change:transform}' });   // corners as their own layers
   const rot = side ? await p.evaluate(() => document.getElementById('app').style.transform) : '';
   if (side && !rot.includes('rotate')) { console.log(CFG + ',' + RUN + ',NOT-TURNED'); await b.close(); return; }
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 }); await p.waitForTimeout(2500);

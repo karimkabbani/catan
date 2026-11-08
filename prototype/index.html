@@ -161,9 +161,9 @@
   /* talk while deciding who starts: the dim lets taps through (only the card catches them) and the corners
      (chat bubble, mic, portraits) plus the chat layers sit above it */
   #rpsroot{pointer-events:none;} #rpsroot .rpscard{pointer-events:auto;}
-  body:has(#rpsroot:not(.hidden)) .corner{z-index:38;}
-  body:has(#rpsroot:not(.hidden)) .bcbubble, body:has(#rpsroot:not(.hidden)) #wtlisten{z-index:39;}
-  body:has(#rpsroot:not(.hidden)) #emotray, body:has(#rpsroot:not(.hidden)) #msghist{z-index:40;}
+  body.rpsup .corner{z-index:38;}   /* v237: body.rpsup/.rpsstrip are set by rpsBodySync (no :has(), which re-matched on every DOM change) */
+  body.rpsup .bcbubble, body.rpsup #wtlisten{z-index:39;}
+  body.rpsup #emotray, body.rpsup #msghist{z-index:40;}
   .rpscard{width:min(470px,92vw); box-sizing:border-box; padding:16px 18px 14px; border-radius:16px; border:1.5px solid var(--gold);
     background:linear-gradient(180deg, rgba(74,46,18,0.97), rgba(36,20,7,0.97)); box-shadow:0 10px 34px rgba(0,0,0,0.6); color:var(--ink);
     display:flex; flex-direction:column; align-items:center; gap:10px;}
@@ -202,7 +202,7 @@
   .rpsposbtn span{font-size:11.5px; color:var(--muted);}
   .rpsposbtn:active{transform:scale(0.96); background:rgba(233,196,90,0.22);}
   /* ===== lobby v170: Play · Chat · Stats ===== */
-  #title:has(#lv-root), #title.lvmode{align-items:stretch;}
+  #title.lvmode{align-items:stretch;}
   /* the lobby's tab bar owns the bottom edge (its own padding clears the home indicator / gesture bar),
      so the frame runs to the real bottom instead of stopping a safe-area short */
   #title.lvmode{bottom:0; padding-bottom:0;}
@@ -709,8 +709,8 @@
     display:flex; align-items:center; justify-content:center; box-shadow:0 3px 8px rgba(0,0,0,0.55); cursor:pointer;}
   .pemo{left:calc(100% + 28px);} .pchat{left:calc(100% + 72px);}
   /* ...and your robbed counter goes up, above the luck meter, level with the last roll's dice */
-  .corner.bl:has(.pemo) .probbed{top:auto; bottom:calc(100% + 8px); left:calc(100% + 4px);}
-  .corner.bl:has(.pemo) .pcup{top:auto; bottom:calc(100% + 9px); left:calc(100% + 58px);}   /* cup games: beside it */
+  .corner.bl.haschat .probbed{top:auto; bottom:calc(100% + 8px); left:calc(100% + 4px);}
+  .corner.bl.haschat .pcup{top:auto; bottom:calc(100% + 9px); left:calc(100% + 58px);}   /* cup games: beside it */
   .pemo svg, .pchat svg{width:20px; height:20px;}
   .pemo::after, .pchat::after{content:''; position:absolute; inset:-3px;}
   .pemo:active, .pchat:active{transform:scale(0.92);}
@@ -726,9 +726,9 @@
     background:linear-gradient(180deg,rgba(58,34,14,0.98),rgba(28,15,5,0.98)); border:1.5px solid var(--gold-edge); box-shadow:0 3px 8px rgba(0,0,0,0.55);}
   .corner.bl .pwt{left:calc(100% + 116px); top:24px; bottom:auto; width:38px; height:38px;}
   /* while the who-starts card is up it covers that spot on most phones: stack the three straight above the corner */
-  body:has(#rpsroot:not(.hidden):not(.strip)) .corner.bl .pemo{left:4px; top:auto; bottom:calc(100% + 6px);}
-  body:has(#rpsroot:not(.hidden):not(.strip)) .corner.bl .pchat{left:4px; top:auto; bottom:calc(100% + 50px);}
-  body:has(#rpsroot:not(.hidden):not(.strip)) .corner.bl .pwt{left:4px; top:auto; bottom:calc(100% + 94px);}
+  body.rpsup:not(.rpsstrip) .corner.bl .pemo{left:4px; top:auto; bottom:calc(100% + 6px);}
+  body.rpsup:not(.rpsstrip) .corner.bl .pchat{left:4px; top:auto; bottom:calc(100% + 50px);}
+  body.rpsup:not(.rpsstrip) .corner.bl .pwt{left:4px; top:auto; bottom:calc(100% + 94px);}
   .pwt svg{width:20px; height:20px;}
   .pwt::after{content:''; position:absolute; inset:-6px;}   /* bigger finger target */
   .pwt:active{transform:scale(0.92);}
@@ -1820,10 +1820,10 @@
   @keyframes spin{0%,40%{transform:rotate(0)} 60%,100%{transform:rotate(90deg)}}
 
   /* ---- motion / animation ---- */
-  .corner.active{animation:panelpulse 1.6s ease-in-out infinite;}
+  .corner.active::after{content:''; position:absolute; inset:-2px; border-radius:inherit; pointer-events:none; z-index:-1;
+    box-shadow:0 0 20px 3px rgba(233,196,90,0.6); animation:panelpulse 1.6s ease-in-out infinite; will-change:opacity;}   /* v237: same pulse, compositor only */
   #board.rdragging .restrob{visibility:hidden;}   /* v237: the robber is in your hand */
-  @keyframes panelpulse{0%,100%{box-shadow:0 0 10px rgba(233,196,90,0.45),0 4px 10px rgba(0,0,0,0.45);}
-    50%{box-shadow:0 0 20px rgba(233,196,90,0.85),0 4px 10px rgba(0,0,0,0.45);}}
+  @keyframes panelpulse{0%,100%{opacity:0;} 50%{opacity:1;}}
   .dice img.rolling, .pdice img.rolling{animation:tumble .6s cubic-bezier(.3,1.4,.5,1);}
   @keyframes tumble{0%{transform:rotate(-120deg) scale(0.5);opacity:.4}
     60%{transform:rotate(20deg) scale(1.18)}100%{transform:none;opacity:1}}
@@ -1941,7 +1941,7 @@
   #vcard.pup::after, #msghist.pup::after{display:block; bottom:-9px; background:#1c0f05; border-right:2px solid var(--gold-edge); border-bottom:2px solid var(--gold-edge);}
   .popx{position:absolute; top:2px; right:2px; width:32px; height:32px; border:0; padding:0; background:none; color:#e9c45a; font-size:22px; line-height:32px; font-weight:700; cursor:pointer; z-index:2;}
   .popx::after{content:''; position:absolute; inset:-6px;}   /* 44px finger target */
-  body:has(#rpsroot:not(.hidden)) #vcard{z-index:40;}
+  body.rpsup #vcard{z-index:40;}
   .vch{font-weight:800; color:#e9c45a; font-size:12px; text-transform:uppercase; letter-spacing:0.04em; margin:2px 30px 8px 0; line-height:20px;}
   .vcrow{display:flex; gap:8px;}
   .vcbig{flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:10px 6px 9px; border-radius:12px; background:#4a3a1c; border:1.5px solid #b8913f; color:#f3e6c8; font:inherit;}
@@ -1982,7 +1982,7 @@
     .vasknote{margin-top:6px; font-size:11px;}
   }
   /* victory: the four corners grow while the results card is up, faces stay live; gold on the winner */
-  .corner:not(.rps-out):has([data-vid].vtalk){filter:none !important;}
+  .corner.vtalkin:not(.rps-out){filter:none !important;}   /* v237: class set by the glow loop, was :has() */
   /* v225: badges live in the plaque's name row, never on the picture. The row hugs the screen edge (under the picture for
      the bottom corners, above it for the top ones): name on the edge side, badges on the board side. */
   body.vlive .corner.tl .pport, body.vlive .corner.tr .pport{flex-direction:column-reverse;}
