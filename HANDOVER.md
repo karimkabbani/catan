@@ -1062,7 +1062,7 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    front-camera frame has the head on the left when the phone's top is on the left. If real phones show it upside
    down, negate the angle in `vDraw`.
 
-65. ✅ **v233 (2026-11-08, built, not deployed). Sideways board: corners hug the phone's long sides.** Karim's screenshot:
+65. ✅ **v233 (2026-11-08, deployed). Sideways board: corners hug the phone's long sides.** Karim's screenshot:
    in rotate.html's turned frame the corners sat ~33pt off the phone's right edge and ~22pt off its left. Cause: iPhone
    still reports its PORTRAIT safe-area insets (62 top / 34 bottom) to the frame, and the app applied 40% of them to the
    game's top/bottom (= the phone's right/left). Fix: every `env(safe-area-inset-*)` in index.html now goes through
