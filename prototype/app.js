@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v231';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v232';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -3136,18 +3136,22 @@
     }
   });
   // what everyone needs to know about me: am I hearing voices at all ("Hear voices" in Settings)
+  // v232 sideways board (rotate.html): how far the host page has turned this app (90, -90 or 0). The phone still thinks
+  // it's upright, so its camera films sideways: every picture of this player is turned back by this angle when drawn
+  // (vDraw), here and on everyone else's phone (sent with the call state as 'rot').
+  let SIDE_ANGLE = 0;
   function voiceSend(obj, to) {
     const r = LIVE.room; if (!r) return;
     try { r.localParticipant.publishData(new TextEncoder().encode(JSON.stringify(obj)), to ? { reliable: true, destinationIdentities: [to] } : { reliable: true }); } catch (_) { }
   }
-  function voiceSendState() { voiceSend({ t: 'st', deaf: SETTINGS.walkie === false ? 1 : 0, mutes: Object.keys(LIVE.mutedForMe) }); }
+  function voiceSendState() { voiceSend({ t: 'st', deaf: SETTINGS.walkie === false ? 1 : 0, mutes: Object.keys(LIVE.mutedForMe), rot: SIDE_ANGLE }); }
   function voiceOnData(payload, p) {
     let m; try { m = JSON.parse(new TextDecoder().decode(payload)); } catch (_) { return; }
     if (!p || !m) return;
     const me = AUTH.me && AUTH.me.id;
     if (m.t === 'st') {
       const was = JSON.stringify([LIVE.peers[p.identity], !!LIVE.mutedMe[p.identity]]);
-      LIVE.peers[p.identity] = { deaf: !!m.deaf };
+      LIVE.peers[p.identity] = { deaf: !!m.deaf, rot: m.rot === 90 || m.rot === -90 ? m.rot : 0 };
       const has = Array.isArray(m.mutes) && m.mutes.indexOf(me) >= 0;
       if (has) LIVE.mutedMe[p.identity] = true; else delete LIVE.mutedMe[p.identity];
       if (was !== JSON.stringify([LIVE.peers[p.identity], !!LIVE.mutedMe[p.identity]])) voiceRefresh();   // the 15s heartbeat mustn't redraw anything
@@ -3270,8 +3274,14 @@
       const dpr = Math.min(2, window.devicePixelRatio || 1), bw = Math.round(box.clientWidth * dpr), bh = Math.round(box.clientHeight * dpr);
       if (bw < 4 || bh < 4) return;
       if (cv.width !== bw || cv.height !== bh) { cv.width = bw; cv.height = bh; }   // same shape as the picture: never stretched
-      const w = cv.width, h = cv.height, s = Math.max(w / v.videoWidth, h / v.videoHeight), dw = v.videoWidth * s, dh = v.videoHeight * s;
-      try { cv.getContext('2d').drawImage(v, (w - dw) / 2, (h - dh) / 2, dw, dh); } catch (_) { }
+      const rot = AUTH.me && id === AUTH.me.id ? SIDE_ANGLE : ((LIVE.peers[id] && LIVE.peers[id].rot) || 0);   // a sideways-board phone films on its side
+      const w = cv.width, h = cv.height, vw = rot ? v.videoHeight : v.videoWidth, vh = rot ? v.videoWidth : v.videoHeight;
+      const s = Math.max(w / vw, h / vh), dw = v.videoWidth * s, dh = v.videoHeight * s;
+      try {
+        const g = cv.getContext('2d');
+        if (!rot) g.drawImage(v, (w - dw) / 2, (h - dh) / 2, dw, dh);
+        else { g.save(); g.translate(w / 2, h / 2); g.rotate(rot * Math.PI / 180); g.drawImage(v, -dw / 2, -dh / 2, dw, dh); g.restore(); }
+      } catch (_) { }
     });
   })(0);
   // speaking glow: brighter when louder (LiveKit audio levels, 8x a second)
@@ -5450,6 +5460,11 @@
     try { window.parent.postMessage({ catanSideways: 1, ingame: document.body.classList.contains('ingame'), user: AUTH.me ? AUTH.me.name : null, flipped: 1 }, location.origin); } catch (_) { }
   };
   setInterval(sidewaysSync, 1000);
+  if (FRAMED) window.addEventListener('message', (e) => {
+    if (e.origin !== location.origin || e.source !== window.parent || !e.data || e.data.catanSideAngle === undefined) return;
+    const a = e.data.catanSideAngle === 90 || e.data.catanSideAngle === -90 ? e.data.catanSideAngle : 0;
+    if (a !== SIDE_ANGLE) { SIDE_ANGLE = a; voiceSendState(); }
+  });
   if (window.MutationObserver) { try { new MutationObserver(() => sidewaysSync()).observe(document.body, { attributes: true, attributeFilter: ['class'] }); } catch (_) { } }
   window.addEventListener('resize', markCutSide);
   window.addEventListener('pageshow', fitAppHeight);
