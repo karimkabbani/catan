@@ -1024,6 +1024,12 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    in-game picture now opens my recent messages like anyone's (the voice card only while the call is still connecting /
    down); room + practice seats: my face no longer opens the card. The card remains behind "Talk to the table" (room, not
    seated) and the watcher's own face in the spectator bar.
+60. ✅ **v227 (2026-11-08, built, not deployed). Switches everywhere.** The watcher's bottom bar shows your two switches
+   (`.specvc`) instead of a face that opened the card; the room's "Talk to the table" chip (not seated) is a row with the
+   two switches; your own small face (banner / room watchers) no longer opens the card while the call is up (`voiceWho`).
+   The voice card now only appears while the call is connecting or down, to explain. `voiceRefresh` also redraws a
+   watcher's bottom bar. `fitDock` re-runs every second in-game with voice (a bottom corner can shift after a redraw
+   without resizing; the bar overlapped by 4px at 932/874 before).
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
