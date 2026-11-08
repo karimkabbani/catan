@@ -918,7 +918,7 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    **Karim tested v214 in a real game (2026-11-07): working.** That also covers the v210 walkie and v212-v213 chat on real
    phones. No regression sweep has been run yet on the v208-v214 batch (Karim: not yet).
 
-50. ☐ **Voice & video at the table — in discussion, NOT to be built yet (2026-11-07).** Karim: refine the requirements
+50. ✅ **Voice & video at the table: built and live for everyone since 2026-11-08 (items 51-64).** Original brief (2026-11-07), kept for history; later decisions supersede it (badges in the name row, badges are the switches, no tap-your-picture card, victory corners 1x). Karim: refine the requirements
    and mocks only, no code. Requirements, decisions, vendor costs and open questions: `docs/prd-voice-video.md`.
    Mocks: canvas "Catan: Voice & video" https://claude.ai/artifact/DjkXUjLaeYMZzcH4tpz9QX (Take 2 P1-P3 + Take 3
    T1-T6 are current). Gist: a real call (hosted WebRTC) for the whole table night, everyone hears everyone, tap your
@@ -1234,7 +1234,12 @@ live. This is the current reality (last refreshed 2026-11-07; CLAUDE.md has the 
     500px, so phone screenshots are laid out at 500 wide.
 
 ### What's next
-State on 2026-11-07: v214 is live and Karim has played a real game on it. Pick from section 8. In order:
+State on 2026-11-08: v231 is live. Voice & video is on for everyone (items 50-64); the test2 sideways board (item 63) is a
+test. Pick from section 8. In order:
+0. **Voice & video follow-ups:** watch the first real games (3-4 people, 4G, AirPods, an incoming call, 20 min of camera);
+   build the monthly minute counter + 80% warning (needs a table + LiveKit webhook); check whether iPhone re-asks camera/mic
+   permission each session; delete the old LiveKit key APIydyY33REnTLq; a regression sweep over v215-v231.
+   Not done from the design sweep (canvas "Catan: Design & UX sweep"): 7 victory crown, 8 small polish.
 1. **Regression sweep over v208-v214** (walkie + chat v2/v3): due, but Karim said wait.
 2. **Undo by unanimous vote** (item 9): fully designed, medium effort, the biggest gameplay gap (misclicks).
 3. **Pause, save and resume** (backlog top of §8): designed, ~1 day + sweep; Karim not ready yet, and three
@@ -1242,5 +1247,4 @@ State on 2026-11-07: v214 is live and Karim has played a real game on it. Pick f
 4. **Chat extras** (item 46): a tray that reorders by each player's own use; a context chip (😡 tfeh after a steal).
 5. Parked music idea (item 44): pause the music on the talker's phone, and on listeners' while a voice plays.
 6. Small open decision: horned robber, full piece or badge (item 11).
-Voice & video (item 50) is in requirements/mocks only: no code until Karim says so.
 Parked or blocked: game history / replay (item 8); 5-player (item 7, needs a fifth colour's art).

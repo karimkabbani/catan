@@ -6,8 +6,11 @@ https://karimkabbani.github.io/catan/. The full history, every feature and its d
 
 ## How Karim works
 - Plain, direct English. No em dashes. Explain things in lay terms when asked.
-- Mock it first when he asks for mocks: the design canvas is https://claude.ai/artifact/NRTc83WMEbQWPfp2UtYmNB
-  (one board per file; publish each file before writing the next). Otherwise build straight away.
+- Mock it first when he asks for mocks: design canvases (one board per file; publish each file before writing the
+  next): main https://claude.ai/artifact/NRTc83WMEbQWPfp2UtYmNB, voice & video https://claude.ai/artifact/DjkXUjLaeYMZzcH4tpz9QX,
+  design & UX sweep https://claude.ai/artifact/1qJ3HEEkQytq4WD93NJDtF. Otherwise build straight away.
+- Other Claude sessions may deploy too: before a deploy, fetch origin/main and build on top of it (never force-push main or
+  gh-pages); bump APP_VERSION past whatever is live.
 - **Deploy only when he says so** ("deploy", "build and deploy"). After deploying, confirm the live version.
 - Report what you verified and what you couldn't (real-phone behaviour can't be tested headless).
 
