@@ -1050,6 +1050,11 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    gesture is on a side edge. To roll out to everyone: drop the test2 checks (index.html head, `sidewaysUser`, rotate.html
    `SIDE_USER`) and make index.html the host page instead of redirecting.
 
+64. ✅ **v231 (2026-11-08, deployed).** Built on top of another session's v230 (sideways board for test2). The rejoin note
+   says "tap 📷 to turn your camera on" (was "tap your picture"). Your own badge taps update the remembered choice
+   (`voiceRemember`): mic off -> 'listen', mic on -> 'audio', mic + camera on -> 'video' (still rejoins camera OFF); saved
+   to the profile like the first pick; automatic switches (lock screen) don't change it. iPhone's own camera/mic permission
+   prompt is separate: whether a home-screen app re-asks each session is unverified.
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
