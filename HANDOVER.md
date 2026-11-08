@@ -1037,6 +1037,19 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
 62. ✅ **2026-11-08: voice & video opened to everyone** (`voice-config.json` → `{ "enabled": true }`, no "only" list).
    Kill switch: set `"enabled": false` (read network-first by every phone, takes effect within ~2s of the next check).
    Practice table stays test/test2 only. Still not built: monthly minute counter + 80% warning (watch the LiveKit dashboard).
+63. 🧪 **v230 (2026-11-08, not deployed). Sideways board, test2 only.** Karim: keep rotation lock on and still get the
+   landscape board. Safari can't lock orientation, so `rotate.html` hosts the whole app in an iframe; while the board is
+   up and the phone is upright it sizes the frame landscape and turns it 90° (`-90°` after Settings → Sideways board →
+   Flip it over, stored in `catanSideFlip`). The app inside sees a real landscape viewport, so CSS, media queries, taps and
+   swipes need no changes (the browser maps touches through the rotation; verified headless: taps hit the right point,
+   a drag pans the board the way the finger moves). The frame sits in the safe area (a framed page gets no safe-area
+   insets), and `FRAMED` turns off `fitAppHeight` / `markCutSide` inside it. Routing: index.html's head script sends a
+   saved test2 to rotate.html, `sidewaysSync` does it on sign-in (only from the plain lobby), and rotate.html sends anyone
+   else back to index.html. The app tells the host `{catanSideways, ingame, user}` by postMessage. Known limits: the
+   keyboard (chat) opens along the phone's long edge, the status-bar strip costs ~50px of width, and the swipe-home
+   gesture is on a side edge. To roll out to everyone: drop the test2 checks (index.html head, `sidewaysUser`, rotate.html
+   `SIDE_USER`) and make index.html the host page instead of redirecting.
+
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a

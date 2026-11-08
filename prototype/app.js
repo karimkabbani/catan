@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v229';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v230';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -2125,6 +2125,7 @@
       ${toggle('walkie', 'Hear voices')}
       ${seg}
       ${toggle('autozoom', 'Auto-zoom')}
+      ${FRAMED && sidewaysUser() ? `<div class="setrow"><span class="setlbl">Sideways board</span><button class="setbtn" onclick="CATAN.sideFlip()">Flip it over</button></div>` : ''}
       <div class="setrow"><span class="setlbl">New-feature tips</span><button class="setbtn" onclick="CATAN.tipsAgain()"${(SETTINGS.seen || []).length ? '' : ' disabled'}>${(SETTINGS.seen || []).length ? 'Show again' : 'All unseen'}</button></div>
       <div class="setdiag">Sound engine: ${actx ? actx.state : 'not started'} · ${Object.keys(sndBuf).length}/${Object.keys(SFX).length} sounds · rebuilt ${audioRebuilds}×</div>
       <button class="btn full" onclick="CATAN.close()">Done</button>
@@ -5404,9 +5405,12 @@
   // strip, so the bottom of the screen is out of reach. Measure that missing strip; the lobby's tab bar then drops
   // the safe-area padding it no longer needs (the cut-off line already sits above the home bar), and the strip
   // below is painted in the tab bar's colour so it reads as one bar down to the edge.
+  // v230: running inside rotate.html's frame (the test2 sideways board). The frame is sized to the safe area by the
+  // host page, so the iPhone viewport fixes and the camera-cutout nudges below must stay off in here.
+  const FRAMED = (function () { try { return window.top !== window; } catch (_) { return true; } })();
   function fitAppHeight() {
     const root = document.documentElement;
-    if (window.navigator.standalone !== true) { root.classList.remove('ios-pwa'); return; }   // only the iOS home-screen app
+    if (FRAMED || window.navigator.standalone !== true) { root.classList.remove('ios-pwa'); return; }   // only the iOS home-screen app
     const portrait = window.matchMedia ? window.matchMedia('(orientation: portrait)').matches : window.innerHeight > window.innerWidth;
     const h = portrait ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height);
     root.style.setProperty('--vp-gap', Math.max(0, h - window.innerHeight) + 'px'); root.classList.add('ios-pwa');
@@ -5418,12 +5422,35 @@
   // Mark which side, so the few things that live mid-height on an edge (the round menu button) step away from it.
   // window.orientation: 90 = turned so the phone's top is on the left; -90 = on the right.
   function markCutSide() {
+    if (FRAMED) return;
     let a = typeof window.orientation === 'number' ? window.orientation : (screen.orientation && typeof screen.orientation.angle === 'number' ? (screen.orientation.angle === 270 ? -90 : screen.orientation.angle) : 0);
     document.body.classList.toggle('cut-l', a === 90);
     document.body.classList.toggle('cut-r', a === -90);
   }
   markCutSide();
   window.addEventListener('orientationchange', () => setTimeout(markCutSide, 60));
+  // v230 (test build, player "test2" only): sideways board. rotate.html hosts the app in a frame and turns it
+  // 90 degrees while the board is up and the phone is upright, so nobody has to rotate the phone. Framed: tell the
+  // host who is signed in and whether the board is showing. Not framed: test2 signing in here moves to rotate.html
+  // (only from the plain lobby, never from a room or a game). See HANDOVER §8.
+  function sidewaysUser() { return !!(AUTH.me && /^test2$/i.test(String(AUTH.me.name || '').trim())); }
+  let sideSig = '';
+  function sidewaysSync() {
+    const ingame = document.body.classList.contains('ingame');
+    if (FRAMED) {
+      const user = AUTH.me ? AUTH.me.name : null, sig = ingame + '|' + user;
+      if (sig === sideSig) return; sideSig = sig;
+      try { window.parent.postMessage({ catanSideways: 1, ingame, user }, location.origin); } catch (_) { }
+      return;
+    }
+    if (sidewaysUser() && !ingame && /^https?:$/.test(location.protocol) && !LOBBY.table && !NET.started) location.replace('rotate.html');
+  }
+  window.CATAN.sideFlip = () => {
+    try { localStorage.setItem('catanSideFlip', localStorage.getItem('catanSideFlip') === '1' ? '0' : '1'); } catch (_) { }
+    try { window.parent.postMessage({ catanSideways: 1, ingame: document.body.classList.contains('ingame'), user: AUTH.me ? AUTH.me.name : null, flipped: 1 }, location.origin); } catch (_) { }
+  };
+  setInterval(sidewaysSync, 1000);
+  if (window.MutationObserver) { try { new MutationObserver(() => sidewaysSync()).observe(document.body, { attributes: true, attributeFilter: ['class'] }); } catch (_) { } }
   window.addEventListener('resize', markCutSide);
   window.addEventListener('pageshow', fitAppHeight);
   window.addEventListener('resize', fitTitle);
