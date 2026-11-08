@@ -1132,7 +1132,9 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
      (v214: 2.2 s / 23.4 s busy, so the new code does LESS total work than v214 but in longer tasks); 4 videos plain:
      40 -> 45 fps, 12 -> 8% dropped, busy 23.3 -> 22.6 s; 4 videos sideways: 39 -> 43 fps, 13 -> 9%. The harness's
      fake cameras alone cost ~1 fps. Of the CSS variants only will-change measured (+3 fps); pulse and filter changes are
-     GPU-side and can only show on a phone.
+     GPU-side and can only show on a phone. Diagnostic (`-nodraw` / `-nopaint`): with the pictures neither drawn nor
+     painted the replay still runs at 45 fps, i.e. the app's own video drawing is now ~free here; the rest of the gap to
+     no-video (54 fps) is the four streams decoding in their <video> elements, which any approach needs.
    - **Verified headless:** `sweep.js` 10/10 on six combinations (Pixel 7 and iPhone 15 profiles x sideways upright, sideways
      flipped, plain landscape); `verify.js` 11/11 (the behaviours above); `badge2.js` honest camera badge after returning;
      `handfit.js` clear at 932/874/812/667, the 568-wide 4-player overflow is pre-existing. Engine: 34 tests pass.
