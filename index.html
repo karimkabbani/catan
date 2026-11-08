@@ -13,6 +13,9 @@
 <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png"/>
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png"/>
 <title>Catan</title>
+<script>/* v230 test build: player "test2" gets the sideways board, hosted by rotate.html (see app.js sidewaysSync) */
+(function () { try { if (window.top !== window || !/^https?:$/.test(location.protocol)) return; var a = JSON.parse(localStorage.getItem('catanAuth') || 'null');
+  if (a && /^test2$/i.test(String(a.name || '').trim())) location.replace('rotate.html' + location.search + location.hash); } catch (e) { } })();</script>
 <style>
   @font-face{
     font-family:'Fertigo'; font-display:swap;
