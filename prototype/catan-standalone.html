@@ -2396,7 +2396,7 @@
     if (robberMoved) ui.robberFlying = true;
     // queue the server sync BEFORE afterAction — afterAction can chain a follow-up action
     // (e.g. the auto-steal after the robber moves), and the syncs must persist in that order.
-    if (online) NET.syncAction(action, actor);
+    if (online && !PRACTICE.on) NET.syncAction(action, actor);
     // hold card counts behind the transfer flies so the numbers tick with the animation, not before it
     if (steal) { lagOut(steal.victim, steal.res, 1); lagIn(steal.thief, steal.res, 1); }
     if (trade) lagTrade(trade.a, trade.b, trade.give, trade.want);
@@ -4566,7 +4566,7 @@
       ${ARCHIVE ? `<div class="pastnote">📅 Final board · ${pastWhen()}</div>` : ''}
       ${state.friendly ? '<div class="quitnote">🤝 Friendly game: not recorded in Stats.</div>' : ''}
       ${quitNoteHTML()}
-      ${myColor ? `<div id="rmpanel">${rematchPanelHTML()}</div>` : ''}
+      ${PRACTICE.on ? `<button class="btn full" onclick="CATAN.practiceStart(false)">Play again</button>` : myColor ? `<div id="rmpanel">${rematchPanelHTML()}</div>` : ''}
       ${domBadge}
       <div id="ggrow">${ggHTML()}</div>
       <div style="margin:12px 0">${standings}</div>
@@ -4574,7 +4574,7 @@
       <div class="winrow"><button class="btn wood" onclick="CATAN.viewBoard()">🗺️ View board</button><button class="btn wood" onclick="CATAN.openDiceStats('victory')">📊 Dice stats</button></div>
       ${ARCHIVE ? `<button class="btn full" onclick="CATAN.closePast()">Back to stats</button>`
         : myColor
-          ? `<button class="btn wood full" onclick="CATAN.leaveEnded()">Back to lobby</button>`
+          ? `<button class="btn wood full" onclick="CATAN.leaveEnded()">${PRACTICE.on ? 'Back to the practice table' : 'Back to lobby'}</button>`
           : `<button class="btn full" onclick="CATAN.confirmExit()">Back to lobby</button>`}</div>`);
     syncRmBar();   /* a watcher leaves for themselves — never resets the players' table */
     refreshGG();
@@ -4831,6 +4831,7 @@
     if (!rec || !online || !myColor) return;
     if (Date.now() - lastBcAt < BC_COOLDOWN) { toast('Easy — one sec'); return; }
     lastBcAt = Date.now();
+    if (PRACTICE.on) { showBroadcast({ type: 'voice', url: URL.createObjectURL(rec.blob), dur: rec.dur, name: AUTH.me.name, avatar: AUTH.me.avatar || null, color: myColor }); return; }   // practice: played back here only
     const c = NET.init(); const code = LOBBY.table || NET.code;
     if (!c || !code) return;
     const path = code + '/' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.wav';
@@ -5069,6 +5070,7 @@
   }
   function voiceDown() { return !voiceOn() || !LIVE.room; }   // no call right now: the walkie-talkie button is the fallback
   function voiceWanted() {
+    if (LIVE.cfg && voiceOn() && AUTH.me && AUTH.me.token && (PRACTICE.room || PRACTICE.on)) return 'table-' + practiceRoomCode();   // practice: a call of its own
     if (!LIVE.cfg || !voiceOn() || !AUTH.me || !AUTH.me.token || !LOBBY.table || ARCHIVE) return null;
     const code = String(LOBBY.table).replace(/[^A-Za-z0-9]/g, '').slice(0, 12);
     return code.length >= 2 ? 'table-' + code : null;
@@ -5430,6 +5432,199 @@
     return `<button class="vmuterow" onclick="CATAN.voiceMuteFor('${id}',${on ? 'false' : 'true'})">${on ? VI_MIC : VI_SPKX}<span>${on ? 'Unmute ' + nm : 'Mute ' + nm + ' for me'}</span></button>${on ? '' : '<div class="vcnote">Only you stop hearing them. The table will see that you did.</div>'}`;
   }
 
+  // ---- practice table (v222): only for the test players. A local table with two computer players: nothing is
+  //      written to the game server (no games row, no chat rows, no stats), but the voice/video call is real
+  //      (its own LiveKit room), so the call, the bigger corners and every in-game screen can be tried alone.
+  //      Bot moves go through applyRemoteState, the same path a real remote player's move takes.
+  const PRACTICE = { room: false, on: false, bots: [], timer: null, turnKey: null, acts: 0, busyUntil: 0 };
+  const PRACTICE_BOTS = [{ name: 'Zaatar', id: 'bot-zaatar' }, { name: 'Kibbeh', id: 'bot-kibbeh' }];
+  const PRACTICE_SAY = { robbed: ['sorry habibi', 'haha', 'tfeh'], won: ['yalla', 'fayyish'], seven: ['wleeee', 'ma32oul?!'] };
+  function practiceAllowed() { return !!(AUTH.me && /^test2?$/i.test(String(AUTH.me.name || '').trim())); }
+  function practiceRoomCode() { return 'P' + String((AUTH.me && AUTH.me.id) || 'x').replace(/[^A-Za-z0-9]/g, '').slice(0, 10); }
+  function isBot(color) { return PRACTICE.on && PRACTICE.bots.indexOf(color) >= 0; }
+  const BOT_PIPS = (t) => (t ? 6 - Math.abs(7 - t) : 0);
+  function botVertexScore(s, v) {
+    const hs = s.board.vertices[v].hexes.map((h) => s.board.hexes[h]);
+    const kinds = new Set(hs.filter((h) => h.token).map((h) => h.terrain));
+    return hs.reduce((n, h) => n + (h.robber ? 0 : BOT_PIPS(h.token)), 0) + kinds.size * 0.6 + Math.random() * 0.5;
+  }
+  const botTry = (s, col, a) => { const r = C.applyAction(s, a, col); return r.ok ? a : null; };
+  function botTotal(p) { return RES.reduce((n, r) => n + (p.resources[r] || 0), 0); }
+  // the computer player's next move in state s (null = nothing to do). opts.acts = moves already made this turn
+  function botMove(s, col, acts) {
+    const me = s.players.find((p) => p.color === col); if (!me) return null;
+    if (s.phase === 'setup') {
+      if (s.order[s.setupOrder[s.setupIndex]] !== col) return null;
+      if (s.turnPhase === 'placeSettlement') {
+        const vs = s.board.vertices.map((v) => v.id).sort((a, b) => botVertexScore(s, b) - botVertexScore(s, a));
+        for (const v of vs) { const a = botTry(s, col, { type: 'buildSettlement', vertex: v }); if (a) return a; }
+        return null;
+      }
+      const v = s.setupLastVertex, es = v == null ? [] : s.board.vertices[v].edges.slice().sort(() => Math.random() - 0.5);
+      for (const e of es) { const a = botTry(s, col, { type: 'buildRoad', edge: e }); if (a) return a; }
+      return null;
+    }
+    if (s.phase !== 'play' || (s.rps && !s.rps.done)) return null;
+    if (s.turnPhase === 'discard') {
+      let owed = (s.pendingDiscards && s.pendingDiscards[col]) || 0; if (owed <= 0) return null;
+      const left = Object.assign({}, me.resources), give = {};
+      while (owed > 0) { const r = RES.slice().sort((a, b) => left[b] - left[a])[0]; left[r]--; give[r] = (give[r] || 0) + 1; owed--; }
+      return { type: 'discard', resources: give };
+    }
+    if (C.currentColor(s) !== col) return null;
+    if (s.turnPhase === 'roll') {
+      const onMe = Object.entries(s.settlements).some(([v, b]) => b.owner === col && s.board.vertices[v].hexes.includes(s.robberHex));
+      if (onMe && Math.random() < 0.7) { const a = botTry(s, col, { type: 'playKnight' }); if (a) return a; }
+      return { type: 'rollDice' };
+    }
+    if (s.turnPhase === 'moveRobber') {
+      const human = PRACTICE.me;   // rob the human player first: more fun to practise against
+      const score = (h) => { let n = 0; Object.entries(s.settlements).forEach(([v, b]) => { if (b.owner !== col && s.board.vertices[v].hexes.includes(h.id)) n += (b.type === 'city' ? 2 : 1) * (b.owner === human ? 2 : 1); }); return n * 10 + BOT_PIPS(h.token) + Math.random(); };
+      const hx = s.board.hexes.filter((h) => h.id !== s.robberHex).sort((a, b) => score(b) - score(a));
+      for (const h of hx) { const a = botTry(s, col, { type: 'moveRobber', hex: h.id }); if (a) return a; }
+      return null;
+    }
+    if (s.turnPhase === 'steal') {
+      const c = (s.stealCandidates || []).slice().sort((a, b) => (b === PRACTICE.me) - (a === PRACTICE.me))[0];
+      return c ? { type: 'steal', victim: c } : null;
+    }
+    if (s.turnPhase !== 'main') return null;
+    if (acts < 6) {
+      const mine = Object.entries(s.settlements).filter(([, b]) => b.owner === col);
+      for (const [v, b] of mine) if (b.type === 'settlement') { const a = botTry(s, col, { type: 'buildCity', vertex: +v }); if (a) return a; }
+      const vs = s.board.vertices.map((v) => v.id).sort((a, b) => botVertexScore(s, b) - botVertexScore(s, a));
+      for (const v of vs) { const a = botTry(s, col, { type: 'buildSettlement', vertex: v }); if (a) return a; }
+      const roads = Object.values(s.roads).filter((c) => c === col).length;
+      if (roads < mine.length * 2 + 3 && Math.random() < 0.75) {
+        const es = s.board.edges.map((e) => e.id).sort(() => Math.random() - 0.5);
+        for (const e of es) { const a = botTry(s, col, { type: 'buildRoad', edge: e }); if (a) return a; }
+      }
+      if (Math.random() < 0.4) { const a = botTry(s, col, { type: 'buyDevCard' }); if (a) return a; }
+      if (botTotal(me) > 7) {   // too many cards in hand: swap the biggest pile at the bank for the scarcest
+        const give = RES.slice().sort((a, b) => me.resources[b] - me.resources[a])[0], want = RES.slice().sort((a, b) => me.resources[a] - me.resources[b])[0];
+        if (give !== want) { const a = botTry(s, col, { type: 'bankTrade', give, want }); if (a) return a; }
+      }
+    }
+    return botTry(s, col, { type: 'endTurn' });
+  }
+  // a trade I offered: each bot says yes (if it can cover it, and half the time) or no, once
+  function botTradeAnswer(s, col) {
+    const t = s.pendingTrade; if (!t || t.from === col || t.acceptedBy.includes(col) || t.declinedBy.includes(col) || (t.counters && t.counters[col])) return null;
+    const me = s.players.find((p) => p.color === col);
+    const can = RES.every((r) => (me.resources[r] || 0) >= ((t.want && t.want[r]) || 0));
+    return (can && Math.random() < 0.6) ? { type: 'acceptTrade', tid: t.id } : { type: 'declineTrade', tid: t.id };
+  }
+  function botSay(color, list) {
+    if (!state || Math.random() < 0.4) return;
+    const p = state.players.find((x) => x.color === color); if (!p) return;
+    const text = list[(Math.random() * list.length) | 0];
+    setTimeout(() => { if (PRACTICE.on && state) showBroadcast({ type: 'text', text, name: p.name, color }); }, 900);
+  }
+  // one bot step per tick, paced like a person; waits while an animation or the who-starts spin plays
+  function practiceTick() {
+    if (!PRACTICE.on || !state || state.phase === 'ended' || ARCHIVE) return;
+    if (ui.spinning || ui.diceRevealing || ui.discardAnimating || ui.robberFlying || Date.now() < PRACTICE.busyUntil) return;
+    let col = null, a = null;
+    if (state.phase === 'play' && state.turnPhase === 'discard') { const d = currentDiscarder(); if (d && isBot(d.color)) { col = d.color; a = botMove(state, col, 0); } }
+    if (!a && state.pendingTrade && state.pendingTrade.from === myColor) {
+      for (const b of PRACTICE.bots) { a = botTradeAnswer(state, b); if (a) { col = b; break; } }
+    }
+    if (!a) {
+      const cur = activeColor();
+      if (isBot(cur)) {
+        const k = state.phase + ':' + state.currentPlayerIndex + ':' + state.setupIndex + ':' + (state.rolls ? state.rolls.length : 0);
+        if (k !== PRACTICE.turnKey) { PRACTICE.turnKey = k; PRACTICE.acts = 0; }
+        col = cur; a = botMove(state, col, PRACTICE.acts);
+      }
+    }
+    if (!a) return;
+    const r = C.applyAction(state, a, col); if (!r.ok) return;
+    if (state.phase === 'play' && state.turnPhase === 'main') PRACTICE.acts++;
+    const pre = state;
+    applyRemoteState(r.state);
+    PRACTICE.busyUntil = Date.now() + (a.type === 'endTurn' ? 1200 : a.type === 'rollDice' ? 600 : 900);
+    if (a.type === 'steal' && a.victim === myColor) botSay(col, PRACTICE_SAY.robbed);
+    if (a.type === 'rollDice' && r.state.dice && r.state.dice[0] + r.state.dice[1] === 7 && pre) botSay(PRACTICE.bots.find((b) => b !== col) || col, PRACTICE_SAY.seven);
+  }
+  // a game already well under way: everyone (me included) plays the opening and ~6 rounds automatically,
+  // stopping at the start of my turn, before anyone gets close to winning
+  function practiceMidGame(players, target) {
+    let s = C.createGame({ id: 'table', players, seed: (Math.random() * 1e9) | 0, targetPoints: target, randomFirst: true });
+    s.whoStarts = 'random';
+    const all = s.players.map((p) => p.color), me = PRACTICE.me;
+    let guard = 0;
+    const step = (col, acts) => { const a = botMove(s, col, acts); if (!a) return false; const r = C.applyAction(s, a, col); if (!r.ok) return false; s = r.state; return true; };
+    while (s.phase === 'setup' && guard++ < 50) { if (!step(s.order[s.setupOrder[s.setupIndex]], 0)) break; }
+    const rounds = 5 + ((Math.random() * 3) | 0);
+    for (let t = 0; t < rounds * all.length + 1 && guard++ < 2000; t++) {
+      const cur = C.currentColor(s);
+      if (t >= rounds * all.length && cur === me) break;
+      if (s.players.some((p) => C.victoryPoints(s, p.color) >= target - 3)) { if (cur === me) break; }
+      let acts = 0, inner = 0;
+      while (C.currentColor(s) === cur && s.phase === 'play' && inner++ < 40) {
+        if (s.turnPhase === 'discard') { all.forEach((c) => { while ((s.pendingDiscards[c] || 0) > 0 && step(c, 0)) { } }); continue; }
+        if (!step(cur, acts)) break;
+        if (s.turnPhase === 'main') acts++;
+      }
+      if (s.phase !== 'play') break;
+    }
+    if (s.phase === 'play' && C.currentColor(s) !== me) {   // land on my turn, ready to roll
+      const mi = s.order.indexOf(me); if (mi >= 0 && s.turnPhase === 'roll') s.currentPlayerIndex = mi;
+    }
+    s.pendingTrade = null; s.log = (s.log || []).slice(-5);
+    return s;
+  }
+  function practiceSeats() {
+    const pref = (LOBBY.myPref && LOBBY.myPref()) || 'red';
+    const cols = ['red', 'blue', 'green', 'yellow'].filter((c) => c !== pref);
+    return [{ color: pref, playerId: AUTH.me.id, name: AUTH.me.name, avatar: AUTH.me.avatar || null }]
+      .concat(PRACTICE_BOTS.map((b, i) => ({ color: cols[i], playerId: null, name: b.name, avatar: null })));
+  }
+  function practiceStart(mid) {
+    if (!practiceAllowed()) return;
+    const seats = practiceSeats();
+    PRACTICE.me = seats[0].color; PRACTICE.bots = seats.slice(1).map((x) => x.color);
+    const players = seats.map((p) => ({ color: p.color, name: p.name })), target = 10;
+    let s;
+    try { s = mid ? practiceMidGame(players, target) : C.createGame({ id: 'table', players, seed: (Math.random() * 1e9) | 0, targetPoints: target, randomFirst: true }); }
+    catch (e) { toast('Practice failed: ' + e.message); return; }
+    s.whoStarts = 'random'; s.friendly = true;
+    PRACTICE.on = true; PRACTICE.room = false; PRACTICE.turnKey = null; PRACTICE.busyUntil = Date.now() + 1500;
+    LV.sheet = null; online = true; myColor = PRACTICE.me; gameSeats = seats; NET.started = true; NET.version = 0;
+    victoryShownFor = null; endView = false;
+    if (!PRACTICE.timer) PRACTICE.timer = setInterval(practiceTick, 450);
+    enterGame(s);
+    voiceSync();
+  }
+  function practiceToRoom() {   // back from the practice game to the practice table
+    PRACTICE.on = false; PRACTICE.room = true; PRACTICE.bots = [];
+    NET.started = false; NET.version = 0; online = false; myColor = null; gameSeats = null; state = null;
+    hideOverlay(); showLobby();
+  }
+  function practiceLeave() { PRACTICE.room = false; PRACTICE.on = false; lobbySig = null; renderLobby(); voiceSync(); }
+  // a local "server write": the mutation is applied to this phone's state, as if the row came back
+  function practiceWrite(mutate) {
+    if (!state) return;
+    const s2 = JSON.parse(JSON.stringify(state));
+    if (mutate(s2) === false) return;
+    applyRemoteState(s2);
+  }
+  function practiceRoomHTML() {
+    const seats = practiceSeats();
+    const me = seats[0], mine = `<div class="lvseat mine"><span class="lvcd" style="background:${PCOLOR[me.color]}"></span>`
+      + `<span class="vpic vseat" data-vid="${AUTH.me.id}"${LIVE.room ? ` onclick="event.stopPropagation();CATAN.voiceCard(this)"` : ''}>${faceHTML(AUTH.me.name, AUTH.me.avatar, 'xl')}${voiceBadges(AUTH.me.id)}</span>`
+      + `<b>${escapeHtml(AUTH.me.name)} (you)</b><span class="lvhint">${LIVE.room ? 'tap your face to talk' : voiceOn() ? 'connecting the call…' : ''}</span></div>`;
+    const bots = seats.slice(1).map((b, i) => `<div class="lvseat"><span class="lvcd" style="background:${PCOLOR[b.color]}"></span>`
+      + `<span class="vpic vseat">${faceHTML(b.name, (ASSETS.avatars && ASSETS.avatars[i + 1]) || null, 'xl')}</span><b>${escapeHtml(b.name)}</b><span class="lvhint">computer</span></div>`).join('');
+    return `<div class="lvsect">🧪 PRACTICE TABLE · ONLY YOU SEE THIS</div>
+      <div class="lvseats">${mine}${bots}<div class="lvseat empty"><span class="lvplus">+</span>Open seat</div></div>
+      <div class="lvsub small" style="text-align:center;margin:10px 0">Nothing here reaches the real games or the stats. The call is real, so you can try your mic and camera.</div>
+      <div class="lvact"><button class="btn full lvbig" onclick="CATAN.practiceStart(false)">Start a new game</button>
+      <button class="btn wood full" style="margin-top:8px" onclick="CATAN.practiceStart(true)">Jump into a game in progress</button>
+      <button class="linkbtn" onclick="CATAN.practiceLeave()">Leave the practice table</button></div>
+      <p class="lvver">Catan · ${APP_VERSION}</p>`;
+  }
+
   // ---- per-player message history: the last few messages (text + voice) each player sent this
   //      game, re-openable by tapping their corner portrait. Cleared on game entry (enterGame).
   const MSG_KEEP = 30;   // keep a generous history per player; the popover scrolls
@@ -5578,6 +5773,7 @@
   function rpsActive() { return !!(online && state && state.phase === 'setup' && state.rps); }
   // write to the shared game and apply the result here too (my own echo is deduped by version)
   async function rpsUpdate(mut) {
+    if (PRACTICE.on) return practiceWrite(mut);
     const c = NET.init(); if (!c || !NET.code) return;
     const code = NET.code;
     for (let i = 0; i < 6; i++) {
@@ -6757,6 +6953,7 @@
   function iAmFlagged() { return online && myColor && flagsOf(state).indexOf(myColor) >= 0; }
   // version-guarded read-modify-write on the game row (mirrors NET.syncAction).
   async function svUpdate(mutate) {
+    if (PRACTICE.on) return practiceWrite(mutate);
     const c = NET.init(); if (!c || !NET.code) return;
     const code = NET.code;
     // only touch this phone's screen if it's still in the same game (a "leave" may have happened meanwhile)
@@ -7791,6 +7988,7 @@
     // Chat rides a polled table (like the game state), NOT realtime broadcast — so it survives
     // iOS/PWA WebSocket drops. Insert a row; every client picks it up via postgres_changes + poll.
     sendBroadcast(msg) {
+      if (PRACTICE.on || PRACTICE.room) return;   // practice: messages stay on this phone (already shown locally)
       const c = NET.init(); const code = msg.code || NET.code || this.table;
       if (!c || !code) return;
       c.from('messages').insert({
@@ -8480,6 +8678,7 @@
     return `${hero}${more.join('')}
       ${faces ? `<div class="lvsect">FRIENDS · ${others.length} ONLINE</div><div class="lvfaces">${faces}</div>` : ''}
       <div id="lv-peek"></div>
+      ${practiceAllowed() ? `<button class="btn wood full" style="margin-top:14px" onclick="CATAN.practice()">🧪 Practice table · you + 2 computer players</button>` : ''}
       <p class="lvver">Catan · ${APP_VERSION}</p>`;
   }
 
@@ -8629,12 +8828,13 @@
     const g = LV.tab === 'chat' && lvGathering()[0];
     const live = LV.tab === 'chat' ? [LOBBY.table, g ? g.code + ':' + g.ready.length : '']
       : all.map((p) => p.id + ':' + (p.table || '') + ':' + pmode(p) + ':' + p.name + ':' + (p.readyAt || 0) + ':' + (p.target || '') + ':' + (p.ws || '') + ':' + (p.created || '') + ':' + (p.pref || '') + ':' + (p.away ? 'a' : '') + ':' + (p.avatar ? 1 : 0)).sort();
-    const sig = JSON.stringify([LV.tab, LV.sheet, LV.roster.length, lvGoKey(), LOBBY.friendly, LOBBY.table, LOBBY.inProgress, LOBBY.mode, LOBBY.targetPoints, LOBBY.whoStarts, LOBBY.cup, LOBBY.cupRow && LOBBY.cupRow.version, LOBBY.prefGame, LV.last && LV.last.at, live]);
+    const sig = JSON.stringify([PRACTICE.room, PRACTICE.room && !!LIVE.room, LV.tab, LV.sheet, LV.roster.length, lvGoKey(), LOBBY.friendly, LOBBY.table, LOBBY.inProgress, LOBBY.mode, LOBBY.targetPoints, LOBBY.whoStarts, LOBBY.cup, LOBBY.cupRow && LOBBY.cupRow.version, LOBBY.prefGame, LV.last && LV.last.at, live]);
     if (sig === lobbySig) return;
     const ae = document.activeElement;
     if (ae && ae.tagName === 'INPUT' && ae.closest && (ae.closest('#lv-sheet') || ae.id === 'lchatIn')) return;   // typing (a name, a chat message): redraw once you're done
     lobbySig = sig;
     if (LV.tab === 'chat') { dynEl.innerHTML = lvChatHTML(); renderLobbyChat(); }
+    else if (PRACTICE.room) dynEl.innerHTML = practiceRoomHTML();
     else { dynEl.innerHTML = LOBBY.table ? lvRoomHTML() : lvPlayHTML(); lvFillPeek(); }
     const sh = $('lv-sheet'); if (sh) sh.innerHTML = lvSheetHTML();
     voiceMountVideos();   // live camera pictures survive the redraw
@@ -8644,7 +8844,7 @@
   window.CATAN.statsYear = (y) => { statsSeason = STATS.latestMonthIn(y) || 'all'; statsScreen(); };   // pick a year -> its most recent month
   window.CATAN.statsCount = (n) => { statsCount = n; statsScreen(); };
   window.CATAN.statsPlayer = (n) => statsPlayerScreen(decodeURIComponent(n));
-  window.CATAN.lobbyBack = () => { if (LOBBY.table) CATAN.leaveTable(); else CATAN.lobbyLogout(); };
+  window.CATAN.lobbyBack = () => { if (PRACTICE.room) practiceLeave(); else if (LOBBY.table) CATAN.leaveTable(); else CATAN.lobbyLogout(); };
   window.CATAN.lvTab = (t) => {
     LV.tab = t === 'chat' || t === 'stats' ? t : 'play'; LV.sheet = null; lobbySig = null;
     const d = $('lobby-dyn'); if (d) d.innerHTML = '';
@@ -8710,6 +8910,10 @@
   window.CATAN.lobbySpectate = () => LOBBY.setSpectate();
   window.CATAN.lobbyWatch = () => LOBBY.watch();
   window.CATAN.lobbyStart = () => LOBBY.startTable();
+  window.CATAN.practice = () => { if (!practiceAllowed()) return; if (LOBBY.table) LOBBY.leaveTable(); PRACTICE.room = true; LV.tab = 'play'; LV.sheet = null; lobbySig = null; renderLobby(); voiceSync(); };
+  window.CATAN.practiceStart = (mid) => practiceStart(!!mid);
+  window.CATAN.practiceLeave = () => practiceLeave();
+  window.CATAN.practiceToRoom = () => practiceToRoom();
   // hoisted helpers registered here, after window.CATAN exists, so onclick="CATAN.x()" works
   window.CATAN.sendBroadcast = sendBroadcastMsg;
   window.CATAN.bcKeep = (v) => { bcDraft = String(v || '').slice(0, 50); };   // keep the draft on every keystroke
@@ -8739,6 +8943,12 @@
   window.CATAN.exitGame = () => {
     // ensure no higher layer (radial root sits at z-31, above the overlay) eats taps
     const rr = $('radialroot'); if (rr) { rr.classList.remove('open'); rr.classList.add('hidden'); }
+    if (PRACTICE.on) {
+      showOverlay(`<h3>Leave the practice game?</h3><p class="muted" style="text-align:center;margin:6px 0 12px">Nothing is recorded. You go back to the practice table.</p>
+        <button class="btn full" style="padding:16px;font-size:16px" onclick="CATAN.close()">Cancel · keep playing</button>
+        <button class="btn wood full" style="padding:15px;font-size:15px;margin-top:9px" onclick="CATAN.practiceToRoom()">Back to the practice table</button>`);
+      return;
+    }
     const spectator = online && !myColor;   // a watcher: leaving just returns them to the lobby
     const endsForAll = online && myColor;   // a seated player leaving ends the table
     // quitting a LIVE game (not one that's already ended) costs a penalty; a finished game leaves cleanly
@@ -8790,9 +9000,10 @@
   // leave a FINISHED game: only this device goes back to the lobby — the row keeps the ended game for
   // whoever's still looking, and onRow won't pull me back in (a rematch / new game at the table still will)
   window.CATAN.leaveEnded = () => {
+    if (PRACTICE.on) { practiceToRoom(); return; }
     try { const r = finishOrder(state); LV.last = { at: Date.now(), code: NET.code, text: `${r[0].p.name} won, ${r[0].vp} to ${r[1] ? r[1].vp : 0}` }; } catch (_) { }
     markLeft(myColor); NET.started = false; NET.version = 0; online = false; myColor = null; LOBBY.toLobby(); };
-  window.CATAN.rematch = () => LOBBY.rematch();
+  window.CATAN.rematch = () => (PRACTICE.on ? practiceStart(false) : LOBBY.rematch());
   // back into a cup paused between games: the finished game's screen, to ready up for the next one
   window.CATAN.cupRejoin = () => {
     const row = LOBBY.cupRow, seat = row && (row.players || []).find((p) => p.playerId === (AUTH.me && AUTH.me.id));
