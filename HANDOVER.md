@@ -990,6 +990,16 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    the banner); right-corner dice slide left off the menu button (for everyone). Popup restyle, tray and dice fixes
    apply to all players; the rest only shows with voice. Checked headless at 932, 812, 667, 568 wide.
 
+56. ✅ **v222 (2026-11-08, built, NOT deployed yet). Practice table for the test players** (`test`, `test2` only:
+   `practiceAllowed()`). Lobby home shows "🧪 Practice table" → a room with you + two computer players (Zaatar, Kibbeh)
+   and a REAL voice/video call in its own LiveKit room `table-P<id>` (so the call, room seats, corners, victory video can be
+   tried alone). "Start a new game" (full setup) or "Jump into a game in progress" (`practiceMidGame`: everyone auto-plays
+   the opening + ~8 rounds with 4 bonus cards a turn, stops at your turn, nobody above target-4). Nothing hits the game
+   server: `PRACTICE.on` makes dispatch skip `NET.syncAction`, `svUpdate`/`rpsUpdate` apply locally (`practiceWrite`),
+   `sendBroadcast` no-ops, voice notes play back locally, `NET.code` stays null (so no stats). Bots (`botMove`) play
+   through `applyRemoteState` like real remote players: greedy setup by pips, roll (knight if robbed), robber on you,
+   city > settlement > road > dev card > bank trade, discard biggest piles, answer your trade offers. Leave/Play again go
+   back to the practice table. Bot seats have `playerId: null` (always "online").
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
