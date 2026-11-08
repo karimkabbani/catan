@@ -2066,7 +2066,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v222';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v223';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -2907,7 +2907,7 @@
   // is a seated player currently connected? Only a fresh heartbeat counts (liveIds: one in the last 18s,
   // which rides out a brief phone sleep); an 'away' roster entry is NOT online. No id (hotseat) -> present.
   function seatPlayerId(color) { const s = (gameSeats || []).find((x) => x && x.color === color); return s ? s.playerId : null; }
-  function isPlayerOnline(color) { const id = seatPlayerId(color); if (!id) return true; return LOBBY.liveIds.has(id); }
+  function isPlayerOnline(color) { const id = seatPlayerId(color); if (!id || /^bot-/.test(id)) return true; return LOBBY.liveIds.has(id); }
   // a seated player offline this long mid-game -> the others get an "End the game" bar
   const ABSENT_MS = 3 * 60 * 1000;
   const offSince = {};   // color -> when this phone first saw them offline (reset when they're back)
@@ -5214,7 +5214,7 @@
   function voiceSay(msg) { if (state && online && document.body.classList.contains('ingame')) announce('🔇 ' + msg); else toast(msg); }
   function voiceNameOf(id) {
     if (AUTH.me && id === AUTH.me.id) return AUTH.me.name;
-    const r = LIVE.room, p = r && r.remoteParticipants.get(id);
+    const r = LIVE.room, p = r && (PRACTICE.fake[id] || r.remoteParticipants.get(id));
     if (p && p.name) return p.name;
     const s = (gameSeats || []).find((x) => x && x.playerId === id); return s ? s.name : null;
   }
@@ -5236,6 +5236,7 @@
   // ---- who is doing what, for the pictures (corners, room seats, watchers) ----
   function voicePart(id) {
     const r = LIVE.room; if (!r || !id) return null;
+    if ((PRACTICE.on || PRACTICE.room) && PRACTICE.fake[id]) return PRACTICE.fake[id];   // practice: a computer player's pretend video/voice
     if (AUTH.me && id === AUTH.me.id) return r.localParticipant;
     return r.remoteParticipants.get(id) || null;
   }
@@ -5436,7 +5437,7 @@
   //      written to the game server (no games row, no chat rows, no stats), but the voice/video call is real
   //      (its own LiveKit room), so the call, the bigger corners and every in-game screen can be tried alone.
   //      Bot moves go through applyRemoteState, the same path a real remote player's move takes.
-  const PRACTICE = { room: false, on: false, bots: [], timer: null, turnKey: null, acts: 0, busyUntil: 0 };
+  const PRACTICE = { room: false, on: false, bots: [], timer: null, turnKey: null, acts: 0, busyUntil: 0, fake: {}, talkAt: 0 };
   const PRACTICE_BOTS = [{ name: 'Zaatar', id: 'bot-zaatar' }, { name: 'Kibbeh', id: 'bot-kibbeh' }];
   const PRACTICE_SAY = { robbed: ['sorry habibi', 'haha', 'tfeh'], won: ['yalla', 'fayyish'], seven: ['wleeee', 'ma32oul?!'] };
   function practiceAllowed() { return !!(AUTH.me && /^test2?$/i.test(String(AUTH.me.name || '').trim())); }
@@ -5582,7 +5583,7 @@
     const pref = (LOBBY.myPref && LOBBY.myPref()) || 'red';
     const cols = ['red', 'blue', 'green', 'yellow'].filter((c) => c !== pref);
     return [{ color: pref, playerId: AUTH.me.id, name: AUTH.me.name, avatar: AUTH.me.avatar || null }]
-      .concat(PRACTICE_BOTS.map((b, i) => ({ color: cols[i], playerId: null, name: b.name, avatar: null })));
+      .concat(PRACTICE_BOTS.map((b, i) => ({ color: cols[i], playerId: b.id, name: b.name, avatar: null })));
   }
   function practiceStart(mid) {
     if (!practiceAllowed()) return;
@@ -5605,7 +5606,63 @@
     NET.started = false; NET.version = 0; online = false; myColor = null; gameSeats = null; state = null;
     hideOverlay(); showLobby();
   }
-  function practiceLeave() { PRACTICE.room = false; PRACTICE.on = false; lobbySig = null; renderLobby(); voiceSync(); }
+  // jump straight to the end: me (or the leading computer player) wins now
+  function practiceWin(who) {
+    if (!PRACTICE.on || !state || state.phase === 'ended') return;
+    hideOverlay(); coachEnd(false);   // a first-time tour must not sit on top of the results
+    const w = who === 'me' ? myColor : PRACTICE.bots.slice().sort((a, b) => C.victoryPoints(state, b) - C.victoryPoints(state, a))[0];
+    practiceWrite((s) => { s.phase = 'ended'; s.winner = w; s.pendingTrade = null; s.log.push(`${(s.players.find((p) => p.color === w) || {}).name} wins!`); });
+  }
+  // ---- pretend video and voice for the computer players (only alongside a real call, only on this phone):
+  //      a "camera" made from their portrait (gentle sway + blink), and now and then a short spoken line with the
+  //      white speaking ring and sound bars. Zaatar is on video; Kibbeh is on audio and sometimes mutes himself.
+  const PRACTICE_LINES = ['Yalla, roll the dice!', 'Who has wheat?', 'No way, again a seven?', 'I need brick, anyone?', 'Nice move, habibi.', 'Come on, hurry up!', 'I am going for longest road.', 'Do not put the robber on me!'];
+  function practiceCam(i) {
+    const c = document.createElement('canvas'); c.width = 240; c.height = 280;
+    const g = c.getContext('2d'), img = new Image(); img.src = (ASSETS.avatars && ASSETS.avatars[i + 1]) || '';
+    const t0 = Math.random() * 1000;
+    const draw = () => {
+      const t = (performance.now() + t0) / 1000;
+      g.fillStyle = ['#4b5d6e', '#5e4b3c'][i % 2]; g.fillRect(0, 0, 240, 280);
+      if (img.complete && img.naturalWidth) {
+        const s = 1.08 + Math.sin(t * 0.7) * 0.02, w = 240 * s, h = 280 * s;
+        g.drawImage(img, (240 - w) / 2 + Math.sin(t * 0.9) * 5, (280 - h) / 2 + Math.cos(t * 0.6) * 4, w, h);
+      }
+      g.fillStyle = 'rgba(0,0,0,' + (0.05 + Math.max(0, Math.sin(t * 3.1)) * 0.04) + ')'; g.fillRect(0, 0, 240, 280);   // a little camera flicker
+    };
+    setInterval(draw, 66); draw();
+    return c.captureStream ? c.captureStream(15) : null;
+  }
+  function practiceFakes() {
+    if (Object.keys(PRACTICE.fake).length) return;
+    PRACTICE_BOTS.forEach((b, i) => {
+      const f = { identity: b.id, name: b.name, audioLevel: 0, mic: true, cam: i === 0, stream: null, audioTrackPublications: new Map() };
+      f.getTrackPublication = (src) => {
+        if (src === 'microphone') return { isMuted: !f.mic, track: {} };
+        if (!f.cam) return null;
+        if (!f.stream) f.stream = practiceCam(i);
+        return f.stream ? { isMuted: false, track: { attach: (v) => { v.srcObject = f.stream; return v; } } } : null;
+      };
+      PRACTICE.fake[b.id] = f;
+    });
+    voiceRefresh();   // their badges and camera show up right away
+  }
+  function practiceTalk() {
+    if (!(PRACTICE.on || PRACTICE.room) || !LIVE.room) return;
+    practiceFakes();
+    if (Date.now() < PRACTICE.talkAt) return;
+    PRACTICE.talkAt = Date.now() + 9000 + Math.random() * 9000;
+    const fs = Object.values(PRACTICE.fake);
+    const k = fs[1];   // Kibbeh mutes himself now and then (the red badge), and comes back
+    if (k && Math.random() < 0.25) { k.mic = !k.mic; voiceRefresh(); if (!k.mic) return; }
+    const f = fs.filter((x) => x.mic)[(Math.random() * fs.filter((x) => x.mic).length) | 0]; if (!f) return;
+    const line = PRACTICE_LINES[(Math.random() * PRACTICE_LINES.length) | 0], ms = 1400 + line.length * 55;
+    const end = Date.now() + ms, tick = setInterval(() => { f.audioLevel = Date.now() < end ? 0.08 + Math.random() * 0.25 : 0; if (Date.now() >= end) clearInterval(tick); }, 110);
+    if (LIVE.mutedForMe[f.identity] || SETTINGS.walkie === false || !window.speechSynthesis) return;   // muted for me: the ring stays off, nothing to hear
+    try { const u = new SpeechSynthesisUtterance(line); u.rate = 1.05; u.pitch = f === fs[0] ? 0.8 : 1.25; u.volume = 0.9; speechSynthesis.speak(u); } catch (_) { }
+  }
+  setInterval(practiceTalk, 1000);
+  function practiceLeave() { try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (_) { } PRACTICE.room = false; PRACTICE.on = false; lobbySig = null; renderLobby(); voiceSync(); }
   // a local "server write": the mutation is applied to this phone's state, as if the row came back
   function practiceWrite(mutate) {
     if (!state) return;
@@ -5619,12 +5676,13 @@
       + `<span class="vpic vseat" data-vid="${AUTH.me.id}"${LIVE.room ? ` onclick="event.stopPropagation();CATAN.voiceCard(this)"` : ''}>${faceHTML(AUTH.me.name, AUTH.me.avatar, 'xl')}${voiceBadges(AUTH.me.id)}</span>`
       + `<b>${escapeHtml(AUTH.me.name)} (you)</b><span class="lvhint">${LIVE.room ? 'tap your face to talk' : voiceOn() ? 'connecting the call…' : ''}</span></div>`;
     const bots = seats.slice(1).map((b, i) => `<div class="lvseat"><span class="lvcd" style="background:${PCOLOR[b.color]}"></span>`
-      + `<span class="vpic vseat">${faceHTML(b.name, (ASSETS.avatars && ASSETS.avatars[i + 1]) || null, 'xl')}</span><b>${escapeHtml(b.name)}</b><span class="lvhint">computer</span></div>`).join('');
+      + `<span class="vpic vseat" data-vid="${b.playerId}"${LIVE.room ? ` onclick="event.stopPropagation();CATAN.voiceWho('${b.playerId}',this)"` : ''}>${faceHTML(b.name, (ASSETS.avatars && ASSETS.avatars[i + 1]) || null, 'xl')}${voiceBadges(b.playerId)}</span><b>${escapeHtml(b.name)}</b>${voiceTag(b.playerId)}<span class="lvhint">computer${LIVE.room ? ' · tap to mute' : ''}</span></div>`).join('');
     return `<div class="lvsect">🧪 PRACTICE TABLE · ONLY YOU SEE THIS</div>
       <div class="lvseats">${mine}${bots}<div class="lvseat empty"><span class="lvplus">+</span>Open seat</div></div>
       <div class="lvsub small" style="text-align:center;margin:10px 0">Nothing here reaches the real games or the stats. The call is real, so you can try your mic and camera.</div>
       <div class="lvact"><button class="btn full lvbig" onclick="CATAN.practiceStart(false)">Start a new game</button>
       <button class="btn wood full" style="margin-top:8px" onclick="CATAN.practiceStart(true)">Jump into a game in progress</button>
+      <button class="linkbtn" onclick="CATAN.practiceStart(true, 'me')">🏆 Skip to a victory screen</button>
       <button class="linkbtn" onclick="CATAN.practiceLeave()">Leave the practice table</button></div>
       <p class="lvver">Catan · ${APP_VERSION}</p>`;
   }
@@ -8915,7 +8973,8 @@
   window.CATAN.lobbyWatch = () => LOBBY.watch();
   window.CATAN.lobbyStart = () => LOBBY.startTable();
   window.CATAN.practice = () => { if (!practiceAllowed()) return; if (LOBBY.table) LOBBY.leaveTable(); PRACTICE.room = true; LV.tab = 'play'; LV.sheet = null; lobbySig = null; renderLobby(); voiceSync(); };
-  window.CATAN.practiceStart = (mid) => practiceStart(!!mid);
+  window.CATAN.practiceStart = (mid, win) => { practiceStart(!!mid); if (win && PRACTICE.on) setTimeout(() => practiceWin(win), 2500); };
+  window.CATAN.practiceWin = (who) => practiceWin(who);
   window.CATAN.practiceLeave = () => practiceLeave();
   window.CATAN.practiceToRoom = () => practiceToRoom();
   // hoisted helpers registered here, after window.CATAN exists, so onclick="CATAN.x()" works
@@ -8950,6 +9009,7 @@
     if (PRACTICE.on) {
       showOverlay(`<h3>Leave the practice game?</h3><p class="muted" style="text-align:center;margin:6px 0 12px">Nothing is recorded. You go back to the practice table.</p>
         <button class="btn full" style="padding:16px;font-size:16px" onclick="CATAN.close()">Cancel · keep playing</button>
+        <div class="trow2" style="margin-top:9px"><button class="btn wood" onclick="CATAN.practiceWin('me')">🏆 I win</button><button class="btn wood" onclick="CATAN.practiceWin('bot')">😩 A computer wins</button></div>
         <button class="btn wood full" style="padding:15px;font-size:15px;margin-top:9px" onclick="CATAN.practiceToRoom()">Back to the practice table</button>`);
       return;
     }
