@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v233';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v234';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -5444,7 +5444,7 @@
   // 90 degrees while the board is up and the phone is upright, so nobody has to rotate the phone. Framed: tell the
   // host who is signed in and whether the board is showing. Not framed: test2 signing in here moves to rotate.html
   // (only from the plain lobby, never from a room or a game). See HANDOVER §8.
-  function sidewaysUser() { return !!(AUTH.me && /^test2$/i.test(String(AUTH.me.name || '').trim())); }
+  function sidewaysUser() { return !!(AUTH.me && String(AUTH.me.name || '').trim()); }   // v234: everyone (was test2 only)
   let sideSig = '';
   function sidewaysSync() {
     const ingame = document.body.classList.contains('ingame');

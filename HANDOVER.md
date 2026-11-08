@@ -1068,6 +1068,10 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    game's top/bottom (= the phone's right/left). Fix: every `env(safe-area-inset-*)` in index.html now goes through
    `--sa-t/r/b/l` (set on :root), and `html.framed` (added when `FRAMED`) zeroes them; the host already keeps the frame
    inside the safe area. Normal (unframed) phones unchanged. Verified headless by faking the 62/34 insets: 33/22 -> 8/8.
+66. ✅ **v234 (2026-11-08, deployed). Sideways board for everyone** (was test2 only, item 63). The three test2 checks
+   now accept any signed-in player: index.html head redirect, `sidewaysUser()`, rotate.html `SIDE_USER`. Nobody signed
+   in stays on index.html; after sign-in `sidewaysSync` moves them to rotate.html from the plain lobby. The practice
+   table stays test/test2 only (`practiceAllowed`). Everything else (voice, badges, cutout, sweep fixes) was already for all.
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a

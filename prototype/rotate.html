@@ -11,7 +11,7 @@
 <link rel="manifest" href="manifest.webmanifest"/>
 <link rel="apple-touch-icon" href="apple-touch-icon.png"/>
 <title>Catan</title>
-<!-- Sideways board (test build, player "test2" only; index.html sends test2 here).
+<!-- Sideways board (every signed-in player since v234; index.html sends them here).
      The whole app runs in a frame. When the board is up and the phone is upright (rotation lock on),
      the frame is sized landscape and turned 90 degrees, so the app inside sees a real landscape screen:
      its layout, media queries, taps and swipes all work unchanged (the browser maps touches through
@@ -31,7 +31,7 @@
 <script>
 (function () {
   var frame = document.getElementById('app'), probe = document.getElementById('probe');
-  var SIDE_USER = /^test2$/i;
+  var SIDE_USER = /\S/;   // v234: every signed-in player (was test2 only)
   var st = { ingame: false, user: null };
   frame.src = 'index.html' + location.search + location.hash;   // a framed index.html never bounces back here
   function flip() { try { return localStorage.getItem('catanSideFlip') === '1'; } catch (e) { return false; } }
