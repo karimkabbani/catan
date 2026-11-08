@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v225';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v226';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -906,7 +906,7 @@
       const dot = (online && p.color !== myColor && UNREAD[p.color]) ? `<span class="pmsgdot"></span>` : '';
       // tap any online player's portrait to review their recent messages
       const pid = online ? seatPlayerId(p.color) : null;
-      const tap = online ? (p.color === myColor && voiceOn() ? ` onclick="CATAN.voiceCard(this)"` : ` onclick="CATAN.showMsgs('${p.color}')"`) : '';
+      const tap = online ? (p.color === myColor && voiceOn() && !LIVE.room ? ` onclick="CATAN.voiceCard(this)"` : ` onclick="CATAN.showMsgs('${p.color}')"`) : '';
       // online/offline status dot on the portrait (online games only) — greys out if they left the app
       const off = online && !isPlayerOnline(p.color);
       // v225: with voice, the mic/camera badges sit in the plaque's name row (off the picture, and out of the
@@ -3192,6 +3192,7 @@
   const VI_MIC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>';
   const VI_MICX = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M4 4l16 16"/></svg>';
   const VI_CAM = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6.5" width="13" height="11" rx="2.5" fill="currentColor"/><path d="M15.5 10.5l6-3.5v10l-6-3.5z" fill="currentColor"/></svg>';
+  const VI_CAMX = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6.5" width="13" height="11" rx="2.5"/><path d="M15.5 10.5l6-3.5v10l-6-3.5zM3 3l18 18"/></svg>';
   const VI_SPKX = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M17 9l5 6M22 9l-5 6"/></svg>';
   const VI_DEAF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 14v-2a9 9 0 0 1 18 0v2"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/><path d="M3 3l18 18"/></svg>';
   // badges on a picture: my own are buttons (one tap = mute / camera off); others' are plain markers
@@ -3199,6 +3200,10 @@
   function voiceBadges(id, plain) {   // plain: inside another button (no nested buttons)
     const i = voiceInfo(id); if (!i) return '';
     if (plain && i.mine) i.mine = false;
+    if (i.mine) {   // v226: my two badges ARE the controls: always both, one tap each (calm = on, red = off)
+      return `<button class="vb vcam${LIVE.cam ? '' : ' vred'}" onclick="event.stopPropagation();CATAN.voiceCam(${LIVE.cam ? 'false' : 'true'})" aria-label="${LIVE.cam ? 'Turn camera off' : 'Turn camera on'}">${LIVE.cam ? VI_CAM : VI_CAMX}</button>`
+        + `<button class="vb vmic${LIVE.mic ? '' : ' vred'}" onclick="event.stopPropagation();CATAN.voiceMic(${LIVE.mic ? 'false' : 'true'})" aria-label="${LIVE.mic ? 'Mute' : 'Unmute'}">${LIVE.mic ? VI_MIC + VBARS : VI_MICX}</button>`;
+    }
     let s = '';
     if (i.cam) s += i.mine ? `<button class="vb vcam" onclick="event.stopPropagation();CATAN.voiceCam(false)" aria-label="Turn camera off">${VI_CAM}</button>` : `<span class="vb vcam">${VI_CAM}</span>`;
     if (i.forMe) s += `<button class="vb vgrey vmic" onclick="event.stopPropagation();CATAN.voiceMuteFor('${id}',false)" aria-label="Unmute for me">${VI_SPKX}</button>`;
@@ -3615,8 +3620,8 @@
   function practiceRoomHTML() {
     const seats = practiceSeats();
     const me = seats[0], mine = `<div class="lvseat mine"><span class="lvcd" style="background:${PCOLOR[me.color]}"></span>`
-      + `<span class="vpic vseat" data-vid="${AUTH.me.id}"${LIVE.room ? ` onclick="event.stopPropagation();CATAN.voiceCard(this)"` : ''}>${faceHTML(AUTH.me.name, AUTH.me.avatar, 'xl')}${voiceBadges(AUTH.me.id)}</span>`
-      + `<b>${escapeHtml(AUTH.me.name)} (you)</b><span class="lvhint">${LIVE.room ? 'tap your face to talk' : voiceOn() ? 'connecting the call…' : ''}</span></div>`;
+      + `<span class="vpic vseat" data-vid="${AUTH.me.id}">${faceHTML(AUTH.me.name, AUTH.me.avatar, 'xl')}${voiceBadges(AUTH.me.id)}</span>`
+      + `<b>${escapeHtml(AUTH.me.name)} (you)</b><span class="lvhint">${LIVE.room ? 'tap 🎤 / 📷 to switch them' : voiceOn() ? 'connecting the call…' : ''}</span></div>`;
     const bots = seats.slice(1).map((b, i) => `<div class="lvseat"><span class="lvcd" style="background:${PCOLOR[b.color]}"></span>`
       + `<span class="vpic vseat" data-vid="${b.playerId}"${LIVE.room ? ` onclick="event.stopPropagation();CATAN.voiceWho('${b.playerId}',this)"` : ''}>${faceHTML(b.name, (ASSETS.avatars && ASSETS.avatars[i + 1]) || null, 'xl')}${voiceBadges(b.playerId)}</span><b>${escapeHtml(b.name)}</b>${voiceTag(b.playerId)}<span class="lvhint">computer${LIVE.room ? ' · tap to mute' : ''}</span></div>`).join('');
     return `<div class="lvsect">🧪 PRACTICE TABLE · ONLY YOU SEE THIS</div>
@@ -6702,7 +6707,7 @@
     const mine = p.id === AUTH.me.id, pref = mine ? LOBBY.myPref() : p.pref, col = pref && PCOLOR[pref];
     return `<div class="lvseat${isHost ? ' host' : ''}${mine ? ' mine' : ''}${p.away ? ' away' : ''}"${mine ? ` onclick="CATAN.lvSheet('colour')"` : ''}>`
       + `${isHost ? '<span class="lvcrown">👑</span>' : ''}<span class="lvcd${col ? '' : ' any'}"${col ? ` style="background:${col}"` : ''}></span>`
-      + `${Date.now() - (LV.gos[p.id] || 0) < GO_SHOW_MS ? '<span class="lvgo">👉 Go!</span>' : ''}<span class="vpic vseat" data-vid="${p.id}"${LIVE.room ? ` onclick="event.stopPropagation();CATAN.${mine ? 'voiceCard(this)' : `voiceWho('${p.id}',this)`}"` : ''}>${faceHTML(p.name, p.avatar, 'xl')}${voiceBadges(p.id)}</span><b>${escapeHtml(p.name)}${mine ? ' (you)' : ''}</b>${voiceTag(p.id)}${mine ? `<span class="lvhint">${LIVE.room ? 'tap your face to talk · seat for colour' : 'tap for colour'}</span>` : p.away ? '<span class="lvhint">away…</span>' : ''}</div>`;
+      + `${Date.now() - (LV.gos[p.id] || 0) < GO_SHOW_MS ? '<span class="lvgo">👉 Go!</span>' : ''}<span class="vpic vseat" data-vid="${p.id}"${LIVE.room && !mine ? ` onclick="event.stopPropagation();CATAN.voiceWho('${p.id}',this)"` : ''}>${faceHTML(p.name, p.avatar, 'xl')}${voiceBadges(p.id)}</span><b>${escapeHtml(p.name)}${mine ? ' (you)' : ''}</b>${voiceTag(p.id)}${mine ? `<span class="lvhint">${LIVE.room ? 'tap 🎤 / 📷 to switch · seat for colour' : 'tap for colour'}</span>` : p.away ? '<span class="lvhint">away…</span>' : ''}</div>`;
   }
   function lvRoomHTML() {
     // a cup paused between games that I'm in: the whole tab is the cup
@@ -6944,8 +6949,8 @@
   window.CATAN.showMsgs = (color) => showMsgHistory(color);
   window.CATAN.voiceCard = (el) => voiceCard(el);
   window.CATAN.voiceWho = (id, el) => voiceWho(id, el);
-  window.CATAN.voiceMic = (on) => voiceSetMic(!!on);
-  window.CATAN.voiceCam = (on) => voiceSetCam(!!on);
+  window.CATAN.voiceMic = async (on) => { await voiceSetMic(!!on); if (LIVE.mic === !!on) toast(LIVE.mic ? '🎤 Mic on' : 'Mic off'); };   // (a blocked mic keeps its own message)
+  window.CATAN.voiceCam = async (on) => { await voiceSetCam(!!on); if (LIVE.cam === !!on) toast(LIVE.cam ? '📷 Camera on' : 'Camera off'); };
   window.CATAN.voiceMuteFor = (id, on) => { const h = document.getElementById('msghist'); if (h) h.remove(); voiceMuteForMe(id, !!on); };
   window.CATAN.openCustomMsg = () => openBroadcast();
   window.CATAN.manageQuick = (from) => manageQuickMsgs(from);
