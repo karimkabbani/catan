@@ -2093,7 +2093,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v230';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v231';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -9047,8 +9047,11 @@
   window.CATAN.showMsgs = (color) => showMsgHistory(color);
   window.CATAN.voiceCard = (el) => voiceCard(el);
   window.CATAN.voiceWho = (id, el) => voiceWho(id, el);
-  window.CATAN.voiceMic = async (on) => { await voiceSetMic(!!on); if (LIVE.mic === !!on) toast(LIVE.mic ? '🎤 Mic on' : 'Mic off'); };   // (a blocked mic keeps its own message)
-  window.CATAN.voiceCam = async (on) => { await voiceSetCam(!!on); if (LIVE.cam === !!on) toast(LIVE.cam ? '📷 Camera on' : 'Camera off'); };
+  // v231: your own taps also update the remembered choice, so the next table starts the way you left it:
+  // mic off -> silent; mic on -> voice (camera on -> 'video', which still rejoins with the camera OFF)
+  function voiceRemember() { const m = !LIVE.mic ? 'listen' : LIVE.cam ? 'video' : 'audio'; if (SETTINGS.voice !== m) { SETTINGS.voice = m; saveSettings(); } }
+  window.CATAN.voiceMic = async (on) => { await voiceSetMic(!!on); if (LIVE.mic === !!on) { toast(LIVE.mic ? '🎤 Mic on' : 'Mic off'); voiceRemember(); } };   // (a blocked mic keeps its own message)
+  window.CATAN.voiceCam = async (on) => { await voiceSetCam(!!on); if (LIVE.cam === !!on) { toast(LIVE.cam ? '📷 Camera on' : 'Camera off'); voiceRemember(); } };
   window.CATAN.voiceMuteFor = (id, on) => { const h = document.getElementById('msghist'); if (h) h.remove(); voiceMuteForMe(id, !!on); };
   window.CATAN.openCustomMsg = () => openBroadcast();
   window.CATAN.manageQuick = (from) => manageQuickMsgs(from);

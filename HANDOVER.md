@@ -1037,6 +1037,11 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
 62. ✅ **2026-11-08: voice & video opened to everyone** (`voice-config.json` → `{ "enabled": true }`, no "only" list).
    Kill switch: set `"enabled": false` (read network-first by every phone, takes effect within ~2s of the next check).
    Practice table stays test/test2 only. Still not built: monthly minute counter + 80% warning (watch the LiveKit dashboard).
+63. ✅ **v230-v231 (2026-11-08, built, not deployed).** v230: rejoin note says "tap 📷 to turn your camera on" (was "tap
+   your picture"). v231: your own badge taps update the remembered choice (`voiceRemember`): mic off -> 'listen', mic on ->
+   'audio', mic + camera on -> 'video' (still rejoins camera OFF). Saved to the profile like the first pick. Automatic
+   switches (lock screen turning the mic off) do not change it. iPhone's own camera/mic permission prompt is separate:
+   whether a home-screen app re-asks each session is unverified on Karim's iOS.
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
