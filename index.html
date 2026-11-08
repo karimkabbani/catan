@@ -1653,7 +1653,11 @@
     body.vlive .spechand .specorbs{gap:6px;} body.vlive .spechand .specorbs .res img{width:20px; height:20px;}
     body.vlive .spechand .specleave{padding:4px 9px;}
   }
-  body.vlive .spechand.specview .specsel{min-width:84px;}
+  body.vlive .spechand.specview .specsel{min-width:64px;}
+  .specvc{flex:none; gap:3px;} .specvc .vb{width:22px; height:22px;} .specvc .vb svg{width:12px; height:12px;}
+  .vchip .vrow{margin-left:auto;} .vchip .vrow .vb{width:32px; height:32px;} .vchip .vrow .vb svg{width:17px; height:17px;}
+  div.vchip{justify-content:flex-start;}
+    @media (max-width:640px){ body.vlive .specvc{gap:3px;} body.vlive .specvc .vb{width:20px; height:20px;} }
   @media (max-width:640px){ body.vlive .spechand.specview .specsel{min-width:60px;} body.vlive .spechand .specorbs{gap:4px;} body.vlive .spechand .specorbs .res img{width:18px; height:18px;} body.vlive .spechand .specorbs .rcount{font-size:12.5px;} body.vlive .spechand .specleave{padding:4px 7px; font-size:11.5px;} }
   .specsel.more{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent); mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent);}
   body.vlive .corner.tr .pdice, body.vlive .corner.br .pdice{left:0; transform:none;}   /* v221: off the round menu button */

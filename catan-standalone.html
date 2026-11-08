@@ -1653,7 +1653,11 @@
     body.vlive .spechand .specorbs{gap:6px;} body.vlive .spechand .specorbs .res img{width:20px; height:20px;}
     body.vlive .spechand .specleave{padding:4px 9px;}
   }
-  body.vlive .spechand.specview .specsel{min-width:84px;}
+  body.vlive .spechand.specview .specsel{min-width:64px;}
+  .specvc{flex:none; gap:3px;} .specvc .vb{width:22px; height:22px;} .specvc .vb svg{width:12px; height:12px;}
+  .vchip .vrow{margin-left:auto;} .vchip .vrow .vb{width:32px; height:32px;} .vchip .vrow .vb svg{width:17px; height:17px;}
+  div.vchip{justify-content:flex-start;}
+    @media (max-width:640px){ body.vlive .specvc{gap:3px;} body.vlive .specvc .vb{width:20px; height:20px;} }
   @media (max-width:640px){ body.vlive .spechand.specview .specsel{min-width:60px;} body.vlive .spechand .specorbs{gap:4px;} body.vlive .spechand .specorbs .res img{width:18px; height:18px;} body.vlive .spechand .specorbs .rcount{font-size:12.5px;} body.vlive .spechand .specleave{padding:4px 7px; font-size:11.5px;} }
   .specsel.more{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent); mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent);}
   body.vlive .corner.tr .pdice, body.vlive .corner.br .pdice{left:0; transform:none;}   /* v221: off the round menu button */
@@ -2082,7 +2086,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v226';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v227';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -3036,6 +3040,8 @@
     const sel = h.querySelector('.specsel'); if (sel) sel.classList.toggle('more', sel.scrollWidth > sel.clientWidth + 2);
   }
   window.addEventListener('resize', () => requestAnimationFrame(fitDock));
+  // the bottom corners can shift after a redraw (a photo or font arriving, a badge row appearing): re-fit every second too
+  setInterval(() => { if (state && document.body.classList.contains('vlive') && document.body.classList.contains('ingame')) fitDock(); }, 1000);   // cheap; same-frame reset + set, so no flicker
 
   // times robbed, as a number on a tag hanging off the corner's inner edge (from the first robbery on)
   const robbedSeen = {}, robbedBumpAt = {};
@@ -3293,7 +3299,8 @@
         const dev = `<span class="specdev">🎴 ${devs.length}${vpc ? ` · ⭐ ${vpc} VP` : ''}</span>`;
         return `<div class="spechand specview"><div class="specsel">${chips}</div><div class="specorbs">${orbs}</div>${dev}</div>`;
       }
-      const meBtn = voiceOn() && AUTH.me ? `<button class="speceye vpic" data-vid="${AUTH.me.id}" onclick="CATAN.voiceCard(this)" aria-label="Talk to the table">${faceHTML(AUTH.me.name, AUTH.me.avatar, 'sm')}${voiceBadges(AUTH.me.id, true)}</button>` : '<span class="speceye">👁</span>';
+      const meBtn = voiceOn() && AUTH.me ? (LIVE.room ? `<span class="specvc vrow">${voiceBadges(AUTH.me.id)}</span>`   // v227: your mic/camera switches, as everywhere
+        : `<button class="speceye vpic" data-vid="${AUTH.me.id}" onclick="CATAN.voiceCard(this)" aria-label="Talk to the table">${faceHTML(AUTH.me.name, AUTH.me.avatar, 'sm')}${voiceBadges(AUTH.me.id, true)}</button>`) : '<span class="speceye">👁</span>';
       return `<div class="spechand specview">${meBtn}<div class="specsel">${chips}</div>`
         + `<div class="specorbs">${orbs}</div><button class="specleave" onclick="CATAN.exitGame()">Leave</button></div>`;
     }
@@ -5301,7 +5308,7 @@
   }
   // a picture element carries data-vid="<player id>": glow follows the voice, video replaces the photo
   function voiceRefresh() {
-    if (state && document.body.classList.contains('ingame')) { try { renderPanels(); } catch (_) { } }
+    if (state && document.body.classList.contains('ingame')) { try { renderPanels(); if (online && !myColor) { const h = $('hand'); if (h) h.innerHTML = handBar(); } } catch (_) { } }   // a watcher's switches live in the bottom bar
     else if (typeof renderLobby === 'function' && AUTH.me && LV.tab === 'play') { lobbySig = null; try { renderLobby(); } catch (_) { } }   // the chat tab keeps its scroll
     voiceMountVideos();
   }
@@ -5437,7 +5444,7 @@
   // tap a watcher's face (beside the banner): their name and the mute-for-me line
   function voiceWho(id, anchor) {
     const old = document.getElementById('vcard'); if (old) old.remove();
-    if (AUTH.me && id === AUTH.me.id) { voiceCard(anchor); return; }
+    if (AUTH.me && id === AUTH.me.id) { if (!LIVE.room) voiceCard(anchor); return; }   // in the call, your badges are the controls
     const row = voiceMuteRow(id); if (!row) return;
     const c = document.createElement('div'); c.id = 'vcard';
     const watching = LOBBY.spectators().some((w) => w.id === id);
@@ -8813,7 +8820,9 @@
     if (line.length) extras.push(`<div class="lvline">⏳ <span><b>${escapeHtml(namesAnd(line.map((p) => p.name)))}</b> · first in line if a seat opens</span></div>`);
     if (idle.length) extras.push(`<div class="lvline">💤 <span><b>${escapeHtml(namesAnd(idle.map((p) => p.name)))}</b> · here, not seated</span></div>`);
     if (watching.length) extras.push(`<div class="lvline">👁 ${LIVE.room ? watching.map((w) => `<span class="vpic vmini" data-vid="${w.id}" onclick="CATAN.voiceWho('${w.id}',this)">${faceHTML(w.name, w.avatar, 'sm')}${voiceBadges(w.id)}</span>`).join('') : ''}<span><b>${escapeHtml(namesAnd(watching.map((p) => p.name)))}</b> · watching</span></div>`);
-    if (voiceOn() && !seated.some((p) => p.id === AUTH.me.id)) extras.push(`<button class="vchip" onclick="CATAN.voiceCard(this)">${VI_MIC}<span>Talk to the table</span><span class="vpic vmini vchipface" data-vid="${AUTH.me.id}">${faceHTML(AUTH.me.name, AUTH.me.avatar, 'sm')}${voiceBadges(AUTH.me.id, true)}</span></button>`);
+    if (voiceOn() && !seated.some((p) => p.id === AUTH.me.id)) extras.push(LIVE.room
+      ? `<div class="vchip"><span class="vpic vmini vchipface" data-vid="${AUTH.me.id}">${faceHTML(AUTH.me.name, AUTH.me.avatar, 'sm')}</span><span>Talk to the table</span><span class="vrow">${voiceBadges(AUTH.me.id)}</span></div>`   // v227: tap 📷 / 🎤
+      : `<button class="vchip" onclick="CATAN.voiceCard(this)">${VI_MIC}<span>Talk to the table</span><span class="vpic vmini vchipface" data-vid="${AUTH.me.id}">${faceHTML(AUTH.me.name, AUTH.me.avatar, 'sm')}${voiceBadges(AUTH.me.id, true)}</span></button>`);
     const onResults = members.filter((p) => pmode(p) === 'results' && p.id !== AUTH.me.id);
     if (onResults.length) extras.push(`<div class="lvline">🏁 <span><b>${escapeHtml(namesAnd(onResults.map((p) => p.name)))}</b> · still on the last game's results</span></div>`);
     const last = LV.last && LV.last.code === LOBBY.table && Date.now() - LV.last.at < 1800000 ? `<div class="lvlast">🏆 Last game: ${escapeHtml(LV.last.text)}</div>` : '';
