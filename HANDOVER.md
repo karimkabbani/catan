@@ -1037,7 +1037,7 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
 62. ✅ **2026-11-08: voice & video opened to everyone** (`voice-config.json` → `{ "enabled": true }`, no "only" list).
    Kill switch: set `"enabled": false` (read network-first by every phone, takes effect within ~2s of the next check).
    Practice table stays test/test2 only. Still not built: monthly minute counter + 80% warning (watch the LiveKit dashboard).
-63. 🧪 **v230 (2026-11-08, not deployed). Sideways board, test2 only.** Karim: keep rotation lock on and still get the
+63. 🧪 **v230 (2026-11-08, deployed, test2 only). Sideways board, test2 only.** Karim: keep rotation lock on and still get the
    landscape board. Safari can't lock orientation, so `rotate.html` hosts the whole app in an iframe; while the board is
    up and the phone is upright it sizes the frame landscape and turns it 90° (`-90°` after Settings → Sideways board →
    Flip it over, stored in `catanSideFlip`). The app inside sees a real landscape viewport, so CSS, media queries, taps and
