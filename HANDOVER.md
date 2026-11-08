@@ -198,6 +198,8 @@ revised UI, not a one-off.
   machine.
 - `catan-standalone.html` — a single self-contained file (engine + app inlined)
   for AirDropping to a phone. Rebuilt by `build.mjs`.
+- `rotate.html` — the sideways-board host (§8 items 63-67). index.html sends every signed-in player here at launch;
+  it runs the app in an iframe and turns that frame 90° while the board is up and the phone is upright.
 
 ### 5.2 Rendering pipeline (`app.js`)
 
@@ -218,8 +220,9 @@ Flow: a button or board tap calls `dispatch(action, color)` →
 discard sheet, then robber-move mode, then the steal sheet) → `render()`.
 `window.CATAN.*` holds all the button handlers.
 
-Layout is landscape; a CSS media query shows a "rotate your device" overlay in
-portrait on phones. Seats map to corners `tl, tr, bl, br`; the active player is
+Layout is landscape. On a phone held upright, rotate.html turns the whole app sideways while the board is up
+(§8 item 63), so the "rotate your device" overlay (a CSS media query, portrait + touch) now only shows if the app
+is opened without the host page, e.g. the standalone file. Seats map to corners `tl, tr, bl, br`; the active player is
 highlighted and their hand shows in the bottom dock.
 
 ### 5.4 Asset system (drop-in art)
@@ -1037,41 +1040,44 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
 62. ✅ **2026-11-08: voice & video opened to everyone** (`voice-config.json` → `{ "enabled": true }`, no "only" list).
    Kill switch: set `"enabled": false` (read network-first by every phone, takes effect within ~2s of the next check).
    Practice table stays test/test2 only. Still not built: monthly minute counter + 80% warning (watch the LiveKit dashboard).
-63. 🧪 **v230 (2026-11-08, deployed, test2 only). Sideways board, test2 only.** Karim: keep rotation lock on and still get the
-   landscape board. Safari can't lock orientation, so `rotate.html` hosts the whole app in an iframe; while the board is
-   up and the phone is upright it sizes the frame landscape and turns it 90° (`-90°` after Settings → Sideways board →
-   Flip it over, stored in `catanSideFlip`). The app inside sees a real landscape viewport, so CSS, media queries, taps and
-   swipes need no changes (the browser maps touches through the rotation; verified headless: taps hit the right point,
-   a drag pans the board the way the finger moves). The frame sits in the safe area (a framed page gets no safe-area
-   insets), and `FRAMED` turns off `fitAppHeight` / `markCutSide` inside it. Routing: index.html's head script sends a
-   saved test2 to rotate.html, `sidewaysSync` does it on sign-in (only from the plain lobby), and rotate.html sends anyone
-   else back to index.html. The app tells the host `{catanSideways, ingame, user}` by postMessage. Known limits: the
-   keyboard (chat) opens along the phone's long edge, the status-bar strip costs ~50px of width, and the swipe-home
-   gesture is on a side edge. To roll out to everyone: drop the test2 checks (index.html head, `sidewaysUser`, rotate.html
-   `SIDE_USER`) and make index.html the host page instead of redirecting.
-
+63. ✅ **v230 (2026-11-08, deployed). Sideways board** (test2 only until v234, item 67). Karim: keep rotation lock on
+   and still get the landscape board, without going native. Safari can't lock orientation, so `rotate.html` hosts the
+   whole app in an iframe; while the board is up and a touch screen is upright it sizes the frame landscape and turns it
+   90° (the phone's top on your left), or -90° after Settings → Sideways board → Flip it over (stored in `catanSideFlip`).
+   The app inside sees a real landscape viewport, so CSS, media queries, taps and swipes need no changes: the browser maps
+   touches through the rotation (verified headless: taps land on the right point, a drag pans the board the way the
+   finger moves). With rotation lock off, turning the phone gives a real landscape screen and the frame stays unturned.
+   The frame sits in the host's safe area; inside it `FRAMED` turns off `fitAppHeight` / `markCutSide`, and `html.framed`
+   zeroes the app's own safe-area margins (item 66). Routing: index.html's head script sends any saved player to
+   rotate.html at launch, and `sidewaysSync` does it after sign-in (only from the plain lobby). Messages: the app sends
+   `{catanSideways, ingame, user}`, the host answers `{catanSideAngle}` (item 65). Known limits: the chat keyboard opens
+   along the phone's long edge, the status-bar strip costs ~50px of width, and swipe-home is on a side edge.
 64. ✅ **v231 (2026-11-08, deployed).** Built on top of another session's v230 (sideways board for test2). The rejoin note
    says "tap 📷 to turn your camera on" (was "tap your picture"). Your own badge taps update the remembered choice
    (`voiceRemember`): mic off -> 'listen', mic on -> 'audio', mic + camera on -> 'video' (still rejoins camera OFF); saved
    to the profile like the first pick; automatic switches (lock screen) don't change it. iPhone's own camera/mic permission
    prompt is separate: whether a home-screen app re-asks each session is unverified.
-65. **v232 (2026-11-08, deployed). Sideways board: camera pictures turned upright.** With rotation lock on, iOS
-   thinks the phone is upright, so the camera films the test2 player on their side. rotate.html tells the app its turn
+65. ✅ **v232 (2026-11-08, deployed). Sideways board: camera pictures turned upright.** With rotation lock on, iOS
+   thinks the phone is upright, so the camera films a sideways-board player on their side. rotate.html tells the app its turn
    angle (`catanSideAngle` → `SIDE_ANGLE`); `vDraw` turns that player's picture back by it, and the angle travels with the
    call state (`st.rot`, also on the 15s heartbeat) so everyone else's phone turns it too. Sign assumed: an unmirrored
-   front-camera frame has the head on the left when the phone's top is on the left. If real phones show it upside
-   down, negate the angle in `vDraw`.
+   front-camera frame has the head on the left when the phone's top is on the left. Not yet confirmed on real phones:
+   if a face shows upside down, negate the angle in `vDraw`.
 
-65. ✅ **v233 (2026-11-08, deployed). Sideways board: corners hug the phone's long sides.** Karim's screenshot:
+66. ✅ **v233 (2026-11-08, deployed). Sideways board: corners hug the phone's long sides.** Karim's screenshot:
    in rotate.html's turned frame the corners sat ~33pt off the phone's right edge and ~22pt off its left. Cause: iPhone
    still reports its PORTRAIT safe-area insets (62 top / 34 bottom) to the frame, and the app applied 40% of them to the
    game's top/bottom (= the phone's right/left). Fix: every `env(safe-area-inset-*)` in index.html now goes through
    `--sa-t/r/b/l` (set on :root), and `html.framed` (added when `FRAMED`) zeroes them; the host already keeps the frame
    inside the safe area. Normal (unframed) phones unchanged. Verified headless by faking the 62/34 insets: 33/22 -> 8/8.
-66. ✅ **v234 (2026-11-08, deployed). Sideways board for everyone** (was test2 only, item 63). The three test2 checks
-   now accept any signed-in player: index.html head redirect, `sidewaysUser()`, rotate.html `SIDE_USER`. Nobody signed
-   in stays on index.html; after sign-in `sidewaysSync` moves them to rotate.html from the plain lobby. The practice
-   table stays test/test2 only (`practiceAllowed`). Everything else (voice, badges, cutout, sweep fixes) was already for all.
+67. ✅ **v234 (2026-11-08, deployed). Sideways board for everyone** (was test2 only, item 63). The three test2 checks
+   now accept any signed-in player: index.html head redirect, `sidewaysUser()`, rotate.html. Nobody signed in stays on
+   index.html; after sign-in `sidewaysSync` moves them to rotate.html from the plain lobby. The practice table stays
+   test/test2 only (`practiceAllowed`). Everything else (voice, badges, cutout, camera turn) was already for all.
+68. ✅ **v235 (2026-11-08, deployed). Tidy-up, no behaviour change.** rotate.html: dropped the dead "send other players
+   back to index.html" branch and the leftover `SIDE_USER` check (the frame turns for anyone signed in); comments in
+   rotate.html, index.html and app.js no longer say test2. HANDOVER items 63-67 renumbered and rewritten to match the
+   code; §5.1 lists rotate.html; §5.3 explains when the rotate overlay still shows.
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
@@ -1082,8 +1088,8 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
 - **Player profiles.** Photo upload (file picker → reposition/zoom cropper → 256px JPEG stored
   base64 in `players.avatar`), nickname change, change PIN — under "Manage Profile". Avatars show
   on the home picker, lobby rows, and in-game corners. Requires `server/migrate-profiles.sql`.
-- **Portrait pre-game.** Login / lobby / setup work in portrait; only the board forces landscape
-  (gated by `body.ingame`). Tapping a name focuses the PIN synchronously so iOS opens the keyboard.
+- **Portrait pre-game.** Login / lobby / setup work in portrait; only the board is landscape
+  (gated by `body.ingame`; since v230 rotate.html turns it sideways for you, §8 item 63). Tapping a name focuses the PIN synchronously so iOS opens the keyboard.
 - **Settings gear** shows only while the radial is open; **music** is a 3-track looping playlist.
 - **The `.ghost` trap (fixed, worth remembering):** an SVG `<style>` applies document-wide, so a
   bare `.ghost{pointer-events:none}` in the board SVG silently disabled every `.btn.ghost`. Scope
@@ -1251,8 +1257,10 @@ live. This is the current reality (last refreshed 2026-11-07; CLAUDE.md has the 
     500px, so phone screenshots are laid out at 500 wide.
 
 ### What's next
-State on 2026-11-08: v231 is live. Voice & video is on for everyone (items 50-64); the test2 sideways board (item 63) is a
-test. Pick from section 8. In order:
+State on 2026-11-08: v235 is live. Voice & video is on for everyone (items 50-64), and so is the sideways board
+(items 63-68: keep rotation lock on, the board turns itself). Watch first, **sideways board in real games:** confirm
+faces show upright on other phones (item 65's assumed sign), that taps and pinch feel right on a real iPhone and
+Android, and how the chat keyboard feels sideways. Then pick from section 8, in order:
 0. **Voice & video follow-ups:** watch the first real games (3-4 people, 4G, AirPods, an incoming call, 20 min of camera);
    build the monthly minute counter + 80% warning (needs a table + LiveKit webhook); check whether iPhone re-asks camera/mic
    permission each session; delete the old LiveKit key APIydyY33REnTLq; a regression sweep over v215-v231.

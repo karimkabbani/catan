@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v234';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v235';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -5415,8 +5415,8 @@
   // strip, so the bottom of the screen is out of reach. Measure that missing strip; the lobby's tab bar then drops
   // the safe-area padding it no longer needs (the cut-off line already sits above the home bar), and the strip
   // below is painted in the tab bar's colour so it reads as one bar down to the edge.
-  // v230: running inside rotate.html's frame (the test2 sideways board). The frame is sized to the safe area by the
-  // host page, so the iPhone viewport fixes and the camera-cutout nudges below must stay off in here.
+  // Running inside rotate.html's frame (the sideways board, every player since v234). The host page keeps the frame
+  // inside the safe area, so the iPhone viewport fix and the camera-cutout nudges below stay off in here.
   const FRAMED = (function () { try { return window.top !== window; } catch (_) { return true; } })();
   if (FRAMED) document.documentElement.classList.add('framed');   // v233: safe-area margins are zero in here (index.html --sa-*)
   function fitAppHeight() {
@@ -5440,11 +5440,11 @@
   }
   markCutSide();
   window.addEventListener('orientationchange', () => setTimeout(markCutSide, 60));
-  // v230 (test build, player "test2" only): sideways board. rotate.html hosts the app in a frame and turns it
-  // 90 degrees while the board is up and the phone is upright, so nobody has to rotate the phone. Framed: tell the
-  // host who is signed in and whether the board is showing. Not framed: test2 signing in here moves to rotate.html
-  // (only from the plain lobby, never from a room or a game). See HANDOVER §8.
-  function sidewaysUser() { return !!(AUTH.me && String(AUTH.me.name || '').trim()); }   // v234: everyone (was test2 only)
+  // Sideways board (v230, every player since v234; HANDOVER §8 items 63-67). rotate.html hosts the app in a frame and
+  // turns it 90 degrees while the board is up and the phone is upright, so nobody has to rotate the phone. Framed: tell
+  // the host who is signed in and whether the board is showing. Not framed: signing in here moves you to rotate.html
+  // (only from the plain lobby, never from a room or a game); index.html's head script does the same at launch.
+  function sidewaysUser() { return !!(AUTH.me && String(AUTH.me.name || '').trim()); }   // anyone signed in
   let sideSig = '';
   function sidewaysSync() {
     const ingame = document.body.classList.contains('ingame');
