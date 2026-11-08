@@ -1030,6 +1030,9 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    The voice card now only appears while the call is connecting or down, to explain. `voiceRefresh` also redraws a
    watcher's bottom bar. `fitDock` re-runs every second in-game with voice (a bottom corner can shift after a redraw
    without resizing; the bar overlapped by 4px at 932/874 before).
+61. ✅ **v228 (2026-11-08, built, not deployed).** Room + practice seats: badges beside the name (`lvNameRow`), not on
+   the face, same look as in the game (yours = switches, red when off). First-time question is now a NEW-feature card,
+   "Talk while you play": Video and voice / Voice only / Just listen (mic and camera off, still hear and see everyone).
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a

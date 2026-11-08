@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v227';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v228';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -3299,13 +3299,13 @@
     if (LIVE.askOpen || document.getElementById('vask')) return;
     LIVE.askOpen = true;
     const d = document.createElement('div'); d.id = 'vask';
-    d.innerHTML = `<div class="vaskcard"><div class="vaskh">Talk to the table?</div>
-      <p class="vasksub">You'll hear everyone either way. This is about them hearing or seeing you, from now until you leave the table.</p>
-      <button class="vopt" data-m="audio">${VI_MIC}<span><b>Audio</b><small>Your mic is on</small></span></button>
-      <button class="vopt" data-m="video">${VI_CAM}<span><b>Video</b><small>Camera and mic on</small></span></button>
-      <button class="vopt plain" data-m="listen">${VI_DEAF.replace('<path d="M3 3l18 18"/>', '')}<span><b>Just listen</b><small>Nobody hears or sees you</small></span></button>
-      ${LIVE_IOS ? '<p class="vasknote">On iPhone, while your mic is on, music plays at call volume and AirPods switch to call quality.</p>' : ''}
-      <p class="vasknote">We'll remember this. Switch any time with the 📷 and 🎤 next to your name.</p></div>`;
+    d.innerHTML = `<div class="vaskcard"><div class="vasknew">NEW</div><div class="vaskh">Talk while you play</div>
+      <p class="vasksub">Your table now has a live call. Everyone seated or watching can hear, and see, each other during the game. How do you want to join?</p>
+      <button class="vopt" data-m="video">${VI_CAM}<span><b>Video and voice</b><small>They see and hear you</small></span></button>
+      <button class="vopt" data-m="audio">${VI_MIC}<span><b>Voice only</b><small>They hear you, your camera stays off</small></span></button>
+      <button class="vopt plain" data-m="listen">${VI_DEAF.replace('<path d="M3 3l18 18"/>', '')}<span><b>Just listen</b><small>Your mic and camera stay off. You still hear and see everyone</small></span></button>
+      <p class="vasknote">Change it any time with the 📷 and 🎤 next to your name. We'll remember your choice.</p>
+      ${LIVE_IOS ? '<p class="vasknote">On iPhone, while your mic is on, music plays at call volume and AirPods switch to call quality.</p>' : ''}</div>`;
     document.body.appendChild(d);
     d.addEventListener('click', (e) => { if (e.target === d) { d.remove(); LIVE.askOpen = false; } });   // not now: asked again at the next table
     d.querySelectorAll('.vopt').forEach((b) => b.onclick = () => {
@@ -3623,10 +3623,10 @@
   function practiceRoomHTML() {
     const seats = practiceSeats();
     const me = seats[0], mine = `<div class="lvseat mine"><span class="lvcd" style="background:${PCOLOR[me.color]}"></span>`
-      + `<span class="vpic vseat" data-vid="${AUTH.me.id}">${faceHTML(AUTH.me.name, AUTH.me.avatar, 'xl')}${voiceBadges(AUTH.me.id)}</span>`
-      + `<b>${escapeHtml(AUTH.me.name)} (you)</b><span class="lvhint">${LIVE.room ? 'tap 📷 / 🎤 to switch them' : voiceOn() ? 'connecting the call…' : ''}</span></div>`;
+      + `<span class="vpic vseat" data-vid="${AUTH.me.id}">${faceHTML(AUTH.me.name, AUTH.me.avatar, 'xl')}</span>`
+      + `${lvNameRow(AUTH.me.id, escapeHtml(AUTH.me.name) + ' (you)')}<span class="lvhint">${LIVE.room ? 'tap 📷 / 🎤 to switch them' : voiceOn() ? 'connecting the call…' : ''}</span></div>`;
     const bots = seats.slice(1).map((b, i) => `<div class="lvseat"><span class="lvcd" style="background:${PCOLOR[b.color]}"></span>`
-      + `<span class="vpic vseat" data-vid="${b.playerId}"${LIVE.room ? ` onclick="event.stopPropagation();CATAN.voiceWho('${b.playerId}',this)"` : ''}>${faceHTML(b.name, (ASSETS.avatars && ASSETS.avatars[i + 1]) || null, 'xl')}${voiceBadges(b.playerId)}</span><b>${escapeHtml(b.name)}</b>${voiceTag(b.playerId)}<span class="lvhint">computer${LIVE.room ? ' · tap to mute' : ''}</span></div>`).join('');
+      + `<span class="vpic vseat" data-vid="${b.playerId}"${LIVE.room ? ` onclick="event.stopPropagation();CATAN.voiceWho('${b.playerId}',this)"` : ''}>${faceHTML(b.name, (ASSETS.avatars && ASSETS.avatars[i + 1]) || null, 'xl')}</span>${lvNameRow(b.playerId, escapeHtml(b.name))}${voiceTag(b.playerId)}<span class="lvhint">computer${LIVE.room ? ' · tap to mute' : ''}</span></div>`).join('');
     return `<div class="lvsect">🧪 PRACTICE TABLE · ONLY YOU SEE THIS</div>
       <div class="lvseats">${mine}${bots}<div class="lvseat empty"><span class="lvplus">+</span>Open seat</div></div>
       <div class="lvsub small" style="text-align:center;margin:10px 0">Nothing here reaches the real games or the stats. The call is real, so you can try your mic and camera.</div>
@@ -6706,11 +6706,13 @@
   }
 
   // ---- Play tab, in a room: four seats, the settings line, one primary action ----
+  // v228: a seat's name with its mic/camera badges beside it (as in the game), not on the face
+  function lvNameRow(id, nameHTML) { const vb = voiceBadges(id); return vb ? `<span class="lvnrow"><b>${nameHTML}</b><span class="vrow">${vb}</span></span>` : `<b>${nameHTML}</b>`; }
   function lvSeat(p, isHost) {
     const mine = p.id === AUTH.me.id, pref = mine ? LOBBY.myPref() : p.pref, col = pref && PCOLOR[pref];
     return `<div class="lvseat${isHost ? ' host' : ''}${mine ? ' mine' : ''}${p.away ? ' away' : ''}"${mine ? ` onclick="CATAN.lvSheet('colour')"` : ''}>`
       + `${isHost ? '<span class="lvcrown">👑</span>' : ''}<span class="lvcd${col ? '' : ' any'}"${col ? ` style="background:${col}"` : ''}></span>`
-      + `${Date.now() - (LV.gos[p.id] || 0) < GO_SHOW_MS ? '<span class="lvgo">👉 Go!</span>' : ''}<span class="vpic vseat" data-vid="${p.id}"${LIVE.room && !mine ? ` onclick="event.stopPropagation();CATAN.voiceWho('${p.id}',this)"` : ''}>${faceHTML(p.name, p.avatar, 'xl')}${voiceBadges(p.id)}</span><b>${escapeHtml(p.name)}${mine ? ' (you)' : ''}</b>${voiceTag(p.id)}${mine ? `<span class="lvhint">${LIVE.room ? 'tap 📷 / 🎤 to switch · seat for colour' : 'tap for colour'}</span>` : p.away ? '<span class="lvhint">away…</span>' : ''}</div>`;
+      + `${Date.now() - (LV.gos[p.id] || 0) < GO_SHOW_MS ? '<span class="lvgo">👉 Go!</span>' : ''}<span class="vpic vseat" data-vid="${p.id}"${LIVE.room && !mine ? ` onclick="event.stopPropagation();CATAN.voiceWho('${p.id}',this)"` : ''}>${faceHTML(p.name, p.avatar, 'xl')}</span>${lvNameRow(p.id, escapeHtml(p.name) + (mine ? ' (you)' : ''))}${voiceTag(p.id)}${mine ? `<span class="lvhint">${LIVE.room ? 'tap 📷 / 🎤 to switch · seat for colour' : 'tap for colour'}</span>` : p.away ? '<span class="lvhint">away…</span>' : ''}</div>`;
   }
   function lvRoomHTML() {
     // a cup paused between games that I'm in: the whole tab is the cup
