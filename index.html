@@ -1948,6 +1948,8 @@
   .vaskcard{width:min(440px,100%); max-height:100%; overflow-y:auto; background:linear-gradient(180deg,#3a220e,#1c0f05); border-top:1.5px solid #b8913f; border-radius:22px 22px 0 0;
     padding:20px 18px calc(env(safe-area-inset-bottom,0px) + 22px); color:#f3e6c8; box-shadow:0 -10px 30px rgba(0,0,0,0.6);}
   .vaskh{font-family:var(--font-display, inherit); font-weight:800; font-size:20px; color:#e9c45a; margin-bottom:4px;}
+  .vaskq{font-weight:800; font-size:14px; color:#e9c45a; margin:0 0 8px;}
+  .vasklater{display:block; margin:10px auto 0; background:none; border:0; color:#cbb991; font:700 14px/1 -apple-system, system-ui, sans-serif; text-decoration:underline; text-underline-offset:3px; padding:8px 14px; cursor:pointer;}
   .vasknew{display:inline-block; font:900 11px/1 -apple-system, system-ui, sans-serif; letter-spacing:.1em; color:#2b1b0b; background:linear-gradient(180deg,#ffe08a,#d9a92e); border-radius:8px; padding:4px 8px; margin-bottom:8px;}
   .lvnrow{display:flex; align-items:center; justify-content:center; gap:7px; max-width:100%; min-width:0;}
   .lvnrow b{min-width:0;}
@@ -1963,8 +1965,8 @@
     .vaskcard{width:min(620px,96vw); border-radius:18px; border:1.5px solid #b8913f; padding:14px 16px;}
     .vaskh{font-size:18px;} .vasksub{font-size:12.5px; margin-bottom:10px;}
     .vaskcard{display:grid; grid-template-columns:1fr 1fr 1fr; column-gap:8px;}
-    .vasknew, .vaskh, .vasksub, .vasknote{grid-column:1 / -1;} .vasknew{justify-self:start;}
-    .vopt{flex-direction:column; text-align:center; gap:6px; margin:0; padding:12px 8px;}
+    .vasknew, .vaskh, .vasksub, .vasknote, .vaskq, .vasklater{grid-column:1 / -1;} .vaskq{margin-bottom:6px;} .vasklater{margin-top:2px; padding:6px 14px;} .vasknew{margin-bottom:4px;} .vasknew{justify-self:start;}
+    .vopt{flex-direction:column; text-align:center; gap:4px; margin:0; padding:9px 8px;}
     .vasknote{margin-top:6px; font-size:11px;}
   }
   /* victory: the four corners grow while the results card is up, faces stay live; gold on the winner */
