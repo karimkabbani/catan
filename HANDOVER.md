@@ -1017,6 +1017,13 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    `window.orientation` (90 = phone top on the left), and the menu/trophy/dice tabs step in by the safe-area inset when
    the camera is on the right. Checked headless at 932/874(16 Pro, island drawn both ways)/812/667/568: nothing under the
    island. The real rotation value on iPhone must be confirmed on the phone.
+59. ✅ **v226 (2026-11-08, built, not deployed). Your badges are the controls.** Karim: drop the tap-your-picture card.
+   My own two badges always show (`voiceBadges` mine branch): calm = on, red + slash = off (`VI_MICX`, new `VI_CAMX`); one
+   tap toggles, with a 1s toast ("📷 Camera on" / "Mic off") so a mis-tap is noticed. Not green for on (green = a player
+   colour and the online dot). Others' badges only show what's on (+ red mic when muted on camera). Tapping my own
+   in-game picture now opens my recent messages like anyone's (the voice card only while the call is still connecting /
+   down); room + practice seats: my face no longer opens the card. The card remains behind "Talk to the table" (room, not
+   seated) and the watcher's own face in the spectator bar.
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
