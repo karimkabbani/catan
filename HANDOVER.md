@@ -1055,7 +1055,7 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    (`voiceRemember`): mic off -> 'listen', mic on -> 'audio', mic + camera on -> 'video' (still rejoins camera OFF); saved
    to the profile like the first pick; automatic switches (lock screen) don't change it. iPhone's own camera/mic permission
    prompt is separate: whether a home-screen app re-asks each session is unverified.
-65. **v232 (2026-11-08, not deployed). Sideways board: camera pictures turned upright.** With rotation lock on, iOS
+65. **v232 (2026-11-08, deployed). Sideways board: camera pictures turned upright.** With rotation lock on, iOS
    thinks the phone is upright, so the camera films the test2 player on their side. rotate.html tells the app its turn
    angle (`catanSideAngle` → `SIDE_ANGLE`); `vDraw` turns that player's picture back by it, and the angle travels with the
    call state (`st.rot`, also on the 15s heartbeat) so everyone else's phone turns it too. Sign assumed: an unmirrored
