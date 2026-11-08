@@ -1002,7 +1002,7 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    back to the practice table. Bot seats have `playerId: null` (always "online").
 57. ✅ **v223 (2026-11-08, deployed).** Practice table: pretend video/voice for the computer players (only
    alongside a real call, only on this phone): `PRACTICE.fake` participants returned by `voicePart`; Zaatar "on video"
-   (a canvas captureStream of his portrait with a gentle sway), Kibbeh on audio and sometimes self-muted (red badge);
+   (a canvas captureStream of his portrait with a gentle sway), Kibbeh on audio only; v224: Zaatar (on camera) is the one who sometimes self-mutes, so the red badge shows;
    every 9-18s one says a line via speechSynthesis with the white ring + sound bars (`practiceTalk`). Mute-for-me works on
    them (silences the line, "muted" tag). Bot seats now carry ids `bot-*` (`isPlayerOnline` treats them as online).
    Victory shortcuts: "🏆 Skip to a victory screen" on the practice table, and "I win / A computer wins" in the in-game

@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v223';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v224';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -3554,7 +3554,7 @@
   }
   // ---- pretend video and voice for the computer players (only alongside a real call, only on this phone):
   //      a "camera" made from their portrait (gentle sway + blink), and now and then a short spoken line with the
-  //      white speaking ring and sound bars. Zaatar is on video; Kibbeh is on audio and sometimes mutes himself.
+  //      white speaking ring and sound bars. Zaatar is on video and sometimes mutes himself (red badge); Kibbeh is on audio only.
   const PRACTICE_LINES = ['Yalla, roll the dice!', 'Who has wheat?', 'No way, again a seven?', 'I need brick, anyone?', 'Nice move, habibi.', 'Come on, hurry up!', 'I am going for longest road.', 'Do not put the robber on me!'];
   function practiceCam(i) {
     const c = document.createElement('canvas'); c.width = 240; c.height = 280;
@@ -3592,7 +3592,7 @@
     if (Date.now() < PRACTICE.talkAt) return;
     PRACTICE.talkAt = Date.now() + 9000 + Math.random() * 9000;
     const fs = Object.values(PRACTICE.fake);
-    const k = fs[1];   // Kibbeh mutes himself now and then (the red badge), and comes back
+    const k = fs[0];   // Zaatar (on camera) mutes himself now and then: the red badge shows on his picture; he comes back later
     if (k && Math.random() < 0.25) { k.mic = !k.mic; voiceRefresh(); if (!k.mic) return; }
     const f = fs.filter((x) => x.mic)[(Math.random() * fs.filter((x) => x.mic).length) | 0]; if (!f) return;
     const line = PRACTICE_LINES[(Math.random() * PRACTICE_LINES.length) | 0], ms = 1400 + line.length * 55;
