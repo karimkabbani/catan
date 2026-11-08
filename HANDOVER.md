@@ -1078,6 +1078,14 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    back to index.html" branch and the leftover `SIDE_USER` check (the frame turns for anyone signed in); comments in
    rotate.html, index.html and app.js no longer say test2. HANDOVER items 63-67 renumbered and rewritten to match the
    code; §5.1 lists rotate.html; §5.3 explains when the rotate overlay still shows.
+67. ⏪ **v235 (2026-11-08, deployed). Rolled back to v214 behaviour.** Karim: "lots of bugs", go back to before voice/video
+   and the sideways board. `prototype/` restored file-for-file from v214 (aa9ab15), only APP_VERSION / SW VERSION bumped to
+   v235 so phones update and drop the v234 cache. Left behind on purpose: `voice-config.json` = `{ "enabled": false }`
+   (kill switch for any tab still on v234), `rotate.html` = a redirect to index.html (anyone sitting on the sideways
+   page lands back in the normal app). Removed from the site: livekit lib, voice-trial/. Engine and database unchanged;
+   the voice-token Edge Function is still deployed but unused. **All the v215-v234 work is saved on branch
+   `saved-v234-voice-sideways`** (commit 3239872): voice & video, practice table, design sweep fixes, cutout fix, sideways
+   board. Next: list the bugs, fix them on that branch, then bring the features back one at a time behind test players.
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a

@@ -27,7 +27,7 @@
     if (AUTH && AUTH.me) {
       clearTimeout(settingsPush);
       settingsPush = setTimeout(() => {
-        const out = { music: SETTINGS.music, sfx: SETTINGS.sfx, walkie: SETTINGS.walkie, voice: SETTINGS.voice || null, anim: SETTINGS.anim, autozoom: SETTINGS.autozoom, seen: SETTINGS.seen || [] };
+        const out = { music: SETTINGS.music, sfx: SETTINGS.sfx, walkie: SETTINGS.walkie, anim: SETTINGS.anim, autozoom: SETTINGS.autozoom, seen: SETTINGS.seen || [] };
         // your own chat emojis ride along only if you changed them, and only while the whole thing fits the
         // server's 500-character limit (otherwise they stay on this device rather than break the sync)
         if (SETTINGS.emojis && JSON.stringify(Object.assign({ emojis: SETTINGS.emojis }, out)).length <= 490) out.emojis = SETTINGS.emojis;
@@ -40,7 +40,6 @@
   function applyProfileSettings(s) {
     if (!s || typeof s !== 'object') return;
     ['music', 'sfx', 'walkie', 'anim', 'autozoom'].forEach((k) => { if (s[k] !== undefined) SETTINGS[k] = s[k]; });
-    if (s.voice === null || ['audio', 'video', 'listen'].indexOf(s.voice) >= 0) SETTINGS.voice = s.voice || undefined;   // your remembered call choice
     if (s.emojis === null || typeof s.emojis === 'string') SETTINGS.emojis = s.emojis;   // your chat tray's emojis (null = the group's set)
     if (Array.isArray(s.seen)) SETTINGS.seen = Array.from(new Set((SETTINGS.seen || []).concat(s.seen)));   // seen on any device counts
     try { localStorage.setItem('catan-settings', JSON.stringify(SETTINGS)); } catch (_) {}
@@ -84,7 +83,6 @@
     actx = new AC(); audioStale = false; audioRebuiltAt = Date.now();
     if (actx.state !== 'running') actx.resume().catch(() => { });
     loadSfx();
-    voiceOnCtx();   // live voices ride this context too
   }
   function audioHealthy() { return actx && !audioStale && actx.state === 'running'; }
   // iOS 17+: once a page opens the mic, the iPhone plays its sound through the quiet earpiece (and often
@@ -335,7 +333,7 @@
     if (robberMoved) ui.robberFlying = true;
     // queue the server sync BEFORE afterAction — afterAction can chain a follow-up action
     // (e.g. the auto-steal after the robber moves), and the syncs must persist in that order.
-    if (online && !PRACTICE.on) NET.syncAction(action, actor);
+    if (online) NET.syncAction(action, actor);
     // hold card counts behind the transfer flies so the numbers tick with the animation, not before it
     if (steal) { lagOut(steal.victim, steal.res, 1); lagIn(steal.thief, steal.res, 1); }
     if (trade) lagTrade(trade.a, trade.b, trade.give, trade.want);
@@ -846,7 +844,7 @@
   // is a seated player currently connected? Only a fresh heartbeat counts (liveIds: one in the last 18s,
   // which rides out a brief phone sleep); an 'away' roster entry is NOT online. No id (hotseat) -> present.
   function seatPlayerId(color) { const s = (gameSeats || []).find((x) => x && x.color === color); return s ? s.playerId : null; }
-  function isPlayerOnline(color) { const id = seatPlayerId(color); if (!id || /^bot-/.test(id)) return true; return LOBBY.liveIds.has(id); }
+  function isPlayerOnline(color) { const id = seatPlayerId(color); if (!id) return true; return LOBBY.liveIds.has(id); }
   // a seated player offline this long mid-game -> the others get an "End the game" bar
   const ABSENT_MS = 3 * 60 * 1000;
   const offSince = {};   // color -> when this phone first saw them offline (reset when they're back)
@@ -865,7 +863,7 @@
     state.players.forEach((p, i) => {
       const el = $('p-' + seatKey(i)); el.style.display = 'flex';
       // during the who-goes-first spinner, no corner shows .active (it would pre-reveal the result)
-      el.className = 'corner ' + seatKey(i) + (!ui.spinning && p.color === activeColor() ? ' active' : '') + rpsCornerClass(p.color) + (wtTalking(p.color) ? ' wtalk' : '') + (state.phase === 'ended' && p.color === state.winner ? ' vwinner' : '');
+      el.className = 'corner ' + seatKey(i) + (!ui.spinning && p.color === activeColor() ? ' active' : '') + rpsCornerClass(p.color) + (wtTalking(p.color) ? ' wtalk' : '');
       // tint the panel with the player's colour
       const pc = PCOLOR[p.color];
       el.style.background = `linear-gradient(${hexA(pc, 0.92)}, ${hexA(pc, 0.62)}), var(--wood-tex)`;
@@ -905,62 +903,26 @@
       // unread dot: a new message from another player, not yet reviewed (tap their portrait to see it)
       const dot = (online && p.color !== myColor && UNREAD[p.color]) ? `<span class="pmsgdot"></span>` : '';
       // tap any online player's portrait to review their recent messages
-      const pid = online ? seatPlayerId(p.color) : null;
-      const tap = online ? (p.color === myColor && voiceOn() && !LIVE.room ? ` onclick="CATAN.voiceCard(this)"` : ` onclick="CATAN.showMsgs('${p.color}')"`) : '';
+      const tap = online ? ` onclick="CATAN.showMsgs('${p.color}')"` : '';
       // online/offline status dot on the portrait (online games only) — greys out if they left the app
       const off = online && !isPlayerOnline(p.color);
-      // v225: with voice, the mic/camera badges sit in the plaque's name row (off the picture, and out of the
-      // phone's camera cutout, which in landscape is always mid-height on a side edge)
-      const vbs = pid ? voiceBadges(pid) : '', vrow = !!(vbs && document.body.classList.contains('vlive'));
       const statusDot = online ? `<span class="pstatus ${off ? 'off' : 'on'}" title="${off ? 'Offline' : 'Online'}"></span>` : '';
       const wtb = wtCornerBits(p.color);
       el.innerHTML = `${di}${tbadge}${chatBtn}${dot}${wtb.mic}
         <div class="pcol">${stat(bdg.res, cards, '🃏', 'Resource cards', false, cards > 7)}${stat(bdg.card, dev, '🎴', 'Development cards')}${stat(bdg.vp, vp, '⭐', 'Victory points')}${stat(bdg.army, p.playedKnights, '⚔️', 'Knights played', p.hasLargestArmy)}${stat(bdg.road, road, '🛣️', 'Longest road', p.hasLongestRoad)}</div>
-        <div class="pport"${tap}><div class="pava${flagged ? ' flagged' : ''}${off ? ' offline' : ''}"${pid ? ` data-vid="${pid}"` : ''} style="border-color:${PCOLOR[p.color]}">${av}${statusDot}${pid ? (vrow ? '' : vbs) + voiceTag(pid) : ''}</div>${wtb.badge}${vrow ? `<div class="pname prow"><span class="nm">${escapeHtml(p.name)}</span><span class="vrow">${vbs}</span></div>` : `<div class="pname">${escapeHtml(p.name)}</div>`}</div>${flagged ? '<span class="pflag">🏳️</span>' : ''}${luckStrip(p)}${robbedPill(p.color)}${cupPts ? `<span class="pcup" title="Cup points">🏆<b>${cupPts[p.color]}</b></span>` : ''}`;
+        <div class="pport"${tap}><div class="pava${flagged ? ' flagged' : ''}${off ? ' offline' : ''}" style="border-color:${PCOLOR[p.color]}">${av}${statusDot}</div>${wtb.badge}<div class="pname">${escapeHtml(p.name)}</div></div>${flagged ? '<span class="pflag">🏳️</span>' : ''}${luckStrip(p)}${robbedPill(p.color)}${cupPts ? `<span class="pcup" title="Cup points">🏆<b>${cupPts[p.color]}</b></span>` : ''}`;
     });
-    voiceMountVideos();   // live camera pictures survive the corner re-render
     // which game of the cup this is, under the banner
     let pill = $('cuppill');
     if ((state.cup || state.friendly) && state.phase !== 'ended') {
       if (!pill) { pill = document.createElement('div'); pill.id = 'cuppill'; document.body.appendChild(pill); }
       pill.innerHTML = state.cup ? `🏆 ${escapeHtml(cupTitle(state.cup))} · game <span class="rpsn">${state.cup.n}</span> of <span class="rpsn">${state.cup.games}</span>${state.friendly ? ' · 🤝 friendly' : ''}`
-        : PRACTICE.on ? '🧪 Practice game · only you see this' : '🤝 Friendly game · not in stats';
+        : '🤝 Friendly game · not in stats';
     } else if (pill) pill.remove();
     document.body.classList.toggle('hascuppill', !!$('cuppill'));
     const usedSeats = {}; state.players.forEach((_, i) => { usedSeats[seatKey(i)] = 1; });
     ['tl', 'tr', 'br', 'bl'].forEach((k) => { if (!usedSeats[k]) { const el = $('p-' + k); if (el) el.style.display = 'none'; } });
-    requestAnimationFrame(fitDock);
   }
-  // v221: with the bigger voice corners, keep the bottom bar (your resources, or the watcher's strip) between the
-  // two bottom corners and their luck gauges, so nothing from a corner sits on it. Squeezes the gaps first.
-  function fitDock() {
-    const d = $('dock'), h = $('hand'); if (!d || !h) return;
-    // the right-hand corners' dice: slide left until they clear the round menu button
-    const m = $('radialtab'), mr = m && m.offsetWidth ? m.getBoundingClientRect() : null;
-    document.querySelectorAll('.corner.tr .pdice, .corner.br .pdice').forEach((x) => {
-      x.style.marginLeft = ''; if (!mr) return;
-      const a = x.getBoundingClientRect();
-      if (a.right > mr.left - 6 && a.bottom > mr.top - 4 && a.top < mr.bottom + 4) x.style.marginLeft = -(a.right - mr.left + 8) + 'px';
-    });
-    d.style.maxWidth = ''; h.style.gap = ''; h.style.paddingLeft = h.style.paddingRight = '';
-    if (!state || !document.body.classList.contains('vlive')) return;
-    let lim = 0;
-    document.querySelectorAll('.corner.bl, .corner.br').forEach((c) => {
-      if (c.style.display === 'none' || !c.offsetWidth) return;
-      [c, c.querySelector('.pluck')].forEach((e) => { if (!e) return; const r = e.getBoundingClientRect(); if (r.width) lim = Math.max(lim, c.classList.contains('bl') ? r.right : window.innerWidth - r.left); });
-    });
-    if (!lim) return;
-    const room = window.innerWidth - 2 * (lim + 8);
-    d.style.maxWidth = room + 'px';
-    if (!h.querySelector('.spechand')) {
-      for (const g of [30, 24, 18, 14, 10]) { h.style.gap = g + 'px'; if (h.scrollWidth <= room) break; }
-      if (h.scrollWidth > room) h.style.paddingLeft = h.style.paddingRight = '12px';
-    }
-    const sel = h.querySelector('.specsel'); if (sel) sel.classList.toggle('more', sel.scrollWidth > sel.clientWidth + 2);
-  }
-  window.addEventListener('resize', () => requestAnimationFrame(fitDock));
-  // the bottom corners can shift after a redraw (a photo or font arriving, a badge row appearing): re-fit every second too
-  setInterval(() => { if (state && document.body.classList.contains('vlive') && document.body.classList.contains('ingame')) fitDock(); }, 1000);   // cheap; same-frame reset + set, so no flicker
 
   // times robbed, as a number on a tag hanging off the corner's inner edge (from the first robbery on)
   const robbedSeen = {}, robbedBumpAt = {};
@@ -1218,9 +1180,7 @@
         const dev = `<span class="specdev">🎴 ${devs.length}${vpc ? ` · ⭐ ${vpc} VP` : ''}</span>`;
         return `<div class="spechand specview"><div class="specsel">${chips}</div><div class="specorbs">${orbs}</div>${dev}</div>`;
       }
-      const meBtn = voiceOn() && AUTH.me ? (LIVE.room ? `<span class="specvc vrow">${voiceBadges(AUTH.me.id)}</span>`   // v227: your mic/camera switches, as everywhere
-        : `<button class="speceye vpic" data-vid="${AUTH.me.id}" onclick="CATAN.voiceCard(this)" aria-label="Talk to the table">${faceHTML(AUTH.me.name, AUTH.me.avatar, 'sm')}${voiceBadges(AUTH.me.id, true)}</button>`) : '<span class="speceye">👁</span>';
-      return `<div class="spechand specview">${meBtn}<div class="specsel">${chips}</div>`
+      return `<div class="spechand specview"><span class="speceye">👁</span><div class="specsel">${chips}</div>`
         + `<div class="specorbs">${orbs}</div><button class="specleave" onclick="CATAN.exitGame()">Leave</button></div>`;
     }
     // online: show MY hand; pass-and-play: show the active player's
@@ -1712,8 +1672,7 @@
   }
   function watchingTag() {   // "👁 N" shown to everyone in an online game when people are spectating
     if (!online) return '';
-    const sp = LOBBY.spectators(), n = sp.length;
-    if (n && LIVE.room) return ` <span class="watchtag">👁 ${sp.map((w) => `<span class="vpic vmini" data-vid="${w.id}" onclick="event.stopPropagation();CATAN.voiceWho('${w.id}',this)">${faceHTML(w.name, w.avatar, 'sm')}${voiceBadges(w.id)}</span>`).join('')}</span>`;
+    const n = LOBBY.spectators().length;
     return n ? ` <span class="watchtag">👁 ${n}</span>` : '';
   }
   function banner() {
@@ -1795,7 +1754,7 @@
     n.classList.remove('show'); void n.offsetWidth; n.classList.add('show');
     clearTimeout(n._t); n._t = setTimeout(() => n.classList.remove('show'), 2400);
   }
-  function renderBanner() { const b = $('banner'); if (b && state) { b.innerHTML = banner(); voiceMountVideos(); } }   // live count refresh from presence
+  function renderBanner() { const b = $('banner'); if (b && state) b.innerHTML = banner(); }   // live count refresh from presence
 
   function actionsBar() {
     if (state.phase === 'ended') return '';   // the results reopen from the 🏆 tab
@@ -1837,7 +1796,7 @@
       const ms = o.querySelector('.menuscreen'); if (ms) ms.dataset.view = view;
     }
   }
-  function hideOverlay() { document.body.classList.remove('vwin'); const o = $('overlay'); o.classList.add('hidden'); o.classList.remove('menu', 'devmode', 'trademode', 'qmode'); document.body.classList.remove('trading'); o.innerHTML = ''; o.onclick = null; }
+  function hideOverlay() { const o = $('overlay'); o.classList.add('hidden'); o.classList.remove('menu', 'devmode', 'trademode', 'qmode'); document.body.classList.remove('trading'); o.innerHTML = ''; o.onclick = null; }
   // discard order: starting from the player AFTER the roller, around the table,
   // with the roller last (matches the original app).
   function discardOrder() {
@@ -2122,10 +2081,9 @@
       <h3>Settings</h3>
       ${musicRow}
       ${toggle('sfx', 'Sound effects')}
-      ${toggle('walkie', 'Hear voices')}
+      ${toggle('walkie', 'Walkie-talkie sound')}
       ${seg}
       ${toggle('autozoom', 'Auto-zoom')}
-      ${FRAMED && sidewaysUser() ? `<div class="setrow"><span class="setlbl">Sideways board</span><button class="setbtn" onclick="CATAN.sideFlip()">Flip it over</button></div>` : ''}
       <div class="setrow"><span class="setlbl">New-feature tips</span><button class="setbtn" onclick="CATAN.tipsAgain()"${(SETTINGS.seen || []).length ? '' : ' disabled'}>${(SETTINGS.seen || []).length ? 'Show again' : 'All unseen'}</button></div>
       <div class="setdiag">Sound engine: ${actx ? actx.state : 'not started'} · ${Object.keys(sndBuf).length}/${Object.keys(SFX).length} sounds · rebuilt ${audioRebuilds}×</div>
       <button class="btn full" onclick="CATAN.close()">Done</button>
@@ -2488,7 +2446,7 @@
   function showVictory(quiet) {   // quiet = returning from the dice stats: no fanfare/confetti replay
     if (quittingNow) return;     // I just quit: no fanfare on my way out
     if (ARCHIVE) quiet = true;   // a past game: no fanfare
-    victoryShownFor = gameKey(); victoryFinal = cupFinal(state); if (voiceOn() && LIVE.room) document.body.classList.add('vwin');   // with voice on: corners grow, faces stay live
+    victoryShownFor = gameKey(); victoryFinal = cupFinal(state);
     if (!quiet) playSound('win', 0.8);
     if (state.cup) { showCupVictory(quiet); return; }
     if (!ARCHIVE) STATS.loaded = false;   // a game just ended -> every client refetches stats on the next lobby visit
@@ -2510,9 +2468,9 @@
         <div class="winava" style="background:${PCOLOR[winner.color]}">${wav}</div></div>
       <h2 id="vtitle">${victoryTitle()}</h2>
       ${ARCHIVE ? `<div class="pastnote">📅 Final board · ${pastWhen()}</div>` : ''}
-      ${PRACTICE.on ? '<div class="quitnote">🧪 Practice game: nothing recorded.</div>' : state.friendly ? '<div class="quitnote">🤝 Friendly game: not recorded in Stats.</div>' : ''}
+      ${state.friendly ? '<div class="quitnote">🤝 Friendly game: not recorded in Stats.</div>' : ''}
       ${quitNoteHTML()}
-      ${PRACTICE.on ? `<button class="btn full" onclick="CATAN.practiceStart(false)">Play again</button>` : myColor ? `<div id="rmpanel">${rematchPanelHTML()}</div>` : ''}
+      ${myColor ? `<div id="rmpanel">${rematchPanelHTML()}</div>` : ''}
       ${domBadge}
       <div id="ggrow">${ggHTML()}</div>
       <div style="margin:12px 0">${standings}</div>
@@ -2520,7 +2478,7 @@
       <div class="winrow"><button class="btn wood" onclick="CATAN.viewBoard()">🗺️ View board</button><button class="btn wood" onclick="CATAN.openDiceStats('victory')">📊 Dice stats</button></div>
       ${ARCHIVE ? `<button class="btn full" onclick="CATAN.closePast()">Back to stats</button>`
         : myColor
-          ? `<button class="btn wood full" onclick="CATAN.leaveEnded()">${PRACTICE.on ? 'Back to the practice table' : 'Back to lobby'}</button>`
+          ? `<button class="btn wood full" onclick="CATAN.leaveEnded()">Back to lobby</button>`
           : `<button class="btn full" onclick="CATAN.confirmExit()">Back to lobby</button>`}</div>`);
     syncRmBar();   /* a watcher leaves for themselves — never resets the players' table */
     refreshGG();
@@ -2777,7 +2735,6 @@
     if (!rec || !online || !myColor) return;
     if (Date.now() - lastBcAt < BC_COOLDOWN) { toast('Easy — one sec'); return; }
     lastBcAt = Date.now();
-    if (PRACTICE.on) { showBroadcast({ type: 'voice', url: URL.createObjectURL(rec.blob), dur: rec.dur, name: AUTH.me.name, avatar: AUTH.me.avatar || null, color: myColor }); return; }   // practice: played back here only
     const c = NET.init(); const code = LOBBY.table || NET.code;
     if (!c || !code) return;
     const path = code + '/' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.wav';
@@ -2968,7 +2925,7 @@
   // the markup renderPanels adds to a corner: my mic, a talking badge, a muted badge
   function wtCornerBits(color) {
     if (!online || !state || state.phase === 'ended') return { mic: '', badge: '' };
-    const mic = color === myColor && wtAvailable() && voiceDown() ? `<button class="pwt${WT.live ? ' live' : ''}" onclick="event.stopPropagation();CATAN.wt()" aria-label="${WT.live ? 'Stop talking' : 'Talk to the table'}">${wtMicInner()}</button>` : '';
+    const mic = color === myColor && wtAvailable() ? `<button class="pwt${WT.live ? ' live' : ''}" onclick="event.stopPropagation();CATAN.wt()" aria-label="${WT.live ? 'Stop talking' : 'Talk to the table'}">${wtMicInner()}</button>` : '';
     const badge = color !== myColor && wtIsMuted(color) ? `<span class="pwtmute" title="Walkie-talkie sound off">${WT_MUTE}</span>` : `<span class="pwteq"><i></i><i></i><i></i></span>`;
     return { mic, badge };
   }
@@ -2990,666 +2947,6 @@
     if (state && Object.keys(WT.mutedAt).some((c) => WT.mutedAt[c] && !wtIsMuted(c))) { Object.keys(WT.mutedAt).forEach((c) => { if (!wtIsMuted(c)) WT.mutedAt[c] = 0; }); renderPanels(); }
   }, 10000);
   function wtReset() { wtStop(true); WT.talk = {}; WT.rx = {}; wtHideListen(); }
-
-  // ---- live voice & video at the table (v215; spec: docs/prd-voice-video.md, trial: voice-trial/) ----
-  // One LiveKit call per TABLE ("table-<code>"), joined as a listener whenever you're at a table (room, game,
-  // victory, rematch, cup), so everyone hears everyone. Tapping your own picture turns your mic / camera on.
-  // Audio plays through the game's own AudioContext (webAudioMix): the trial showed that only the game's audio
-  // setup (silent keep-alive + rebuild on the first tap after the lock screen) survives a long iPhone lock.
-  // Our server never carries media: phones <-> LiveKit. The pass comes from the Supabase function voice-token.
-  const LIVE_LIB = 'livekit-client-2.22.4.umd.js';
-  const LIVE = {
-    cfg: null, lib: null, libP: null,
-    room: null, roomName: null, connecting: false, fails: 0, retryAt: 0, joinedAt: 0, gen: 0, blocked: null, downNoted: false, wasLive: false,
-    mic: false, cam: false,
-    peers: {},        // identity -> { deaf } from their data messages
-    mutedForMe: {},   // identity -> true: I muted them (only on my phone)
-    mutedMe: {},      // identity -> true: they muted me
-    vids: {},         // identity -> persistent <video> for their camera
-    askOpen: false, autoDone: null,
-  };
-  function voiceOn() {   // on unless voice-config.json says off; "only": [names] limits it to those players (staged rollout)
-    const c = LIVE.cfg;
-    if (c && c.enabled === false) return false;
-    if (c && Array.isArray(c.only) && !(AUTH.me && c.only.some((n) => String(n).toLowerCase() === String(AUTH.me.name || '').toLowerCase()))) return false;
-    return !!(window.RTCPeerConnection && navigator.mediaDevices);
-  }
-  function voiceDown() { return !voiceOn() || !LIVE.room; }   // no call right now: the walkie-talkie button is the fallback
-  function voiceWanted() {
-    if (LIVE.cfg && voiceOn() && AUTH.me && AUTH.me.token && (PRACTICE.room || PRACTICE.on)) return 'table-' + practiceRoomCode();   // practice: a call of its own
-    if (!LIVE.cfg || !voiceOn() || !AUTH.me || !AUTH.me.token || !LOBBY.table || ARCHIVE) return null;
-    const code = String(LOBBY.table).replace(/[^A-Za-z0-9]/g, '').slice(0, 12);
-    return code.length >= 2 ? 'table-' + code : null;
-  }
-  fetch('voice-config.json', { cache: 'no-store' }).then((r) => r.json()).then((c) => { LIVE.cfg = c || {}; voiceSync(); if (state) try { renderPanels(); } catch (_) { } }).catch(() => { LIVE.cfg = { enabled: true }; });
-  function voiceLoadLib() {
-    if (window.LivekitClient) return Promise.resolve(window.LivekitClient);
-    if (!LIVE.libP) LIVE.libP = new Promise((ok, no) => { const s = document.createElement('script'); s.src = LIVE_LIB; s.onload = () => ok(window.LivekitClient); s.onerror = () => { LIVE.libP = null; no(new Error('lib')); }; document.head.appendChild(s); });
-    return LIVE.libP;
-  }
-  // keep the call matching where I am: join my table's call, leave it when I leave the table
-  function voiceSync() {
-    document.body.classList.toggle('vlive', !!(LIVE.cfg && AUTH.me && voiceOn()));   // bigger corners etc. only for players with voice
-    const want = voiceWanted();
-    if (LIVE.roomName && LIVE.roomName !== want) voiceLeave();
-    if (want && !LIVE.room && !LIVE.connecting && actx && Date.now() >= LIVE.retryAt) voiceJoin(want);
-  }
-  setInterval(voiceSync, 2000);
-  async function voiceJoin(name) {
-    const gen = ++LIVE.gen;   // a newer join or a leave makes this one stale
-    LIVE.connecting = true; LIVE.roomName = name;
-    const stale = () => gen !== LIVE.gen || voiceWanted() !== name;
-    let room = null;
-    try {
-      const LK = await voiceLoadLib();
-      const r = await fetch(`${window.SUPA.url}/functions/v1/voice-token`, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: window.SUPA.anonKey }, body: JSON.stringify({ token: AUTH.me.token, room: name }) });
-      const t = await r.json().catch(() => ({}));
-      if (!r.ok || !t.ok) throw new Error(t.error || ('token ' + r.status));
-      if (stale()) { if (gen === LIVE.gen) { LIVE.connecting = false; LIVE.roomName = null; } return; }   // left the table meanwhile
-      room = new LK.Room({
-        adaptiveStream: false,   // the pictures are tiny and drawn from a hidden player: never let LiveKit pause a video it thinks nobody watches
-        dynacast: true,
-        webAudioMix: { audioContext: actx },
-        publishDefaults: { stopMicTrackOnMute: true },   // mic off really releases the mic (iPhone: back to normal playback)
-        audioCaptureDefaults: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-        videoCaptureDefaults: { resolution: { width: 320, height: 240, frameRate: 15 }, facingMode: 'user' },
-      });
-      voiceWire(room, LK);
-      await room.connect(t.url, t.token, { autoSubscribe: true });
-      if (stale()) { try { room.disconnect(); } catch (_) { } if (gen === LIVE.gen) { LIVE.connecting = false; LIVE.roomName = null; } return; }
-      LIVE.room = room; LIVE.joinedAt = Date.now(); LIVE.fails = 0; LIVE.connecting = false; LIVE.downNoted = false;
-      try { await room.startAudio(); } catch (_) { }
-      voiceSendState(); voiceVolumes(); voiceRefresh();
-      voiceAfterJoin();
-    } catch (e) {
-      if (room) { try { room.disconnect(); } catch (_) { } }
-      if (gen !== LIVE.gen) return;
-      LIVE.connecting = false; LIVE.room = null; LIVE.roomName = null;
-      LIVE.fails++; LIVE.retryAt = Date.now() + Math.min(60000, 5000 * LIVE.fails);
-      voiceDownNote(); voiceRefresh();
-    }
-  }
-  function voiceDownNote() {   // once per table: the walkie-talkie is back because voice can't connect
-    if (LIVE.downNoted || !voiceDown() || !LOBBY.table) return;
-    LIVE.downNoted = true; toast('Voice isn\'t available right now · the 🎤 walkie-talkie is back');
-  }
-  function voiceLeave() {
-    LIVE.gen++;
-    const r = LIVE.room; LIVE.room = null; LIVE.roomName = null; LIVE.connecting = false; LIVE.autoDone = null; LIVE.blocked = null; LIVE.downNoted = false; LIVE.retryAt = 0; LIVE.fails = 0;
-    if (LIVE.mic || LIVE.cam) micSessionOff();
-    LIVE.mic = false; LIVE.cam = false; LIVE.peers = {}; LIVE.mutedForMe = {}; LIVE.mutedMe = {};
-    Object.keys(LIVE.vids).forEach((k) => { try { LIVE.vids[k].remove(); } catch (_) { } }); LIVE.vids = {};
-    if (r) { try { r.disconnect(); } catch (_) { } }
-    voiceRefresh();
-  }
-  function voiceWire(room, LK) {
-    const E = LK.RoomEvent, again = () => { voiceVolumes(); voiceRefresh(); };
-    room.on(E.TrackSubscribed, (track) => { if (track.kind === 'audio') { try { track.attach(); } catch (_) { } } again(); })   // with webAudioMix, attach() wires the voice into the game's sound engine.on(E.TrackUnsubscribed, (track) => { try { track.detach(); } catch (_) { } again(); })
-      .on(E.TrackMuted, again).on(E.TrackUnmuted, again).on(E.LocalTrackPublished, again).on(E.LocalTrackUnpublished, again)
-      .on(E.ParticipantConnected, () => { voiceSendState(); again(); })
-      .on(E.ParticipantDisconnected, (p) => { delete LIVE.peers[p.identity]; delete LIVE.mutedMe[p.identity]; const v = LIVE.vids[p.identity]; if (v) { v.remove(); delete LIVE.vids[p.identity]; } again(); })
-      .on(E.DataReceived, (payload, p) => voiceOnData(payload, p))
-      .on(E.Disconnected, (reason) => {
-        if (LIVE.room !== room) return;
-        LIVE.room = null; LIVE.roomName = null; LIVE.mic = false; LIVE.cam = false; micSessionOff();
-        const R = LK.DisconnectReason || {};
-        if (reason === R.DUPLICATE_IDENTITY || reason === R.PARTICIPANT_REMOVED || reason === R.ROOM_DELETED) {
-          LIVE.blocked = LIVE.roomName || 'x'; LIVE.retryAt = Infinity;   // another of my devices took over: don't fight it
-          if (reason === R.DUPLICATE_IDENTITY) toast('Voice moved to your other device');
-        } else { LIVE.fails++; LIVE.retryAt = Date.now() + Math.min(60000, 2000 * LIVE.fails); }
-        voiceDownNote(); voiceRefresh();
-      })
-      .on(E.AudioPlaybackStatusChanged, () => { if (!room.canPlaybackAudio) audioStale = true; });   // the next tap rebuilds + restarts
-  }
-  // the game rebuilt its AudioContext (first tap after the lock screen, a voice note...): move the voices onto it
-  function voiceOnCtx() {
-    const r = LIVE.room; if (!r || !actx) return;
-    try {
-      r.options.webAudioMix = { audioContext: actx };
-      r.startAudio().catch(() => { });
-      r.remoteParticipants.forEach((p) => p.audioTrackPublications.forEach((pub) => { if (pub.track) { pub.track.detach(); pub.track.attach(); } }));
-      voiceVolumes();
-    } catch (_) { }   // never let voice break the game's sound
-  }
-  async function voiceSetMic(on) {
-    const r = LIVE.room; if (!r) return;
-    try {
-      if (on) { wtStop(); micSessionOn(); }
-      await r.localParticipant.setMicrophoneEnabled(on);
-      LIVE.mic = on;
-    } catch (e) { LIVE.mic = false; toast('Your mic is blocked: allow the microphone for this app in your phone\'s settings'); }
-    if (!LIVE.mic) micSessionOff();
-    voiceRefresh();
-  }
-  async function voiceSetCam(on) {
-    const r = LIVE.room; if (!r) return;
-    try { await r.localParticipant.setCameraEnabled(on); LIVE.cam = on; }
-    catch (e) { LIVE.cam = false; if (on) { toast('Camera blocked: you\'re on audio'); if (!LIVE.mic) await voiceSetMic(true); } }
-    voiceRefresh();
-  }
-  // locking the phone / switching apps: mic and camera go off, and stay off on return (no surprise broadcast)
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden && LIVE.room && (LIVE.mic || LIVE.cam)) { LIVE.wasLive = true; if (LIVE.cam) voiceSetCam(false); if (LIVE.mic) voiceSetMic(false); }
-    if (!document.hidden && LIVE.room) {
-      if (LIVE.mic || LIVE.cam) { if (LIVE.cam) voiceSetCam(false); if (LIVE.mic) voiceSetMic(false); }   // the background switch-off may not have finished
-      if (LIVE.wasLive) { LIVE.wasLive = false; toast('Voice back on · your mic is off'); }
-    }
-  });
-  // what everyone needs to know about me: am I hearing voices at all ("Hear voices" in Settings)
-  // v232 sideways board (rotate.html): how far the host page has turned this app (90, -90 or 0). The phone still thinks
-  // it's upright, so its camera films sideways: every picture of this player is turned back by this angle when drawn
-  // (vDraw), here and on everyone else's phone (sent with the call state as 'rot').
-  let SIDE_ANGLE = 0;
-  function voiceSend(obj, to) {
-    const r = LIVE.room; if (!r) return;
-    try { r.localParticipant.publishData(new TextEncoder().encode(JSON.stringify(obj)), to ? { reliable: true, destinationIdentities: [to] } : { reliable: true }); } catch (_) { }
-  }
-  function voiceSendState() { voiceSend({ t: 'st', deaf: SETTINGS.walkie === false ? 1 : 0, mutes: Object.keys(LIVE.mutedForMe), rot: SIDE_ANGLE }); }
-  function voiceOnData(payload, p) {
-    let m; try { m = JSON.parse(new TextDecoder().decode(payload)); } catch (_) { return; }
-    if (!p || !m) return;
-    const me = AUTH.me && AUTH.me.id;
-    if (m.t === 'st') {
-      const was = JSON.stringify([LIVE.peers[p.identity], !!LIVE.mutedMe[p.identity]]);
-      LIVE.peers[p.identity] = { deaf: !!m.deaf, rot: m.rot === 90 || m.rot === -90 ? m.rot : 0 };
-      const has = Array.isArray(m.mutes) && m.mutes.indexOf(me) >= 0;
-      if (has) LIVE.mutedMe[p.identity] = true; else delete LIVE.mutedMe[p.identity];
-      if (was !== JSON.stringify([LIVE.peers[p.identity], !!LIVE.mutedMe[p.identity]])) voiceRefresh();   // the 15s heartbeat mustn't redraw anything
-    } else if (m.t === 'mute') {
-      if (m.target === me) { if (m.on) LIVE.mutedMe[p.identity] = true; else delete LIVE.mutedMe[p.identity]; }
-      voiceSay(`${voiceNameOf(p.identity) || 'Someone'} ${m.on ? 'muted' : 'unmuted'} ${m.target === me ? 'you' : (voiceNameOf(m.target) || 'someone')}`);
-      voiceRefresh();
-    }
-  }
-  function voiceSay(msg) { if (state && online && document.body.classList.contains('ingame')) announce('🔇 ' + msg); else toast(msg); }
-  function voiceNameOf(id) {
-    if (AUTH.me && id === AUTH.me.id) return AUTH.me.name;
-    const r = LIVE.room, p = r && (PRACTICE.fake[id] || r.remoteParticipants.get(id));
-    if (p && p.name) return p.name;
-    const s = (gameSeats || []).find((x) => x && x.playerId === id); return s ? s.name : null;
-  }
-  // mute someone for me only, and tell the table (they see it too)
-  function voiceMuteForMe(id, on) {
-    if (on) LIVE.mutedForMe[id] = true; else delete LIVE.mutedForMe[id];
-    voiceVolumes();
-    voiceSend({ t: 'mute', target: id, on: on ? 1 : 0 });
-    voiceSay(`${AUTH.me.name} ${on ? 'muted' : 'unmuted'} ${voiceNameOf(id) || 'someone'}`);
-    voiceSendState(); voiceRefresh();
-  }
-  // per-voice volume (works on iPhone because the voices go through Web Audio): 0 when muted-for-me or Hear voices is off
-  function voiceVolumes() {
-    const r = LIVE.room; if (!r) return;
-    r.remoteParticipants.forEach((p) => p.audioTrackPublications.forEach((pub) => {
-      if (pub.track && pub.track.setVolume) pub.track.setVolume(SETTINGS.walkie === false || LIVE.mutedForMe[p.identity] ? 0 : 1);
-    }));
-  }
-  // ---- who is doing what, for the pictures (corners, room seats, watchers) ----
-  function voicePart(id) {
-    const r = LIVE.room; if (!r || !id) return null;
-    if ((PRACTICE.on || PRACTICE.room) && PRACTICE.fake[id]) return PRACTICE.fake[id];   // practice: a computer player's pretend video/voice
-    if (AUTH.me && id === AUTH.me.id) return r.localParticipant;
-    return r.remoteParticipants.get(id) || null;
-  }
-  function voiceInfo(id) {
-    const p = voicePart(id), mine = !!(AUTH.me && id === AUTH.me.id);
-    if (!p) return null;
-    const LK = window.LivekitClient, a = p.getTrackPublication(LK.Track.Source.Microphone), v = p.getTrackPublication(LK.Track.Source.Camera);
-    const mic = mine ? LIVE.mic : !!(a && !a.isMuted), cam = mine ? LIVE.cam : !!(v && v.track && !v.isMuted);
-    return { p, mine, mic, micMuted: !mic && cam, cam, deaf: mine ? SETTINGS.walkie === false : !!(LIVE.peers[id] && LIVE.peers[id].deaf), forMe: !!LIVE.mutedForMe[id], mutedMe: !!LIVE.mutedMe[id] };
-  }
-  const VI_MIC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>';
-  const VI_MICX = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M4 4l16 16"/></svg>';
-  const VI_CAM = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6.5" width="13" height="11" rx="2.5" fill="currentColor"/><path d="M15.5 10.5l6-3.5v10l-6-3.5z" fill="currentColor"/></svg>';
-  const VI_CAMX = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6.5" width="13" height="11" rx="2.5"/><path d="M15.5 10.5l6-3.5v10l-6-3.5zM3 3l18 18"/></svg>';
-  const VI_SPKX = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M17 9l5 6M22 9l-5 6"/></svg>';
-  const VI_DEAF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 14v-2a9 9 0 0 1 18 0v2"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/><path d="M3 3l18 18"/></svg>';
-  // badges on a picture: my own are buttons (one tap = mute / camera off); others' are plain markers
-  const VBARS = '<span class="vbars"><i></i><i></i><i></i></span>';   // live sound bars (shown while talking)
-  function voiceBadges(id, plain) {   // plain: inside another button (no nested buttons)
-    const i = voiceInfo(id); if (!i) return '';
-    if (plain && i.mine) i.mine = false;
-    if (i.mine) {   // v226: my two badges ARE the controls: always both, one tap each (calm = on, red = off)
-      return `<button class="vb vcam${LIVE.cam ? '' : ' vred'}" onclick="event.stopPropagation();CATAN.voiceCam(${LIVE.cam ? 'false' : 'true'})" aria-label="${LIVE.cam ? 'Turn camera off' : 'Turn camera on'}">${LIVE.cam ? VI_CAM : VI_CAMX}</button>`
-        + `<button class="vb vmic${LIVE.mic ? '' : ' vred'}" onclick="event.stopPropagation();CATAN.voiceMic(${LIVE.mic ? 'false' : 'true'})" aria-label="${LIVE.mic ? 'Mute' : 'Unmute'}">${LIVE.mic ? VI_MIC + VBARS : VI_MICX}</button>`;
-    }
-    let s = '';
-    if (i.cam) s += i.mine ? `<button class="vb vcam" onclick="event.stopPropagation();CATAN.voiceCam(false)" aria-label="Turn camera off">${VI_CAM}</button>` : `<span class="vb vcam">${VI_CAM}</span>`;
-    if (i.forMe) s += `<button class="vb vgrey vmic" onclick="event.stopPropagation();CATAN.voiceMuteFor('${id}',false)" aria-label="Unmute for me">${VI_SPKX}</button>`;
-    else if (i.mic) s += i.mine ? `<button class="vb vmic" onclick="event.stopPropagation();CATAN.voiceMic(false)" aria-label="Mute">${VI_MIC}${VBARS}</button>` : `<span class="vb vmic">${VI_MIC}${VBARS}</span>`;
-    else if (i.micMuted) s += i.mine ? `<button class="vb vred vmic" onclick="event.stopPropagation();CATAN.voiceMic(true)" aria-label="Unmute">${VI_MICX}</button>` : `<span class="vb vred vmic">${VI_MICX}</span>`;
-    else if (i.deaf) s += `<span class="vb vgrey vmic" title="Not hearing voices">${VI_DEAF}</span>`;
-    return s;
-  }
-  function voiceTag(id) {
-    const i = voiceInfo(id);
-    // at the table but not in the call after 30s: an older app version, or voice blocked on that phone
-    if (!i) return LIVE.room && id && !(AUTH.me && id === AUTH.me.id) && Date.now() - LIVE.joinedAt > 30000 && LOBBY.liveIds.has(id) ? '<span class="vtag" title="Not in the voice call (old app version?)">no voice</span>' : '';
-    if (i.mine) return '';
-    if (i.forMe) return '<span class="vtag" title="Muted for you">muted</span>';
-    if (i.mutedMe) return '<span class="vtag" title="Has you muted">muted you</span>';
-    if (i.deaf) return '<span class="vtag" title="Not hearing voices">can\'t hear</span>';
-    return '';
-  }
-  // a picture element carries data-vid="<player id>": glow follows the voice, video replaces the photo
-  function voiceRefresh() {
-    if (state && document.body.classList.contains('ingame')) { try { renderPanels(); if (online && !myColor) { const h = $('hand'); if (h) h.innerHTML = handBar(); } } catch (_) { } }   // a watcher's switches live in the bottom bar
-    else if (typeof renderLobby === 'function' && AUTH.me && LV.tab === 'play') { lobbySig = null; try { renderLobby(); } catch (_) { } }   // the chat tab keeps its scroll
-    voiceMountVideos();
-  }
-  // live camera pictures: each player's <video> plays in a hidden holder that never moves (iOS won't paint a
-  // <video> inside the dimmed, often-redrawn corners), and every picture showing them gets a <canvas> that copies
-  // its frames ~15 times a second. Works under any CSS filter / transform and survives every redraw.
-  function voiceVideoEl(id, track) {
-    let v = LIVE.vids[id];
-    if (!v) {
-      let h = document.getElementById('vholder');
-      if (!h) { h = document.createElement('div'); h.id = 'vholder'; document.body.appendChild(h); }
-      v = document.createElement('video'); v.muted = true; v.playsInline = true; v.autoplay = true; v.setAttribute('playsinline', ''); v.setAttribute('muted', '');
-      h.appendChild(v); LIVE.vids[id] = v;
-    }
-    if (v._track !== track) { try { track.attach(v); } catch (_) { } v._track = track; }
-    if (v.paused) v.play().catch(() => { });
-    return v;
-  }
-  function voiceMountVideos() {
-    const r = LIVE.room, LK = window.LivekitClient, live = {};
-    document.querySelectorAll('[data-vid]').forEach((box) => {
-      const id = box.getAttribute('data-vid'), i = r && voiceInfo(id);
-      let cv = box.querySelector(':scope > canvas.vvid');
-      const pub = i && i.cam && LK ? i.p.getTrackPublication(LK.Track.Source.Camera) : null;
-      if (pub && pub.track) {
-        live[id] = true; voiceVideoEl(id, pub.track);
-        if (!cv) { cv = document.createElement('canvas'); cv.className = 'vvid' + (i.mine ? ' mine' : ''); box.appendChild(cv); }
-      } else if (cv) cv.remove();
-    });
-    Object.keys(LIVE.vids).forEach((id) => { if (!live[id] && !(r && voiceInfo(id) && voiceInfo(id).cam)) { const v = LIVE.vids[id]; try { v.srcObject = null; v.remove(); } catch (_) { } delete LIVE.vids[id]; } });
-  }
-  let vDrawAt = 0;
-  (function vDraw(t) {
-    requestAnimationFrame(vDraw);
-    if (!LIVE.room || t - vDrawAt < 66) return; vDrawAt = t;
-    document.querySelectorAll('canvas.vvid').forEach((cv) => {
-      const box = cv.parentNode, id = box && box.getAttribute('data-vid'), v = id && LIVE.vids[id];
-      if (!v || v.readyState < 2 || !v.videoWidth) return;
-      const dpr = Math.min(2, window.devicePixelRatio || 1), bw = Math.round(box.clientWidth * dpr), bh = Math.round(box.clientHeight * dpr);
-      if (bw < 4 || bh < 4) return;
-      if (cv.width !== bw || cv.height !== bh) { cv.width = bw; cv.height = bh; }   // same shape as the picture: never stretched
-      const rot = AUTH.me && id === AUTH.me.id ? SIDE_ANGLE : ((LIVE.peers[id] && LIVE.peers[id].rot) || 0);   // a sideways-board phone films on its side
-      const w = cv.width, h = cv.height, vw = rot ? v.videoHeight : v.videoWidth, vh = rot ? v.videoWidth : v.videoHeight;
-      const s = Math.max(w / vw, h / vh), dw = v.videoWidth * s, dh = v.videoHeight * s;
-      try {
-        const g = cv.getContext('2d');
-        if (!rot) g.drawImage(v, (w - dw) / 2, (h - dh) / 2, dw, dh);
-        else { g.save(); g.translate(w / 2, h / 2); g.rotate(rot * Math.PI / 180); g.drawImage(v, -dw / 2, -dh / 2, dw, dh); g.restore(); }
-      } catch (_) { }
-    });
-  })(0);
-  // speaking glow: brighter when louder (LiveKit audio levels, 8x a second)
-  setInterval(() => {
-    const r = LIVE.room; if (!r) return;
-    document.querySelectorAll('[data-vid]').forEach((el) => {
-      const p = voicePart(el.getAttribute('data-vid')), lv = p ? Math.min(1, (p.audioLevel || 0) * 3) : 0;
-      const on = lv > 0.06 && !(p && LIVE.mutedForMe[p.identity]);
-      el.classList.toggle('vtalk', on);
-      el.style.setProperty('--vlv', on ? lv.toFixed(2) : '0');
-    });
-  }, 125);
-  setInterval(() => { if (LIVE.room) voiceSendState(); }, 15000);   // late joiners learn who's deaf / who muted whom
-  // ---- your choice: asked once (Audio / Video / Just listen), remembered after that ----
-  const LIVE_IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  function voiceAfterJoin() {
-    if (LIVE.autoDone === LIVE.roomName) return;   // reconnects (e.g. after the lock screen) keep the mic OFF
-    LIVE.autoDone = LIVE.roomName;
-    const m = SETTINGS.voice;
-    if (!m) { voiceAsk(); return; }
-    if (m === 'audio' || m === 'video') {   // a remembered Video starts on Audio: the camera never switches on by itself
-      voiceSetMic(true).then(() => { if (LIVE.mic) toast(m === 'video' ? '🎤 Your mic is on · tap 📷 to turn your camera on' : '🎤 Your mic is on'); });
-    }
-  }
-  function voiceAsk() {
-    if (LIVE.askOpen || document.getElementById('vask')) return;
-    LIVE.askOpen = true;
-    const d = document.createElement('div'); d.id = 'vask';
-    d.innerHTML = `<div class="vaskcard"><div class="vasknew">NEW</div><div class="vaskh">Talk while you play</div>
-      <p class="vasksub">Your table now has a live call. Everyone seated or watching can hear, and see, each other during the game.</p>
-      <div class="vaskq">Pick how you join:</div>
-      <button class="vopt" data-m="video">${VI_CAM}<span><b>Video and voice</b><small>They see and hear you</small></span></button>
-      <button class="vopt" data-m="audio">${VI_MIC}<span><b>Voice only</b><small>They hear you, your camera stays off</small></span></button>
-      <button class="vopt" data-m="listen">${VI_DEAF.replace('<path d="M3 3l18 18"/>', '')}<span><b>Just listen</b><small>Your mic and camera stay off. You still hear and see everyone</small></span></button>
-      <p class="vasknote">We'll remember your choice. Change it any time with the 📷 and 🎤 next to your name.</p>
-      <button class="vasklater">Decide later</button>
-      ${LIVE_IOS ? '<p class="vasknote">On iPhone, while your mic is on, music plays at call volume and AirPods switch to call quality.</p>' : ''}</div>`;
-    document.body.appendChild(d);
-    d.addEventListener('click', (e) => { if (e.target === d) { d.remove(); LIVE.askOpen = false; } });   // not now: asked again at the next table
-    d.querySelector('.vasklater').onclick = () => { d.remove(); LIVE.askOpen = false; };   // asked again at the next table
-    d.querySelectorAll('.vopt').forEach((b) => b.onclick = () => {
-      const m = b.getAttribute('data-m'); SETTINGS.voice = m; saveSettings();
-      d.remove(); LIVE.askOpen = false;
-      if (m === 'audio') voiceSetMic(true);
-      else if (m === 'video') voiceSetMic(true).then(() => voiceSetCam(true));
-    });
-  }
-  // ---- the card on your own picture ----
-  // v221: place a popup next to the picture that opened it, with a small pointer back to it
-  function popAt(el, ar) {
-    const W = window.innerWidth, H = window.innerHeight, w = el.offsetWidth, h = el.offsetHeight, cx = ar.left + ar.width / 2;
-    const left = Math.min(W - w - 6, Math.max(6, cx < W / 2 ? ar.left : ar.right - w));
-    const below = ar.top + ar.height / 2 < H / 2, want = below ? ar.bottom + 11 : ar.top - h - 11;
-    const top = Math.max(6, Math.min(H - h - 6, want));
-    Object.assign(el.style, { left: left + 'px', top: top + 'px', right: '', bottom: '', transform: '' });
-    el.classList.remove('pdn', 'pup');
-    if (Math.abs(top - want) < 1) { el.classList.add(below ? 'pdn' : 'pup'); el.style.setProperty('--px', Math.max(16, Math.min(w - 16, cx - left)) + 'px'); }
-  }
-  const POPX = '<button class="popx" data-a="x" aria-label="Close">×</button>';
-  function voiceCard(anchor) {
-    const old = document.getElementById('vcard'); if (old) { old.remove(); return; }
-    const c = document.createElement('div'); c.id = 'vcard';
-    const r = LIVE.room;
-    if (!r) c.innerHTML = `<div class="vch">Talk to the table</div><p class="vcnote">${voiceDown() ? 'Voice isn\'t available right now. Use the 🎤 walkie-talkie.' : 'Connecting to the table\'s voice…'}</p>`;
-    else if (!LIVE.mic && !LIVE.cam) c.innerHTML = `<div class="vch">Talk to the table</div><div class="vcrow">
-        <button class="vcbig" data-a="audio">${VI_MIC}<b>Audio</b><small>mic on</small></button>
-        <button class="vcbig" data-a="video">${VI_CAM}<b>Video</b><small>camera + mic</small></button></div>`;
-    else c.innerHTML = `<div class="vch">You're on the call</div>
-        <button class="vcsw" data-a="mic">${VI_MIC}<span>Mic</span><i class="sw${LIVE.mic ? ' on' : ''}"></i></button>
-        <button class="vcsw" data-a="cam">${VI_CAM}<span>Camera</span><i class="sw${LIVE.cam ? ' on' : ''}"></i></button>
-        <button class="vcend" data-a="end">Leave the call</button><p class="vcnote">You'll still hear everyone.</p>`;
-    if (state && online && myColor && document.body.classList.contains('ingame')) { if ((MSGLOG[myColor] || []).length) c.innerHTML += `<button class="vclink" data-a="msgs">My recent messages ›</button>`; }   // nothing to open when you sent none
-    else if (LOBBY.table && !state) c.innerHTML += `<button class="vclink" data-a="colour">Change my colour ›</button>`;
-    c.innerHTML = POPX + c.innerHTML;
-    document.body.appendChild(c);
-    const ar = anchor && anchor.getBoundingClientRect();
-    if (ar && ar.width) popAt(c, ar);
-    else { c.style.top = '50%'; c.style.left = '50%'; c.style.transform = 'translate(-50%,-50%)'; }
-    const kill = () => { c.remove(); document.removeEventListener('pointerdown', outside, true); };
-    const outside = (e) => { if (!c.contains(e.target)) kill(); };
-    setTimeout(() => document.addEventListener('pointerdown', outside, true), 0);
-    c.querySelectorAll('[data-a]').forEach((b) => b.onclick = async () => {
-      const a = b.getAttribute('data-a'); kill();
-      if (a === 'audio') await voiceSetMic(true);
-      else if (a === 'video') { await voiceSetMic(true); await voiceSetCam(true); }
-      else if (a === 'mic') await voiceSetMic(!LIVE.mic);
-      else if (a === 'cam') await voiceSetCam(!LIVE.cam);
-      else if (a === 'end') { await voiceSetCam(false); await voiceSetMic(false); }
-      else if (a === 'msgs') showMsgHistory(myColor);
-      else if (a === 'colour') CATAN.lvSheet('colour');
-    });
-  }
-  // tap a watcher's face (beside the banner): their name and the mute-for-me line
-  function voiceWho(id, anchor) {
-    const old = document.getElementById('vcard'); if (old) old.remove();
-    if (AUTH.me && id === AUTH.me.id) { if (!LIVE.room) voiceCard(anchor); return; }   // in the call, your badges are the controls
-    const row = voiceMuteRow(id); if (!row) return;
-    const c = document.createElement('div'); c.id = 'vcard';
-    const watching = LOBBY.spectators().some((w) => w.id === id);
-    c.innerHTML = `${POPX}<div class="vch">${escapeHtml(voiceNameOf(id) || '')}${watching ? ' · watching' : ''}</div>${row}`;
-    document.body.appendChild(c);
-    popAt(c, anchor.getBoundingClientRect());
-    c.querySelector('.popx').onclick = () => kill();
-    const kill = () => { c.remove(); document.removeEventListener('pointerdown', outside, true); };
-    const outside = (e) => { if (!c.contains(e.target)) kill(); };
-    setTimeout(() => document.addEventListener('pointerdown', outside, true), 0);
-    c.querySelector('.vmuterow').addEventListener('click', kill);
-  }
-  // the extra line in another player's popover: mute them for me
-  function voiceMuteRow(id) {
-    if (!LIVE.room || !id || !voicePart(id) || (AUTH.me && id === AUTH.me.id)) return '';
-    const nm = escapeHtml(voiceNameOf(id) || 'them'), on = !!LIVE.mutedForMe[id];
-    return `<button class="vmuterow" onclick="CATAN.voiceMuteFor('${id}',${on ? 'false' : 'true'})">${on ? VI_MIC : VI_SPKX}<span>${on ? 'Unmute ' + nm : 'Mute ' + nm + ' for me'}</span></button>${on ? '' : '<div class="vcnote">Only you stop hearing them. The table will see that you did.</div>'}`;
-  }
-
-  // ---- practice table (v222): only for the test players. A local table with two computer players: nothing is
-  //      written to the game server (no games row, no chat rows, no stats), but the voice/video call is real
-  //      (its own LiveKit room), so the call, the bigger corners and every in-game screen can be tried alone.
-  //      Bot moves go through applyRemoteState, the same path a real remote player's move takes.
-  const PRACTICE = { room: false, on: false, bots: [], timer: null, turnKey: null, acts: 0, busyUntil: 0, fake: {}, talkAt: 0 };
-  const PRACTICE_BOTS = [{ name: 'Zaatar', id: 'bot-zaatar' }, { name: 'Kibbeh', id: 'bot-kibbeh' }];
-  const PRACTICE_SAY = { robbed: ['sorry habibi', 'haha', 'tfeh'], won: ['yalla', 'fayyish'], seven: ['wleeee', 'ma32oul?!'] };
-  function practiceAllowed() { return !!(AUTH.me && /^test2?$/i.test(String(AUTH.me.name || '').trim())); }
-  function practiceRoomCode() { return 'P' + String((AUTH.me && AUTH.me.id) || 'x').replace(/[^A-Za-z0-9]/g, '').slice(0, 10); }
-  function isBot(color) { return PRACTICE.on && PRACTICE.bots.indexOf(color) >= 0; }
-  const BOT_PIPS = (t) => (t ? 6 - Math.abs(7 - t) : 0);
-  function botVertexScore(s, v) {
-    const hs = s.board.vertices[v].hexes.map((h) => s.board.hexes[h]);
-    const kinds = new Set(hs.filter((h) => h.token).map((h) => h.terrain));
-    return hs.reduce((n, h) => n + (h.robber ? 0 : BOT_PIPS(h.token)), 0) + kinds.size * 0.6 + Math.random() * 0.5;
-  }
-  const botTry = (s, col, a) => { const r = C.applyAction(s, a, col); return r.ok ? a : null; };
-  function botTotal(p) { return RES.reduce((n, r) => n + (p.resources[r] || 0), 0); }
-  // the computer player's next move in state s (null = nothing to do). opts.acts = moves already made this turn
-  function botMove(s, col, acts) {
-    const me = s.players.find((p) => p.color === col); if (!me) return null;
-    if (s.phase === 'setup') {
-      if (s.order[s.setupOrder[s.setupIndex]] !== col) return null;
-      if (s.turnPhase === 'placeSettlement') {
-        const vs = s.board.vertices.map((v) => v.id).sort((a, b) => botVertexScore(s, b) - botVertexScore(s, a));
-        for (const v of vs) { const a = botTry(s, col, { type: 'buildSettlement', vertex: v }); if (a) return a; }
-        return null;
-      }
-      const v = s.setupLastVertex, es = v == null ? [] : s.board.vertices[v].edges.slice().sort(() => Math.random() - 0.5);
-      for (const e of es) { const a = botTry(s, col, { type: 'buildRoad', edge: e }); if (a) return a; }
-      return null;
-    }
-    if (s.phase !== 'play' || (s.rps && !s.rps.done)) return null;
-    if (s.turnPhase === 'discard') {
-      let owed = (s.pendingDiscards && s.pendingDiscards[col]) || 0; if (owed <= 0) return null;
-      const left = Object.assign({}, me.resources), give = {};
-      while (owed > 0) { const r = RES.slice().sort((a, b) => left[b] - left[a])[0]; left[r]--; give[r] = (give[r] || 0) + 1; owed--; }
-      return { type: 'discard', resources: give };
-    }
-    if (C.currentColor(s) !== col) return null;
-    if (s.turnPhase === 'roll') {
-      const onMe = Object.entries(s.settlements).some(([v, b]) => b.owner === col && s.board.vertices[v].hexes.includes(s.robberHex));
-      if (onMe && Math.random() < 0.7) { const a = botTry(s, col, { type: 'playKnight' }); if (a) return a; }
-      return { type: 'rollDice' };
-    }
-    if (s.turnPhase === 'moveRobber') {
-      const human = PRACTICE.me;   // rob the human player first: more fun to practise against
-      const score = (h) => { let n = 0; Object.entries(s.settlements).forEach(([v, b]) => { if (b.owner !== col && s.board.vertices[v].hexes.includes(h.id)) n += (b.type === 'city' ? 2 : 1) * (b.owner === human ? 2 : 1); }); return n * 10 + BOT_PIPS(h.token) + Math.random(); };
-      const hx = s.board.hexes.filter((h) => h.id !== s.robberHex).sort((a, b) => score(b) - score(a));
-      for (const h of hx) { const a = botTry(s, col, { type: 'moveRobber', hex: h.id }); if (a) return a; }
-      return null;
-    }
-    if (s.turnPhase === 'steal') {
-      const c = (s.stealCandidates || []).slice().sort((a, b) => (b === PRACTICE.me) - (a === PRACTICE.me))[0];
-      return c ? { type: 'steal', victim: c } : null;
-    }
-    if (s.turnPhase !== 'main') return null;
-    if (acts < 6) {
-      const mine = Object.entries(s.settlements).filter(([, b]) => b.owner === col);
-      for (const [v, b] of mine) if (b.type === 'settlement') { const a = botTry(s, col, { type: 'buildCity', vertex: +v }); if (a) return a; }
-      const vs = s.board.vertices.map((v) => v.id).sort((a, b) => botVertexScore(s, b) - botVertexScore(s, a));
-      for (const v of vs) { const a = botTry(s, col, { type: 'buildSettlement', vertex: v }); if (a) return a; }
-      const roads = Object.values(s.roads).filter((c) => c === col).length;
-      if (roads < mine.length * 2 + 3 && Math.random() < 0.75) {
-        const es = s.board.edges.map((e) => e.id).sort(() => Math.random() - 0.5);
-        for (const e of es) { const a = botTry(s, col, { type: 'buildRoad', edge: e }); if (a) return a; }
-      }
-      if (Math.random() < 0.4) { const a = botTry(s, col, { type: 'buyDevCard' }); if (a) return a; }
-      if (botTotal(me) > 7) {   // too many cards in hand: swap the biggest pile at the bank for the scarcest
-        const give = RES.slice().sort((a, b) => me.resources[b] - me.resources[a])[0], want = RES.slice().sort((a, b) => me.resources[a] - me.resources[b])[0];
-        if (give !== want) { const a = botTry(s, col, { type: 'bankTrade', give, want }); if (a) return a; }
-      }
-    }
-    return botTry(s, col, { type: 'endTurn' });
-  }
-  // a trade I offered: each bot says yes (if it can cover it, and half the time) or no, once
-  function botTradeAnswer(s, col) {
-    const t = s.pendingTrade; if (!t || t.from === col || t.acceptedBy.includes(col) || t.declinedBy.includes(col) || (t.counters && t.counters[col])) return null;
-    const me = s.players.find((p) => p.color === col);
-    const can = RES.every((r) => (me.resources[r] || 0) >= ((t.want && t.want[r]) || 0));
-    return (can && Math.random() < 0.6) ? { type: 'acceptTrade', tid: t.id } : { type: 'declineTrade', tid: t.id };
-  }
-  function botSay(color, list) {
-    if (!state || Math.random() < 0.4) return;
-    const p = state.players.find((x) => x.color === color); if (!p) return;
-    const text = list[(Math.random() * list.length) | 0];
-    setTimeout(() => { if (PRACTICE.on && state) showBroadcast({ type: 'text', text, name: p.name, color }); }, 900);
-  }
-  // one bot step per tick, paced like a person; waits while an animation or the who-starts spin plays
-  function practiceTick() {
-    if (!PRACTICE.on || !state || state.phase === 'ended' || ARCHIVE) return;
-    if (ui.spinning || ui.diceRevealing || ui.discardAnimating || ui.robberFlying || Date.now() < PRACTICE.busyUntil) return;
-    let col = null, a = null;
-    if (state.phase === 'play' && state.turnPhase === 'discard') { const d = currentDiscarder(); if (d && isBot(d.color)) { col = d.color; a = botMove(state, col, 0); } }
-    if (!a && state.pendingTrade && state.pendingTrade.from === myColor) {
-      for (const b of PRACTICE.bots) { a = botTradeAnswer(state, b); if (a) { col = b; break; } }
-    }
-    if (!a) {
-      const cur = activeColor();
-      if (isBot(cur)) {
-        const k = state.phase + ':' + state.currentPlayerIndex + ':' + state.setupIndex + ':' + (state.rolls ? state.rolls.length : 0);
-        if (k !== PRACTICE.turnKey) { PRACTICE.turnKey = k; PRACTICE.acts = 0; }
-        col = cur; a = botMove(state, col, PRACTICE.acts);
-      }
-    }
-    if (!a) return;
-    const r = C.applyAction(state, a, col); if (!r.ok) return;
-    if (state.phase === 'play' && state.turnPhase === 'main') PRACTICE.acts++;
-    const pre = state;
-    applyRemoteState(r.state);
-    PRACTICE.busyUntil = Date.now() + (a.type === 'endTurn' ? 1200 : a.type === 'rollDice' ? 600 : 900);
-    if (a.type === 'steal' && a.victim === myColor) botSay(col, PRACTICE_SAY.robbed);
-    if (a.type === 'rollDice' && r.state.dice && r.state.dice[0] + r.state.dice[1] === 7 && pre) botSay(PRACTICE.bots.find((b) => b !== col) || col, PRACTICE_SAY.seven);
-  }
-  // a game already well under way: everyone (me included) plays the opening and ~6 rounds automatically,
-  // stopping at the start of my turn, before anyone gets close to winning
-  function practiceMidGame(players, target) {
-    let s = C.createGame({ id: 'table', players, seed: (Math.random() * 1e9) | 0, targetPoints: target, randomFirst: true });
-    s.whoStarts = 'random';
-    const all = s.players.map((p) => p.color), me = PRACTICE.me;
-    let guard = 0;
-    const step = (col, acts) => { const a = botMove(s, col, acts); if (!a) return false; const r = C.applyAction(s, a, col); if (!r.ok) return false; s = r.state; return true; };
-    while (s.phase === 'setup' && guard++ < 50) { if (!step(s.order[s.setupOrder[s.setupIndex]], 0)) break; }
-    const rounds = 8 + ((Math.random() * 3) | 0);
-    for (let t = 0; t < rounds * all.length + 1 && guard++ < 2000; t++) {
-      const cur = C.currentColor(s);
-      if (t >= rounds * all.length && cur === me) break;
-      if (s.players.some((p) => C.victoryPoints(s, p.color) >= target - 4)) { if (cur === me) break; }
-      // fast-forward: a few extra cards each turn so the board fills up (towns, cities, long roads, dev cards),
-      // but nobody gets close to winning before I play
-      const pl = s.players.find((p) => p.color === cur);
-      if (C.victoryPoints(s, cur) < target - 4) for (let k = 0; k < 4; k++) { const r = RES[(Math.random() * RES.length) | 0]; if (s.bank[r] > 0) { s.bank[r]--; pl.resources[r]++; } }
-      let acts = 0, inner = 0;
-      while (C.currentColor(s) === cur && s.phase === 'play' && inner++ < 40) {
-        if (s.turnPhase === 'discard') { all.forEach((c) => { while ((s.pendingDiscards[c] || 0) > 0 && step(c, 0)) { } }); continue; }
-        if (!step(cur, acts)) break;
-        if (s.turnPhase === 'main') acts++;
-      }
-      if (s.phase !== 'play') break;
-    }
-    if (s.phase === 'play' && C.currentColor(s) !== me) {   // land on my turn, ready to roll
-      const mi = s.order.indexOf(me); if (mi >= 0 && s.turnPhase === 'roll') s.currentPlayerIndex = mi;
-    }
-    s.pendingTrade = null; s.log = (s.log || []).slice(-5);
-    return s;
-  }
-  function practiceSeats() {
-    const pref = (LOBBY.myPref && LOBBY.myPref()) || 'red';
-    const cols = ['red', 'blue', 'green', 'yellow'].filter((c) => c !== pref);
-    return [{ color: pref, playerId: AUTH.me.id, name: AUTH.me.name, avatar: AUTH.me.avatar || null }]
-      .concat(PRACTICE_BOTS.map((b, i) => ({ color: cols[i], playerId: b.id, name: b.name, avatar: null })));
-  }
-  function practiceStart(mid) {
-    if (!practiceAllowed()) return;
-    const seats = practiceSeats();
-    PRACTICE.me = seats[0].color; PRACTICE.bots = seats.slice(1).map((x) => x.color);
-    const players = seats.map((p) => ({ color: p.color, name: p.name })), target = 10;
-    let s;
-    try { s = mid ? practiceMidGame(players, target) : C.createGame({ id: 'table', players, seed: (Math.random() * 1e9) | 0, targetPoints: target, randomFirst: true }); }
-    catch (e) { toast('Practice failed: ' + e.message); return; }
-    s.whoStarts = 'random'; s.friendly = true;
-    PRACTICE.on = true; PRACTICE.room = false; PRACTICE.turnKey = null; PRACTICE.busyUntil = Date.now() + 1500;
-    LV.sheet = null; online = true; myColor = PRACTICE.me; gameSeats = seats; NET.started = true; NET.version = 0;
-    victoryShownFor = null; endView = false;
-    if (!PRACTICE.timer) PRACTICE.timer = setInterval(practiceTick, 450);
-    enterGame(s);
-    voiceSync();
-  }
-  function practiceToRoom() {   // back from the practice game to the practice table
-    PRACTICE.on = false; PRACTICE.room = true; PRACTICE.bots = [];
-    NET.started = false; NET.version = 0; online = false; myColor = null; gameSeats = null; state = null;
-    hideOverlay(); showLobby();
-  }
-  // jump straight to the end: me (or the leading computer player) wins now
-  function practiceWin(who) {
-    if (!PRACTICE.on || !state || state.phase === 'ended') return;
-    hideOverlay(); coachEnd(false);   // a first-time tour must not sit on top of the results
-    const w = who === 'me' ? myColor : PRACTICE.bots.slice().sort((a, b) => C.victoryPoints(state, b) - C.victoryPoints(state, a))[0];
-    practiceWrite((s) => { s.phase = 'ended'; s.winner = w; s.pendingTrade = null; s.log.push(`${(s.players.find((p) => p.color === w) || {}).name} wins!`); });
-  }
-  // ---- pretend video and voice for the computer players (only alongside a real call, only on this phone):
-  //      a "camera" made from their portrait (gentle sway + blink), and now and then a short spoken line with the
-  //      white speaking ring and sound bars. Zaatar is on video and sometimes mutes himself (red badge); Kibbeh is on audio only.
-  const PRACTICE_LINES = ['Yalla, roll the dice!', 'Who has wheat?', 'No way, again a seven?', 'I need brick, anyone?', 'Nice move, habibi.', 'Come on, hurry up!', 'I am going for longest road.', 'Do not put the robber on me!'];
-  function practiceCam(i) {
-    const c = document.createElement('canvas'); c.width = 240; c.height = 280;
-    const g = c.getContext('2d'), img = new Image(); img.src = (ASSETS.avatars && ASSETS.avatars[i + 1]) || '';
-    const t0 = Math.random() * 1000;
-    const draw = () => {
-      const t = (performance.now() + t0) / 1000;
-      g.fillStyle = ['#4b5d6e', '#5e4b3c'][i % 2]; g.fillRect(0, 0, 240, 280);
-      if (img.complete && img.naturalWidth) {
-        const s = 1.08 + Math.sin(t * 0.7) * 0.02, w = 240 * s, h = 280 * s;
-        g.drawImage(img, (240 - w) / 2 + Math.sin(t * 0.9) * 5, (280 - h) / 2 + Math.cos(t * 0.6) * 4, w, h);
-      }
-      g.fillStyle = 'rgba(0,0,0,' + (0.05 + Math.max(0, Math.sin(t * 3.1)) * 0.04) + ')'; g.fillRect(0, 0, 240, 280);   // a little camera flicker
-    };
-    setInterval(draw, 66); draw();
-    return c.captureStream ? c.captureStream(15) : null;
-  }
-  function practiceFakes() {
-    if (Object.keys(PRACTICE.fake).length) return;
-    PRACTICE_BOTS.forEach((b, i) => {
-      const f = { identity: b.id, name: b.name, audioLevel: 0, mic: true, cam: i === 0, stream: null, audioTrackPublications: new Map() };
-      f.getTrackPublication = (src) => {
-        if (src === 'microphone') return { isMuted: !f.mic, track: {} };
-        if (!f.cam) return null;
-        if (!f.stream) f.stream = practiceCam(i);
-        return f.stream ? { isMuted: false, track: { attach: (v) => { v.srcObject = f.stream; return v; } } } : null;
-      };
-      PRACTICE.fake[b.id] = f;
-    });
-    voiceRefresh();   // their badges and camera show up right away
-  }
-  function practiceTalk() {
-    if (!(PRACTICE.on || PRACTICE.room) || !LIVE.room) return;
-    practiceFakes();
-    if (Date.now() < PRACTICE.talkAt) return;
-    PRACTICE.talkAt = Date.now() + 9000 + Math.random() * 9000;
-    const fs = Object.values(PRACTICE.fake);
-    const k = fs[0];   // Zaatar (on camera) mutes himself now and then: the red badge shows on his picture; he comes back later
-    if (k && Math.random() < 0.25) { k.mic = !k.mic; voiceRefresh(); if (!k.mic) return; }
-    const f = fs.filter((x) => x.mic)[(Math.random() * fs.filter((x) => x.mic).length) | 0]; if (!f) return;
-    const line = PRACTICE_LINES[(Math.random() * PRACTICE_LINES.length) | 0], ms = 1400 + line.length * 55;
-    const end = Date.now() + ms, tick = setInterval(() => { f.audioLevel = Date.now() < end ? 0.08 + Math.random() * 0.25 : 0; if (Date.now() >= end) clearInterval(tick); }, 110);
-    if (LIVE.mutedForMe[f.identity] || SETTINGS.walkie === false || !window.speechSynthesis) return;   // muted for me: the ring stays off, nothing to hear
-    try { const u = new SpeechSynthesisUtterance(line); u.rate = 1.05; u.pitch = f === fs[0] ? 0.8 : 1.25; u.volume = 0.9; speechSynthesis.speak(u); } catch (_) { }
-  }
-  setInterval(practiceTalk, 1000);
-  function practiceLeave() { try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (_) { } PRACTICE.room = false; PRACTICE.on = false; lobbySig = null; renderLobby(); voiceSync(); }
-  // a local "server write": the mutation is applied to this phone's state, as if the row came back
-  function practiceWrite(mutate) {
-    if (!state) return;
-    const s2 = JSON.parse(JSON.stringify(state));
-    if (mutate(s2) === false) return;
-    applyRemoteState(s2);
-  }
-  function practiceRoomHTML() {
-    const seats = practiceSeats();
-    const me = seats[0], mine = `<div class="lvseat mine"><span class="lvcd" style="background:${PCOLOR[me.color]}"></span>`
-      + `<span class="vpic vseat" data-vid="${AUTH.me.id}">${faceHTML(AUTH.me.name, AUTH.me.avatar, 'xl')}</span>`
-      + `${lvNameRow(AUTH.me.id, escapeHtml(AUTH.me.name) + ' (you)')}${!LIVE.room && voiceOn() ? '<span class="lvhint">connecting the call…</span>' : ''}</div>`;
-    const bots = seats.slice(1).map((b, i) => `<div class="lvseat"><span class="lvcd" style="background:${PCOLOR[b.color]}"></span>`
-      + `<span class="vpic vseat" data-vid="${b.playerId}"${LIVE.room ? ` onclick="event.stopPropagation();CATAN.voiceWho('${b.playerId}',this)"` : ''}>${faceHTML(b.name, (ASSETS.avatars && ASSETS.avatars[i + 1]) || null, 'xl')}</span>${lvNameRow(b.playerId, escapeHtml(b.name))}${voiceTag(b.playerId)}<span class="lvhint">computer${LIVE.room ? ' · tap to mute' : ''}</span></div>`).join('');
-    return `<div class="lvsect">🧪 PRACTICE TABLE · ONLY YOU SEE THIS</div>
-      <div class="lvseats">${mine}${bots}<div class="lvseat empty"><span class="lvplus">+</span>Open seat</div></div>
-      <div class="lvsub small" style="text-align:center;margin:10px 0">Nothing here reaches the real games or the stats. The call is real, so you can try your mic and camera.</div>
-      <div class="lvact"><button class="btn full lvbig" onclick="CATAN.practiceStart(false)">Start a new game</button>
-      <button class="btn wood full" style="margin-top:8px" onclick="CATAN.practiceStart(true)">Jump into a game in progress</button>
-      <button class="linkbtn" onclick="CATAN.practiceStart(true, 'me')">🏆 Skip to a victory screen</button>
-      <button class="linkbtn" onclick="CATAN.practiceLeave()">Leave the practice table</button></div>
-      <p class="lvver">Catan · ${APP_VERSION}</p>`;
-  }
 
   // ---- per-player message history: the last few messages (text + voice) each player sent this
   //      game, re-openable by tapping their corner portrait. Cleared on game entry (enterGame).
@@ -3688,16 +2985,18 @@
       : `<div class="mhrow muted">No messages yet</div>`;
     const b = document.createElement('div');
     b.id = 'msghist';
-    b.innerHTML = `<button class="popx" aria-label="Close">×</button><div class="mhscroll"><div class="mhhead">${escapeHtml((pl && pl.name) || '')}</div>${voiceMuteRow(seatPlayerId(color))}${rows}</div>`;
+    b.innerHTML = `<button class="bcclose" aria-label="Close">×</button><div class="mhhead">${escapeHtml((pl && pl.name) || '')}</div>${rows}`;
     document.body.appendChild(b);
-    // anchor to the player's picture (fall back to centred if no corner, e.g. offline)
-    const pic = corner && (corner.querySelector('.pava') || corner);
-    if (pic && pic.getBoundingClientRect().width) popAt(b, pic.getBoundingClientRect());
-    else { b.style.top = '50%'; b.style.left = '50%'; b.style.transform = 'translate(-50%,-50%)'; }
+    // anchor near the corner (fall back to centred if no corner, e.g. offline)
+    if (corner) {
+      const top = pos[0] === 't', left = pos[1] === 'l', cr = corner.getBoundingClientRect(), gap = 8;
+      if (top) b.style.top = (cr.bottom + gap) + 'px'; else b.style.bottom = (window.innerHeight - cr.top + gap) + 'px';
+      if (left) b.style.left = Math.max(6, cr.left) + 'px'; else b.style.right = Math.max(6, window.innerWidth - cr.right) + 'px';
+    } else { b.style.top = '50%'; b.style.left = '50%'; b.style.transform = 'translate(-50%,-50%)'; }
     b.querySelectorAll('.mhplay').forEach((btn) => wireVoicePlay(btn, btn.getAttribute('data-url')));
     const kill = () => { b.remove(); document.removeEventListener('pointerdown', outside, true); };
     const outside = (e) => { if (!b.contains(e.target)) kill(); };
-    b.querySelector('.popx').onclick = kill;
+    b.querySelector('.bcclose').onclick = kill;
     setTimeout(() => document.addEventListener('pointerdown', outside, true), 0);   // tap outside to dismiss
     renderPanels();   // refresh to drop the unread dot
   }
@@ -3799,7 +3098,6 @@
   function rpsActive() { return !!(online && state && state.phase === 'setup' && state.rps); }
   // write to the shared game and apply the result here too (my own echo is deduped by version)
   async function rpsUpdate(mut) {
-    if (PRACTICE.on) return practiceWrite(mut);
     const c = NET.init(); if (!c || !NET.code) return;
     const code = NET.code;
     for (let i = 0; i < 6; i++) {
@@ -4621,21 +3919,10 @@
     const left = above ? box.l : box.r + 6, room = window.innerWidth - left - 10;
     const w = trayMode === 'emo' ? Math.min(8, Math.max(5, Math.floor((room - 47) / 52))) * 52 + 47 : Math.min(470, room);   // 46px emojis + 6px gaps + side gutters to scroll on
     t.style.width = w + 'px'; t.style.left = left + 'px'; t.style.right = '';
-    const bn = $('banner'), bnr = bn && bn.offsetWidth ? bn.getBoundingClientRect() : null;
-    const ceil = bnr && left < bnr.right && left + w > bnr.left ? bnr.bottom + 6 : 6;   // v221: never under the turn banner
-    t.style.maxHeight = Math.min(above ? box.t - 6 - ceil : window.innerHeight - 6 - ceil, trayMode === 'emo' && !trayDraft ? 300 : 9999) + 'px';   // emojis: ~4½ rows, the rest scroll
+    t.style.maxHeight = Math.min(above ? box.t - 12 : window.innerHeight - 12, trayMode === 'emo' && !trayDraft ? 300 : 9999) + 'px';   // emojis: ~4½ rows, the rest scroll
     t.style.top = '0px';
-    const g = t.querySelector('.etbig');
-    if (g && !trayDraft) {   // whole rows only, and a fade at the bottom when more scroll
-      g.style.maxHeight = ''; g.classList.remove('more');
-      const extra = t.offsetHeight - g.clientHeight, avail = parseFloat(t.style.maxHeight) - extra;
-      if (g.scrollHeight > avail) {   // whole rows, plus a faded peek of the next one to say "scroll"
-        const fit = Math.max(1, Math.floor((avail - 18) / 52));
-        g.style.maxHeight = (fit * 52 + 18) + 'px'; g.style.flex = 'none'; g.classList.add('more');
-      }
-    }
     const h = t.offsetHeight, bottom = above ? box.t - 6 : box.b;
-    t.style.top = Math.max(ceil, bottom - h) + 'px';
+    t.style.top = Math.max(6, bottom - h) + 'px';
   }
   function trayDots() { return `<div class="etdots"><i class="${trayMode === 'emo' ? 'on' : ''}"></i><i class="${trayMode === 'txt' ? 'on' : ''}"></i></div>`; }
   function trayMain(t) {
@@ -4979,7 +4266,6 @@
   function iAmFlagged() { return online && myColor && flagsOf(state).indexOf(myColor) >= 0; }
   // version-guarded read-modify-write on the game row (mirrors NET.syncAction).
   async function svUpdate(mutate) {
-    if (PRACTICE.on) return practiceWrite(mutate);
     const c = NET.init(); if (!c || !NET.code) return;
     const code = NET.code;
     // only touch this phone's screen if it's still in the same game (a "leave" may have happened meanwhile)
@@ -5238,7 +4524,7 @@
     openSettings,
     wt: () => { if (WT.live) wtStop(); else wtStart(); },
     wtListen: () => wtListen(),
-    setToggle: (key) => { SETTINGS[key] = !SETTINGS[key]; saveSettings(); openSettings(); if (key === 'music') { if (SETTINGS.music) startMusic(); else stopMusic(); } if (key === 'sfx' || key === 'walkie') keepAudioSession(); if (key === 'walkie') { wtAnnounce(); if (!SETTINGS.walkie) wtHideListen(); voiceVolumes(); voiceSendState(); voiceRefresh(); } },
+    setToggle: (key) => { SETTINGS[key] = !SETTINGS[key]; saveSettings(); openSettings(); if (key === 'music') { if (SETTINGS.music) startMusic(); else stopMusic(); } if (key === 'sfx' || key === 'walkie') keepAudioSession(); if (key === 'walkie') { wtAnnounce(); if (!SETTINGS.walkie) wtHideListen(); } },
     musicNext: () => musicSkip(1),
     musicPrev: () => musicSkip(-1),
     setAnim: (v) => { SETTINGS.anim = v; saveSettings(); openSettings(); },
@@ -5415,13 +4701,9 @@
   // strip, so the bottom of the screen is out of reach. Measure that missing strip; the lobby's tab bar then drops
   // the safe-area padding it no longer needs (the cut-off line already sits above the home bar), and the strip
   // below is painted in the tab bar's colour so it reads as one bar down to the edge.
-  // Running inside rotate.html's frame (the sideways board, every player since v234). The host page keeps the frame
-  // inside the safe area, so the iPhone viewport fix and the camera-cutout nudges below stay off in here.
-  const FRAMED = (function () { try { return window.top !== window; } catch (_) { return true; } })();
-  if (FRAMED) document.documentElement.classList.add('framed');   // v233: safe-area margins are zero in here (index.html --sa-*)
   function fitAppHeight() {
     const root = document.documentElement;
-    if (FRAMED || window.navigator.standalone !== true) { root.classList.remove('ios-pwa'); return; }   // only the iOS home-screen app
+    if (window.navigator.standalone !== true) { root.classList.remove('ios-pwa'); return; }   // only the iOS home-screen app
     const portrait = window.matchMedia ? window.matchMedia('(orientation: portrait)').matches : window.innerHeight > window.innerWidth;
     const h = portrait ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height);
     root.style.setProperty('--vp-gap', Math.max(0, h - window.innerHeight) + 'px'); root.classList.add('ios-pwa');
@@ -5429,45 +4711,6 @@
   fitAppHeight();
   window.addEventListener('resize', fitAppHeight);
   window.addEventListener('orientationchange', () => setTimeout(fitAppHeight, 80));
-  // v225: in landscape the camera cutout (notch / Dynamic Island / punch-hole) is mid-height on one side edge.
-  // Mark which side, so the few things that live mid-height on an edge (the round menu button) step away from it.
-  // window.orientation: 90 = turned so the phone's top is on the left; -90 = on the right.
-  function markCutSide() {
-    if (FRAMED) return;
-    let a = typeof window.orientation === 'number' ? window.orientation : (screen.orientation && typeof screen.orientation.angle === 'number' ? (screen.orientation.angle === 270 ? -90 : screen.orientation.angle) : 0);
-    document.body.classList.toggle('cut-l', a === 90);
-    document.body.classList.toggle('cut-r', a === -90);
-  }
-  markCutSide();
-  window.addEventListener('orientationchange', () => setTimeout(markCutSide, 60));
-  // Sideways board (v230, every player since v234; HANDOVER §8 items 63-67). rotate.html hosts the app in a frame and
-  // turns it 90 degrees while the board is up and the phone is upright, so nobody has to rotate the phone. Framed: tell
-  // the host who is signed in and whether the board is showing. Not framed: signing in here moves you to rotate.html
-  // (only from the plain lobby, never from a room or a game); index.html's head script does the same at launch.
-  function sidewaysUser() { return !!(AUTH.me && String(AUTH.me.name || '').trim()); }   // anyone signed in
-  let sideSig = '';
-  function sidewaysSync() {
-    const ingame = document.body.classList.contains('ingame');
-    if (FRAMED) {
-      const user = AUTH.me ? AUTH.me.name : null, sig = ingame + '|' + user;
-      if (sig === sideSig) return; sideSig = sig;
-      try { window.parent.postMessage({ catanSideways: 1, ingame, user }, location.origin); } catch (_) { }
-      return;
-    }
-    if (sidewaysUser() && !ingame && /^https?:$/.test(location.protocol) && !LOBBY.table && !NET.started) location.replace('rotate.html');
-  }
-  window.CATAN.sideFlip = () => {
-    try { localStorage.setItem('catanSideFlip', localStorage.getItem('catanSideFlip') === '1' ? '0' : '1'); } catch (_) { }
-    try { window.parent.postMessage({ catanSideways: 1, ingame: document.body.classList.contains('ingame'), user: AUTH.me ? AUTH.me.name : null, flipped: 1 }, location.origin); } catch (_) { }
-  };
-  setInterval(sidewaysSync, 1000);
-  if (FRAMED) window.addEventListener('message', (e) => {
-    if (e.origin !== location.origin || e.source !== window.parent || !e.data || e.data.catanSideAngle === undefined) return;
-    const a = e.data.catanSideAngle === 90 || e.data.catanSideAngle === -90 ? e.data.catanSideAngle : 0;
-    if (a !== SIDE_ANGLE) { SIDE_ANGLE = a; voiceSendState(); }
-  });
-  if (window.MutationObserver) { try { new MutationObserver(() => sidewaysSync()).observe(document.body, { attributes: true, attributeFilter: ['class'] }); } catch (_) { } }
-  window.addEventListener('resize', markCutSide);
   window.addEventListener('pageshow', fitAppHeight);
   window.addEventListener('resize', fitTitle);
   window.addEventListener('load', scheduleFit);
@@ -6057,7 +5300,6 @@
     // Chat rides a polled table (like the game state), NOT realtime broadcast — so it survives
     // iOS/PWA WebSocket drops. Insert a row; every client picks it up via postgres_changes + poll.
     sendBroadcast(msg) {
-      if (PRACTICE.on || PRACTICE.room) return;   // practice: messages stay on this phone (already shown locally)
       const c = NET.init(); const code = msg.code || NET.code || this.table;
       if (!c || !code) return;
       c.from('messages').insert({
@@ -6747,18 +5989,15 @@
     return `${hero}${more.join('')}
       ${faces ? `<div class="lvsect">FRIENDS · ${others.length} ONLINE</div><div class="lvfaces">${faces}</div>` : ''}
       <div id="lv-peek"></div>
-      ${practiceAllowed() ? `<button class="btn wood full" style="margin-top:14px" onclick="CATAN.practice()">🧪 Practice table · you + 2 computer players</button>` : ''}
       <p class="lvver">Catan · ${APP_VERSION}</p>`;
   }
 
   // ---- Play tab, in a room: four seats, the settings line, one primary action ----
-  // v228: a seat's name with its mic/camera badges beside it (as in the game), not on the face
-  function lvNameRow(id, nameHTML) { const vb = voiceBadges(id); return vb ? `<span class="lvnrow"><b>${nameHTML}</b><span class="vrow">${vb}</span></span>` : `<b>${nameHTML}</b>`; }
   function lvSeat(p, isHost) {
     const mine = p.id === AUTH.me.id, pref = mine ? LOBBY.myPref() : p.pref, col = pref && PCOLOR[pref];
     return `<div class="lvseat${isHost ? ' host' : ''}${mine ? ' mine' : ''}${p.away ? ' away' : ''}"${mine ? ` onclick="CATAN.lvSheet('colour')"` : ''}>`
       + `${isHost ? '<span class="lvcrown">👑</span>' : ''}<span class="lvcd${col ? '' : ' any'}"${col ? ` style="background:${col}"` : ''}></span>`
-      + `${Date.now() - (LV.gos[p.id] || 0) < GO_SHOW_MS ? '<span class="lvgo">👉 Go!</span>' : ''}<span class="vpic vseat" data-vid="${p.id}"${LIVE.room && !mine ? ` onclick="event.stopPropagation();CATAN.voiceWho('${p.id}',this)"` : ''}>${faceHTML(p.name, p.avatar, 'xl')}</span>${lvNameRow(p.id, escapeHtml(p.name) + (mine ? ' (you)' : ''))}${voiceTag(p.id)}${mine && !LIVE.room ? '<span class="lvhint">tap for colour</span>' : !mine && p.away ? '<span class="lvhint">away…</span>' : ''}</div>`;
+      + `${Date.now() - (LV.gos[p.id] || 0) < GO_SHOW_MS ? '<span class="lvgo">👉 Go!</span>' : ''}${faceHTML(p.name, p.avatar, 'xl')}<b>${escapeHtml(p.name)}${mine ? ' (you)' : ''}</b>${mine ? '<span class="lvhint">tap for colour</span>' : p.away ? '<span class="lvhint">away…</span>' : ''}</div>`;
   }
   function lvRoomHTML() {
     // a cup paused between games that I'm in: the whole tab is the cup
@@ -6786,10 +6025,7 @@
     const extras = [];
     if (line.length) extras.push(`<div class="lvline">⏳ <span><b>${escapeHtml(namesAnd(line.map((p) => p.name)))}</b> · first in line if a seat opens</span></div>`);
     if (idle.length) extras.push(`<div class="lvline">💤 <span><b>${escapeHtml(namesAnd(idle.map((p) => p.name)))}</b> · here, not seated</span></div>`);
-    if (watching.length) extras.push(`<div class="lvline">👁 ${LIVE.room ? watching.map((w) => `<span class="vpic vmini" data-vid="${w.id}" onclick="CATAN.voiceWho('${w.id}',this)">${faceHTML(w.name, w.avatar, 'sm')}${voiceBadges(w.id)}</span>`).join('') : ''}<span><b>${escapeHtml(namesAnd(watching.map((p) => p.name)))}</b> · watching</span></div>`);
-    if (voiceOn() && !seated.some((p) => p.id === AUTH.me.id)) extras.push(LIVE.room
-      ? `<div class="vchip"><span class="vpic vmini vchipface" data-vid="${AUTH.me.id}">${faceHTML(AUTH.me.name, AUTH.me.avatar, 'sm')}</span><span>Talk to the table</span><span class="vrow">${voiceBadges(AUTH.me.id)}</span></div>`   // v227: tap 📷 / 🎤
-      : `<button class="vchip" onclick="CATAN.voiceCard(this)">${VI_MIC}<span>Talk to the table</span><span class="vpic vmini vchipface" data-vid="${AUTH.me.id}">${faceHTML(AUTH.me.name, AUTH.me.avatar, 'sm')}${voiceBadges(AUTH.me.id, true)}</span></button>`);
+    if (watching.length) extras.push(`<div class="lvline">👁 <span><b>${escapeHtml(namesAnd(watching.map((p) => p.name)))}</b> · watching</span></div>`);
     const onResults = members.filter((p) => pmode(p) === 'results' && p.id !== AUTH.me.id);
     if (onResults.length) extras.push(`<div class="lvline">🏁 <span><b>${escapeHtml(namesAnd(onResults.map((p) => p.name)))}</b> · still on the last game's results</span></div>`);
     const last = LV.last && LV.last.code === LOBBY.table && Date.now() - LV.last.at < 1800000 ? `<div class="lvlast">🏆 Last game: ${escapeHtml(LV.last.text)}</div>` : '';
@@ -6901,23 +6137,21 @@
     const g = LV.tab === 'chat' && lvGathering()[0];
     const live = LV.tab === 'chat' ? [LOBBY.table, g ? g.code + ':' + g.ready.length : '']
       : all.map((p) => p.id + ':' + (p.table || '') + ':' + pmode(p) + ':' + p.name + ':' + (p.readyAt || 0) + ':' + (p.target || '') + ':' + (p.ws || '') + ':' + (p.created || '') + ':' + (p.pref || '') + ':' + (p.away ? 'a' : '') + ':' + (p.avatar ? 1 : 0)).sort();
-    const sig = JSON.stringify([PRACTICE.room, PRACTICE.room && !!LIVE.room, LV.tab, LV.sheet, LV.roster.length, lvGoKey(), LOBBY.friendly, LOBBY.table, LOBBY.inProgress, LOBBY.mode, LOBBY.targetPoints, LOBBY.whoStarts, LOBBY.cup, LOBBY.cupRow && LOBBY.cupRow.version, LOBBY.prefGame, LV.last && LV.last.at, live]);
+    const sig = JSON.stringify([LV.tab, LV.sheet, LV.roster.length, lvGoKey(), LOBBY.friendly, LOBBY.table, LOBBY.inProgress, LOBBY.mode, LOBBY.targetPoints, LOBBY.whoStarts, LOBBY.cup, LOBBY.cupRow && LOBBY.cupRow.version, LOBBY.prefGame, LV.last && LV.last.at, live]);
     if (sig === lobbySig) return;
     const ae = document.activeElement;
     if (ae && ae.tagName === 'INPUT' && ae.closest && (ae.closest('#lv-sheet') || ae.id === 'lchatIn')) return;   // typing (a name, a chat message): redraw once you're done
     lobbySig = sig;
     if (LV.tab === 'chat') { dynEl.innerHTML = lvChatHTML(); renderLobbyChat(); }
-    else if (PRACTICE.room) dynEl.innerHTML = practiceRoomHTML();
     else { dynEl.innerHTML = LOBBY.table ? lvRoomHTML() : lvPlayHTML(); lvFillPeek(); }
     const sh = $('lv-sheet'); if (sh) sh.innerHTML = lvSheetHTML();
-    voiceMountVideos();   // live camera pictures survive the redraw
   }
   window.CATAN.openStats = () => statsScreen();
   window.CATAN.statsSeason = (s) => { statsSeason = s; statsScreen(); };
   window.CATAN.statsYear = (y) => { statsSeason = STATS.latestMonthIn(y) || 'all'; statsScreen(); };   // pick a year -> its most recent month
   window.CATAN.statsCount = (n) => { statsCount = n; statsScreen(); };
   window.CATAN.statsPlayer = (n) => statsPlayerScreen(decodeURIComponent(n));
-  window.CATAN.lobbyBack = () => { if (PRACTICE.room) practiceLeave(); else if (LOBBY.table) CATAN.leaveTable(); else CATAN.lobbyLogout(); };
+  window.CATAN.lobbyBack = () => { if (LOBBY.table) CATAN.leaveTable(); else CATAN.lobbyLogout(); };
   window.CATAN.lvTab = (t) => {
     LV.tab = t === 'chat' || t === 'stats' ? t : 'play'; LV.sheet = null; lobbySig = null;
     const d = $('lobby-dyn'); if (d) d.innerHTML = '';
@@ -6983,11 +6217,6 @@
   window.CATAN.lobbySpectate = () => LOBBY.setSpectate();
   window.CATAN.lobbyWatch = () => LOBBY.watch();
   window.CATAN.lobbyStart = () => LOBBY.startTable();
-  window.CATAN.practice = () => { if (!practiceAllowed()) return; if (LOBBY.table) LOBBY.leaveTable(); PRACTICE.room = true; LV.tab = 'play'; LV.sheet = null; lobbySig = null; renderLobby(); voiceSync(); };
-  window.CATAN.practiceStart = (mid, win) => { practiceStart(!!mid); if (win && PRACTICE.on) setTimeout(() => practiceWin(win), 2500); };
-  window.CATAN.practiceWin = (who) => practiceWin(who);
-  window.CATAN.practiceLeave = () => practiceLeave();
-  window.CATAN.practiceToRoom = () => practiceToRoom();
   // hoisted helpers registered here, after window.CATAN exists, so onclick="CATAN.x()" works
   window.CATAN.sendBroadcast = sendBroadcastMsg;
   window.CATAN.bcKeep = (v) => { bcDraft = String(v || '').slice(0, 50); };   // keep the draft on every keystroke
@@ -7000,14 +6229,6 @@
   window.CATAN.recStop = () => finishRec(false);
   window.CATAN.recCancel = () => finishRec(true);
   window.CATAN.showMsgs = (color) => showMsgHistory(color);
-  window.CATAN.voiceCard = (el) => voiceCard(el);
-  window.CATAN.voiceWho = (id, el) => voiceWho(id, el);
-  // v231: your own taps also update the remembered choice, so the next table starts the way you left it:
-  // mic off -> silent; mic on -> voice (camera on -> 'video', which still rejoins with the camera OFF)
-  function voiceRemember() { const m = !LIVE.mic ? 'listen' : LIVE.cam ? 'video' : 'audio'; if (SETTINGS.voice !== m) { SETTINGS.voice = m; saveSettings(); } }
-  window.CATAN.voiceMic = async (on) => { await voiceSetMic(!!on); if (LIVE.mic === !!on) { toast(LIVE.mic ? '🎤 Mic on' : 'Mic off'); voiceRemember(); } };   // (a blocked mic keeps its own message)
-  window.CATAN.voiceCam = async (on) => { await voiceSetCam(!!on); if (LIVE.cam === !!on) { toast(LIVE.cam ? '📷 Camera on' : 'Camera off'); voiceRemember(); } };
-  window.CATAN.voiceMuteFor = (id, on) => { const h = document.getElementById('msghist'); if (h) h.remove(); voiceMuteForMe(id, !!on); };
   window.CATAN.openCustomMsg = () => openBroadcast();
   window.CATAN.manageQuick = (from) => manageQuickMsgs(from);
   let qmSaveT = null;
@@ -7020,13 +6241,6 @@
   window.CATAN.exitGame = () => {
     // ensure no higher layer (radial root sits at z-31, above the overlay) eats taps
     const rr = $('radialroot'); if (rr) { rr.classList.remove('open'); rr.classList.add('hidden'); }
-    if (PRACTICE.on) {
-      showOverlay(`<h3>Leave the practice game?</h3><p class="muted" style="text-align:center;margin:6px 0 12px">Nothing is recorded. You go back to the practice table.</p>
-        <button class="btn full" style="padding:16px;font-size:16px" onclick="CATAN.close()">Cancel · keep playing</button>
-        <div class="trow2" style="margin-top:9px"><button class="btn wood" onclick="CATAN.practiceWin('me')">🏆 I win</button><button class="btn wood" onclick="CATAN.practiceWin('bot')">😩 A computer wins</button></div>
-        <button class="btn wood full" style="padding:15px;font-size:15px;margin-top:9px" onclick="CATAN.practiceToRoom()">Back to the practice table</button>`);
-      return;
-    }
     const spectator = online && !myColor;   // a watcher: leaving just returns them to the lobby
     const endsForAll = online && myColor;   // a seated player leaving ends the table
     // quitting a LIVE game (not one that's already ended) costs a penalty; a finished game leaves cleanly
@@ -7078,10 +6292,9 @@
   // leave a FINISHED game: only this device goes back to the lobby — the row keeps the ended game for
   // whoever's still looking, and onRow won't pull me back in (a rematch / new game at the table still will)
   window.CATAN.leaveEnded = () => {
-    if (PRACTICE.on) { practiceToRoom(); return; }
     try { const r = finishOrder(state); LV.last = { at: Date.now(), code: NET.code, text: `${r[0].p.name} won, ${r[0].vp} to ${r[1] ? r[1].vp : 0}` }; } catch (_) { }
     markLeft(myColor); NET.started = false; NET.version = 0; online = false; myColor = null; LOBBY.toLobby(); };
-  window.CATAN.rematch = () => (PRACTICE.on ? practiceStart(false) : LOBBY.rematch());
+  window.CATAN.rematch = () => LOBBY.rematch();
   // back into a cup paused between games: the finished game's screen, to ready up for the next one
   window.CATAN.cupRejoin = () => {
     const row = LOBBY.cupRow, seat = row && (row.players || []).find((p) => p.playerId === (AUTH.me && AUTH.me.id));
