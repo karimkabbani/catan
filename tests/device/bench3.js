@@ -12,6 +12,7 @@ const PAGE = CFG.startsWith('v214') ? '_v214.html' : CFG.includes('side') ? '_ro
   await f.evaluate(() => CATAN._gameN(3, 3 * 7919)); await p.waitForTimeout(3500);
   await f.evaluate((rec) => { window._REC = JSON.parse(rec); CATAN._noTips && CATAN._noTips(); }, fs.readFileSync('px/rec.json', 'utf8'));
   if (CFG.includes('video')) await f.evaluate(() => { CATAN._voice4(); });
+  if (CFG.includes('streams')) await f.evaluate(() => { for (let i = 0; i < 4; i++) window._mkStream(i * 70); });   // the harness's fake cameras alone (no video shown): subtract from the video configs
   if (CFG.includes('nohas')) console.log('has-rules removed:', await f.evaluate(() => { let n = 0; for (const sh of document.styleSheets) { let rs; try { rs = sh.cssRules; } catch (e) { continue; } for (let i = rs.length - 1; i >= 0; i--) { const walk = (list, del) => { for (let j = list.length - 1; j >= 0; j--) { const r = list[j]; if (r.cssRules && !r.selectorText) walk(r.cssRules, (k) => r.deleteRule(k)); else if (r.selectorText && r.selectorText.includes(':has(')) { del(j); n++; } } }; walk([rs[i]], () => { sh.deleteRule(i); }); } } return n; }));
   if (CFG.includes('nopulse')) await f.addStyleTag({ content: '.corner.active, .corner.active::after{animation:none!important}' });
   if (CFG.includes('nofilter')) await f.addStyleTag({ content: '.corner:not(.active){filter:none!important}' });   // what the dim filter costs with video inside

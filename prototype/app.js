@@ -3324,7 +3324,7 @@
       if (!v || v.readyState < 2 || !v.videoWidth) return;
       if (VFC && !v._fresh && cv.width && v._vfcAt && t - v._vfcAt < 1000) return;   // same frame as last time: nothing to draw
       drew = true;
-      const dpr = Math.min(2, window.devicePixelRatio || 1), bw = Math.round(box.clientWidth * dpr), bh = Math.round(box.clientHeight * dpr);
+      const dpr = Math.min(1.5, window.devicePixelRatio || 1), bw = Math.round(box.clientWidth * dpr), bh = Math.round(box.clientHeight * dpr);   // v237: 1.5x is plenty for a soft camera picture (was 2x: 1.8x the pixels)
       if (bw < 4 || bh < 4) return;
       if (cv.width !== bw || cv.height !== bh) { cv.width = bw; cv.height = bh; }   // same shape as the picture: never stretched
       const rot = AUTH.me && id === AUTH.me.id ? SIDE_ANGLE : ((LIVE.peers[id] && LIVE.peers[id].rot) || 0);   // a sideways-board phone films on its side
