@@ -11,12 +11,15 @@
 <link rel="manifest" href="manifest.webmanifest"/>
 <link rel="apple-touch-icon" href="apple-touch-icon.png"/>
 <title>Catan</title>
-<!-- Sideways board (every signed-in player since v234; index.html sends them here).
-     The whole app runs in a frame. When the board is up and the phone is upright (rotation lock on),
-     the frame is sized landscape and turned 90 degrees, so the app inside sees a real landscape screen:
-     its layout, media queries, taps and swipes all work unchanged (the browser maps touches through
-     the rotation). Otherwise the frame simply fills the safe area. The frame sits inside the safe area
-     because a framed page gets no safe-area insets of its own. -->
+<!-- Sideways board host (HANDOVER §8 items 63-67). index.html sends every signed-in player on a phone or desktop
+     here; the whole app runs in the frame below. While the board is up and a touch screen is upright (rotation
+     lock on, or just held upright), the frame is sized landscape and turned 90 degrees (-90 after Settings ->
+     Flip it over), so the app inside sees a real landscape screen: its layout, media queries, taps and swipes work
+     unchanged (the browser maps touches through the rotation). Otherwise the frame simply fills the screen.
+     The frame always sits inside this page's safe area (notch, status bar, home bar); the app inside zeroes its
+     own safe-area margins (html.framed), because iPhone still hands the frame the portrait insets. The app tells
+     this page {catanSideways, ingame, user}; this page answers {catanSideAngle} so camera pictures are turned
+     back upright (vDraw in app.js). -->
 <style>
   html,body{margin:0; height:100%; overflow:hidden; background:#24150a; overscroll-behavior:none;}
   body.ingame{background:#0c2a44;}
@@ -31,7 +34,6 @@
 <script>
 (function () {
   var frame = document.getElementById('app'), probe = document.getElementById('probe');
-  var SIDE_USER = /\S/;   // v234: every signed-in player (was test2 only)
   var st = { ingame: false, user: null };
   frame.src = 'index.html' + location.search + location.hash;   // a framed index.html never bounces back here
   function flip() { try { return localStorage.getItem('catanSideFlip') === '1'; } catch (e) { return false; } }
@@ -49,7 +51,7 @@
     var gap = 0;
     if (window.navigator.standalone === true) gap = Math.max(0, (portrait ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height)) - H);
     var top = i.t, left = i.l, w = W - i.l - i.r, h = H - i.t - Math.max(0, i.b - gap);
-    var rot = st.ingame && portrait && touch && SIDE_USER.test(String(st.user || '').trim());
+    var rot = st.ingame && portrait && touch && !!st.user;   // any signed-in player (v234; v230-v233 was test2 only)
     var key = [W, H, top, left, w, h, rot, flip()].join(',');
     if (key === last) return; last = key;
     var s = frame.style;
@@ -75,8 +77,6 @@
     var d = e.data || {};
     if (!d.catanSideways) return;
     st.ingame = !!d.ingame; st.user = d.user || null;
-    // signed in as someone else (and not mid-game): back to the normal app
-    if (st.user && !SIDE_USER.test(String(st.user).trim()) && !st.ingame) { location.replace('index.html'); return; }
     if (d.flipped !== undefined) last = '';
     layout(); postAngle();
   });
