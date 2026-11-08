@@ -1890,9 +1890,9 @@
   .vb svg{width:10px; height:10px;}
   .vb.vmic{right:2px;} .vb.vcam{left:2px;}
   /* bigger corner pictures (v217): about 1.7x on phones with room, 1.35x on small ones; badges grow with them */
-  @media (min-width:600px) and (min-height:330px){ body.vlive .pava{width:64px; height:74px;} body.vlive .pname{max-width:76px;} body.vlive .pava .vb{width:22px; height:22px;} body.vlive .pava .vb svg{width:12px; height:12px;} body.vlive .pava .vtag{font-size:9.5px;} }
-  @media (min-width:800px) and (min-height:390px){ body.vlive .pava{width:104px !important; height:120px !important;} body.vlive .pname{max-width:116px !important; font-size:12.5px;} body.vlive .pava .vb{width:30px !important; height:30px !important;} body.vlive .pava .vb svg{width:16px !important; height:16px !important;} body.vlive .pava .vtag{font-size:12px !important;} body.vlive .corner.bl .pemo, body.vlive .corner.bl .pchat, body.vlive .corner.bl .pwt{top:auto; bottom:52px !important;} }
-  @media (min-width:740px) and (min-height:370px){ body.vlive .corner.bl .pemo, body.vlive .corner.bl .pchat, body.vlive .corner.bl .pwt{top:auto; bottom:34px;} body.vlive .corner.bl .pwt{width:40px; height:40px;} body.vlive .pava{width:80px; height:92px;} body.vlive .pname{max-width:92px;} body.vlive .pava .vb{width:26px; height:26px; top:3px;} body.vlive .pava .vb svg{width:14px; height:14px;} body.vlive .pava .vb.vmic{right:3px;} body.vlive .pava .vb.vcam{left:3px;} body.vlive .pava .vtag{font-size:10.5px;} body.vlive .pstatus{width:14px; height:14px;} }
+  @media (min-width:600px) and (min-height:330px){ body.vlive .pava{width:64px; height:68px;} body.vlive .pname{max-width:76px;} body.vlive .pava .vb{width:22px; height:22px;} body.vlive .pava .vb svg{width:12px; height:12px;} body.vlive .pava .vtag{font-size:9.5px;} }
+  @media (min-width:800px) and (min-height:390px){ body.vlive .pava{width:104px !important; height:108px !important;} body.vlive .pname{max-width:116px !important; font-size:12.5px;} body.vlive .pava .vb{width:30px !important; height:30px !important;} body.vlive .pava .vb svg{width:16px !important; height:16px !important;} body.vlive .pava .vtag{font-size:12px !important;} body.vlive .corner.bl .pemo, body.vlive .corner.bl .pchat, body.vlive .corner.bl .pwt{top:auto; bottom:52px !important;} }
+  @media (min-width:740px) and (min-height:370px){ body.vlive .corner.bl .pemo, body.vlive .corner.bl .pchat, body.vlive .corner.bl .pwt{top:auto; bottom:34px;} body.vlive .corner.bl .pwt{width:40px; height:40px;} body.vlive .pava{width:80px; height:84px;} body.vlive .pname{max-width:92px;} body.vlive .pava .vb{width:26px; height:26px; top:3px;} body.vlive .pava .vb svg{width:14px; height:14px;} body.vlive .pava .vb.vmic{right:3px;} body.vlive .pava .vb.vcam{left:3px;} body.vlive .pava .vtag{font-size:10.5px;} body.vlive .pstatus{width:14px; height:14px;} }
   .vb.vgrey{background:#3a3430; border-color:#9a8f80; color:#e8dcc4;}
   button.vb::after{content:''; position:absolute; inset:-8px;}   /* a finger-sized target around the small badge */
   .vvid{position:absolute; inset:0; width:100%; height:100%; z-index:5; background:#000;}
@@ -1959,7 +1959,23 @@
     .vasknote{margin-top:6px; font-size:11px;}
   }
   /* victory: the four corners grow while the results card is up, faces stay live; gold on the winner */
-  .corner:not(.rps-out):has([data-vid].vtalk){filter:none !important;}   /* whoever is talking lights up, even when it isn't their turn */
+  .corner:not(.rps-out):has([data-vid].vtalk){filter:none !important;}
+  /* v225: badges live in the plaque's name row, never on the picture. The row hugs the screen edge (under the picture for
+     the bottom corners, above it for the top ones): name on the edge side, badges on the board side. */
+  body.vlive .corner.tl .pport, body.vlive .corner.tr .pport{flex-direction:column-reverse;}
+  body.vlive .pname.prow{display:flex; align-items:center; justify-content:space-between; gap:5px; width:100%; max-width:none !important; box-sizing:border-box; padding:0 1px; overflow:visible;}
+  body.vlive .corner.tr .pname.prow, body.vlive .corner.br .pname.prow{flex-direction:row-reverse;}
+  .prow .nm{overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0;}
+  .vrow{display:flex; gap:4px; flex:none;}
+  .vrow .vb{position:relative; top:auto; left:auto; right:auto; width:20px; height:20px;} .vrow .vb svg{width:11px; height:11px;}
+  .corner.bl .vrow .vbars, .corner.br .vrow .vbars{top:auto; bottom:calc(100% + 2px);}
+  @media (min-width:740px) and (min-height:370px){ .vrow .vb{width:24px; height:24px;} .vrow .vb svg{width:13px; height:13px;} }
+  @media (min-width:800px) and (min-height:390px){ .vrow .vb{width:26px; height:26px;} .vrow .vb svg{width:14px; height:14px;} }
+  body.vlive .corner.tr .pstatus, body.vlive .corner.br .pstatus{right:auto; left:2px;}   /* the online dot on the board side too */
+  /* the round menu button (and its neighbours) step away from the camera when it is on the right */
+  body.cut-r #radialtab, body.cut-r #trophytab{right:calc(env(safe-area-inset-right, 0px) + 4px);}
+  body.cut-r #dicetab{right:calc(env(safe-area-inset-right, 0px) + 70px);}
+  body.cut-l #leavetab{left:env(safe-area-inset-left, 0px);}   /* whoever is talking lights up, even when it isn't their turn */
   body.vwin .corner.vwinner .pava::after{content:'👑'; position:absolute; top:1px; left:50%; transform:translateX(-50%); font-size:14px; line-height:1; z-index:12; filter:drop-shadow(0 1px 2px rgba(0,0,0,0.7));}
   body.vwin .corner.vwinner .pava{border-color:#ffd76b !important; box-shadow:0 0 0 3px rgba(255,215,107,0.45), 0 0 18px 6px rgba(255,215,107,0.5);}
 </style>
@@ -2066,7 +2082,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v224';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v225';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -2970,11 +2986,14 @@
       const tap = online ? (p.color === myColor && voiceOn() ? ` onclick="CATAN.voiceCard(this)"` : ` onclick="CATAN.showMsgs('${p.color}')"`) : '';
       // online/offline status dot on the portrait (online games only) — greys out if they left the app
       const off = online && !isPlayerOnline(p.color);
+      // v225: with voice, the mic/camera badges sit in the plaque's name row (off the picture, and out of the
+      // phone's camera cutout, which in landscape is always mid-height on a side edge)
+      const vbs = pid ? voiceBadges(pid) : '', vrow = !!(vbs && document.body.classList.contains('vlive'));
       const statusDot = online ? `<span class="pstatus ${off ? 'off' : 'on'}" title="${off ? 'Offline' : 'Online'}"></span>` : '';
       const wtb = wtCornerBits(p.color);
       el.innerHTML = `${di}${tbadge}${chatBtn}${dot}${wtb.mic}
         <div class="pcol">${stat(bdg.res, cards, '🃏', 'Resource cards', false, cards > 7)}${stat(bdg.card, dev, '🎴', 'Development cards')}${stat(bdg.vp, vp, '⭐', 'Victory points')}${stat(bdg.army, p.playedKnights, '⚔️', 'Knights played', p.hasLargestArmy)}${stat(bdg.road, road, '🛣️', 'Longest road', p.hasLongestRoad)}</div>
-        <div class="pport"${tap}><div class="pava${flagged ? ' flagged' : ''}${off ? ' offline' : ''}"${pid ? ` data-vid="${pid}"` : ''} style="border-color:${PCOLOR[p.color]}">${av}${statusDot}${pid ? voiceBadges(pid) + voiceTag(pid) : ''}</div>${wtb.badge}<div class="pname">${escapeHtml(p.name)}</div></div>${flagged ? '<span class="pflag">🏳️</span>' : ''}${luckStrip(p)}${robbedPill(p.color)}${cupPts ? `<span class="pcup" title="Cup points">🏆<b>${cupPts[p.color]}</b></span>` : ''}`;
+        <div class="pport"${tap}><div class="pava${flagged ? ' flagged' : ''}${off ? ' offline' : ''}"${pid ? ` data-vid="${pid}"` : ''} style="border-color:${PCOLOR[p.color]}">${av}${statusDot}${pid ? (vrow ? '' : vbs) + voiceTag(pid) : ''}</div>${wtb.badge}${vrow ? `<div class="pname prow"><span class="nm">${escapeHtml(p.name)}</span><span class="vrow">${vbs}</span></div>` : `<div class="pname">${escapeHtml(p.name)}</div>`}</div>${flagged ? '<span class="pflag">🏳️</span>' : ''}${luckStrip(p)}${robbedPill(p.color)}${cupPts ? `<span class="pcup" title="Cup points">🏆<b>${cupPts[p.color]}</b></span>` : ''}`;
     });
     voiceMountVideos();   // live camera pictures survive the corner re-render
     // which game of the cup this is, under the banner
@@ -7461,6 +7480,17 @@
   fitAppHeight();
   window.addEventListener('resize', fitAppHeight);
   window.addEventListener('orientationchange', () => setTimeout(fitAppHeight, 80));
+  // v225: in landscape the camera cutout (notch / Dynamic Island / punch-hole) is mid-height on one side edge.
+  // Mark which side, so the few things that live mid-height on an edge (the round menu button) step away from it.
+  // window.orientation: 90 = turned so the phone's top is on the left; -90 = on the right.
+  function markCutSide() {
+    let a = typeof window.orientation === 'number' ? window.orientation : (screen.orientation && typeof screen.orientation.angle === 'number' ? (screen.orientation.angle === 270 ? -90 : screen.orientation.angle) : 0);
+    document.body.classList.toggle('cut-l', a === 90);
+    document.body.classList.toggle('cut-r', a === -90);
+  }
+  markCutSide();
+  window.addEventListener('orientationchange', () => setTimeout(markCutSide, 60));
+  window.addEventListener('resize', markCutSide);
   window.addEventListener('pageshow', fitAppHeight);
   window.addEventListener('resize', fitTitle);
   window.addEventListener('load', scheduleFit);

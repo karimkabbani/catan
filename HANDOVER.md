@@ -1007,6 +1007,16 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    them (silences the line, "muted" tag). Bot seats now carry ids `bot-*` (`isPlayerOnline` treats them as online).
    Victory shortcuts: "🏆 Skip to a victory screen" on the practice table, and "I win / A computer wins" in the in-game
    Leave dialog (`practiceWin`).
+58. ✅ **v225 (2026-11-08, built, not deployed). Camera cutout (notch / Dynamic Island).** In landscape the cutout sits
+   mid-height on one side edge; on Karim's 16 Pro it covered his camera badge (and with the camera on the right, the round
+   menu button). Canvas "Catan: Design & UX sweep" board 9 compared 4 options; Karim picked D: with voice (`body.vlive`)
+   the mic/camera badges move off the picture into the plaque's name row (`.pname.prow` = `.nm` + `.vrow`), name on the
+   screen-edge side, badges on the board side; the row sits under the picture for bottom corners and ABOVE it for top
+   corners (a name beside the picture fell under the island). Pictures trimmed (108/84/68px tall) so corners keep their
+   size; online dot on the board side for right corners. For everyone: `markCutSide()` sets `body.cut-l/cut-r` from
+   `window.orientation` (90 = phone top on the left), and the menu/trophy/dice tabs step in by the safe-area inset when
+   the camera is on the right. Checked headless at 932/874(16 Pro, island drawn both ways)/812/667/568: nothing under the
+   island. The real rotation value on iPhone must be confirmed on the phone.
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
