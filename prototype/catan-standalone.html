@@ -2093,7 +2093,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v229';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v230';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -5380,7 +5380,7 @@
     const m = SETTINGS.voice;
     if (!m) { voiceAsk(); return; }
     if (m === 'audio' || m === 'video') {   // a remembered Video starts on Audio: the camera never switches on by itself
-      voiceSetMic(true).then(() => { if (LIVE.mic) toast('You\'re on audio · tap your picture to change'); });
+      voiceSetMic(true).then(() => { if (LIVE.mic) toast(m === 'video' ? '🎤 Your mic is on · tap 📷 to turn your camera on' : '🎤 Your mic is on'); });
     }
   }
   function voiceAsk() {
