@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v239';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v240';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -5503,9 +5503,9 @@
   // v225: in landscape the camera cutout (notch / Dynamic Island / punch-hole) is mid-height on one side edge.
   // Mark which side, so the few things that live mid-height on an edge (the round menu button) step away from it.
   // window.orientation: 90 = turned so the phone's top is on the left; -90 = on the right.
+  let HOST_ORIENT = 0;   // v240: the host page's window.orientation (the frame itself can't read it reliably)
   function markCutSide() {
-    if (FRAMED) return;
-    let a = typeof window.orientation === 'number' ? window.orientation : (screen.orientation && typeof screen.orientation.angle === 'number' ? (screen.orientation.angle === 270 ? -90 : screen.orientation.angle) : 0);
+    let a = FRAMED ? HOST_ORIENT : (typeof window.orientation === 'number' ? window.orientation : (screen.orientation && typeof screen.orientation.angle === 'number' ? (screen.orientation.angle === 270 ? -90 : screen.orientation.angle) : 0));   // v240: framed = what the host told us (0 while turned)
     document.body.classList.toggle('cut-l', a === 90);
     document.body.classList.toggle('cut-r', a === -90);
   }
@@ -5547,6 +5547,13 @@
     const a = e.data.catanSideAngle === 90 || e.data.catanSideAngle === -90 ? e.data.catanSideAngle : 0;
     document.documentElement.classList.toggle('sideturned', a !== 0);   // v237: the phone's up/down is the game's sideways (touch-action axes swap)
     if (a !== SIDE_ANGLE) { SIDE_ANGLE = a; voiceSendState(); }
+    // v240: unturned, the frame fills the screen and we lay out against the host's real insets (html.framed zeroes
+    // them by default, which is right only while the host keeps the turned frame inside the safe area)
+    const root = document.documentElement, sa = e.data.sa || {};
+    ['t', 'r', 'b', 'l'].forEach((k) => { if (!a && typeof sa[k] === 'number') root.style.setProperty('--sa-' + k, sa[k] + 'px'); else root.style.removeProperty('--sa-' + k); });
+    if (!a && e.data.standalone) { root.style.setProperty('--vp-gap', (e.data.gap || 0) + 'px'); root.classList.add('ios-pwa'); } else { root.style.removeProperty('--vp-gap'); root.classList.remove('ios-pwa'); }
+    HOST_ORIENT = a ? 0 : (typeof e.data.orient === 'number' ? e.data.orient : 0);
+    markCutSide();
   });
   if (window.MutationObserver) { try { new MutationObserver(() => sidewaysSync()).observe(document.body, { attributes: true, attributeFilter: ['class'] }); } catch (_) { } }
   window.addEventListener('resize', markCutSide);

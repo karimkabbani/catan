@@ -51,15 +51,17 @@
     var i = insets();
     // iPhone home-screen app: the viewport ends short of the screen by the status-bar strip (see fitAppHeight in
     // app.js), so the cut-off line already sits above the home bar: drop the bottom inset by that much.
-    var gap = 0;
-    if (window.navigator.standalone === true) gap = Math.max(0, (portrait ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height)) - H);
+    var gap = hostGap(portrait, H);
     var top = i.t, left = i.l, w = W - i.l - i.r, h = H - i.t - Math.max(0, i.b - gap);
     var rot = st.ingame && portrait && touch && !!st.user;   // any signed-in player (v234; v230-v233 was test2 only)
     var key = [W, H, top, left, w, h, rot, flip()].join(',');
     if (key === last) return; last = key;
     var s = frame.style;
     if (!rot) {
-      s.width = w + 'px'; s.height = h + 'px'; s.transform = 'translate(' + left + 'px,' + top + 'px)';
+      // v240: unturned, the frame fills the whole screen and the app inside handles the safe areas itself (it gets
+      // this page's insets with the angle message), exactly like the plain page did: the lobby's tab bar owns the
+      // bottom edge again instead of sitting above a dark band (Karim's iPhone, v239).
+      s.width = W + 'px'; s.height = H + 'px'; s.transform = 'translate(0px,0px)';
     } else {
       // the frame is h wide and w tall, then turned. 90deg: its top edge ends up on the phone's right
       // (read it with the phone's top on your left); -90deg (flipped) the other way round.
@@ -70,10 +72,20 @@
     document.body.classList.toggle('ingame', !!st.ingame);
     postAngle();
   }
-  // the app inside turns camera pictures back by this angle (the phone films on its side while the board is turned)
+  // iPhone home-screen app: the viewport ends short of the screen by the status-bar strip (see fitAppHeight in app.js)
+  function hostGap(portrait, H) {
+    if (window.navigator.standalone !== true) return 0;
+    return Math.max(0, (portrait ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height)) - H);
+  }
+  // the app inside turns camera pictures back by this angle (the phone films on its side while the board is turned).
+  // v240: unturned, it also gets this page's safe-area insets, the home-screen viewport gap and the orientation, so it
+  // can lay out against the real screen edges (turned, the frame already sits inside the safe area: insets are zero).
   function postAngle() {
     var a = !frame.style.transform || frame.style.transform.indexOf('rotate') < 0 ? 0 : (flip() ? -90 : 90);
-    try { frame.contentWindow.postMessage({ catanSideAngle: a }, location.origin); } catch (e) { }
+    var portrait = window.innerHeight > window.innerWidth, i = a ? { t: 0, r: 0, b: 0, l: 0 } : insets();
+    var msg = { catanSideAngle: a, sa: i, gap: a ? 0 : hostGap(portrait, window.innerHeight), standalone: window.navigator.standalone === true,
+      orient: typeof window.orientation === 'number' ? window.orientation : (screen.orientation && typeof screen.orientation.angle === 'number' ? (screen.orientation.angle === 270 ? -90 : screen.orientation.angle) : 0) };
+    try { frame.contentWindow.postMessage(msg, location.origin); } catch (e) { }
   }
   window.addEventListener('message', function (e) {
     if (e.origin !== location.origin || e.source !== frame.contentWindow) return;
