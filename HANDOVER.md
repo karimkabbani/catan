@@ -1150,7 +1150,7 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    - **Release plan:** (1) ✅ 2026-11-09: voice-config.json `{ "enabled": true, "only": ["test", "test2"], "sidewaysOnly":
      ["test", "test2"] }` + v237 live; (2) two-phone test (`docs/phone-test-v237.md`); (3) drop both lists (edit the json +
      deploy; the phones pick it up within ~2 s). Practice table stays test-only. Only one session deploys.
-72. 🔧 **v238 (2026-11-09): sideways board turns on any touch screen.** Karim's first two-device test (iPhone 16 Pro as test,
+72. ✅ **v238 (2026-11-09, deployed): sideways board turns on any touch screen.** Karim's first two-device test (iPhone 16 Pro as test,
    Android Studio Pixel 7 emulator as test2, v237 live): faces upright on both devices (item 65's sign confirmed, at least
    iPhone -> Android), badges in the name rows, voice both ways, honest mute (muted iPhone showed no sound bars). But the
    emulator's board never turned while upright: rotate.html tested `(pointer:coarse)`, and the emulator (a virtual mouse
