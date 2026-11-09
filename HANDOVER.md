@@ -1162,6 +1162,15 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    thrown away and a fresh, black one waited for the next draw tick (up to ~70 ms). Since v216 (the canvas approach).
    Fix: `LIVE.cvs[id]` keeps each player's drawn canvases; `voiceMountVideos` re-attaches one of the right size instead of
    creating a new one, so the last frame stays on screen through the rebuild. verify.js checks node and pixels survive.
+74. 🔧 **v240 (2026-11-09): the unturned frame fills the screen.** Karim's iPhone (v239 lobby): dark bands above and below
+   the lobby, the tab bar no longer on the bottom edge. Cause: rotate.html always kept the frame inside the phone's safe
+   area, and html.framed zeroed the app's own insets, so in the lobby (unturned) nobody drew into the status-bar and home-bar
+   strips. Now: unturned, the frame covers the whole screen and the angle message also carries the host's insets
+   (`sa`), the home-screen viewport gap (`gap`, see fitAppHeight), `standalone` and the orientation; the app sets
+   `--sa-*`, `--vp-gap` / `html.ios-pwa` and `body.cut-l/r` (markCutSide now uses the host's orientation when
+   framed) from them, so it lays out exactly like the plain v214 page. Turned, the host keeps the frame inside the safe
+   area and the app's insets stay zero (item 66). `tests/device/frame.js` fakes the 62/34 insets on the host and checks
+   both states plus the way back to the lobby.
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
