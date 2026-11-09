@@ -23,6 +23,10 @@
 <style>
   html,body{margin:0; height:100%; overflow:hidden; background:#24150a; overscroll-behavior:none;}
   body.ingame{background:#0c2a44;}
+  /* v241: the iPhone home-screen app draws nothing below its short viewport; iOS fills that strip with THIS page's
+     background. In the lobby the app's tab bar ends there, so paint the strip in the tab bar's colour (index.html
+     body.inlobby does the same on the plain page, HANDOVER item 21) and it reads as one bar to the edge. */
+  body.inlobby{background:#120903;}
   #app{position:fixed; left:0; top:0; border:0; margin:0; padding:0; display:block; background:#24150a; transform-origin:0 0;}
   #probe{position:fixed; left:0; top:0; width:0; height:0; visibility:hidden; pointer-events:none;
     padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);}
@@ -54,6 +58,10 @@
     var gap = hostGap(portrait, H);
     var top = i.t, left = i.l, w = W - i.l - i.r, h = H - i.t - Math.max(0, i.b - gap);
     var rot = st.ingame && portrait && touch && !!st.user;   // any signed-in player (v234; v230-v233 was test2 only)
+    // the page colours (sea in a game, the tab bar's colour in the lobby): before the early return below, since the
+    // frame's geometry often does not change when the app moves between the lobby and a game (v241)
+    document.body.classList.toggle('ingame', !!st.ingame);
+    document.body.classList.toggle('inlobby', !!st.inlobby && !st.ingame);
     var key = [W, H, top, left, w, h, rot, flip()].join(',');
     if (key === last) return; last = key;
     var s = frame.style;
@@ -69,7 +77,6 @@
       s.transform = flip() ? 'translate(' + left + 'px,' + (top + h) + 'px) rotate(-90deg)'
                            : 'translate(' + (left + w) + 'px,' + top + 'px) rotate(90deg)';
     }
-    document.body.classList.toggle('ingame', !!st.ingame);
     postAngle();
   }
   // iPhone home-screen app: the viewport ends short of the screen by the status-bar strip (see fitAppHeight in app.js)
@@ -91,7 +98,7 @@
     if (e.origin !== location.origin || e.source !== frame.contentWindow) return;
     var d = e.data || {};
     if (!d.catanSideways) return;
-    st.ingame = !!d.ingame; st.user = d.user || null;
+    st.ingame = !!d.ingame; st.user = d.user || null; st.inlobby = !!d.inlobby;
     if (d.flipped !== undefined) last = '';
     layout(); postAngle();
   });
