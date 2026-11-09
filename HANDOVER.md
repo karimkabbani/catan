@@ -1188,7 +1188,7 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    edge (the board's right side) is a black band instead of sea; the frame was already kept clear of it. Everyone gets the
    new status bar on their next launch (the meta is read at launch). The v242 diagnostic line stays for the test players
    until the phone confirms insets 0/0/34/0. Mocks: canvas "Catan: Design & UX sweep" board 10 (real renders, A vs B).
-77. 🔧 **v244 (2026-11-09): the status bar style is baked in per install.** v243 on Karim's 16 Pro: still translucent
+77. ✅ **v244 (2026-11-09, deployed): the status bar style is baked in per install.** v243 on Karim's 16 Pro: still translucent
    (insets 62/0/34/0, viewport 812), and the tab bar 26 pt taller because v243 had switched the item-21 correction off.
    iOS captures `apple-mobile-web-app-status-bar-style` when the icon is added; a changed meta only applies to a fresh
    "Add to Home Screen". So `hostGap` (rotate.html) and `fitAppHeight` (app.js) now apply the correction only while the
