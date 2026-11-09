@@ -816,9 +816,14 @@
   .pname{font-size:11px; font-weight:700; color:var(--ink); max-width:62px; text-align:center;
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-shadow:0 1px 1px #000;}
   /* dice sit above the active player's corner (below for top corners) */
-  .pdice{position:absolute; left:50%; transform:translateX(-50%); display:flex; gap:5px; z-index:7;}
+  /* v249: the last roll's dice always hang off the corner's BOARD-SIDE edge (above a bottom corner, below a top one),
+     the same spot relative to every corner (they used to be centred on left corners and left-aligned on right ones),
+     and away from the screen edge, so never under the camera cutout */
+  .pdice{position:absolute; display:flex; gap:5px; z-index:7;}
   .corner.bl .pdice, .corner.br .pdice{bottom:calc(100% + 7px);}
   .corner.tl .pdice, .corner.tr .pdice{top:calc(100% + 7px);}
+  .corner.tl .pdice, .corner.bl .pdice{right:0;}
+  .corner.tr .pdice, .corner.br .pdice{left:0;}
   .pdice img{width:34px; height:34px; filter:drop-shadow(0 2px 4px rgba(0,0,0,0.6));}
   .logo{max-width:78%;max-height:96px;display:block;margin:0 auto 12px;}
 
@@ -1673,7 +1678,7 @@
     @media (max-width:640px){ body.vlive .specvc{gap:3px;} body.vlive .specvc .vb{width:20px; height:20px;} }
   @media (max-width:640px){ body.vlive .spechand.specview .specsel{min-width:60px;} body.vlive .spechand .specorbs{gap:4px;} body.vlive .spechand .specorbs .res img{width:18px; height:18px;} body.vlive .spechand .specorbs .rcount{font-size:12.5px;} body.vlive .spechand .specleave{padding:4px 7px; font-size:11.5px;} }
   .specsel.more{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent); mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent);}
-  body.vlive .corner.tr .pdice, body.vlive .corner.br .pdice{left:0; transform:none;}   /* v221: off the round menu button */
+  /* v221's "right-corner dice left-aligned, off the round menu button" is now the rule for every corner (v249, .pdice) */
   .speceye{flex:0 0 auto; font-size:15px;}
   .specsel{display:flex; align-items:center; gap:6px; overflow-x:auto; -webkit-overflow-scrolling:touch;}
   .specpl{display:flex; align-items:center; gap:5px; flex:0 0 auto; padding:5px 9px; border-radius:11px;
