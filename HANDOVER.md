@@ -1201,7 +1201,7 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    State of play: an icon added before v243 keeps the translucent bar and the v242 geometry (bar-coloured 62 pt strip)
    until its owner re-adds the icon; v244's inset test makes both layouts correct at once. Nothing to do for the friends
    unless they want the new look: delete the icon, open the site in Safari, Share -> Add to Home Screen.
-79. 🔧 **v246 (2026-11-09): the turned board gets the home-indicator strip back.** Karim: with rotation lock on the corners
+79. ✅ **v246 (2026-11-09, deployed): the turned board gets the home-indicator strip back.** Karim: with rotation lock on the corners
    were a size smaller than in real landscape. Cause: the host kept the turned frame clear of BOTH long-edge strips (status
    bar 62 + home indicator 34), so the game was 778 pt wide and fell under the 800 pt "big corners" tier that real landscape
    (874) meets. Now the turned frame runs to the phone's bottom edge and the app gets the 34 pt as its right inset (`--sa-r`;
