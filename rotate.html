@@ -101,6 +101,7 @@
     // turned by 90: the phone's bottom (home indicator) is the game's RIGHT edge; by -90 (flipped) its LEFT edge
     var i = a === 90 ? { t: 0, r: ins.b, b: 0, l: 0 } : a === -90 ? { t: 0, r: 0, b: 0, l: ins.b } : ins;
     var msg = { catanSideAngle: a, sa: i, gap: a ? 0 : hostGap(portrait, window.innerHeight), standalone: window.navigator.standalone === true,
+      vp: { ih: window.innerHeight, iw: window.innerWidth, ins: ins, wo: typeof window.orientation === 'number' ? window.orientation : 'none', so: screen.orientation ? screen.orientation.type + '/' + screen.orientation.angle : 'none' },   // v247: in-game diagnostic line, test players only
       orient: typeof window.orientation === 'number' ? window.orientation : (screen.orientation && typeof screen.orientation.angle === 'number' ? (screen.orientation.angle === 270 ? -90 : screen.orientation.angle) : 0) };
     try { frame.contentWindow.postMessage(msg, location.origin); } catch (e) { }
   }
