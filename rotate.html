@@ -1,4 +1,92 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"/><title>Catan</title>
-<script>location.replace('index.html' + location.search + location.hash);</script>
-<meta http-equiv="refresh" content="0; url=index.html"/></head><body></body></html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="Catan"/>
+<meta name="theme-color" content="#2a1a0c"/>
+<link rel="manifest" href="manifest.webmanifest"/>
+<link rel="apple-touch-icon" href="apple-touch-icon.png"/>
+<title>Catan</title>
+<!-- Sideways board host (HANDOVER §8 items 63-67). index.html sends every signed-in player on a phone or desktop
+     here; the whole app runs in the frame below. While the board is up and a touch screen is upright (rotation
+     lock on, or just held upright), the frame is sized landscape and turned 90 degrees (-90 after Settings ->
+     Flip it over), so the app inside sees a real landscape screen: its layout, media queries, taps and swipes work
+     unchanged (the browser maps touches through the rotation). Otherwise the frame simply fills the screen.
+     The frame always sits inside this page's safe area (notch, status bar, home bar); the app inside zeroes its
+     own safe-area margins (html.framed), because iPhone still hands the frame the portrait insets. The app tells
+     this page {catanSideways, ingame, user}; this page answers {catanSideAngle} so camera pictures are turned
+     back upright (vDraw in app.js). -->
+<style>
+  html,body{margin:0; height:100%; overflow:hidden; background:#24150a; overscroll-behavior:none;}
+  body.ingame{background:#0c2a44;}
+  #app{position:fixed; left:0; top:0; border:0; margin:0; padding:0; display:block; background:#24150a; transform-origin:0 0;}
+  #probe{position:fixed; left:0; top:0; width:0; height:0; visibility:hidden; pointer-events:none;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);}
+</style>
+</head>
+<body>
+<div id="probe"></div>
+<iframe id="app" title="Catan" allow="camera; microphone; autoplay; fullscreen; screen-wake-lock; clipboard-read; clipboard-write; display-capture"></iframe>
+<script>
+(function () {
+  var frame = document.getElementById('app'), probe = document.getElementById('probe');
+  var st = { ingame: false, user: null };
+  frame.src = 'index.html' + location.search + location.hash;   // a framed index.html never bounces back here
+  function flip() { try { return localStorage.getItem('catanSideFlip') === '1'; } catch (e) { return false; } }
+  function insets() {
+    var cs = getComputedStyle(probe);
+    return { t: parseFloat(cs.paddingTop) || 0, r: parseFloat(cs.paddingRight) || 0, b: parseFloat(cs.paddingBottom) || 0, l: parseFloat(cs.paddingLeft) || 0 };
+  }
+  var last = '';
+  function layout() {
+    var W = window.innerWidth, H = window.innerHeight, portrait = H > W;
+    var touch = window.matchMedia && window.matchMedia('(pointer:coarse)').matches;
+    var i = insets();
+    // iPhone home-screen app: the viewport ends short of the screen by the status-bar strip (see fitAppHeight in
+    // app.js), so the cut-off line already sits above the home bar: drop the bottom inset by that much.
+    var gap = 0;
+    if (window.navigator.standalone === true) gap = Math.max(0, (portrait ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height)) - H);
+    var top = i.t, left = i.l, w = W - i.l - i.r, h = H - i.t - Math.max(0, i.b - gap);
+    var rot = st.ingame && portrait && touch && !!st.user;   // any signed-in player (v234; v230-v233 was test2 only)
+    var key = [W, H, top, left, w, h, rot, flip()].join(',');
+    if (key === last) return; last = key;
+    var s = frame.style;
+    if (!rot) {
+      s.width = w + 'px'; s.height = h + 'px'; s.transform = 'translate(' + left + 'px,' + top + 'px)';
+    } else {
+      // the frame is h wide and w tall, then turned. 90deg: its top edge ends up on the phone's right
+      // (read it with the phone's top on your left); -90deg (flipped) the other way round.
+      s.width = h + 'px'; s.height = w + 'px';
+      s.transform = flip() ? 'translate(' + left + 'px,' + (top + h) + 'px) rotate(-90deg)'
+                           : 'translate(' + (left + w) + 'px,' + top + 'px) rotate(90deg)';
+    }
+    document.body.classList.toggle('ingame', !!st.ingame);
+    postAngle();
+  }
+  // the app inside turns camera pictures back by this angle (the phone films on its side while the board is turned)
+  function postAngle() {
+    var a = !frame.style.transform || frame.style.transform.indexOf('rotate') < 0 ? 0 : (flip() ? -90 : 90);
+    try { frame.contentWindow.postMessage({ catanSideAngle: a }, location.origin); } catch (e) { }
+  }
+  window.addEventListener('message', function (e) {
+    if (e.origin !== location.origin || e.source !== frame.contentWindow) return;
+    var d = e.data || {};
+    if (!d.catanSideways) return;
+    st.ingame = !!d.ingame; st.user = d.user || null;
+    if (d.flipped !== undefined) last = '';
+    layout(); postAngle();
+  });
+  window.addEventListener('resize', layout);
+  window.addEventListener('orientationchange', function () { setTimeout(layout, 80); setTimeout(layout, 400); });
+  window.addEventListener('pageshow', layout);
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', layout);
+  ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (g) { document.addEventListener(g, function (e) { e.preventDefault(); }, { passive: false }); });
+  layout(); setTimeout(layout, 300);
+})();
+</script>
+</body>
+</html>
