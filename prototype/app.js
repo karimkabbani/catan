@@ -5508,7 +5508,8 @@
   // (only from the plain lobby, never from a room or a game); index.html's head script does the same at launch.
   // v237: staged rollout. Anyone signed in, unless voice-config.json carries "sidewaysOnly": [names]; then only those
   // players get the turned board (the others run unturned in the frame, i.e. like the plain page). Before the config
-  // has been read nobody is sent to rotate.html. index.html's head script reads the cached answer (catanSideOK).
+  // has been read nobody is sent to rotate.html. index.html's head script only redirects at launch when the cached answer
+  // (localStorage catanSideOK) is '1'; otherwise sidewaysSync moves an allowed player over from the lobby.
   function sidewaysUser() {
     if (!(AUTH.me && String(AUTH.me.name || '').trim())) return false;
     const c = LIVE.cfg; if (!c) return false;

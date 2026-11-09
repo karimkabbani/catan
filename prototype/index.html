@@ -13,9 +13,11 @@
 <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png"/>
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png"/>
 <title>Catan</title>
-<script>/* sideways board: every signed-in player runs inside rotate.html (see rotate.html, app.js sidewaysSync) */
+<script>/* sideways board: signed-in players run inside rotate.html (see rotate.html, app.js sidewaysSync). v237: only once the app
+     has confirmed this player may (catanSideOK = '1', from voice-config.json "sidewaysOnly"); the first time, sidewaysSync moves
+     them over from the lobby, so a player outside the list never sees rotate.html at all */
 (function () { try { if (window.top !== window || !/^https?:$/.test(location.protocol)) return; var a = JSON.parse(localStorage.getItem('catanAuth') || 'null');
-  if (a && String(a.name || '').trim() && localStorage.getItem('catanSideOK') !== '0') location.replace('rotate.html' + location.search + location.hash); } catch (e) { } })();</script>
+  if (a && String(a.name || '').trim() && localStorage.getItem('catanSideOK') === '1') location.replace('rotate.html' + location.search + location.hash); } catch (e) { } })();</script>
 <style>
   /* safe-area margins (notch, island, home bar). v233: inside rotate.html's sideways frame the host already keeps the
      frame within the safe area, but iPhone still reports the phone's portrait margins to the frame, which then landed
