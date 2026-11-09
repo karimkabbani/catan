@@ -1195,7 +1195,7 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    measured top inset is > 0 (page under the status bar = translucent install) and 0 otherwise (opaque install). The meta
    stays `black`: whether a re-added icon gets the opaque bar is being checked on Karim's phone; if it does, option B is
    only for re-installs and the friends keep A until they re-add the icon.
-78. 🔧 **v245 (2026-11-09): status bar confirmed, diagnostic line removed.** Karim deleted the icon and re-added it: black
+78. ✅ **v245 (2026-11-09, deployed): status bar confirmed, diagnostic line removed.** Karim deleted the icon and re-added it: black
    status bar, insets 0/0/34/0, the Play / Chat / Stats buttons right above the home indicator (option B works, for icons
    added from v243 on). The v242 numbers line under the version is gone (app.js `hostDiagLine`, rotate.html `vp`).
    State of play: an icon added before v243 keeps the translucent bar and the v242 geometry (bar-coloured 62 pt strip)
