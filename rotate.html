@@ -44,7 +44,10 @@
   var last = '';
   function layout() {
     var W = window.innerWidth, H = window.innerHeight, portrait = H > W;
-    var touch = window.matchMedia && window.matchMedia('(pointer:coarse)').matches;
+    // v238: a touch screen. Not just the PRIMARY pointer: the Android emulator (and some phones with a mouse or a stylus
+    // attached) report a fine primary pointer, which left the board unturned on Karim's emulator test. Desktops have
+    // no touch points and no coarse pointer, so they still never turn.
+    var touch = (window.matchMedia && (window.matchMedia('(any-pointer:coarse)').matches || window.matchMedia('(pointer:coarse)').matches)) || (navigator.maxTouchPoints || 0) > 0;
     var i = insets();
     // iPhone home-screen app: the viewport ends short of the screen by the status-bar strip (see fitAppHeight in
     // app.js), so the cut-off line already sits above the home bar: drop the bottom inset by that much.
