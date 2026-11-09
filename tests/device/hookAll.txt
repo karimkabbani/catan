@@ -1,0 +1,49 @@
+window.CATAN = { _vic: (w) => { state.phase = 'ended'; state.winner = w; showVictory(true); renderPanels(); return 'ok'; },
+_spec: () => {
+  myColor = null; AUTH.me = { id: 'pid-me', name: 'Karim', token: 'x' };
+  const W = [{ id: 'pid-me', name: 'Karim', mode: 'spectate', table: 'ABCD' }, { id: 'pid-lapen', name: 'Lapen', mode: 'spectate', table: 'ABCD' }];
+  LOBBY.spectators = () => W;
+  const camTrack = (hue) => ({ attach: (v) => { v.srcObject = window._mkStream(hue); return v; } });
+  const mk = (id, name, mic, cam, lvl, hue) => ({ identity: id, name, audioLevel: lvl, getTrackPublication: (src) => (src === 'microphone' ? (mic === null ? null : { isMuted: !mic, track: {} }) : (cam ? { isMuted: false, track: camTrack(hue) } : null)), audioTrackPublications: new Map() });
+  LIVE.room.localParticipant = mk('pid-me', 'Karim', true, true, 0, 200);
+  LIVE.room.remoteParticipants.set('pid-red', mk('pid-red', 'Karim', true, true, 0, 120));
+  LIVE.room.remoteParticipants.set('pid-lapen', mk('pid-lapen', 'Lapen', true, true, 0.6, 300));
+  render(); voiceRefresh(); return 'spec';
+}, _gameN: (n, seed) => {
+  const names = ['Karim', 'Kay', 'Ramzi', 'Nasam'], cols = ['red', 'blue', 'green', 'yellow'];
+  let s = C.createGame({ id: 'table', players: names.slice(0, n).map((nm, i) => ({ color: cols[i], name: nm })), seed, targetPoints: 10 });
+  const free = (s, v) => !s.settlements[v] && s.board.vertices[v].neighbors.every((x) => !s.settlements[x]);
+  let k = 7;
+  while (s.phase === 'setup') {
+    const col = s.order[s.setupOrder[s.setupIndex]];
+    const vs = s.board.vertices.filter((vt) => free(s, vt.id) && vt.hexes && vt.hexes.length === 3);
+    const v = (vs.length ? vs : s.board.vertices.filter((vt) => free(s, vt.id)))[k % (vs.length || 1)].id; k += 11;
+    s = C.applyAction(s, { type: 'buildSettlement', vertex: v }, col).state;
+    const e = s.board.vertices[v].edges.find((eid) => s.roads[eid] == null);
+    s = C.applyAction(s, { type: 'buildRoad', edge: e }, col).state;
+  }
+  let turns = 0;
+  for (let t = 0; t < 10; t++) {
+    const col = C.currentColor(s);
+    const r = C.applyAction(s, { type: 'rollDice' }, col); if (!r.ok || r.state.turnPhase !== 'main') break; s = r.state;
+    if (t === 9) break;
+    const e = C.applyAction(s, { type: 'endTurn' }, col); if (!e.ok) return 'end:' + e.error; s = e.state; turns++;
+  }
+  SETTINGS.seen = (SETTINGS.seen || []).concat(['luck-tour']); online = true; const meCol = 'red';
+  gameSeats = s.order.map((c) => ({ color: c, playerId: 'pid-' + c, name: s.players.find((p) => p.color === c).name }));
+  AUTH.me = { id: 'pid-red', name: 'Karim', token: 'x' };
+  s.order.forEach((c) => LOBBY.liveIds.add('pid-' + c));
+  myColor = meCol; enterGame(s);
+  return 'ok:' + turns + ':' + C.currentColor(s);
+}, _voice: (n) => {
+  LIVE.cfg = { enabled: true };
+  window.LivekitClient = window.LivekitClient || { Track: { Source: { Microphone: 'microphone', Camera: 'camera' } } };
+  const camTrack = (hue) => ({ attach: (v) => { v.srcObject = window._mkStream(hue); return v; } });
+  const mk = (id, name, mic, cam, lvl, hue) => ({ identity: id, name, audioLevel: lvl, getTrackPublication: (src) => (src === 'microphone' ? (mic === null ? null : { isMuted: !mic, track: {} }) : (cam ? { isMuted: false, track: camTrack(hue) } : null)), audioTrackPublications: new Map() });
+  const parts = new Map();
+  parts.set('pid-blue', mk('pid-blue', 'Kay', true, true, 0.5, 20));
+  if (n >= 3) parts.set('pid-green', mk('pid-green', 'Ramzi', true, false, 0, 0));
+  if (n >= 4) parts.set('pid-yellow', mk('pid-yellow', 'Nasam', null, false, 0, 0));
+  LIVE.room = { localParticipant: mk('pid-red', 'Karim', true, true, 0, 200), remoteParticipants: parts, options: {}, startAudio: () => Promise.resolve() };
+  LIVE.mic = true; LIVE.cam = true; voiceRefresh(); return 'v';
+},

@@ -1,0 +1,28 @@
+_tray: (m) => { openTray(m); return 1; }, _settings: () => { openSettings(); return 1; }, _down: () => { LIVE.room = null; document.body.classList.remove('vlive'); render(); document.body.classList.add('vlive'); renderPanels(); return 1; },
+_close: () => { ['vcard', 'msghist', 'vask'].forEach((x) => { const e = document.getElementById(x); if (e) e.remove(); }); closeEmojiTray(); hideOverlay(); return 1; }, _vlive: () => { document.body.classList.add('vlive'); return document.body.className; },
+_logmsg: () => { logMsg({ color: 'blue', type: 'text', text: 'yalla' }); return 1; },
+_card: () => { const el = document.querySelector('.corner.bl .pava'); voiceCard(el); return !!document.getElementById('vcard'); }, _hist: (c) => { showMsgHistory(c); return 1; },
+_diceAt: (k) => { const i = state.players.findIndex((_, j) => seatKey(j) === k); state.currentPlayerIndex = state.order.indexOf(state.players[i].color); state.dice = [3, 4]; ui.diceRevealing = false; renderPanels(); return state.players[i].name; },
+_live: () => LIVE, _refresh: () => voiceRefresh(),
+_voice4: () => {
+  LIVE.cfg = { enabled: true }; window.LivekitClient = window.LivekitClient || { Track: { Source: { Microphone: 'microphone', Camera: 'camera' } } };
+  const camTrack = (hue) => ({ attach: (v) => { v.srcObject = window._mkStream(hue); return v; } });
+  const mk = (id, name, mic, cam, lvl, hue) => ({ identity: id, name, audioLevel: lvl, getTrackPublication: (src) => (src === 'microphone' ? (mic === null ? null : { isMuted: !mic, track: {} }) : (cam ? { isMuted: false, track: camTrack(hue) } : null)), audioTrackPublications: new Map(), publishData: () => Promise.resolve() });
+  const parts = new Map();
+  parts.set('pid-blue', mk('pid-blue', 'Kay', true, true, 0.5, 20)); parts.set('pid-green', mk('pid-green', 'Ramzi', true, false, 0, 0)); parts.set('pid-yellow', mk('pid-yellow', 'Nasam', false, true, 0, 280));
+  LIVE.room = { localParticipant: mk('pid-red', 'Karim', true, true, 0, 200), remoteParticipants: parts, options: {}, startAudio: () => Promise.resolve(), disconnect: () => { } };
+  LIVE.roomName = voiceWanted(); LIVE.mic = true; LIVE.cam = true; document.body.classList.add('vlive'); voiceRefresh(); return 'v4';
+},
+_live: () => LIVE,
+_roomchip: () => { AUTH.me = { id: 'pid-red', name: 'Karim', token: 'x' }; showLobby(); LOBBY.table = 'ABCD'; NET.code = null; LOBBY.mode = 'idle'; LOBBY.track(); lobbySig = null; renderLobby(); voiceRefresh(); return !!document.querySelector('.vchip'); },
+_ask: () => { voiceAsk(); return 1; },
+_room4: () => { AUTH.me = { id: 'pid-red', name: 'Lapen', token: 'x', avatar: null }; SETTINGS.voice = null; showLobby(); const T = 'ABCD', now = Date.now(); LOBBY.table = T; NET.code = null; LOBBY.mode = 'ready'; LOBBY.readyAt = now; LV.tab = 'play';
+  [['pid-blue', 'Kay'], ['pid-green', 'Ramzi'], ['pid-yellow', 'Nasam']].forEach(([id, n], i) => { LOBBY.presence[id] = { id, name: n, avatar: null, mode: 'ready', readyAt: now - 9000 + i * 1000, table: T, created: i === 0 ? T : null, age: 1 }; LOBBY.liveIds.add(id); });
+  LOBBY.track(); lobbySig = null; renderLobby(); voiceRefresh(); return document.querySelectorAll('.lvseat').length; },
+_room4voice: (mic, cam) => { CATAN._voice4(); const lp = LIVE.room.localParticipant; lp.name = 'Lapen'; lp.setMicrophoneEnabled = async () => { }; lp.setCameraEnabled = async () => { }; LIVE.mic = mic; LIVE.cam = cam; document.body.classList.add('vlive'); lobbySig = null; voiceRefresh(); return 1; },
+_rpsBody: () => { let r = document.getElementById('rpsroot'); if (!r) { r = document.createElement('div'); r.id = 'rpsroot'; document.body.appendChild(r); } r.classList.remove('hidden', 'strip'); rpsBodySync(); const a = document.body.className; r.classList.add('strip'); rpsBodySync(); const b = document.body.className; r.classList.add('hidden'); rpsBodySync(); return [a, b, document.body.className].map((x) => x.split(' ').filter((c) => /^rps/.test(c)).join('+') || '-'); },
+_land: (color, res) => { const el = document.querySelector('.corner.bl .pcol .pstat b'); const before = el && el.textContent; lagIn(color, res, 1); renderCounts(); const mid = el.textContent; landCard(color, res); return { before, mid, after: el.textContent, sameNode: el === document.querySelector('.corner.bl .pcol .pstat b') }; },
+_gate: (list) => { LIVE.cfg = Object.assign({}, LIVE.cfg || {}, { sidewaysOnly: list }); if (list === null) delete LIVE.cfg.sidewaysOnly; const u = sidewaysUser(); sidewaysSync(); return [u, localStorage.getItem('catanSideOK')]; },
+_vidPix: () => [...document.querySelectorAll('canvas.vvid')].map((c) => { const g = c.getContext('2d'); const d = g.getImageData(Math.floor(c.width / 2), Math.floor(c.height / 2), 1, 1).data; return c.width + 'x' + c.height + ':' + [d[0], d[1], d[2]].join('/'); }),
+_talk: (id, lvl) => { const p = voicePart(id); if (p) p.audioLevel = lvl; return !!p; },
+_net: () => { NET.started = true; NET.code = 'TEST'; NET.heardAt = Date.now(); return 1; },   // an online game as far as the wake/watchdog code is concerned (else waking shows the lobby)

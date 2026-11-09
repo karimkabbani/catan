@@ -1078,14 +1078,74 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    back to index.html" branch and the leftover `SIDE_USER` check (the frame turns for anyone signed in); comments in
    rotate.html, index.html and app.js no longer say test2. HANDOVER items 63-67 renumbered and rewritten to match the
    code; §5.1 lists rotate.html; §5.3 explains when the rotate overlay still shows.
-67. ⏪ **v236 (2026-11-08, deployed). Rolled back to v214 behaviour.** (First pushed as v235, renumbered: another session's sideways tidy-up was already live as v235.) Karim: "lots of bugs", go back to before voice/video
-   and the sideways board. `prototype/` restored file-for-file from v214 (aa9ab15), only APP_VERSION / SW VERSION bumped to
-   v236 so phones update and drop the v234 cache. Left behind on purpose: `voice-config.json` = `{ "enabled": false }`
-   (kill switch for any tab still on v234), `rotate.html` = a redirect to index.html (anyone sitting on the sideways
-   page lands back in the normal app). Removed from the site: livekit lib, voice-trial/. Engine and database unchanged;
-   the voice-token Edge Function is still deployed but unused. **All the v215-v234 work is saved on branch
-   `saved-v234-voice-sideways`** (commit 3239872, includes the other session's v235 sideways tidy-up): voice & video, practice table, design sweep fixes, cutout fix, sideways
-   board. Next: list the bugs, fix them on that branch, then bring the features back one at a time behind test players.
+69. 🔧 **Saved-branch fix (2026-11-08, not live): robber drag stuck inside the sideways frame.** Lapen (Pixel 7) saw the
+   robber stranded in the sea, none on the board, and no menu button: he had rolled a 7 and started dragging the robber.
+   Reproduced in Chrome with the Pixel 7 profile and real touch events: inside rotate.html's frame (turned or not) the
+   game got pointerdown only, never move/up/cancel. Cause: `startRobberDrag` called render(), which removed the robber
+   element under the finger; a plain page re-targets the touch, a frame does not. Fix: the resting robber sits in
+   `<g class="restrob">`, hidden by `#board.rdragging` (no redraw), and the drag captures the pointer on <body>.
+   Verified: framed upright, framed landscape and plain page all deliver 8 moves + lift and land on the right hex.
+   Also found: video roughly halves the frame rate during play under a 4x-slowed CPU (~28 vs ~52 fps; headless
+   numbers are noisy, real GPU differs); the gold pulse on the active corner repaints the corner every frame.
+   Still to check on a real Android: faces turned 90 degrees (item 65's assumed sign), own badges red while own
+   video still showed, and what Lapen means by "screen cut".
+70. 🔧 **Saved-branch Android test pass (2026-11-09, not live).** Chrome with the Pixel 7 profile (Android 14, 412x839,
+   DPR 2.625, touch), real CDP touch events, CPU throttled 4x. No KVM here, so no real Android emulator.
+   - Touch sweep (scratchpad px/sweep.js, 10 checks: pinch, pan, menu tap, emoji tray open/send/scroll/flip, emoji throw,
+     robber drag + confirm): sideways upright, sideways flipped and plain landscape all 10/10 after the fixes.
+   - Fixed: emoji tray would not scroll or swipe on the turned board. touch-action pan-y is read along the PHONE, i.e.
+     the game's sideways: `html.sideturned` (set from the host's angle) swaps to pan-x.
+   - Fixed: own camera badge lied after leaving the app (Lapen's red badges with live video). A background switch-off can
+     fail on Android; the code then marked the camera off anyway and the on-return retry skipped it, so the camera kept
+     sending under a red badge (privacy). Now `voiceLiveCam/Mic()` ask LiveKit what is really sent, a failed switch-off
+     keeps the badge 'on', and the return retry uses the real state. Verified with a camera stub that refuses while hidden.
+   - Faces were NOT turned: read in the game's orientation, Lapen's screenshot shows every face upright (earlier claim withdrawn).
+   - Speed (26 identical recorded moves replayed, medians of 3, 4x CPU): v214 52 fps / 3% dropped frames / 2.3 s of
+     >50 ms stalls; saved code no video 50 / 4% / 5.5 s; sideways frame costs nothing (51 / 3%); 4 videos 33-34 fps /
+     18-21% dropped; gold pulse off 37 / 14%. `fitDock` rewritten (read once, write once, skip when unchanged, one
+     queued call per frame): stalls 5.5 -> 4.8 s. Removing the `:has()` rules would save ~0.8 s more (not done). The rest
+     of the 2x vs v214 is spread over the bigger corners/badges. Bot thinking is excluded (it is far heavier than a real game).
+   - Pre-existing (also before today): at 568 wide with 4 players the resource bar overflows by a few px.
+   Still unverifiable here: real LiveKit camera on Android, what Lapen means by "screen cut", real GPU paint cost.
+71. 🔧 **v237 (2026-11-09, branch `claude/voice-video-sideways-perf-48ku4d`, not live): voice & video and the sideways board
+   made cheaper and gated for a staged return.** Built on the saved branch (items 69-70). Live is still v236 (= v214).
+   - **Measured first** (`tests/device/prof.js`, CDP profiler over the 26-move replay): without video the newer code's script
+     is only +0.1 s and style/layout unchanged vs v214; the earlier "2x per-move work" was the stall metric exaggerating
+     (same work in fewer, longer tasks). Video is the real cost: +1.5 s script (half of it the harness's fake cameras) and
+     +1.4 s native paint. So the work went into paint, not logic.
+   - Video pictures (`vDraw`): drawn only when the camera delivered a new frame (`requestVideoFrameCallback`; a 1 s silence
+     falls back to the old 66 ms timer, so an unpainted <video> still shows), 15 fps cap kept, nothing drawn while the app is
+     hidden, one 2d context per canvas, canvas at 1.5x pixel density (was 2x). `body.vlive .corner{will-change:transform}`:
+     each corner is its own layer, so the dim filter and glow are composited instead of re-rasterised with every frame.
+   - Gold "your turn" pulse kept, but as an opacity animation on `.corner.active::after` (compositor only) instead of an
+     animated box-shadow that repainted the corner, video included, every frame.
+   - All 11 `:has()` rules replaced by classes: `body.rpsup` / `.rpsstrip` (`rpsBodySync`, the who-starts card),
+     `.corner.haschat` (own corner with the talk buttons), `.corner.vtalkin` (someone talking, set by the glow loop),
+     `#title.lvmode` (already there). The 125 ms glow loop writes only when a level changed.
+   - `renderCounts` (a card landing/lifting) now writes the resource number in place; it rebuilt all four corners per card.
+     `CATAN.specView` only redraws the bottom bar.
+   - **Staged rollout gate:** voice-config.json `"sidewaysOnly": [names]` limits the turned board to those players
+     (`sidewaysUser`); the others run unturned (= the plain look). The answer is cached in localStorage `catanSideOK` for
+     index.html's launch redirect. No list = everyone, as before. Voice keeps its own `"only"` list.
+   - **Numbers** (bench3, emulated Pixel 7, 4x CPU, medians of 3; headless software paint, so fps is directional, the
+     new "busy ms" column (main-thread TaskDuration) is the steadiest): no video: stalls 4.1 -> 3.35 s, busy 17.2 -> 15.5 s
+     (v214: 2.2 s / 23.4 s busy, so the new code does LESS total work than v214 but in longer tasks); 4 videos plain:
+     40 -> 45 fps, 12 -> 8% dropped, busy 23.3 -> 22.6 s; 4 videos sideways: 39 -> 43 fps, 13 -> 9%. The harness's
+     fake cameras alone cost ~1 fps. Of the CSS variants only will-change measured (+3 fps); pulse and filter changes are
+     GPU-side and can only show on a phone. Diagnostic (`-nodraw` / `-nopaint`): with the pictures neither drawn nor
+     painted the replay still runs at 45 fps, i.e. the app's own video drawing is now ~free here; the rest of the gap to
+     no-video (54 fps) is the four streams decoding in their <video> elements, which any approach needs.
+   - **Verified headless:** `sweep.js` 10/10 on six combinations (Pixel 7 and iPhone 15 profiles x sideways upright, sideways
+     flipped, plain landscape); `verify.js` 11/11 (the behaviours above); `badge2.js` honest camera badge after returning;
+     `handfit.js` clear at 932/874/812/667, the 568-wide 4-player overflow is pre-existing. Engine: 34 tests pass.
+     `tests/device/make-pages.sh` builds every test page (incl. the v214 and pre-badge-fix baselines), `runbench.sh` +
+     `med.js` run and summarise the benchmark, `README.md` there explains all of it.
+   - **Needs a real phone** (checklist: `docs/phone-test-v237.md`): Safari/WebKit touch feel in the turned frame, camera
+     permission re-prompting in the home-screen app, audio after a lock, AirPods, an incoming call, 4G, 10 min of camera
+     (heat/battery), the camera turn sign (item 65), what Lapen's "screen cut" is, real GPU frame rate with 4 videos.
+   - **Release plan:** (1) voice-config.json `{ "enabled": true, "only": ["test", "test2"], "sidewaysOnly": ["test", "test2"] }`
+     + deploy v237 (friends get v214 behaviour plus the perf fixes); (2) two-phone test; (3) drop both lists. Practice table
+     stays test-only. Only one session deploys; main had no foreign commits on 2026-11-09.
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
@@ -1265,10 +1325,12 @@ live. This is the current reality (last refreshed 2026-11-07; CLAUDE.md has the 
     500px, so phone screenshots are laid out at 500 wide.
 
 ### What's next
-State on 2026-11-08 (evening): **v236 is live = v214 behaviour (rollback, item 67).** Karim found lots of bugs in
-voice & video and the sideways board. All of v215-v235 is saved on branch `saved-v234-voice-sideways`. First: list the
-bugs with Karim, fix them on that branch, test on real phones, then bring features back one at a time (test players first).
-The follow-ups below refer to that saved work. Then pick from section 8, in order:
+State on 2026-11-09: **v236 is live = the v214 app** (rolled back 2026-11-08 after friends hit bugs). Voice & video, the
+sideways board, the practice table and all fixes since live on branch `claude/voice-video-sideways-perf-48ku4d` as **v237**
+(item 71; the untouched snapshot is `saved-v234-voice-sideways`). Next: Karim's two-phone test (`docs/phone-test-v237.md`),
+then the staged release in item 71 (test players via voice-config.json lists, then everyone). Still to confirm on phones:
+faces upright (item 65's sign), touch feel on a real iPhone and Android, the chat keyboard sideways, "screen cut". Then pick
+from section 8, in order:
 0. **Voice & video follow-ups:** watch the first real games (3-4 people, 4G, AirPods, an incoming call, 20 min of camera);
    build the monthly minute counter + 80% warning (needs a table + LiveKit webhook); check whether iPhone re-asks camera/mic
    permission each session; delete the old LiveKit key APIydyY33REnTLq; a regression sweep over v215-v231.
