@@ -1171,7 +1171,7 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    framed) from them, so it lays out exactly like the plain v214 page. Turned, the host keeps the frame inside the safe
    area and the app's insets stay zero (item 66). `tests/device/frame.js` fakes the 62/34 insets on the host and checks
    both states plus the way back to the lobby.
-75. 🔧 **v241 (2026-11-09): the strip under the lobby's tab bar.** Karim's iPhone on v240: top fixed, but a dark band
+75. ✅ **v241 (2026-11-09, deployed): the strip under the lobby's tab bar.** Karim's iPhone on v240: top fixed, but a dark band
    still sat under the tab bar. It is the strip below the home-screen app's short viewport (item 21): iOS fills it with
    the PAGE's background, and inside the sideways frame that page is rotate.html (brown), not index.html (whose
    `body.inlobby` paints it in the tab bar's colour). Now the app also tells the host `inlobby`, and rotate.html's
