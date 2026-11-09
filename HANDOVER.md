@@ -1178,7 +1178,7 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    `body.inlobby{background:#120903}` paints the strip; the host applies its body classes before the "geometry
    unchanged" early return (they were skipped whenever the frame did not move, so a player outside the sideways list
    never got the sea colour in a game either). frame.js checks the host colour in the lobby and in a game.
-76. 🔧 **v243 (2026-11-09): opaque iPhone status bar (design canvas board 10, Karim chose B).** v242's diagnostic line on
+76. ✅ **v243 (2026-11-09, deployed): opaque iPhone status bar (design canvas board 10, Karim chose B).** v242's diagnostic line on
    Karim's 16 Pro: host 402x812 of a 402x874 screen, insets 62/0/34/0. So the 62 pt strip under the lobby's tab bar was
    exactly the status-bar strip iOS withholds from a home-screen app with a translucent status bar (item 21), the v214
    geometry, not something the frame added. Now `apple-mobile-web-app-status-bar-style` is `black` (index.html and
