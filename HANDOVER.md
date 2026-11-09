@@ -1107,8 +1107,12 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
      of the 2x vs v214 is spread over the bigger corners/badges. Bot thinking is excluded (it is far heavier than a real game).
    - Pre-existing (also before today): at 568 wide with 4 players the resource bar overflows by a few px.
    Still unverifiable here: real LiveKit camera on Android, what Lapen means by "screen cut", real GPU paint cost.
-71. 🔧 **v237 (2026-11-09, branch `claude/voice-video-sideways-perf-48ku4d`, not live): voice & video and the sideways board
-   made cheaper and gated for a staged return.** Built on the saved branch (items 69-70). Live is still v236 (= v214).
+71. ✅ **v237 (2026-11-09, deployed, release step 1): voice & video and the sideways board back, cheaper, limited to
+   test / test2 by voice-config.json.** Built on the saved branch (items 69-70) on branch `claude/voice-video-sideways-perf-48ku4d`,
+   merged to main as 23b11bb (a merge commit carrying that branch's tree exactly, since the rollback commits conflict with it).
+   Published with `git commit-tree HEAD:prototype -p origin/gh-pages` + a plain push: `git subtree push` was refused as
+   non-fast-forward because gh-pages' history came from another clone's split; never force it. Friends see v214 behaviour with
+   the cheaper rendering; the launch redirect to rotate.html only fires once the app has cached that this player is allowed.
    - **Measured first** (`tests/device/prof.js`, CDP profiler over the 26-move replay): without video the newer code's script
      is only +0.1 s and style/layout unchanged vs v214; the earlier "2x per-move work" was the stall metric exaggerating
      (same work in fewer, longer tasks). Video is the real cost: +1.5 s script (half of it the harness's fake cameras) and
@@ -1143,9 +1147,9 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    - **Needs a real phone** (checklist: `docs/phone-test-v237.md`): Safari/WebKit touch feel in the turned frame, camera
      permission re-prompting in the home-screen app, audio after a lock, AirPods, an incoming call, 4G, 10 min of camera
      (heat/battery), the camera turn sign (item 65), what Lapen's "screen cut" is, real GPU frame rate with 4 videos.
-   - **Release plan:** (1) voice-config.json `{ "enabled": true, "only": ["test", "test2"], "sidewaysOnly": ["test", "test2"] }`
-     + deploy v237 (friends get v214 behaviour plus the perf fixes); (2) two-phone test; (3) drop both lists. Practice table
-     stays test-only. Only one session deploys; main had no foreign commits on 2026-11-09.
+   - **Release plan:** (1) ✅ 2026-11-09: voice-config.json `{ "enabled": true, "only": ["test", "test2"], "sidewaysOnly":
+     ["test", "test2"] }` + v237 live; (2) two-phone test (`docs/phone-test-v237.md`); (3) drop both lists (edit the json +
+     deploy; the phones pick it up within ~2 s). Practice table stays test-only. Only one session deploys.
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
@@ -1325,10 +1329,10 @@ live. This is the current reality (last refreshed 2026-11-07; CLAUDE.md has the 
     500px, so phone screenshots are laid out at 500 wide.
 
 ### What's next
-State on 2026-11-09: **v236 is live = the v214 app** (rolled back 2026-11-08 after friends hit bugs). Voice & video, the
-sideways board, the practice table and all fixes since live on branch `claude/voice-video-sideways-perf-48ku4d` as **v237**
-(item 71; the untouched snapshot is `saved-v234-voice-sideways`). Next: Karim's two-phone test (`docs/phone-test-v237.md`),
-then the staged release in item 71 (test players via voice-config.json lists, then everyone). Still to confirm on phones:
+State on 2026-11-09: **v237 is live** (item 71): voice & video and the sideways board are back but only for test / test2
+(voice-config.json "only" + "sidewaysOnly"); everyone else gets the v214 behaviour with the cheaper rendering. The untouched
+pre-perf snapshot is branch `saved-v234-voice-sideways`. Next: Karim's two-phone test (`docs/phone-test-v237.md`), then drop
+the two lists to open it to everyone. Still to confirm on phones:
 faces upright (item 65's sign), touch feel on a real iPhone and Android, the chat keyboard sideways, "screen cut". Then pick
 from section 8, in order:
 0. **Voice & video follow-ups:** watch the first real games (3-4 people, 4G, AirPods, an incoming call, 20 min of camera);
