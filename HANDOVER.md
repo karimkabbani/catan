@@ -1218,7 +1218,7 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    0. A temporary in-game line (`sideDiag`, test players only: the host's innerWidth/Height, window.orientation,
    screen.orientation, its insets, what it sent, the app's --sa-r/l and cut class) shows what the iPhone reports; remove
    it with the fix.
-81. 🔧 **v248 (2026-11-09): menu button clear of the Dynamic Island in real landscape.** v247's diagnostic on Karim's
+81. ✅ **v248 (2026-11-09, deployed): menu button clear of the Dynamic Island in real landscape.** v247's diagnostic on Karim's
    16 Pro, lock off, landscape: host 874x402, `window.orientation` 0, `screen.orientation` portrait-primary/0, insets
    0/62/20/62. So the iOS home-screen app never says which way it was turned (item 58's sign question is moot: the value is
    0), and its side insets are symmetric, so the camera side cannot be known. `markCutSide` now sets BOTH `cut-l` and
