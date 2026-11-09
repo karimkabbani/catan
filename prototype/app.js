@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v240';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v241';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -5530,16 +5530,16 @@
     const ingame = document.body.classList.contains('ingame');
     if (AUTH.me && LIVE.cfg) { try { localStorage.setItem('catanSideOK', sidewaysUser() ? '1' : '0'); } catch (_) { } }
     if (FRAMED) {
-      const user = sidewaysUser() ? AUTH.me.name : null, sig = ingame + '|' + user;
+      const user = sidewaysUser() ? AUTH.me.name : null, inlobby = document.body.classList.contains('inlobby'), sig = ingame + '|' + user + '|' + inlobby;
       if (sig === sideSig) return; sideSig = sig;
-      try { window.parent.postMessage({ catanSideways: 1, ingame, user }, location.origin); } catch (_) { }
+      try { window.parent.postMessage({ catanSideways: 1, ingame, user, inlobby }, location.origin); } catch (_) { }   // v241: inlobby -> the host paints the strip under the short viewport in the tab bar's colour
       return;
     }
     if (sidewaysUser() && !ingame && /^https?:$/.test(location.protocol) && !LOBBY.table && !NET.started) location.replace('rotate.html');
   }
   window.CATAN.sideFlip = () => {
     try { localStorage.setItem('catanSideFlip', localStorage.getItem('catanSideFlip') === '1' ? '0' : '1'); } catch (_) { }
-    try { window.parent.postMessage({ catanSideways: 1, ingame: document.body.classList.contains('ingame'), user: sidewaysUser() ? AUTH.me.name : null, flipped: 1 }, location.origin); } catch (_) { }
+    try { window.parent.postMessage({ catanSideways: 1, ingame: document.body.classList.contains('ingame'), user: sidewaysUser() ? AUTH.me.name : null, inlobby: document.body.classList.contains('inlobby'), flipped: 1 }, location.origin); } catch (_) { }
   };
   setInterval(sidewaysSync, 1000);
   if (FRAMED) window.addEventListener('message', (e) => {
