@@ -1162,7 +1162,7 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    thrown away and a fresh, black one waited for the next draw tick (up to ~70 ms). Since v216 (the canvas approach).
    Fix: `LIVE.cvs[id]` keeps each player's drawn canvases; `voiceMountVideos` re-attaches one of the right size instead of
    creating a new one, so the last frame stays on screen through the rebuild. verify.js checks node and pixels survive.
-74. 🔧 **v240 (2026-11-09): the unturned frame fills the screen.** Karim's iPhone (v239 lobby): dark bands above and below
+74. ✅ **v240 (2026-11-09, deployed): the unturned frame fills the screen.** Karim's iPhone (v239 lobby): dark bands above and below
    the lobby, the tab bar no longer on the bottom edge. Cause: rotate.html always kept the frame inside the phone's safe
    area, and html.framed zeroed the app's own insets, so in the lobby (unturned) nobody drew into the status-bar and home-bar
    strips. Now: unturned, the frame covers the whole screen and the angle message also carries the host's insets
