@@ -1210,7 +1210,7 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    bar) now gets 812 pt: big tier in both modes. An icon added before v243 keeps the 62 pt status-bar strip outside the
    frame (white time over the corners otherwise): 750 pt, medium tier, until re-added. frame.js checks the width, the inset
    and the menu button's step-in.
-80. 🔧 **v247 (2026-11-09): medium corners everywhere; cutout diagnostic.** Karim: the big corners (v217's 800+ tier) feel
+80. ✅ **v247 (2026-11-09, deployed): medium corners everywhere; cutout diagnostic.** Karim: the big corners (v217's 800+ tier) feel
    clunky, and they only showed at some widths (lock off 874, turned fresh icon 812, old icon 750), so the size changed with
    the rotation lock. The 800+ tier (104x108 pictures, 30px badges, 26px name-row badges) is retired; the 740+ tier
    (80x84) is the top size on every phone. Also: with lock off, camera on the right, the round menu button sits under the
