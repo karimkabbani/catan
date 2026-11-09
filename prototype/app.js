@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v245';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v246';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -5554,7 +5554,7 @@
     // v240: unturned, the frame fills the screen and we lay out against the host's real insets (html.framed zeroes
     // them by default, which is right only while the host keeps the turned frame inside the safe area)
     const root = document.documentElement, sa = e.data.sa || {};
-    ['t', 'r', 'b', 'l'].forEach((k) => { if (!a && typeof sa[k] === 'number') root.style.setProperty('--sa-' + k, sa[k] + 'px'); else root.style.removeProperty('--sa-' + k); });
+    ['t', 'r', 'b', 'l'].forEach((k) => { if (typeof sa[k] === 'number') root.style.setProperty('--sa-' + k, sa[k] + 'px'); else root.style.removeProperty('--sa-' + k); });   // v246: turned too (the home-indicator side)
     if (!a && e.data.standalone) { root.style.setProperty('--vp-gap', (e.data.gap || 0) + 'px'); root.classList.add('ios-pwa'); } else { root.style.removeProperty('--vp-gap'); root.classList.remove('ios-pwa'); }
     HOST_ORIENT = a ? 0 : (typeof e.data.orient === 'number' ? e.data.orient : 0);
     markCutSide();

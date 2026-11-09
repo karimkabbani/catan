@@ -22,8 +22,9 @@ const { chromium, devices } = require('playwright');
   for (let i = 0; i < 40; i++) { const r = await f.evaluate(() => { const c = document.querySelector('.corner.bl'); return c && c.getBoundingClientRect().height > 0 && document.getElementById('app') === null; }); if (r && await p.evaluate(() => document.getElementById('app').style.transform.includes('rotate'))) break; await p.waitForTimeout(250); }
   await p.waitForTimeout(1500);
   const h2 = await host(), a2 = await app();
-  ok('game: frame turned and kept inside the safe area', h2.t.includes('rotate') && h2.y === 62 && h2.h === h2.H - 62 - 34, JSON.stringify(h2));
-  ok('game: app insets zero while turned', a2.sat === '0px' && a2.sab === '0px', JSON.stringify(a2));
+  ok('game: frame turned, clear of the status-bar strip, running to the phone\'s bottom edge (v246)', h2.t.includes('rotate') && h2.y === 62 && h2.h === h2.H - 62, JSON.stringify(h2));
+  const a2r = await f.evaluate(() => { const cs = getComputedStyle(document.documentElement); const m = document.getElementById('radialtab').getBoundingClientRect(); return { sar: cs.getPropertyValue('--sa-r').trim(), sal: cs.getPropertyValue('--sa-l').trim(), menuRight: Math.round(innerWidth - m.right), W: innerWidth }; });
+  ok('game: the home-indicator strip is the game\'s right inset, the menu button steps in', a2.sat === '0px' && a2.sab === '0px' && a2r.sar === '34px' && a2r.sal === '0px' && a2r.menuRight >= 34 && a2r.W === 597, JSON.stringify(a2r));
   ok('game: host background is the sea, not the tab bar colour', !h2.cls.includes('inlobby') && h2.cls.includes('ingame') && h2.bg === 'rgb(12, 42, 68)', h2.cls + ' ' + h2.bg);
   const corner = await f.evaluate(() => { const c = document.querySelector('.corner.bl').getBoundingClientRect(); return { left: Math.round(c.left), bottomGap: Math.round(innerHeight - c.bottom) }; });
   ok('game: bottom-left corner hugs the frame edges (item 66)', corner.left <= 10 && corner.bottomGap <= 12, JSON.stringify(corner));
