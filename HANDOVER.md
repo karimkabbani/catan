@@ -1226,7 +1226,7 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    home-indicator strip): the round menu / trophy / dice buttons step in by the inset whichever way the phone is held, a
    small cost on the camera-free side, no button under the island. Applies to the plain page too (the friends' installs).
    The diagnostic line is gone. Headless: orientation 0 + symmetric insets -> both classes, menu button 66 px in.
-82. 🔧 **v249 (2026-11-09): dice in one spot per corner; practice table with four players and slower rolls.** Karim: the
+82. ✅ **v249 (2026-11-09, deployed): dice in one spot per corner; practice table with four players and slower rolls.** Karim: the
    last roll's dice felt like a different spot at every corner, and under the cutout on the left. They were centred on the
    left corners and left-aligned (off the menu button, v221) on the right ones. Now every corner hangs them off its
    board-side edge: above a bottom corner, below a top one, right-aligned on the left corners, left-aligned on the right
