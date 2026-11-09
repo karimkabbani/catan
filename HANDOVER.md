@@ -1218,6 +1218,14 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    0. A temporary in-game line (`sideDiag`, test players only: the host's innerWidth/Height, window.orientation,
    screen.orientation, its insets, what it sent, the app's --sa-r/l and cut class) shows what the iPhone reports; remove
    it with the fix.
+81. 🔧 **v248 (2026-11-09): menu button clear of the Dynamic Island in real landscape.** v247's diagnostic on Karim's
+   16 Pro, lock off, landscape: host 874x402, `window.orientation` 0, `screen.orientation` portrait-primary/0, insets
+   0/62/20/62. So the iOS home-screen app never says which way it was turned (item 58's sign question is moot: the value is
+   0), and its side insets are symmetric, so the camera side cannot be known. `markCutSide` now sets BOTH `cut-l` and
+   `cut-r` when the orientation is 0 in landscape with a side inset (not on the turned board, where the inset is the
+   home-indicator strip): the round menu / trophy / dice buttons step in by the inset whichever way the phone is held, a
+   small cost on the camera-free side, no button under the island. Applies to the plain page too (the friends' installs).
+   The diagnostic line is gone. Headless: orientation 0 + symmetric insets -> both classes, menu button 66 px in.
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a

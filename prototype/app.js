@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v247';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v248';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -5508,20 +5508,16 @@
   // Mark which side, so the few things that live mid-height on an edge (the round menu button) step away from it.
   // window.orientation: 90 = turned so the phone's top is on the left; -90 = on the right.
   let HOST_ORIENT = 0;   // v240: the host page's window.orientation (the frame itself can't read it reliably)
-  // v247: a small in-game line for the test players (voice-config.json "sidewaysOnly" present and this player listed):
-  // what the host page measures, to see why the camera-cutout step-in gets a 0 inset in real landscape on the iPhone
-  function sideDiag(d) {
-    let el = document.getElementById('sidediag');
-    const show = FRAMED && d && d.vp && LIVE.cfg && Array.isArray(LIVE.cfg.sidewaysOnly) && sidewaysUser();
-    if (!show) { if (el) el.remove(); return; }
-    if (!el) { el = document.createElement('div'); el.id = 'sidediag'; el.style.cssText = 'position:fixed;left:50%;top:84px;transform:translateX(-50%);z-index:60;pointer-events:none;font:10px/1.3 -apple-system,sans-serif;color:#fff;opacity:.75;background:rgba(0,0,0,.45);padding:2px 6px;border-radius:6px;white-space:nowrap'; document.body.appendChild(el); }
-    const v = d.vp, i = v.ins || {}, sa = d.sa || {}, cs = getComputedStyle(document.documentElement);
-    el.textContent = `host ${v.iw}x${v.ih} · wo ${v.wo} · so ${v.so} · host ins ${i.t}/${i.r}/${i.b}/${i.l} · sent ${sa.t}/${sa.r}/${sa.b}/${sa.l} · angle ${d.catanSideAngle} · app sa-r ${cs.getPropertyValue('--sa-r').trim()} sa-l ${cs.getPropertyValue('--sa-l').trim()} · ${(document.body.className.match(/cut-\w/g) || ['no cut']).join(' ')} · app ${window.innerWidth}x${window.innerHeight}`;
-  }
   function markCutSide() {
     let a = FRAMED ? HOST_ORIENT : (typeof window.orientation === 'number' ? window.orientation : (screen.orientation && typeof screen.orientation.angle === 'number' ? (screen.orientation.angle === 270 ? -90 : screen.orientation.angle) : 0));   // v240: framed = what the host told us (0 while turned)
-    document.body.classList.toggle('cut-l', a === 90);
-    document.body.classList.toggle('cut-r', a === -90);
+    // v248: the iPhone home-screen app reports window.orientation 0 and screen.orientation "portrait-primary/0" in
+    // landscape (measured on Karim's 16 Pro), while its side insets are symmetric (62/62): the camera side cannot be
+    // known. Then, in landscape with a cutout, step the edge buttons in on BOTH sides (not on the turned board: there
+    // the host already placed the frame and the inset is the home-indicator strip, handled by html.sideturned).
+    const cs = getComputedStyle(document.documentElement), insL = parseFloat(cs.getPropertyValue('--sa-l')) || 0, insR = parseFloat(cs.getPropertyValue('--sa-r')) || 0;
+    const unknown = a === 0 && window.innerWidth > window.innerHeight && (insL > 0 || insR > 0) && !document.documentElement.classList.contains('sideturned');
+    document.body.classList.toggle('cut-l', a === 90 || unknown);
+    document.body.classList.toggle('cut-r', a === -90 || unknown);
   }
   markCutSide();
   window.addEventListener('orientationchange', () => setTimeout(markCutSide, 60));
@@ -5568,7 +5564,6 @@
     if (!a && e.data.standalone) { root.style.setProperty('--vp-gap', (e.data.gap || 0) + 'px'); root.classList.add('ios-pwa'); } else { root.style.removeProperty('--vp-gap'); root.classList.remove('ios-pwa'); }
     HOST_ORIENT = a ? 0 : (typeof e.data.orient === 'number' ? e.data.orient : 0);
     markCutSide();
-    sideDiag(e.data);
   });
   if (window.MutationObserver) { try { new MutationObserver(() => sidewaysSync()).observe(document.body, { attributes: true, attributeFilter: ['class'] }); } catch (_) { } }
   window.addEventListener('resize', markCutSide);
