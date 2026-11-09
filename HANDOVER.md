@@ -1233,6 +1233,13 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    ones (`.pdice` rules; v221's vlive-only rule retired). Practice table: a third computer player, Tabbouleh (audio only,
    like Kibbeh), so all four corners are in play; a computer player's roll now sits for 4 s before its next move (was
    0.6 s). Checked headless at 874x402: the dice edge within 2 px of each corner's inner edge on all four corners.
+83. ✅ **2026-11-09: voice & video and the sideways board opened to everyone** (release step 3). voice-config.json is
+   `{ "enabled": true }` again: no "only" list, no "sidewaysOnly" list. Karim's two-device test (iPhone 16 Pro + the Android
+   emulator) passed the checklist; the friends get the features on their next lobby visit (the config is read every few
+   seconds). Kill switch: `"enabled": false`; to re-limit, put the lists back (item 71). Known: an icon added before v243
+   keeps the translucent status bar and the strip under the lobby's tab bar until re-added (Karim is telling the friends to
+   delete and re-add the icon). Watch the LiveKit dashboard: the free tier is 5,000 minutes a month, a four-player evening on
+   the call is ~480. First real Android run (Lapen's Pixel) is the remaining real-device check.
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
@@ -1412,10 +1419,10 @@ live. This is the current reality (last refreshed 2026-11-07; CLAUDE.md has the 
     500px, so phone screenshots are laid out at 500 wide.
 
 ### What's next
-State on 2026-11-09: **v237 is live** (item 71): voice & video and the sideways board are back but only for test / test2
-(voice-config.json "only" + "sidewaysOnly"); everyone else gets the v214 behaviour with the cheaper rendering. The untouched
-pre-perf snapshot is branch `saved-v234-voice-sideways`. Next: Karim's two-phone test (`docs/phone-test-v237.md`), then drop
-the two lists to open it to everyone. Still to confirm on phones:
+State on 2026-11-09: **v249 is live and voice & video + the sideways board are open to everyone** (items 71-83: perf work,
+honest camera badge, no blink, opaque iPhone status bar, medium corners, cutout and dice placement, four-player practice
+table). The pre-perf snapshot is branch `saved-v234-voice-sideways`. Next: watch the first real game nights (Lapen's Pixel is
+the first real Android run), the LiveKit minutes, and the friends re-adding their icons for the new status bar. Still to confirm on phones:
 faces upright (item 65's sign), touch feel on a real iPhone and Android, the chat keyboard sideways, "screen cut". Then pick
 from section 8, in order:
 0. **Voice & video follow-ups:** watch the first real games (3-4 people, 4G, AirPods, an incoming call, 20 min of camera);
