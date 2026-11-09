@@ -80,9 +80,14 @@
     postAngle();
   }
   // iPhone home-screen app: the viewport ends short of the screen by the status-bar strip (see fitAppHeight in app.js)
-  // v243: with the opaque status bar the viewport is no longer short at the bottom, so the gap is always 0. Kept as a
-  // function (and still sent to the app) in case the translucent style ever comes back.
-  function hostGap(portrait, H) { return 0; }
+  // iPhone home-screen app with a TRANSLUCENT status bar: the page runs up under the status bar (top inset > 0) and iOS
+  // keeps the same height back at the bottom, undrawable (HANDOVER item 21). With the opaque style (v243 meta) the page
+  // starts below the bar (top inset 0) and nothing is withheld. iOS bakes the style in when the icon is added, so both
+  // cases exist at once (v244): decide from the measured top inset, never from the meta.
+  function hostGap(portrait, H) {
+    if (window.navigator.standalone !== true || !(insets().t > 0)) return 0;
+    return Math.max(0, (portrait ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height)) - H);
+  }
   // the app inside turns camera pictures back by this angle (the phone films on its side while the board is turned).
   // v240: unturned, it also gets this page's safe-area insets, the home-screen viewport gap and the orientation, so it
   // can lay out against the real screen edges (turned, the frame already sits inside the safe area: insets are zero).
