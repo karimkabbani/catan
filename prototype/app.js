@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v238';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v239';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -3042,6 +3042,7 @@
     mutedForMe: {},   // identity -> true: I muted them (only on my phone)
     mutedMe: {},      // identity -> true: they muted me
     vids: {},         // identity -> persistent <video> for their camera
+    cvs: {},          // identity -> drawn canvases, re-attached after a corner rebuild (v239: no black blink)
     askOpen: false, autoDone: null,
   };
   function voiceOn() {   // on unless voice-config.json says off; "only": [names] limits it to those players (staged rollout)
@@ -3299,10 +3300,18 @@
       const pub = i && i.cam && LK ? i.p.getTrackPublication(LK.Track.Source.Camera) : null;
       if (pub && pub.track) {
         live[id] = true; voiceVideoEl(id, pub.track);
-        if (!cv) { cv = document.createElement('canvas'); cv.className = 'vvid' + (i.mine ? ' mine' : ''); box.appendChild(cv); }
+        if (!cv) {
+          // v239: a corner rebuild (every 5 s for the online dots, and on every move) used to get a fresh black canvas that
+          // stayed black until the next draw tick: a visible blink on every picture. Re-attach the canvas that already
+          // holds this player's last frame instead (one per picture size, so it never shows stretched).
+          const pool = LIVE.cvs[id] || (LIVE.cvs[id] = []), dpr = Math.min(1.5, window.devicePixelRatio || 1), bw = Math.round(box.clientWidth * dpr);
+          cv = pool.find((c) => !c.isConnected && c.width === bw) || pool.find((c) => !c.isConnected);
+          if (!cv) { cv = document.createElement('canvas'); pool.push(cv); if (pool.length > 4) pool.shift(); }
+          cv.className = 'vvid' + (i.mine ? ' mine' : ''); box.appendChild(cv);
+        }
       } else if (cv) cv.remove();
     });
-    Object.keys(LIVE.vids).forEach((id) => { if (!live[id] && !(r && voiceInfo(id) && voiceInfo(id).cam)) { const v = LIVE.vids[id]; try { v.srcObject = null; v.remove(); } catch (_) { } delete LIVE.vids[id]; } });
+    Object.keys(LIVE.vids).forEach((id) => { if (!live[id] && !(r && voiceInfo(id) && voiceInfo(id).cam)) { const v = LIVE.vids[id]; try { v.srcObject = null; v.remove(); } catch (_) { } delete LIVE.vids[id]; delete LIVE.cvs[id]; } });
   }
   // v237: a picture is only redrawn when its camera delivered a NEW frame (requestVideoFrameCallback where the browser
   // has it; if that stays silent for a second, e.g. an unpainted <video>, the 66 ms timer takes over as before), at most
