@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="mobile-web-app-capable" content="yes"/>
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black"/><!-- v243: opaque (Karim chose B on the design canvas, board 10): the page starts below the status bar and reaches the real bottom edge; translucent made iOS keep 62 pt back at the bottom, undrawable (HANDOVER items 21, 76) -->
 <meta name="apple-mobile-web-app-title" content="Catan"/>
 <meta name="theme-color" content="#2a1a0c"/>
 <link rel="manifest" href="manifest.webmanifest"/>
@@ -80,10 +80,9 @@
     postAngle();
   }
   // iPhone home-screen app: the viewport ends short of the screen by the status-bar strip (see fitAppHeight in app.js)
-  function hostGap(portrait, H) {
-    if (window.navigator.standalone !== true) return 0;
-    return Math.max(0, (portrait ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height)) - H);
-  }
+  // v243: with the opaque status bar the viewport is no longer short at the bottom, so the gap is always 0. Kept as a
+  // function (and still sent to the app) in case the translucent style ever comes back.
+  function hostGap(portrait, H) { return 0; }
   // the app inside turns camera pictures back by this angle (the phone films on its side while the board is turned).
   // v240: unturned, it also gets this page's safe-area insets, the home-screen viewport gap and the orientation, so it
   // can lay out against the real screen edges (turned, the frame already sits inside the safe area: insets are zero).

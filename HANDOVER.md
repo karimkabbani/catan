@@ -1178,6 +1178,16 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    `body.inlobby{background:#120903}` paints the strip; the host applies its body classes before the "geometry
    unchanged" early return (they were skipped whenever the frame did not move, so a player outside the sideways list
    never got the sea colour in a game either). frame.js checks the host colour in the lobby and in a game.
+76. 🔧 **v243 (2026-11-09): opaque iPhone status bar (design canvas board 10, Karim chose B).** v242's diagnostic line on
+   Karim's 16 Pro: host 402x812 of a 402x874 screen, insets 62/0/34/0. So the 62 pt strip under the lobby's tab bar was
+   exactly the status-bar strip iOS withholds from a home-screen app with a translucent status bar (item 21), the v214
+   geometry, not something the frame added. Now `apple-mobile-web-app-status-bar-style` is `black` (index.html and
+   rotate.html): a solid black status bar, the page starts below it and reaches the real bottom edge, so the Play / Chat /
+   Stats buttons sit right above the home indicator. `hostGap` (rotate.html) and `--vp-gap` (fitAppHeight) are 0 now,
+   on purpose: the old correction would have pushed the bar onto the home indicator. In the turned game the phone's top
+   edge (the board's right side) is a black band instead of sea; the frame was already kept clear of it. Everyone gets the
+   new status bar on their next launch (the meta is read at launch). The v242 diagnostic line stays for the test players
+   until the phone confirms insets 0/0/34/0. Mocks: canvas "Catan: Design & UX sweep" board 10 (real renders, A vs B).
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a

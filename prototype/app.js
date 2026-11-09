@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v242';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v243';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -5493,9 +5493,9 @@
   function fitAppHeight() {
     const root = document.documentElement;
     if (FRAMED || window.navigator.standalone !== true) { root.classList.remove('ios-pwa'); return; }   // only the iOS home-screen app
-    const portrait = window.matchMedia ? window.matchMedia('(orientation: portrait)').matches : window.innerHeight > window.innerWidth;
-    const h = portrait ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height);
-    root.style.setProperty('--vp-gap', Math.max(0, h - window.innerHeight) + 'px'); root.classList.add('ios-pwa');
+    // v243: the status bar is opaque now (index.html meta), so the home-screen app's viewport reaches the real bottom
+    // edge and the old correction (screen height minus innerHeight, item 21) is 0; the ios-pwa class stays.
+    root.style.setProperty('--vp-gap', '0px'); root.classList.add('ios-pwa');
   }
   fitAppHeight();
   window.addEventListener('resize', fitAppHeight);
