@@ -2110,7 +2110,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v244';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v245';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -7613,11 +7613,6 @@
   // Mark which side, so the few things that live mid-height on an edge (the round menu button) step away from it.
   // window.orientation: 90 = turned so the phone's top is on the left; -90 = on the right.
   let HOST_ORIENT = 0;   // v240: the host page's window.orientation (the frame itself can't read it reliably)
-  let HOST_DIAG = '';    // v242: the host page's viewport numbers (JSON), test players only
-  function hostDiagLine() {
-    if (!FRAMED || !HOST_DIAG || !(LIVE.cfg && Array.isArray(LIVE.cfg.sidewaysOnly) && sidewaysUser())) return '';
-    try { const v = JSON.parse(HOST_DIAG), i = v.ins || {}; return `<p class="lvver" style="margin-top:-6px;font-size:10px;opacity:.6">host ${v.iw}x${v.ih} · screen ${v.sw}x${v.sh} · vv ${v.vv} · doc ${v.dh} · insets ${i.t}/${i.r}/${i.b}/${i.l} · app ${window.innerWidth}x${window.innerHeight}</p>`; } catch (_) { return ''; }
-  }
   function markCutSide() {
     let a = FRAMED ? HOST_ORIENT : (typeof window.orientation === 'number' ? window.orientation : (screen.orientation && typeof screen.orientation.angle === 'number' ? (screen.orientation.angle === 270 ? -90 : screen.orientation.angle) : 0));   // v240: framed = what the host told us (0 while turned)
     document.body.classList.toggle('cut-l', a === 90);
@@ -7668,7 +7663,6 @@
     if (!a && e.data.standalone) { root.style.setProperty('--vp-gap', (e.data.gap || 0) + 'px'); root.classList.add('ios-pwa'); } else { root.style.removeProperty('--vp-gap'); root.classList.remove('ios-pwa'); }
     HOST_ORIENT = a ? 0 : (typeof e.data.orient === 'number' ? e.data.orient : 0);
     markCutSide();
-    if (e.data.vp) { const d = JSON.stringify(e.data.vp); if (d !== HOST_DIAG) { HOST_DIAG = d; lobbySig = null; } }   // v242: shown to the test players (hostDiagLine)
   });
   if (window.MutationObserver) { try { new MutationObserver(() => sidewaysSync()).observe(document.body, { attributes: true, attributeFilter: ['class'] }); } catch (_) { } }
   window.addEventListener('resize', markCutSide);
@@ -8952,7 +8946,7 @@
       ${faces ? `<div class="lvsect">FRIENDS · ${others.length} ONLINE</div><div class="lvfaces">${faces}</div>` : ''}
       <div id="lv-peek"></div>
       ${practiceAllowed() ? `<button class="btn wood full" style="margin-top:14px" onclick="CATAN.practice()">🧪 Practice table · you + 2 computer players</button>` : ''}
-      <p class="lvver">Catan · ${APP_VERSION}</p>${hostDiagLine()}`;
+      <p class="lvver">Catan · ${APP_VERSION}</p>`;
   }
 
   // ---- Play tab, in a room: four seats, the settings line, one primary action ----
