@@ -1157,7 +1157,7 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    beside the touch screen) reports a fine PRIMARY pointer. Now `(any-pointer:coarse)` or `navigator.maxTouchPoints > 0`
    also count; a desktop window still never turns (checked headless: desktop portrait not turned, touch profile turned).
    Same-room note for future tests: a howl that fades is the Mac mic <-> iPhone speaker loop, not a mute bug; AirPods fix it.
-73. 🔧 **v239 (2026-11-09): no more camera blink.** Karim (emulator test): every ~5 s all camera pictures flashed black for an
+73. ✅ **v239 (2026-11-09, deployed): no more camera blink.** Karim (emulator test): every ~5 s all camera pictures flashed black for an
    instant. Cause: the 5 s heartbeat (online dots) and every move rebuild the corners' innerHTML; the picture's <canvas> was
    thrown away and a fresh, black one waited for the next draw tick (up to ~70 ms). Since v216 (the canvas approach).
    Fix: `LIVE.cvs[id]` keeps each player's drawn canvases; `voiceMountVideos` re-attaches one of the right size instead of
