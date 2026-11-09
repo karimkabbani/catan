@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v248';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v249';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -3463,12 +3463,12 @@
     return `<button class="vmuterow" onclick="CATAN.voiceMuteFor('${id}',${on ? 'false' : 'true'})">${on ? VI_MIC : VI_SPKX}<span>${on ? 'Unmute ' + nm : 'Mute ' + nm + ' for me'}</span></button>${on ? '' : '<div class="vcnote">Only you stop hearing them. The table will see that you did.</div>'}`;
   }
 
-  // ---- practice table (v222): only for the test players. A local table with two computer players: nothing is
+  // ---- practice table (v222): only for the test players. A local table with three computer players (two until v249): nothing is
   //      written to the game server (no games row, no chat rows, no stats), but the voice/video call is real
   //      (its own LiveKit room), so the call, the bigger corners and every in-game screen can be tried alone.
   //      Bot moves go through applyRemoteState, the same path a real remote player's move takes.
   const PRACTICE = { room: false, on: false, bots: [], timer: null, turnKey: null, acts: 0, busyUntil: 0, fake: {}, talkAt: 0 };
-  const PRACTICE_BOTS = [{ name: 'Zaatar', id: 'bot-zaatar' }, { name: 'Kibbeh', id: 'bot-kibbeh' }];
+  const PRACTICE_BOTS = [{ name: 'Zaatar', id: 'bot-zaatar' }, { name: 'Kibbeh', id: 'bot-kibbeh' }, { name: 'Tabbouleh', id: 'bot-tabbouleh' }];   // v249: three, so all four corners are in use
   const PRACTICE_SAY = { robbed: ['sorry habibi', 'haha', 'tfeh'], won: ['yalla', 'fayyish'], seven: ['wleeee', 'ma32oul?!'] };
   function practiceAllowed() { return !!(AUTH.me && /^test2?$/i.test(String(AUTH.me.name || '').trim())); }
   function practiceRoomCode() { return 'P' + String((AUTH.me && AUTH.me.id) || 'x').replace(/[^A-Za-z0-9]/g, '').slice(0, 10); }
@@ -3573,7 +3573,7 @@
     if (state.phase === 'play' && state.turnPhase === 'main') PRACTICE.acts++;
     const pre = state;
     applyRemoteState(r.state);
-    PRACTICE.busyUntil = Date.now() + (a.type === 'endTurn' ? 1200 : a.type === 'rollDice' ? 600 : 900);
+    PRACTICE.busyUntil = Date.now() + (a.type === 'endTurn' ? 1500 : a.type === 'rollDice' ? 4000 : 900);   // v249: a roll sits for 4 s so the dice can be looked at
     if (a.type === 'steal' && a.victim === myColor) botSay(col, PRACTICE_SAY.robbed);
     if (a.type === 'rollDice' && r.state.dice && r.state.dice[0] + r.state.dice[1] === 7 && pre) botSay(PRACTICE.bots.find((b) => b !== col) || col, PRACTICE_SAY.seven);
   }
@@ -6846,7 +6846,7 @@
     return `${hero}${more.join('')}
       ${faces ? `<div class="lvsect">FRIENDS · ${others.length} ONLINE</div><div class="lvfaces">${faces}</div>` : ''}
       <div id="lv-peek"></div>
-      ${practiceAllowed() ? `<button class="btn wood full" style="margin-top:14px" onclick="CATAN.practice()">🧪 Practice table · you + 2 computer players</button>` : ''}
+      ${practiceAllowed() ? `<button class="btn wood full" style="margin-top:14px" onclick="CATAN.practice()">🧪 Practice table · you + 3 computer players</button>` : ''}
       <p class="lvver">Catan · ${APP_VERSION}</p>`;
   }
 
