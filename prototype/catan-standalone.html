@@ -2160,7 +2160,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v252';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v253';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -6106,7 +6106,7 @@
       if (!data || !data.state || NET.code !== code) return;
       const s2 = JSON.parse(JSON.stringify(data.state));
       if (mut(s2) === false) { if (data.version > NET.version) { NET.version = data.version; applyRemoteState(data.state); } return; }
-      s2._w = NET.myId;
+      s2._w = NET.myId; s2._av = APP_VERSION; s2._a = 'rps';
       const { data: upd, error: uerr } = await netTimeout(c.from('games').update({ state: s2, version: data.version + 1 }).eq('code', code).eq('version', data.version)).select('version');
       if (uerr) return NET.lost(code);
       if (upd && upd.length) { if (NET.code !== code) return; if (data.version + 1 > NET.version) NET.version = data.version + 1; applyRemoteState(s2); return; }
@@ -7297,7 +7297,7 @@
         if (stillHere() && data.version > NET.version) { NET.version = data.version; applyRemoteState(data.state); }
         return;
       }
-      s2._w = NET.myId;
+      s2._w = NET.myId; s2._av = APP_VERSION; s2._a = 'meta';   // flag, vote, rematch, gg: never touches cards
       const phase = s2.phase === 'ended' ? 'ended' : 'playing';
       const { data: upd, error: uerr } = await netTimeout(c.from('games')
         .update({ state: s2, version: data.version + 1, phase }).eq('code', code).eq('version', data.version)).select('version');
@@ -8308,6 +8308,10 @@
         if (!r.ok) { applyRemoteState(data.state); if (data.version > this.version) this.version = data.version; if (/Trade$|Exchange$/.test(action.type)) toast(action.type === 'bankExchange' ? "Exchange didn't go through: " + r.error : r.error); return; }
         if (data.state.sv && r.state.phase !== 'ended') r.state.sv = data.state.sv;   // keep a live surrender vote across moves
         r.state._w = this.myId;   // who wrote this row: my own echoes are skipped while my later moves are still saving (onRow)
+        r.state._av = APP_VERSION; r.state._a = action.type;   // app version + move, for the database's audit log (server/migrate-audit.sql)
+        // v253: never save a state where cards appeared or vanished (the database refuses it too). Stay on the server's copy.
+        const bad = cardProblems(r.state);
+        if (bad && !cardProblems(data.state)) { applyRemoteState(data.state); if (data.version > this.version) this.version = data.version; toast("That move didn't add up, so it wasn't saved"); console.warn('card check refused', action, bad); return; }
         const phase = r.state.phase === 'ended' ? 'ended' : 'playing';
         const { data: upd, error: uerr } = await netTimeout(c.from('games')
           .update({ state: r.state, version: data.version + 1, phase }).eq('code', code).eq('version', data.version)).select('version');
@@ -8329,6 +8333,25 @@
     },
   };
 
+  // v253: the same card rules the database guard checks (server/migrate-audit.sql): each resource across hands + bank
+  // is 19, nothing below 0, knights (played included) 14, VP cards 5, the other dev cards at most 2 (played ones aren't
+  // kept). Returns null when all is well, else what's off.
+  function cardProblems(s) {
+    if (!s || !Array.isArray(s.players) || !s.bank) return null;
+    const out = {};
+    RES.forEach((r) => {
+      const n = (s.bank[r] || 0) + s.players.reduce((t, p) => t + ((p.resources && p.resources[r]) || 0), 0);
+      if (n !== 19) out[r] = n;
+      if ((s.bank[r] || 0) < 0 || s.players.some((p) => ((p.resources && p.resources[r]) || 0) < 0)) out[r + '_negative'] = true;
+    });
+    const all = (s.devDeck || []).concat(...s.players.map((p) => (p.devCards || []).concat(p.newDevCards || [])));
+    const cnt = (c) => all.filter((x) => x === c).length;
+    const kn = cnt('knight') + s.players.reduce((t, p) => t + (p.playedKnights || 0), 0);
+    if (kn !== 14) out.knight = kn;
+    if (cnt('victory_point') !== 5) out.victory_point = cnt('victory_point');
+    ['road_building', 'year_of_plenty', 'monopoly'].forEach((c) => { if (cnt(c) > 2) out[c] = cnt(c); });
+    return Object.keys(out).length ? out : null;
+  }
   // give up on a request after 10s (a hung request on iOS used to block every later move behind it)
   function netTimeout(q) {
     try {
