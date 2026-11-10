@@ -5744,7 +5744,7 @@
     if (C.currentColor(s) !== col) return null;
     if (s.turnPhase === 'roll') {
       const onMe = Object.entries(s.settlements).some(([v, b]) => b.owner === col && s.board.vertices[v].hexes.includes(s.robberHex));
-      if (onMe && Math.random() < 0.7) { const a = botTry(s, col, { type: 'playKnight' }); if (a) return a; }
+      if (onMe && !me.devCards.includes('monopoly') && Math.random() < 0.7) {   /* holding a Monopoly: keep this turn's one dev card for it */ const a = botTry(s, col, { type: 'playKnight' }); if (a) return a; }
       return { type: 'rollDice' };
     }
     if (s.turnPhase === 'moveRobber') {
@@ -5759,6 +5759,13 @@
       return c ? { type: 'steal', victim: c } : null;
     }
     if (s.turnPhase !== 'main') return null;
+    if (!s.hasPlayedDevCardThisTurn && me.devCards.includes('monopoly')) {   // v-next: a computer plays Monopoly when it pays (3+ cards), on the resource that hurts most, counting what I hold double
+      const others = s.players.filter((p) => p.color !== col), hum = s.players.find((p) => p.color === PRACTICE.me);
+      const haul = (r) => others.reduce((n, p) => n + (p.resources[r] || 0), 0);
+      const mine = (r) => (hum && hum.color !== col && hum.resources[r]) || 0, score = (r) => haul(r) + 2 * mine(r);   // like the robber: aims at me first
+      const r = RES.slice().sort((a, b) => score(b) - score(a))[0];
+      if (haul(r) >= 3) { const a = botTry(s, col, { type: 'playMonopoly', resource: r }); if (a) return a; }
+    }
     if (acts < 6) {
       const mine = Object.entries(s.settlements).filter(([, b]) => b.owner === col);
       for (const [v, b] of mine) if (b.type === 'settlement') { const a = botTry(s, col, { type: 'buildCity', vertex: +v }); if (a) return a; }
@@ -5846,7 +5853,31 @@
       const mi = s.order.indexOf(me); if (mi >= 0 && s.turnPhase === 'roll') s.currentPlayerIndex = mi;
     }
     s.pendingTrade = null; s.log = (s.log || []).slice(-5);
+    practiceMonopolySetup(s);
     return s;
+  }
+  // Monopoly try-out (mid-game only): "test" lands with a Monopoly card ready to play and the computers holding a
+  // pile of Wheat; "test2" lands holding a pile of Brick, and the computer right after them plays Monopoly on it
+  // on its first move. Bank cards move to the players, so the totals stay true.
+  function practiceMonopolySetup(s) {
+    if (s.phase !== 'play') return;
+    const nm = String((AUTH.me && AUTH.me.name) || '').trim().toLowerCase();
+    const me = s.players.find((p) => p.color === PRACTICE.me); if (!me) return;
+    const give = (p, r, n) => { for (let k = 0; k < n && s.bank[r] > 0; k++) { s.bank[r]--; p.resources[r]++; } };
+    const takeDev = (card) => { const i = (s.devDeck || []).indexOf(card); if (i >= 0) s.devDeck.splice(i, 1); };
+    s.hasPlayedDevCardThisTurn = false;
+    if (nm === 'test') {
+      takeDev('monopoly'); me.devCards.push('monopoly');
+      s.players.forEach((p) => { if (p.color !== me.color) give(p, 'wheat', 2 + ((Math.random() * 2) | 0)); });
+      PRACTICE.hint = 'You hold a Monopoly card: roll, then play it from your cards';
+    } else if (nm === 'test2') {
+      const nextCol = s.order[(s.order.indexOf(me.color) + 1) % s.order.length];
+      const bot = s.players.find((p) => p.color === nextCol);
+      if (!bot) return;
+      takeDev('monopoly'); bot.devCards.push('monopoly');
+      give(me, 'brick', 5);
+      PRACTICE.hint = bot.name + ' is holding a Monopoly card. End your turn and watch';
+    }
   }
   function practiceSeats() {
     const pref = (LOBBY.myPref && LOBBY.myPref()) || 'red';
@@ -5854,7 +5885,7 @@
     return [{ color: pref, playerId: AUTH.me.id, name: AUTH.me.name, avatar: AUTH.me.avatar || null }]
       .concat(PRACTICE_BOTS.map((b, i) => ({ color: cols[i], playerId: b.id, name: b.name, avatar: null })));
   }
-  function practiceStart(mid) {
+  function practiceStart(mid, quiet) {
     if (!practiceAllowed()) return;
     const seats = practiceSeats();
     PRACTICE.me = seats[0].color; PRACTICE.bots = seats.slice(1).map((x) => x.color);
@@ -5869,6 +5900,8 @@
     if (!PRACTICE.timer) PRACTICE.timer = setInterval(practiceTick, 450);
     enterGame(s);
     voiceSync();
+    if (quiet) PRACTICE.hint = null;
+    if (PRACTICE.hint) { const h = PRACTICE.hint; PRACTICE.hint = null; setTimeout(() => { if (PRACTICE.on) toast(h); }, 1800); }
   }
   function practiceToRoom() {   // back from the practice game to the practice table
     PRACTICE.on = false; PRACTICE.room = true; PRACTICE.bots = [];
@@ -9404,7 +9437,7 @@
   window.CATAN.lobbyWatch = () => LOBBY.watch();
   window.CATAN.lobbyStart = () => LOBBY.startTable();
   window.CATAN.practice = () => { if (!practiceAllowed()) return; if (LOBBY.table) LOBBY.leaveTable(); PRACTICE.room = true; LV.tab = 'play'; LV.sheet = null; lobbySig = null; renderLobby(); voiceSync(); };
-  window.CATAN.practiceStart = (mid, win) => { practiceStart(!!mid); if (win && PRACTICE.on) setTimeout(() => practiceWin(win), 2500); };
+  window.CATAN.practiceStart = (mid, win) => { practiceStart(!!mid, !!win); if (win && PRACTICE.on) setTimeout(() => practiceWin(win), 2500); };
   window.CATAN.practiceWin = (who) => practiceWin(who);
   window.CATAN.practiceLeave = () => practiceLeave();
   window.CATAN.practiceToRoom = () => practiceToRoom();
