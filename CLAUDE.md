@@ -9,8 +9,7 @@ https://karimkabbani.github.io/catan/. The full history, every feature and its d
 - Mock it first when he asks for mocks: design canvases (one board per file; publish each file before writing the
   next): main https://claude.ai/artifact/NRTc83WMEbQWPfp2UtYmNB, voice & video https://claude.ai/artifact/DjkXUjLaeYMZzcH4tpz9QX,
   design & UX sweep https://claude.ai/artifact/1qJ3HEEkQytq4WD93NJDtF. Otherwise build straight away.
-- Other Claude sessions may deploy too: before a deploy, fetch origin/main and build on top of it (never force-push main or
-  gh-pages); bump APP_VERSION past whatever is live.
+- Other Claude sessions run in parallel: see "Parallel sessions" below. Never force-push main or gh-pages.
 - **Deploy only when he says so** ("deploy", "build and deploy"). After deploying, confirm the live version.
 - Report what you verified and what you couldn't (real-phone behaviour can't be tested headless).
 
@@ -22,9 +21,24 @@ https://karimkabbani.github.io/catan/. The full history, every feature and its d
   to run SQL, paste the full SQL in the chat (ready to copy) with click-by-click steps, never just a file path.
   Test new SQL on a throwaway local Postgres first (`initdb` + `pg_ctl`, Homebrew Postgres is installed).
 
+## Parallel sessions (Karim runs several at once)
+- Start from the latest main: `git fetch origin main` and branch from `origin/main`. Build on your own branch and
+  push it. Never push main or gh-pages, never deploy, unless Karim says "deploy" in THIS session.
+- Do not pick a version number. Leave `APP_VERSION` and the service-worker `VERSION` as they are, and write your
+  HANDOVER §8 entry as `NEXT. 🔨 **vNEXT (date, built on branch <name>): title.**`. The session that merges assigns
+  the real numbers (highest version on main + 1, next item number) and marks the entry deployed.
+- When the work is ready, say so and stop. If Karim says "main has moved", run
+  `git fetch origin main && git merge origin/main`, rebuild and rerun the tests before continuing.
+- The merging session (the one Karim tells to "merge and deploy"): fetch main; for each ready branch, one at a
+  time: merge it, assign the version and item numbers, rebuild, run the engine tests and the `tests/device` checks,
+  deploy, confirm the live version. A conflict in `catan-standalone.html` is never resolved by hand: rebuild it.
+  Never take a whole file from one side of a merge, resolve only the conflicting lines (2026-11-10: a whole-file
+  "theirs" dropped two features main had gained).
+
 ## Every change
-1. Bump `APP_VERSION` in `prototype/app.js` and `VERSION 'catan-vNNN'` in `prototype/sw.js` together.
-2. `cd prototype && node build.mjs`, then `cd engine && npm test` (25 tests must pass).
+1. Bump `APP_VERSION` in `prototype/app.js` and `VERSION 'catan-vNNN'` in `prototype/sw.js` together (only the
+   session that deploys; see "Parallel sessions").
+2. `cd prototype && node build.mjs`, then `cd engine && npm test` (35 tests must pass).
 3. Verify screens in headless Chrome against `prototype/catan-standalone.html` (see "UI verification" in
    HANDOVER.md §9): patch a LOCAL copy so `window.CATAN = {` also exposes test hooks (the IIFE's closures are
    reachable there), e.g. a `_mid()` that builds a game with `C.createGame` and calls `enterGame`. Never ship hooks.
