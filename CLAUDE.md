@@ -34,6 +34,13 @@ https://karimkabbani.github.io/catan/. The full history, every feature and its d
   deploy, confirm the live version. A conflict in `catan-standalone.html` is never resolved by hand: rebuild it.
   Never take a whole file from one side of a merge, resolve only the conflicting lines (2026-11-10: a whole-file
   "theirs" dropped two features main had gained).
+- "preview <branch>" (the merging session, whenever Karim says it): `./preview.sh <branch>` builds that branch's
+  `prototype/` in a throwaway worktree and publishes it to gh-pages under `preview/`, live at
+  https://karimkabbani.github.io/catan/preview/ (one slot, overwrites the last preview). It never touches main, the live
+  site's files or any version number. The preview copy is renamed "Catan preview" (manifest, home-screen title, tab) and
+  its service worker uses its own `catan-preview-vNNN` cache, so it can't clear the live site's. Confirm by polling
+  `preview/manifest.webmanifest?x=random` until it serves the new build. A main deploy (`deploy.sh`) keeps `preview/`.
+  The preview shares the live database, sign-in and settings with the real site: try it at a test table, not a real game.
 
 ## Every change
 1. Bump `APP_VERSION` in `prototype/app.js` and `VERSION 'catan-vNNN'` in `prototype/sw.js` together (only the
