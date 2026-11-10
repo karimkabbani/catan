@@ -1497,4 +1497,9 @@ from section 8, in order:
 4. **Chat extras** (item 46): a tray that reorders by each player's own use; a context chip (😡 tfeh after a steal).
 5. Parked music idea (item 44): pause the music on the talker's phone, and on listeners' while a voice plays.
 6. Small open decision: horned robber, full piece or badge (item 11).
+7. **"Report a problem" button** (backlog, Karim 2026-11-10: later): in settings, open to everyone, no passcode. Saves the
+   last ~20 moves from `game_audit` (items 86-88) plus the player's note, so a "my cards vanished" report points at the
+   exact moment. Repairs stay manual: Karim reads the log in the SQL editor; a host-only "rewind to before this move",
+   announced to the table, only if the log shows it's needed (a per-player passcode undo was rejected: it rewinds
+   everyone's game and breaks the card totals the guard enforces).
 Parked or blocked: game history / replay (item 8); 5-player (item 7, needs a fifth colour's art).

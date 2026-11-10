@@ -55,3 +55,4 @@ https://karimkabbani.github.io/catan/. The full history, every feature and its d
 - `build.mjs` must inline code with function replacers (`$&` in code once corrupted the standalone build).
 - iPhone home-screen app reports a viewport shorter than the screen (status-bar strip): see `fitAppHeight`.
 - The display font draws "1" like a Roman "I": use the system font for numbers.
+- version.json’s min is raised by hand only, when an old build would corrupt games, never by a routine deploy.
