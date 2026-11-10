@@ -39,7 +39,8 @@ https://karimkabbani.github.io/catan/. The full history, every feature and its d
   https://karimkabbani.github.io/catan/preview/ (one slot, overwrites the last preview). It never touches main, the live
   site's files or any version number. The preview copy is renamed "Catan preview" (manifest, home-screen title, tab) and
   its service worker uses its own `catan-preview-vNNN` cache, so it can't clear the live site's. Confirm by polling
-  `preview/manifest.webmanifest?x=random` until it serves the new build. A main deploy (`deploy.sh`) keeps `preview/`.
+  `preview/app.js?x=random` until its `git hash-object` equals `origin/gh-pages:preview/app.js` (the manifest is the same
+  in every preview, so it can't tell an old preview from the new one). A main deploy (`deploy.sh`) keeps `preview/`.
   The preview shares the live database, sign-in and settings with the real site: try it at a test table, not a real game.
 
 ## Every change
