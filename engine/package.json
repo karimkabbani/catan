@@ -14,7 +14,7 @@
     "typescript": "^5.4.0",
     "vitest": "^1.6.0"
   },
-  "dependencies": {
+  "optionalDependencies": {
     "@rollup/rollup-darwin-arm64": "^4.62.0"
   }
 }
