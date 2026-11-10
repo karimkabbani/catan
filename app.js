@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v256';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v257';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -1615,7 +1615,7 @@
         <div class="mres"><img src="${resImg}" alt=""><span>${rn}</span></div>
         <div class="mtally"><span class="mnum">0</span></div></div>`;
     document.body.appendChild(box);
-    playSound('knight', 0.55);
+    playSound('robber', 0.55);   // the "you're being robbed" sound, so it no longer sounds like a Knight
     const tally = box.querySelector('.mtally'), num = box.querySelector('.mnum');
     let got = 0;
     const later = (fn, ms) => setTimeout(() => { if (run === monoRun) fn(); }, ms);
@@ -1649,6 +1649,7 @@
       if (!fp) continue;
       later(() => ring(fp, f.n ? '−' + f.n : '0', f.n ? 'loss' : 'zero'), t);
       if (!f.n) { t += T(650); continue; }
+      later(() => playSound('whoosh', 0.5), t);   // a whoosh as each player who loses cards is hit
       t += T(380);
       for (let i = 0; i < f.n; i++) {
         setTimeout(() => {   // not `later`: a superseded show must still settle the held card counts
