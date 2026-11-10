@@ -47,6 +47,11 @@ async function networkFirst(req) {
   const cache = await caches.open(VERSION);
   // cache:'reload' bypasses the browser HTTP cache so code updates land immediately (GitHub
   // Pages serves with max-age=600, which otherwise hands back stale app.js/index.html).
-  try { const res = await fetch(req, { cache: 'reload' }); if (res && res.ok) cache.put(req, res.clone()); return res; }
+  // The CDN in front of Pages also caches for up to 10 minutes, so same-origin fetches add a
+  // per-minute ?cb= to get a fresh copy; the cache is still stored and matched under the original req.
+  let net = req;
+  const u = new URL(req.url);
+  if (u.origin === self.location.origin) { u.searchParams.set('cb', Math.floor(Date.now() / 60000)); net = u.href; }
+  try { const res = await fetch(net, { cache: 'reload' }); if (res && res.ok) cache.put(req, res.clone()); return res; }
   catch (_) { return (await cache.match(req, { ignoreSearch: true })) || (await cache.match('index.html')) || Response.error(); }
 }
