@@ -1983,31 +1983,40 @@
   .vpic.vmini .vb{top:-5px; right:-6px; width:14px; height:14px;} .vpic.vmini .vb svg{width:8px; height:8px;}
   .watchtag .vpic{cursor:pointer;}
   .vpic.vmini .vb.vcam, .speceye .vb.vcam{display:none;}
-  /* watchers' rail: everyone spectating, round faces down the left edge between the two left corners (--wsz: 56/44/36,
-     about two thirds of a player's picture). Your own face carries your 😀 💬 beside it, like a player's corner. */
-  #watchrail{position:fixed; left:6px; z-index:12; transform:translateY(-50%); display:flex; flex-direction:column; gap:6px; pointer-events:none;}
-  body.cut-l #watchrail{left:calc(var(--sa-l) + 2px);}
+  /* watchers around the island (one size everywhere): a full-screen click-through layer, each face placed by placeWatchers */
+  #watchrail{position:fixed; inset:0; z-index:12; pointer-events:none; transition:opacity .25s;}
+  #watchrail.zfade{opacity:0.18;} #watchrail.zfade .wseat{pointer-events:none;}
   body:not(.ingame) #watchrail{display:none;}
-  #watchrail .wseat{position:relative; display:flex; flex-direction:column; align-items:center; width:calc(var(--wsz) + 12px); pointer-events:auto;}
-  #watchrail .wpic{position:relative; width:var(--wsz); height:var(--wsz); border-radius:50%; cursor:pointer; flex:none;
+  #watchrail .wseat{position:absolute; left:0; top:0; width:44px; display:flex; flex-direction:column; align-items:center; pointer-events:auto;}
+  #watchrail .wpic{position:relative; width:44px; height:44px; border-radius:50%; cursor:pointer; flex:none;
     border:2px solid #e9c45a; background:#2a1a0c; box-shadow:0 2px 6px rgba(0,0,0,0.55); box-sizing:border-box;}
   #watchrail .wpic .face{width:100%; height:100%; border-radius:50%; overflow:hidden; display:flex; align-items:center; justify-content:center;
-    font-size:calc(var(--wsz) * 0.42); font-weight:800; color:#f3e6c8; background:#5a3a1c;}
+    font-size:19px; font-weight:800; color:#f3e6c8; background:#5a3a1c;}
   #watchrail .wpic .face img{width:100%; height:100%; object-fit:cover;}
   #watchrail .wpic .vvid{border-radius:50%;}
-  #watchrail .wpic .vb{top:-4px; right:-6px; left:auto; width:18px; height:18px;} #watchrail .wpic .vb svg{width:10px; height:10px;}
-  #watchrail .wpic .vb.vcam{display:none;}   /* the live picture already says 'camera on' */
+  #watchrail .wpic .vb{top:-6px; width:20px; height:20px;} #watchrail .wpic .vb svg{width:11px; height:11px;}
+  #watchrail .wpic .vb.vmic{right:-8px; left:auto;} #watchrail .wpic .vb.vcam{left:-8px; right:auto;}
+  #watchrail .wseat:not(.mine) .wpic .vb.vcam{display:none;}   /* others: the live picture already says 'camera on' */
   #watchrail .wpic .vbars{display:none !important;}
-  #watchrail .wname{margin-top:2px; max-width:calc(var(--wsz) + 12px); font-size:10px; font-weight:800; color:#f3e6c8; text-align:center;
+  #watchrail .wname{margin-top:2px; max-width:64px; font-size:10px; font-weight:800; color:#f3e6c8; text-align:center;
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-shadow:0 1px 2px #000, 0 0 3px #000;}
-  #watchrail .wmore{display:flex; align-items:center; justify-content:center; padding:0; font-size:calc(var(--wsz) * 0.34); font-weight:800; color:#e9c45a;
+  #watchrail .wmore{display:flex; align-items:center; justify-content:center; padding:0; font-size:15px; font-weight:800; color:#e9c45a;
     font-family:system-ui,-apple-system,sans-serif;}
   #watchrail .wdot{position:absolute; top:-3px; left:-3px; z-index:9; width:12px; height:12px; border-radius:50%; background:#e0453a; border:2px solid #2a1608; animation:msgpulse 1.5s ease-out infinite; pointer-events:none;}
-  #watchrail .wseat .pemo, #watchrail .wseat .pchat{top:calc(var(--wsz) / 2 - 19px);}
-  #watchrail .wseat .pemo{left:calc(100% + 4px);} #watchrail .wseat .pchat{left:calc(100% + 48px);}
+  #watchrail .wchat{display:flex; gap:8px; margin-top:4px;}
+  #watchrail .wchat .pemo, #watchrail .wchat .pchat{position:relative; left:auto; top:auto; width:34px; height:34px;}
+  #watchrail .wchat svg{width:18px; height:18px;}
+  .watchtag{cursor:pointer;} .watchtag.off{opacity:0.5; text-decoration:line-through;}
+  /* a watcher's bottom bar: just whose cards they're looking at; the corner being looked at says so */
+  .spechand.specone{gap:12px;} .specwho{display:flex; align-items:center; gap:6px; font-weight:800; color:#f3e6c8; white-space:nowrap; flex:none;}
+  .pviewing{position:absolute; z-index:10; top:-11px; left:50%; transform:translateX(-50%); background:#e9c45a; color:#2b1b0b; font:800 10.5px system-ui,-apple-system,sans-serif;
+    padding:2px 8px; border-radius:9px; white-space:nowrap; box-shadow:0 2px 5px rgba(0,0,0,0.5); pointer-events:none;}
   .bcbubble.b-side{transform-origin:left center;}
   .bcbubble.b-side::before{left:-18px; top:11px; border-right-color:var(--gold-edge);}
-  .bcbubble.b-side::after{left:-14px; top:13px; border-right-color:#f6ecd2;}   /* tiny faces: the live picture already says 'camera on' */
+  .bcbubble.b-side::after{left:-14px; top:13px; border-right-color:#f6ecd2;}
+  .bcbubble.b-sider{transform-origin:right center;}
+  .bcbubble.b-sider::before{left:auto; right:-18px; border-right-color:transparent; border-left-color:var(--gold-edge);}
+  .bcbubble.b-sider::after{left:auto; right:-14px; border-right-color:transparent; border-left-color:#f6ecd2;}   /* tiny faces: the live picture already says 'camera on' */
   .watchtag .vpic.vmini .face{width:30px; height:30px;}
   .speceye.vpic{border:0; background:none; padding:0; margin-right:4px; cursor:pointer;}
   .speceye.vpic .face{width:34px; height:34px; border:2px solid var(--gold-edge);}

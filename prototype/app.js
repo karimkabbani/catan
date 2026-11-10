@@ -921,7 +921,9 @@
       const dot = (online && p.color !== myColor && UNREAD[p.color]) ? `<span class="pmsgdot"></span>` : '';
       // tap any online player's portrait to review their recent messages
       const pid = online ? seatPlayerId(p.color) : null;
-      const tap = online ? (p.color === myColor && voiceOn() && !LIVE.room ? ` onclick="CATAN.voiceCard(this)"` : ` onclick="CATAN.showMsgs('${p.color}')"`) : '';
+      const watching = online && !myColor && state.phase !== 'ended';   // a watcher: tap a player = look at their cards
+      const tap = watching ? ` onclick="CATAN.specView('${p.color}')"` : online ? (p.color === myColor && voiceOn() && !LIVE.room ? ` onclick="CATAN.voiceCard(this)"` : ` onclick="CATAN.showMsgs('${p.color}')"`) : '';
+      const viewing = watching && p.color === ((specView && state.players.some((x) => x.color === specView)) ? specView : activeColor()) ? '<span class="pviewing">👁 viewing</span>' : '';
       // online/offline status dot on the portrait (online games only) — greys out if they left the app
       const off = online && !isPlayerOnline(p.color);
       // v225: with voice, the mic/camera badges sit in the plaque's name row (off the picture, and out of the
@@ -929,7 +931,7 @@
       const vbs = pid ? voiceBadges(pid) : '', vrow = !!(vbs && document.body.classList.contains('vlive'));
       const statusDot = online ? `<span class="pstatus ${off ? 'off' : 'on'}" title="${off ? 'Offline' : 'Online'}"></span>` : '';
       const wtb = wtCornerBits(p.color);
-      el.innerHTML = `${di}${tbadge}${chatBtn}${dot}${wtb.mic}
+      el.innerHTML = `${di}${tbadge}${chatBtn}${dot}${viewing}${wtb.mic}
         <div class="pcol">${stat(bdg.res, cards, '🃏', 'Resource cards', false, cards > 7)}${stat(bdg.card, dev, '🎴', 'Development cards')}${stat(bdg.vp, vp, '⭐', 'Victory points')}${stat(bdg.army, p.playedKnights, '⚔️', 'Knights played', p.hasLargestArmy)}${stat(bdg.road, road, '🛣️', 'Longest road', p.hasLongestRoad)}</div>
         <div class="pport"${tap}><div class="pava${flagged ? ' flagged' : ''}${off ? ' offline' : ''}"${pid ? ` data-vid="${pid}"` : ''} style="border-color:${PCOLOR[p.color]}">${av}${statusDot}${pid ? (vrow ? '' : vbs) + voiceTag(pid) : ''}</div>${wtb.badge}${vrow ? `<div class="pname prow"><span class="nm">${escapeHtml(p.name)}</span><span class="vrow">${vbs}</span></div>` : `<div class="pname">${escapeHtml(p.name)}</div>`}</div>${flagged ? (p.color === myColor && online ? '<span class="pflag mine" title="Lower your white flag" onclick="event.stopPropagation();CATAN.flagTap()">🏳️</span>' : '<span class="pflag">🏳️</span>') : ''}${luckStrip(p)}${robbedPill(p.color)}${cupPts ? `<span class="pcup" title="Cup points">🏆<b>${cupPts[p.color]}</b></span>` : ''}`;
     });
@@ -1249,10 +1251,10 @@
         const dev = `<span class="specdev">🎴 ${devs.length}${vpc ? ` · ⭐ ${vpc} VP` : ''}</span>`;
         return `<div class="spechand specview"><div class="specsel">${chips}</div><div class="specorbs">${orbs}</div>${dev}</div>`;
       }
-      const meBtn = voiceOn() && AUTH.me ? (LIVE.room ? `<span class="specvc vrow">${voiceBadges(AUTH.me.id)}</span>`   // v227: your mic/camera switches, as everywhere
-        : `<button class="speceye vpic" data-vid="${AUTH.me.id}" onclick="CATAN.voiceCard(this)" aria-label="Talk to the table">${faceHTML(AUTH.me.name, AUTH.me.avatar, 'sm')}${voiceBadges(AUTH.me.id, true)}</button>`) : '<span class="speceye">👁</span>';
-      return `<div class="spechand specview">${meBtn}<div class="specsel">${chips}</div>`
-        + `<div class="specorbs">${orbs}</div><button class="specleave" onclick="CATAN.exitGame()">Leave</button></div>`;
+      // a watcher's bar is just the cards of the player they're looking at: tap a corner to switch (it gets "👁 viewing");
+      // your mic/camera and 😀 💬 are on your own face in the sea, and leaving is in the menu ("Stop")
+      return `<div class="spechand specview specone"><span class="specwho"><span class="specdot" style="background:${PCOLOR[vp.color]}"></span>${escapeHtml(vp.name)}</span>`
+        + `<div class="specorbs">${orbs}</div></div>`;
     }
     // online: show MY hand; pass-and-play: show the active player's
     const p = (online && myColor) ? state.players.find((x) => x.color === myColor) : activePlayer();
@@ -1836,7 +1838,7 @@
   function watchingTag() {   // "👁 N" shown to everyone in an online game when people are spectating
     if (!online) return '';
     const sp = LOBBY.spectators(), n = sp.length;
-    return n ? ` <span class="watchtag">👁 ${n}</span>` : '';
+    return n ? ` <span class="watchtag${wHidden ? ' off' : ''}" onclick="event.stopPropagation();CATAN.wToggle()" title="${wHidden ? 'Show the watchers' : 'Hide the watchers'}">👁 ${n}</span>` : '';
   }
   function banner() {
     if (state.phase === 'ended') return `🏆 Game over — ${escapeHtml(state.players.find((p) => p.color === state.winner).name)} wins<span class="bmore">Results ›</span>${watchingTag()}`;
@@ -1918,43 +1920,57 @@
     clearTimeout(n._t); n._t = setTimeout(() => n.classList.remove('show'), 2400);
   }
   function renderBanner() { const b = $('banner'); if (b && state) { b.innerHTML = banner(); renderWatchRail(); voiceMountVideos(); } }
-  // ---- the watchers' rail: everyone spectating, as round faces down the left edge between the two left corners ----
-  // Round and about two thirds of a player's picture, so they read as guests, not seats. Live camera, talking glow,
-  // mic badge, unread dot like the corners; tap = their messages + mute for me. Your own face carries your 😀 💬.
-  // Too many for the gap: the last spot becomes "+N" (tap = the names).
-  let wrailSig = '';
-  function wrailSize() {
-    const W = window.innerWidth, H = window.innerHeight, vl = document.body.classList.contains('vlive');
-    return vl && W >= 740 && H >= 370 ? 56 : (vl && W >= 600 && H >= 330 ? 44 : 36);
+  // ---- watchers around the island: everyone spectating floats as a round face in the sea beside the board ----
+  // One size on every phone (44px). Spots in order: left of the island at mid-height, right of it, lower right, upper
+  // right (clear of the corners and their dice); a fifth+ watcher folds the last spot into "+N". On a watcher's own
+  // phone their face takes the left spot, with their camera/mic badges as switches and 😀 💬 under it. Live camera,
+  // white talking glow, unread dot; tap = their messages + mute for me. Tap "👁 N" in the banner to hide/show them on
+  // this phone (remembered). While the board is zoomed in they fade, since the island then fills the sea.
+  // #watchrail is a full-screen, click-through layer; each .wseat is placed on an ellipse around the island.
+  const WSZ = 44, WSPOTS = [180, 0, 28, 332];
+  let wrailSig = '', wHidden = (function () { try { return localStorage.getItem('catanHideWatchers') === '1'; } catch (_) { return false; } })();
+  function boardBox() {
+    let L = 1e9, T = 1e9, R = -1e9, B = -1e9;
+    document.querySelectorAll('[clip-path^="url(#hc"]').forEach((e) => { const r = e.getBoundingClientRect(); if (!r.width) return; L = Math.min(L, r.left); T = Math.min(T, r.top); R = Math.max(R, r.right); B = Math.max(B, r.bottom); });
+    return R > L ? { L, T, R, B } : null;
   }
   function renderWatchRail() {
     let r = $('watchrail');
-    const all = online && state && inGame() ? LOBBY.spectators().slice() : [];
+    const me = AUTH.me && AUTH.me.id, list = online && state && inGame() ? LOBBY.spectators().slice() : [];
+    const all = wHidden ? list.filter((w) => w.id === me && !myColor) : list;   // hidden: the others go, your own face (your controls) stays
     if (!all.length) { if (r) r.remove(); wrailSig = ''; return; }
-    const me = AUTH.me && AUTH.me.id;
-    all.sort((a, b) => (b.id === me) - (a.id === me));   // you first, so your own face (and its chat buttons) always shows
-    const H = window.innerHeight;
-    const vis = (k) => { const e = $('p-' + k); return e && e.style.display !== 'none' && e.offsetWidth ? e.getBoundingClientRect() : null; };
-    const tl = vis('tl'), bl = vis('bl');
-    const top = tl ? tl.bottom + 8 : 64, bot = bl ? bl.top - 8 : H - 64;
-    const fits = (z, nm) => Math.max(1, Math.floor((bot - top + 4) / (z + (nm ? 22 : 6))));   // face (+ name) + gap
-    // too many for the gap: no names (tap a face for it), then smaller faces, then the last spot folds into "+N"
-    const base = wrailSize(), tiers = [[base, 1], [base, 0], [44, 0], [36, 0]].filter(([z]) => z <= base);
-    const [sz, named] = tiers.find(([z, nm]) => fits(z, nm) >= all.length) || tiers[tiers.length - 1];
-    const fit = fits(sz, named);
-    const shown = all.length > fit ? all.slice(0, Math.max(1, fit - 1)) : all, more = all.length - shown.length;
+    const iWatch = !myColor && all.some((w) => w.id === me);
+    all.sort((a, b) => (b.id === me) - (a.id === me));   // you first: your face takes the left spot
+    const shown = all.length > WSPOTS.length ? all.slice(0, WSPOTS.length - 1) : all, more = all.length - shown.length;
     const html = shown.map((w) => {
       const mine = w.id === me, k = 'w:' + w.id;
-      const chat = mine && !myColor ? `<button class="pemo${$('emotray') && trayMode === 'emo' ? ' on' : ''}" onclick="event.stopPropagation();CATAN.openTray('emo')" aria-label="Emojis">${EMO_ICON}</button><button class="pchat${$('emotray') && trayMode === 'txt' ? ' on' : ''}" onclick="event.stopPropagation();CATAN.openTray('txt')" aria-label="Texts">${CHAT_ICON}</button>` : '';
-      return `<div class="wseat${mine ? ' mine' : ''}" data-w="${escapeHtml(w.id)}"><span class="wpic vpic" data-vid="${escapeHtml(w.id)}" onclick="CATAN.showMsgs('${escapeHtml(k)}')">${faceHTML(w.name, w.avatar)}${voiceBadges(w.id, mine)}${!mine && UNREAD[k] ? '<span class="wdot"></span>' : ''}</span>`
-        + (named ? `<span class="wname">${escapeHtml(w.name || '?')}</span>` : '') + `${chat}</div>`;
-    }).join('') + (more ? `<div class="wseat"><button class="wpic wmore" onclick="CATAN.wrailMore()">+${more}</button>${named ? '<span class="wname">watching</span>' : ''}</div>` : '');
+      const chat = mine && iWatch ? `<span class="wchat"><button class="pemo${$('emotray') && trayMode === 'emo' ? ' on' : ''}" onclick="event.stopPropagation();CATAN.openTray('emo')" aria-label="Emojis">${EMO_ICON}</button><button class="pchat${$('emotray') && trayMode === 'txt' ? ' on' : ''}" onclick="event.stopPropagation();CATAN.openTray('txt')" aria-label="Texts">${CHAT_ICON}</button></span>` : '';
+      return `<div class="wseat${mine ? ' mine' : ''}" data-w="${escapeHtml(w.id)}"><span class="wpic vpic" data-vid="${escapeHtml(w.id)}" onclick="${mine && voiceOn() && !LIVE.room ? 'CATAN.voiceCard(this)' : `CATAN.showMsgs('${escapeHtml(k)}')`}">${faceHTML(w.name, w.avatar)}${voiceBadges(w.id)}${!mine && UNREAD[k] ? '<span class="wdot"></span>' : ''}</span>`
+        + `<span class="wname">${escapeHtml(w.name || '?')}</span>${chat}</div>`;
+    }).join('') + (more ? `<div class="wseat"><button class="wpic wmore" onclick="CATAN.wrailMore()">+${more}</button><span class="wname">watching</span></div>` : '');
     if (!r) { r = document.createElement('div'); r.id = 'watchrail'; document.body.appendChild(r); }
-    const sig = html + '|' + sz;
-    if (sig !== wrailSig) { wrailSig = sig; r.innerHTML = html; r.style.setProperty('--wsz', sz + 'px'); }
-    const t = Math.round((top + bot) / 2) + 'px'; if (r.style.top !== t) r.style.top = t;
+    if (html !== wrailSig) { wrailSig = html; r.innerHTML = html; }
+    placeWatchers();
   }
-  window.addEventListener('resize', () => { if (state && inGame()) { wrailSig = ''; renderWatchRail(); voiceMountVideos(); } });   // live count refresh from presence
+  // seat each face on an ellipse just off the island's coast (measured at the default zoom; zoomed in = faded, kept still)
+  function placeWatchers() {
+    const r = $('watchrail'); if (!r) return;
+    const zoomed = zoom.s > 1.03;
+    r.classList.toggle('zfade', zoomed);
+    if (zoomed) return;
+    const bb = boardBox(); if (!bb) return;
+    const gap = 26, cx = (bb.L + bb.R) / 2, cy = (bb.T + bb.B) / 2;
+    const rx = (bb.R - bb.L) / 2 + gap + WSZ / 2, ry = (bb.B - bb.T) / 2 + gap * 0.4 + WSZ / 2;
+    [...r.children].forEach((el, i) => {
+      const a = WSPOTS[i] * Math.PI / 180;
+      const x = Math.round(Math.max(4, Math.min(window.innerWidth - WSZ - 4, cx + rx * Math.cos(a) - WSZ / 2)));
+      const y = Math.round(cy + ry * Math.sin(a) - WSZ / 2);
+      const v = `translate(${x}px,${y}px)`; if (el.style.transform !== v) el.style.transform = v;
+    });
+  }
+  let wPlaceQ = 0;
+  function placeWatchersSoon() { if (wPlaceQ || !$('watchrail')) return; wPlaceQ = requestAnimationFrame(() => { wPlaceQ = 0; placeWatchers(); }); }
+  window.addEventListener('resize', () => { if (state && inGame()) { wrailSig = ''; renderWatchRail(); voiceMountVideos(); } });
 
   function actionsBar() {
     if (state.phase === 'ended') return '';   // the results reopen from the 🏆 tab
@@ -3939,7 +3955,7 @@
     const pos = seat >= 0 ? seatKey(seat) : null;   // 'tl' | 'tr' | 'br' | 'bl'
     const corner = pos ? $('p-' + pos) : null;
     const wface = inGameView && isWKey(msg.color) ? cornerOf(msg.color) : null;
-    if (wface) showBroadcastBubble(msg, wface.el.closest('.wseat') || wface.el, 'ml');
+    if (wface) showBroadcastBubble(msg, wface.el.closest('.wseat') || wface.el, wface.pos === 'wr' ? 'mr' : 'ml');
     else if (corner && corner.style.display !== 'none') showBroadcastBubble(msg, corner, pos);
     else showBroadcastBanner(msg);
   }
@@ -4682,7 +4698,7 @@
     return i < 0 ? null : { el: $('p-' + seatKey(i)), pos: seatKey(i) };
   }
   function cornerOf(color) {
-    if (isWKey(color)) { const w = document.querySelector('#watchrail .wseat[data-w="' + CSS.escape(color.slice(2)) + '"] .wpic'); return w ? { el: w, pos: 'wl' } : null; }
+    if (isWKey(color)) { const w = document.querySelector('#watchrail .wseat[data-w="' + CSS.escape(color.slice(2)) + '"] .wpic'); if (!w) return null; const q = w.getBoundingClientRect(); return { el: w, pos: q.left + q.width / 2 > window.innerWidth / 2 ? 'wr' : 'wl' }; }
     const i = state ? state.players.findIndex((p) => p.color === color) : -1;
     const el = i < 0 ? null : $('p-' + seatKey(i));
     return (el && el.style.display !== 'none') ? { el, pos: seatKey(i) } : null;
@@ -5142,14 +5158,14 @@
     const old = document.getElementById(id); if (old) old.remove();   // one bubble per speaker
     const b = document.createElement('div');
     b.id = id;
-    const isVoice = msg.type === 'voice', side = pos === 'ml';   // a watcher on the left rail: beside the face, tail pointing at it
-    b.className = 'bcbubble ' + (side ? 'b-side' : (top ? 'b-top' : 'b-bot') + ' ' + (left ? 'b-left' : 'b-right')) + (isVoice ? ' bcvoice' : '');
+    const isVoice = msg.type === 'voice', side = pos === 'ml' || pos === 'mr';   // a watcher in the sea: beside the face (toward the board), tail pointing at it
+    b.className = 'bcbubble ' + (side ? (pos === 'mr' ? 'b-side b-sider' : 'b-side') : (top ? 'b-top' : 'b-bot') + ' ' + (left ? 'b-left' : 'b-right')) + (isVoice ? ' bcvoice' : '');
     b.innerHTML = isVoice
       ? `<button class="bcclose" aria-label="Close">×</button><button class="bcplay" aria-label="Play">▶</button><span class="bctext">🎤 0:${String(msg.dur || 1).padStart(2, '0')}</span>`
       : `<button class="bcclose" aria-label="Close">×</button><span class="bctext">${escapeHtml(String(msg.text).slice(0, 50))}</span>`;
     document.body.appendChild(b);
     const gap = 8, tail = 20;   // tail sits ~20px from the bubble's near edge
-    if (side) { const xr = Math.max(ar.right, ...[...corner.querySelectorAll('.pemo, .pchat')].map((x) => x.getBoundingClientRect().right)); b.style.left = (xr + 14) + 'px'; b.style.top = (ar.top + ar.height / 2 - 20) + 'px'; }
+    if (side) { b.style.top = (ar.top + ar.height / 2 - 20) + 'px'; if (pos === 'mr') b.style.right = (window.innerWidth - ar.left + 14) + 'px'; else b.style.left = (ar.right + 14) + 'px'; }
     else if (top) b.style.top = (cr.bottom + gap) + 'px'; else b.style.bottom = (window.innerHeight - cr.top + gap) + 'px';
     if (side) { }
     else if (left) b.style.left = Math.max(6, avCx - tail) + 'px';
@@ -5764,7 +5780,7 @@
   function zApply(animate) {
     if (!zArea) return;
     zArea.style.transition = animate ? 'transform .26s ease' : 'none';
-    zArea.style.transform = `translate(${zoom.tx.toFixed(2)}px,${zoom.ty.toFixed(2)}px) scale(${zoom.s.toFixed(4)})`;
+    zArea.style.transform = `translate(${zoom.tx.toFixed(2)}px,${zoom.ty.toFixed(2)}px) scale(${zoom.s.toFixed(4)})`;    placeWatchersSoon(); if (animate) setTimeout(placeWatchersSoon, 300);   // the watchers follow the island, or fade while zoomed in
   }
   function zClamp() {
     const r = zRect(), W = r.width, H = r.height;
@@ -5806,7 +5822,7 @@
   function cineApply(ms) {
     if (!zArea) return;
     zArea.style.transition = 'transform ' + ms + 'ms cubic-bezier(.45,.05,.55,.95)';   // gentle ease-in-out
-    zArea.style.transform = `translate(${zoom.tx.toFixed(2)}px,${zoom.ty.toFixed(2)}px) scale(${zoom.s.toFixed(4)})`;
+    zArea.style.transform = `translate(${zoom.tx.toFixed(2)}px,${zoom.ty.toFixed(2)}px) scale(${zoom.s.toFixed(4)})`;    placeWatchersSoon(); setTimeout(placeWatchersSoon, ms + 40);
   }
   // identity-space content coords (stage px at zoom=1) of any SVG point, robust to the current transform
   function svgContentPoint(sx, sy) {
@@ -7348,11 +7364,12 @@
   window.CATAN.lchatSend = () => sendLobbyChat();
   window.CATAN.openQuickChat = () => openQuickChat();
   // spectator taps a player chip -> view their resources; tapping the active one again returns to follow-the-turn
-  window.CATAN.specView = (color) => { specView = (specView === color) ? null : color; const h = $('hand'); if (h) h.innerHTML = handBar(); };   // v237: only the bottom bar changes
+  window.CATAN.specView = (color) => { specView = (specView === color) ? null : color; const h = $('hand'); if (h) h.innerHTML = handBar(); if (online && !myColor) renderPanels(); };   // watchers: the corner's "👁 viewing" tag moves too   // v237: only the bottom bar changes
   window.CATAN.quickSendIdx = (i) => { const t = AUTH.quickList()[i]; if (t) quickSend(t); };
   window.CATAN.recStop = () => finishRec(false);
   window.CATAN.recCancel = () => finishRec(true);
   window.CATAN.showMsgs = (color) => showMsgHistory(color);
+  window.CATAN.wToggle = () => { wHidden = !wHidden; try { localStorage.setItem('catanHideWatchers', wHidden ? '1' : '0'); } catch (_) { } toast(wHidden ? 'Watchers hidden. Tap 👁 to show them' : 'Watchers shown'); renderBanner(); voiceMountVideos(); };
   window.CATAN.wrailMore = () => { const me = AUTH.me && AUTH.me.id; toast('👁 ' + LOBBY.spectators().map((w) => (w.id === me ? 'you' : w.name)).join(', ')); };
   window.CATAN.voiceCard = (el) => voiceCard(el);
   window.CATAN.voiceWho = (id, el) => voiceWho(id, el);
