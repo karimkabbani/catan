@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Asset extractor</title>
+<style>
+  :root{--wood1:#7a4b22;--wood2:#5a3416;--gold:#e9c45a;--ink:#f3e6cf;--muted:#cdb591;}
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#15212c;color:var(--ink);padding:16px;}
+  h1{font-size:20px;margin:0 0 4px;color:var(--gold);}
+  p.sub{color:var(--muted);font-size:13px;margin:0 0 14px;max-width:680px;}
+  .panel{background:linear-gradient(180deg,var(--wood1),var(--wood2));border:1px solid #2a1708;border-radius:12px;padding:14px;max-width:720px;box-shadow:0 4px 14px rgba(0,0,0,.4);}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0;}
+  label{font-size:13px;font-weight:700;}
+  input[type=range]{flex:1;min-width:120px;}
+  select,button,input[type=file],input[type=text]{font-size:14px;}
+  select,input[type=text]{padding:8px;border-radius:8px;border:1px solid #2a1708;background:rgba(0,0,0,.3);color:var(--ink);font-weight:700;}
+  button{padding:10px 14px;border-radius:9px;border:1px solid #a9802a;font-weight:800;cursor:pointer;background:linear-gradient(180deg,#caa24a,#9c7322);color:#3a2400;}
+  button:active{transform:translateY(1px);} button.ghost{background:rgba(0,0,0,.25);color:var(--ink);border-color:#2a1708;}
+  #canvasWrap{position:relative;margin-top:8px;background:#0c1620;border-radius:10px;overflow:hidden;touch-action:none;}
+  canvas{display:block;width:100%;height:auto;cursor:grab;} canvas:active{cursor:grabbing;}
+  .hint{font-size:12px;color:var(--muted);}
+  .target{font-size:13px;font-weight:800;color:var(--gold);background:rgba(0,0,0,.28);border:1px solid #2a1708;border-radius:8px;padding:8px 10px;}
+  textarea{width:100%;height:220px;background:#0c1620;color:#bfe;border:1px solid #2a1708;border-radius:8px;font-family:ui-monospace,Menlo,monospace;font-size:12px;padding:10px;margin-top:8px;}
+  .done{font-size:12px;color:#9be29b;min-height:16px;}
+  .checklist{font-size:12px;color:var(--muted);margin:6px 0 0;line-height:1.6;}
+</style>
+</head>
+<body>
+  <h1>🪓 Asset extractor</h1>
+  <p class="sub">Load one of your screenshots, frame the piece you want, pick what it is, and download — the file is named and
+  sized for the right folder. Everything happens on your device; nothing is uploaded.</p>
+
+  <div class="panel">
+    <div class="row">
+      <input type="file" id="file" accept="image/*"/>
+      <span class="hint">step 1 — pick a screenshot</span>
+    </div>
+    <div class="row">
+      <label>What is it?</label>
+      <select id="cat"></select>
+      <select id="sub"></select>
+      <input type="text" id="customName" placeholder="filename.png" style="display:none;width:160px;"/>
+    </div>
+    <div class="row"><span class="target" id="target"></span></div>
+    <div class="row">
+      <label>Width</label><input type="range" id="w" min="20" max="1200" value="240"/>
+      <label id="hLabel">Height</label><input type="range" id="h" min="20" max="1200" value="240"/>
+    </div>
+    <div class="row">
+      <button id="download">⬇️ Download</button>
+      <span class="done" id="done"></span>
+    </div>
+    <div id="canvasWrap"><canvas id="cv"></canvas></div>
+    <p class="hint">Drag on the image to move the frame. For tiles, the hex outline shows what stays visible in-game (corners get clipped).</p>
+
+    <div class="row" style="margin-top:14px;">
+      <button class="ghost" id="snippet">📋 Show full config snippet</button>
+      <span class="hint">paste into index.html once (already added for you, but here if you need it)</span>
+    </div>
+    <textarea id="snipOut" style="display:none;" readonly></textarea>
+
+    <p class="checklist"><b>The full set to grab (see ASSETS-CHECKLIST.md):</b><br>
+    Tiles → wood, brick, sheep, wheat, ore, desert &nbsp;•&nbsp; Number tokens → 2–12 (no 7) &nbsp;•&nbsp; Ports/bridges → generic (3:1) + one per resource (2:1)<br>
+    Resource icons → brick, wood, sheep, wheat, ore &nbsp;•&nbsp; Pieces → settlement &amp; city in each colour &nbsp;•&nbsp; Avatars → p1–p4<br>
+    Robber (grey figure) &nbsp;•&nbsp; Sea/water background &nbsp;•&nbsp; Logo (CATAN title)</p>
+  </div>
+
+<script>
+(function(){
+  const CATS = {
+    tile:   {label:'Terrain tile (hex)', shape:'hex',  folder:'assets/tiles/',   subs:['wood','brick','sheep','wheat','ore','desert']},
+    token:  {label:'Number token',  shape:'square', folder:'assets/tokens/', subs:['2','3','4','5','6','8','9','10','11','12']},
+    port:   {label:'Port / bridge', shape:'square', folder:'assets/ports/',  subs:['generic','brick','wood','sheep','wheat','ore']},
+    icon:   {label:'Resource icon', shape:'square', folder:'assets/icons/',  subs:['brick','wood','sheep','wheat','ore']},
+    piece:  {label:'Piece (house / city)', shape:'square', folder:'assets/pieces/', subs:['settlement-red','settlement-blue','settlement-white','settlement-orange','city-red','city-blue','city-white','city-orange']},
+    avatar: {label:'Player avatar', shape:'square', folder:'assets/avatars/', subs:['p1','p2','p3','p4']},
+    robber: {label:'Robber',        shape:'square', folder:'assets/',        file:'robber'},
+    sea:    {label:'Sea / water background', shape:'free', folder:'assets/',  file:'sea'},
+    logo:   {label:'Logo (CATAN title)', shape:'free', folder:'assets/',     file:'logo'},
+    custom: {label:'Custom…',       shape:'free', folder:'assets/',          custom:true},
+  };
+
+  const cv=document.getElementById('cv'), ctx=cv.getContext('2d'), wrap=document.getElementById('canvasWrap');
+  const $=(id)=>document.getElementById(id);
+  let img=null;
+  const sel={cx:0,cy:0,w:240,h:240};
+
+  // populate category dropdown
+  for(const k in CATS) $('cat').insertAdjacentHTML('beforeend', `<option value="${k}">${CATS[k].label}</option>`);
+  $('cat').addEventListener('change', onCat);
+  $('sub').addEventListener('change', updateTarget);
+  $('customName').addEventListener('input', updateTarget);
+
+  function onCat(){
+    const c=CATS[$('cat').value];
+    // subs
+    $('sub').innerHTML='';
+    if(c.subs){ $('sub').style.display=''; c.subs.forEach(s=>$('sub').insertAdjacentHTML('beforeend',`<option>${s}</option>`)); }
+    else $('sub').style.display='none';
+    $('customName').style.display = c.custom ? '' : 'none';
+    // shape -> lock height for square/hex
+    const lockH = c.shape!=='free';
+    $('hLabel').style.display = lockH ? 'none' : '';
+    $('h').style.display = lockH ? 'none' : '';
+    if(lockH) sel.h=sel.w;
+    updateTarget(); draw();
+  }
+  function curName(){
+    const c=CATS[$('cat').value];
+    if(c.custom){ let n=$('customName').value.trim()||'asset'; return n.endsWith('.png')?n:n+'.png'; }
+    if(c.subs) return $('sub').value+'.png';
+    return c.file+'.png';
+  }
+  function updateTarget(){ const c=CATS[$('cat').value]; $('target').textContent='Save into:  '+c.folder+curName(); }
+
+  $('file').addEventListener('change', e=>{
+    const f=e.target.files[0]; if(!f) return; const url=URL.createObjectURL(f); img=new Image();
+    img.onload=()=>{ cv.width=img.width; cv.height=img.height;
+      sel.cx=img.width/2; sel.cy=img.height/2; sel.w=sel.h=Math.min(img.width,img.height)*0.3;
+      $('w').max=$('h').max=Math.round(Math.max(img.width,img.height));
+      $('w').value=Math.round(sel.w); $('h').value=Math.round(sel.h);
+      draw(); URL.revokeObjectURL(url);
+    }; img.src=url;
+  });
+
+  $('w').addEventListener('input', e=>{ sel.w=+e.target.value; if(CATS[$('cat').value].shape!=='free') sel.h=sel.w; draw(); });
+  $('h').addEventListener('input', e=>{ sel.h=+e.target.value; draw(); });
+
+  function clampSel(){ sel.cx=Math.max(sel.w/2,Math.min(img.width-sel.w/2,sel.cx)); sel.cy=Math.max(sel.h/2,Math.min(img.height-sel.h/2,sel.cy)); }
+  function hexPath(c,x,y,s){ const r=s/2; c.beginPath(); for(let i=0;i<6;i++){const a=Math.PI/180*(60*i),px=x+r*Math.cos(a),py=y+r*Math.sin(a); i?c.lineTo(px,py):c.moveTo(px,py);} c.closePath(); }
+
+  function draw(){ if(!img) return; ctx.clearRect(0,0,cv.width,cv.height); ctx.drawImage(img,0,0); clampSel();
+    ctx.save(); ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(0,0,cv.width,cv.height); ctx.restore();
+    const x=sel.cx-sel.w/2, y=sel.cy-sel.h/2;
+    ctx.save(); ctx.beginPath(); ctx.rect(x,y,sel.w,sel.h); ctx.clip(); ctx.drawImage(img,0,0); ctx.restore();
+    ctx.save(); ctx.lineWidth=Math.max(2,sel.w*0.012);
+    if(CATS[$('cat').value].shape==='hex'){ ctx.strokeStyle='rgba(255,255,255,0.9)'; hexPath(ctx,sel.cx,sel.cy,sel.w); ctx.stroke(); }
+    ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=1.5; ctx.strokeRect(x,y,sel.w,sel.h); ctx.restore();
+  }
+
+  let dragging=false,lastX=0,lastY=0;
+  function toImg(e){ const r=cv.getBoundingClientRect(),sx=cv.width/r.width,sy=cv.height/r.height; return {x:(e.clientX-r.left)*sx,y:(e.clientY-r.top)*sy}; }
+  cv.addEventListener('pointerdown',e=>{ if(!img)return; dragging=true; const p=toImg(e); lastX=p.x; lastY=p.y; cv.setPointerCapture(e.pointerId); });
+  cv.addEventListener('pointermove',e=>{ if(!dragging)return; const p=toImg(e); sel.cx+=p.x-lastX; sel.cy+=p.y-lastY; lastX=p.x; lastY=p.y; draw(); });
+  cv.addEventListener('pointerup',()=>dragging=false);
+
+  $('download').addEventListener('click', ()=>{
+    if(!img){ alert('Load a screenshot first.'); return; }
+    const maxOut=480, ar=sel.w/sel.h; let ow=maxOut, oh=maxOut;
+    if(ar>1) oh=Math.round(maxOut/ar); else ow=Math.round(maxOut*ar);
+    const o=document.createElement('canvas'); o.width=ow; o.height=oh;
+    o.getContext('2d').drawImage(img, sel.cx-sel.w/2, sel.cy-sel.h/2, sel.w, sel.h, 0,0,ow,oh);
+    const a=document.createElement('a'); a.download=curName(); a.href=o.toDataURL('image/png'); a.click();
+    $('done').textContent='saved '+curName()+' → move it into '+CATS[$('cat').value].folder;
+  });
+
+  $('snippet').addEventListener('click', ()=>{
+    const t=$('snipOut'); t.style.display='block';
+    t.value='This config is ALREADY wired into index.html — you do not need to paste anything.\n'+
+      'Just drop your cropped files into the assets/ subfolders shown above and refresh.\n\n'+
+      'For reference, the slots the game reads are:\n'+
+      '  tiles/   wood, brick, sheep, wheat, ore, desert\n'+
+      '  tokens/  2,3,4,5,6,8,9,10,11,12\n'+
+      '  ports/   generic, brick, wood, sheep, wheat, ore\n'+
+      '  icons/   brick, wood, sheep, wheat, ore\n'+
+      '  pieces/  settlement-<colour>, city-<colour>  (red, blue, white, orange)\n'+
+      '  avatars/ p1, p2, p3, p4\n'+
+      '  (root)   robber.png, sea.png, logo.png';
+    t.select();
+  });
+
+  onCat();
+})();
+</script>
+</body>
+</html>

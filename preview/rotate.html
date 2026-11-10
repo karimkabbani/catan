@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black"/><!-- v243: opaque (Karim chose B on the design canvas, board 10): the page starts below the status bar and reaches the real bottom edge; translucent made iOS keep 62 pt back at the bottom, undrawable (HANDOVER items 21, 76) -->
+<meta name="apple-mobile-web-app-title" content="Catan"/>
+<meta name="theme-color" content="#2a1a0c"/>
+<link rel="manifest" href="manifest.webmanifest"/>
+<link rel="apple-touch-icon" href="apple-touch-icon.png"/>
+<title>Catan</title>
+<!-- Sideways board host (HANDOVER §8 items 63-67). index.html sends every signed-in player on a phone or desktop
+     here; the whole app runs in the frame below. While the board is up and a touch screen is upright (rotation
+     lock on, or just held upright), the frame is sized landscape and turned 90 degrees (-90 after Settings ->
+     Flip it over), so the app inside sees a real landscape screen: its layout, media queries, taps and swipes work
+     unchanged (the browser maps touches through the rotation). Otherwise the frame simply fills the screen.
+     The frame always sits inside this page's safe area (notch, status bar, home bar); the app inside zeroes its
+     own safe-area margins (html.framed), because iPhone still hands the frame the portrait insets. The app tells
+     this page {catanSideways, ingame, user}; this page answers {catanSideAngle} so camera pictures are turned
+     back upright (vDraw in app.js). -->
+<style>
+  html,body{margin:0; height:100%; overflow:hidden; background:#24150a; overscroll-behavior:none;}
+  body.ingame{background:#0c2a44;}
+  /* v241: the iPhone home-screen app draws nothing below its short viewport; iOS fills that strip with THIS page's
+     background. In the lobby the app's tab bar ends there, so paint the strip in the tab bar's colour (index.html
+     body.inlobby does the same on the plain page, HANDOVER item 21) and it reads as one bar to the edge. */
+  body.inlobby{background:#120903;}
+  #app{position:fixed; left:0; top:0; border:0; margin:0; padding:0; display:block; background:#24150a; transform-origin:0 0;}
+  #probe{position:fixed; left:0; top:0; width:0; height:0; visibility:hidden; pointer-events:none;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);}
+</style>
+</head>
+<body>
+<div id="probe"></div>
+<iframe id="app" title="Catan" allow="camera; microphone; autoplay; fullscreen; screen-wake-lock; clipboard-read; clipboard-write; display-capture"></iframe>
+<script>
+(function () {
+  var frame = document.getElementById('app'), probe = document.getElementById('probe');
+  var st = { ingame: false, user: null };
+  frame.src = 'index.html' + location.search + location.hash;   // a framed index.html never bounces back here
+  function flip() { try { return localStorage.getItem('catanSideFlip') === '1'; } catch (e) { return false; } }
+  function insets() {
+    var cs = getComputedStyle(probe);
+    return { t: parseFloat(cs.paddingTop) || 0, r: parseFloat(cs.paddingRight) || 0, b: parseFloat(cs.paddingBottom) || 0, l: parseFloat(cs.paddingLeft) || 0 };
+  }
+  var last = '';
+  function layout() {
+    var W = window.innerWidth, H = window.innerHeight, portrait = H > W;
+    // v238: a touch screen. Not just the PRIMARY pointer: the Android emulator (and some phones with a mouse or a stylus
+    // attached) report a fine primary pointer, which left the board unturned on Karim's emulator test. Desktops have
+    // no touch points and no coarse pointer, so they still never turn.
+    var touch = (window.matchMedia && (window.matchMedia('(any-pointer:coarse)').matches || window.matchMedia('(pointer:coarse)').matches)) || (navigator.maxTouchPoints || 0) > 0;
+    var i = insets();
+    // iPhone home-screen app: the viewport ends short of the screen by the status-bar strip (see fitAppHeight in
+    // app.js), so the cut-off line already sits above the home bar: drop the bottom inset by that much.
+    var gap = hostGap(portrait, H);
+    var rot = st.ingame && portrait && touch && !!st.user;   // any signed-in player (v234; v230-v233 was test2 only)
+    // v246: turned, the frame runs to the phone's bottom edge (the home-indicator strip, 34 pt): the app gets that inset
+    // on the matching side instead and only its edge buttons step in, like for the camera cutout. On a fresh install
+    // that takes the board from 778 to 812 pt wide, the same corner size as real landscape. The status-bar strip
+    // (top inset, 62 on an icon added before v243, 0 after) stays outside the frame.
+    var top = i.t, left = i.l, w = W - i.l - i.r, h = H - i.t - (rot ? 0 : Math.max(0, i.b - gap));
+    // the page colours (sea in a game, the tab bar's colour in the lobby): before the early return below, since the
+    // frame's geometry often does not change when the app moves between the lobby and a game (v241)
+    document.body.classList.toggle('ingame', !!st.ingame);
+    document.body.classList.toggle('inlobby', !!st.inlobby && !st.ingame);
+    var key = [W, H, top, left, w, h, rot, flip()].join(',');
+    if (key === last) return; last = key;
+    var s = frame.style;
+    if (!rot) {
+      // v240: unturned, the frame fills the whole screen and the app inside handles the safe areas itself (it gets
+      // this page's insets with the angle message), exactly like the plain page did: the lobby's tab bar owns the
+      // bottom edge again instead of sitting above a dark band (Karim's iPhone, v239).
+      s.width = W + 'px'; s.height = H + 'px'; s.transform = 'translate(0px,0px)';
+    } else {
+      // the frame is h wide and w tall, then turned. 90deg: its top edge ends up on the phone's right
+      // (read it with the phone's top on your left); -90deg (flipped) the other way round.
+      s.width = h + 'px'; s.height = w + 'px';
+      s.transform = flip() ? 'translate(' + left + 'px,' + (top + h) + 'px) rotate(-90deg)'
+                           : 'translate(' + (left + w) + 'px,' + top + 'px) rotate(90deg)';
+    }
+    postAngle();
+  }
+  // iPhone home-screen app: the viewport ends short of the screen by the status-bar strip (see fitAppHeight in app.js)
+  // iPhone home-screen app with a TRANSLUCENT status bar: the page runs up under the status bar (top inset > 0) and iOS
+  // keeps the same height back at the bottom, undrawable (HANDOVER item 21). With the opaque style (v243 meta) the page
+  // starts below the bar (top inset 0) and nothing is withheld. iOS bakes the style in when the icon is added, so both
+  // cases exist at once (v244): decide from the measured top inset, never from the meta.
+  function hostGap(portrait, H) {
+    if (window.navigator.standalone !== true || !(insets().t > 0)) return 0;
+    return Math.max(0, (portrait ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height)) - H);
+  }
+  // the app inside turns camera pictures back by this angle (the phone films on its side while the board is turned).
+  // v240: unturned, it also gets this page's safe-area insets, the home-screen viewport gap and the orientation, so it
+  // can lay out against the real screen edges (turned, the frame already sits inside the safe area: insets are zero).
+  function postAngle() {
+    var a = !frame.style.transform || frame.style.transform.indexOf('rotate') < 0 ? 0 : (flip() ? -90 : 90);
+    var portrait = window.innerHeight > window.innerWidth, ins = insets();
+    // turned by 90: the phone's bottom (home indicator) is the game's RIGHT edge; by -90 (flipped) its LEFT edge
+    var i = a === 90 ? { t: 0, r: ins.b, b: 0, l: 0 } : a === -90 ? { t: 0, r: 0, b: 0, l: ins.b } : ins;
+    var msg = { catanSideAngle: a, sa: i, gap: a ? 0 : hostGap(portrait, window.innerHeight), standalone: window.navigator.standalone === true,
+      orient: typeof window.orientation === 'number' ? window.orientation : (screen.orientation && typeof screen.orientation.angle === 'number' ? (screen.orientation.angle === 270 ? -90 : screen.orientation.angle) : 0) };
+    try { frame.contentWindow.postMessage(msg, location.origin); } catch (e) { }
+  }
+  window.addEventListener('message', function (e) {
+    if (e.origin !== location.origin || e.source !== frame.contentWindow) return;
+    var d = e.data || {};
+    if (!d.catanSideways) return;
+    st.ingame = !!d.ingame; st.user = d.user || null; st.inlobby = !!d.inlobby;
+    if (d.flipped !== undefined) last = '';
+    layout(); postAngle();
+  });
+  window.addEventListener('resize', layout);
+  window.addEventListener('orientationchange', function () { setTimeout(layout, 80); setTimeout(layout, 400); });
+  window.addEventListener('pageshow', layout);
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', layout);
+  ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (g) { document.addEventListener(g, function (e) { e.preventDefault(); }, { passive: false }); });
+  layout(); setTimeout(layout, 300);
+})();
+</script>
+</body>
+</html>
