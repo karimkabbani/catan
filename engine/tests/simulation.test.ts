@@ -10,7 +10,15 @@ function conserved(s: GameState): boolean {
   return RESOURCES.every((res) => {
     const held = s.players.reduce((n, p) => n + p.resources[res], 0);
     return held + s.bank[res] === 19;
-  });
+  }) && devCardsOk(s);
+}
+// the same check the database guard runs (server/migrate-audit.sql): played Monopoly / Road Building / Year of
+// Plenty cards aren't kept, so those can only be "at most 2"; knights (played ones counted) and VP cards are exact
+function devCardsOk(s: GameState): boolean {
+  const all = [...s.devDeck, ...s.players.flatMap((p) => [...p.devCards, ...p.newDevCards])];
+  const n = (c: string) => all.filter((x) => x === c).length;
+  return n('knight') + s.players.reduce((k, p) => k + p.playedKnights, 0) === 14 && n('victory_point') === 5
+    && n('road_building') <= 2 && n('year_of_plenty') <= 2 && n('monopoly') <= 2;
 }
 
 function vertexFree(s: GameState, v: number): boolean {
