@@ -1615,7 +1615,7 @@
         <div class="mres"><img src="${resImg}" alt=""><span>${rn}</span></div>
         <div class="mtally"><span class="mnum">0</span></div></div>`;
     document.body.appendChild(box);
-    playSound('knight', 0.55);
+    playSound('robber', 0.55);   // the "you're being robbed" sound, so it no longer sounds like a Knight
     const tally = box.querySelector('.mtally'), num = box.querySelector('.mnum');
     let got = 0;
     const later = (fn, ms) => setTimeout(() => { if (run === monoRun) fn(); }, ms);
@@ -1649,6 +1649,7 @@
       if (!fp) continue;
       later(() => ring(fp, f.n ? '−' + f.n : '0', f.n ? 'loss' : 'zero'), t);
       if (!f.n) { t += T(650); continue; }
+      later(() => playSound('whoosh', 0.5), t);   // a whoosh as each player who loses cards is hit
       t += T(380);
       for (let i = 0; i < f.n; i++) {
         setTimeout(() => {   // not `later`: a superseded show must still settle the held card counts
