@@ -703,6 +703,10 @@
      left corners -> flag on their right; right corners -> flag on their left */
   .corner.tl .pflag, .corner.bl .pflag{left:calc(100% + 26px);}
   .corner.tr .pflag, .corner.br .pflag{right:calc(100% + 26px);}
+  /* v250: your own flag would sit under the 😀 💬 🎤 row (and the spot above the corner takes your dice and, on
+     a 16 Pro, the camera island): pin it on the top-left of your portrait instead, tappable to lower it */
+  .corner .pflag.mine{left:6px; right:auto; top:5px; font-size:24px; z-index:8; pointer-events:auto; cursor:pointer;}
+  .pflag.mine::after{content:''; position:absolute; inset:-8px;}
   /* quick-chat bubble on your own corner (always bottom-left) -> pokes toward the board */
   /* talk buttons (v214): 😀 emojis, 💬 texts, 🎤 walkie in one row in the gap beside your corner (always bottom-left),
      where the robbed counter used to be (high enough to clear the resource bar's icons on small phones); the trays open from there */
