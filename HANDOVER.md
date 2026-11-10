@@ -1257,6 +1257,19 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    "Nobody had any Brick 😬". Observers detect it from the engine log line (`detectMonopoly`), which also stops a one-card
    Monopoly being misread as a robber steal or a bank trade. Non-blocking, follows the animation-speed setting. A
    7-card, 3-player Monopoly takes ~7 s. `showMonopolyFly` in app.js, `.monoshow`/`.monoring` CSS in index.html.
+86. ✅ **v252 (2026-11-10, deployed): "cards disappeared" during bank/port exchanges** (built as v250 in a parallel session, renumbered on merge). Players
+   reported cards vanishing when exchanging with the bank (e.g. 12 for 3). Cause found in code (not reproduced on a phone):
+   an N-card exchange was N separate `bankTrade` moves, each saved separately, so (a) a dropped save could leave part of the
+   exchange undone, and (b) this phone's own realtime echoes, arriving before the HTTP reply, were drawn as news, so the
+   hand stepped back through the in-between states (cards vanish, then return). Fix: engine action `bankExchange {give,want}`
+   (whole bundles at each resource's ratio, one card back per bundle, all-or-nothing; refused whole if it doesn't add up or
+   the bank can't cover it), dispatched once by `CATAN.tradeBank`; failure toasts "Exchange didn't go through: …".
+   Every write now stamps `state._w = NET.myId`; `NET.onRow` skips rows with my stamp while `NET.inflight > 0`, leaving
+   `NET.version` alone so the next save still sees the row moved and applies the merged result. Verified: engine test
+   (35/35), headless run with a fake Supabase (one save per exchange, totals conserved, dropped save rolls back cleanly,
+   landed-but-reply-lost keeps the whole exchange once, no step back; the control without the skip shows 2>1>2).
+   Next (agreed, not built): audit-log trigger + 19-per-resource guard in the database, block outdated app versions, a
+   "Report a problem" button. The card engine itself was checked: no path found that destroys cards.
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
