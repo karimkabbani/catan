@@ -1301,6 +1301,8 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    local Postgres 16 on top of the v253 install (twice) and fresh; headless: gate detects min v255, bar shows, moves
    blocked, no reload on own turn, reloads when not, no reload loop, current build unblocked (7/7); exchange/sync suite
    19/19 incl. a fresh tag on every save.
+NEXT. 🔨 **vNEXT (2026-11-10, built on branch claude/ecstatic-turing-02d47u): Monopoly try-out on the practice table.** Karim wanted to see the v251 Monopoly show without a real game. "Jump into a game in progress" now plants it: signed in as `test` you land with a playable Monopoly card and the computers holding 2-3 extra Wheat each (toast: roll, then play it); as `test2` you land with 5 extra Brick and the computer after you holds a Monopoly, which it plays on its first move (toast: end your turn and watch). Cards come from the bank and the dev deck, so totals stay true. Computer players now play Monopoly whenever they hold one and it nets 3+ cards, aiming at the resource that hurts most with the human's cards counted double (same spirit as the robber), and skip the pre-roll Knight while holding one. Not on "Skip to a victory screen". `practiceMonopolySetup` in app.js. Verified headless (rotate frame, 900x700): test took 10-13 Wheat in every run where the scripted roll landed; test2 8 of 8 runs saw Zaatar monopolise Brick with the show on screen. Engine tests 35/35.
+
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
