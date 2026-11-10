@@ -2166,7 +2166,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v257';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v258';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -2501,6 +2501,7 @@
     // hold card counts behind the transfer flies so the numbers tick with the animation, not before it
     if (steal) { lagOut(steal.victim, steal.res, 1); lagIn(steal.thief, steal.res, 1); }
     if (trade) lagTrade(trade.a, trade.b, trade.give, trade.want);
+    if (mono) monoCamHome();
     if (mono) { const tot = mono.from.reduce((a, f) => a + f.n, 0); mono.from.forEach((f) => lagOut(f.color, mono.res, f.n)); lagIn(mono.to, mono.res, tot); }
     if (yop) yop.resources.forEach((r) => lagIn(yop.to, r, 1));
     afterAction(); render();
@@ -5802,6 +5803,7 @@
   function practiceTick() {
     if (!PRACTICE.on || !state || state.phase === 'ended' || ARCHIVE) return;
     if (ui.spinning || ui.diceRevealing || ui.discardAnimating || ui.robberFlying || Date.now() < PRACTICE.busyUntil) return;
+    if (document.querySelector('.monoshow')) { PRACTICE.busyUntil = Date.now() + 2000; return; }   // let a Monopoly show play out, then a beat to take it in
     let col = null, a = null;
     if (state.phase === 'play' && state.turnPhase === 'discard') { const d = currentDiscarder(); if (d && isBot(d.color)) { col = d.color; a = botMove(state, col, 0); } }
     if (!a && state.pendingTrade && state.pendingTrade.from === myColor) {
@@ -5820,7 +5822,9 @@
     if (state.phase === 'play' && state.turnPhase === 'main') PRACTICE.acts++;
     const pre = state;
     applyRemoteState(r.state);
-    PRACTICE.busyUntil = Date.now() + (a.type === 'endTurn' ? 1500 : a.type === 'rollDice' ? 4000 : 900);   // v249: a roll sits for 4 s so the dice can be looked at
+    // paced like a person (v249: a roll sits for 4 s so the dice can be looked at); each move in the main phase gets 2-4 s of "thinking"
+    const main = state.phase === 'play' && state.turnPhase === 'main' && ['endTurn', 'acceptTrade', 'declineTrade'].indexOf(a.type) < 0;
+    PRACTICE.busyUntil = Date.now() + (a.type === 'endTurn' ? 1500 : a.type === 'rollDice' ? 4000 : main ? 2000 + Math.random() * 2000 : 1200);
     if (a.type === 'steal' && a.victim === myColor) botSay(col, PRACTICE_SAY.robbed);
     if (a.type === 'rollDice' && r.state.dice && r.state.dice[0] + r.state.dice[1] === 7 && pre) botSay(PRACTICE.bots.find((b) => b !== col) || col, PRACTICE_SAY.seven);
   }
@@ -7936,10 +7940,14 @@
   function cameraHome(ms) { zoom.s = 1; zoom.tx = 0; zoom.ty = 0; cineApply(aDur(ms)); }
   // translate only — keep the current zoom scale (a true pan). At full-board view this is a no-op.
   function cameraPanTo(c, ms) { if (!c) return; const r = zRect(); zoom.tx = r.width / 2 - zoom.s * c.x; zoom.ty = r.height / 2 - zoom.s * c.y; zClamp(); cineApply(aDur(ms)); }
+  // auto-zoom is on for this device and no Monopoly show is on screen (Karim: no auto-zoom during a Monopoly)
+  function cineOK() { return SETTINGS.autozoom && !document.querySelector('.monoshow'); }
+  // a Monopoly starts: drop a running auto-zoom and glide back to the whole board (a manual zoom is left alone)
+  function monoCamHome() { if (cineRunning) { cancelCine(); cameraHome(CINE_MS); } }
   function cancelCine() { if (cineRunning) { cineToken++; cineRunning = false; clearLag(); } }   // a manual gesture takes over; snap counts to true totals
   // run an async camera sequence; a newer sequence or a manual gesture (both bump cineToken) supersedes it
   async function runCine(seq, opts) {
-    if (!SETTINGS.autozoom || !zArea) return;
+    if (!cineOK() || !zArea) return;
     const my = ++cineToken; cineRunning = true;
     const alive = () => my === cineToken;
     try { await seq(alive); } catch (_) { }
@@ -7964,7 +7972,7 @@
   // roll: tour each producing hex in turn, flying its cards as the camera lands; else fly everything at once
   function cinematicRoll() {
     const map = productionMap();
-    if (!SETTINGS.autozoom || !zArea || !map.length) { showResourceFly(); return; }
+    if (!cineOK() || !zArea || !map.length) { showResourceFly(); return; }
     const byHex = new Map();
     for (const e of map) { const g = byHex.get(e.hx.id) || { hx: e.hx, entries: [] }; g.entries.push(e); byHex.set(e.hx.id, g); }
     const groups = [...byHex.values()];
@@ -8005,7 +8013,7 @@
       // is a no-op once the lag was cleared, so flying after a cancel can't double-count.
       const flyGrant = () => { if (mine && grant && grant.items && grant.items.length) flySettlementGrant(grant); };
       // auto-zoom off (runCine would bail): no camera hold — just fly the cards at the current view
-      if (!SETTINGS.autozoom || !zArea) { flyGrant(); return; }
+      if (!cineOK() || !zArea) { flyGrant(); return; }
       // settlement: hold. Don't cancelCine on the placer — that would wipe the grant-card lag set in
       // dispatch; a fresh runCine already supersedes any prior tour via its token.
       runCine(async (alive) => {
@@ -8152,6 +8160,7 @@
     if (disc) ui.discardAnimating = true;  // defer the next discard prompt until this one's cards land
     if (robberMoved) ui.robberFlying = true;
     if (placed) justPlaced = placed;       // observers get the pop-in too
+    if (mono) monoCamHome();               // no auto-zoom during a Monopoly: back to the whole board first (before any counts are held)
     // hold card counts behind the transfer flies so the numbers tick with the animation
     if (stolen) { lagOut(stolen.victim, stolen.res, 1); lagIn(stolen.thief, stolen.res, 1); }
     if (trade) lagTrade(trade.a, trade.b, trade.give, trade.want);
