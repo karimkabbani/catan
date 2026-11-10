@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v251';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v252';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -145,7 +145,7 @@
       case 'buildSettlement': playSound('settlement'); break;
       case 'buildCity': playSound('city'); break;
       case 'moveRobber': playSound('robber'); break;
-      case 'bankTrade': playSound('trade'); break;
+      case 'bankTrade': case 'bankExchange': playSound('trade'); break;
       case 'buyDevCard': playSound('buy'); break;
     }
   }
@@ -3951,6 +3951,7 @@
       if (!data || !data.state || NET.code !== code) return;
       const s2 = JSON.parse(JSON.stringify(data.state));
       if (mut(s2) === false) { if (data.version > NET.version) { NET.version = data.version; applyRemoteState(data.state); } return; }
+      s2._w = NET.myId;
       const { data: upd, error: uerr } = await netTimeout(c.from('games').update({ state: s2, version: data.version + 1 }).eq('code', code).eq('version', data.version)).select('version');
       if (uerr) return NET.lost(code);
       if (upd && upd.length) { if (NET.code !== code) return; if (data.version + 1 > NET.version) NET.version = data.version + 1; applyRemoteState(s2); return; }
@@ -5141,6 +5142,7 @@
         if (stillHere() && data.version > NET.version) { NET.version = data.version; applyRemoteState(data.state); }
         return;
       }
+      s2._w = NET.myId;
       const phase = s2.phase === 'ended' ? 'ended' : 'playing';
       const { data: upd, error: uerr } = await netTimeout(c.from('games')
         .update({ state: s2, version: data.version + 1, phase }).eq('code', code).eq('version', data.version)).select('version');
@@ -5477,10 +5479,15 @@
       RES.forEach((r) => { const u = Math.round(t.give[r] / bankRatio(color, r)); for (let i = 0; i < u; i++) giveUnits.push(r); });
       RES.forEach((r) => { for (let i = 0; i < t.want[r]; i++) wantCards.push(r); });
       if (!wantCards.length || giveUnits.length !== wantCards.length) return;
+      // v250: the whole exchange is ONE move (bankExchange), saved once: all of it lands or none of it. It used to be one
+      // move per card received, each saved separately, so a dropped save could leave half an exchange done.
+      // Apply FIRST (same synchronous tick, so the new count never paints), THEN hold the count and fly so it ticks down/up.
+      const give = {}, want = {}; RES.forEach((r) => { if (t.give[r]) give[r] = t.give[r]; if (t.want[r]) want[r] = t.want[r]; });
+      const check = C.applyAction(state, { type: 'bankExchange', give, want }, color);
+      if (!check.ok && !/Unknown/.test(check.error)) { toast(check.error); return; }   // refused: keep the sheet open to fix it
       ui.tradeView = null; hideOverlay();
-      // the engine does one ratio-for-one swap per call; run one per received card. Apply FIRST (same
-      // synchronous tick, so the new count never paints), THEN hold the count and fly so it ticks down/up.
-      for (let i = 0; i < wantCards.length; i++) dispatch({ type: 'bankTrade', give: giveUnits[i], want: wantCards[i] });
+      if (check.ok) dispatch({ type: 'bankExchange', give, want });
+      else for (let i = 0; i < wantCards.length; i++) dispatch({ type: 'bankTrade', give: giveUnits[i], want: wantCards[i] });   // an older cached engine
       RES.forEach((r) => { lagOut(color, r, t.give[r] || 0); lagIn(color, r, t.want[r] || 0); }); renderCounts();
       showBankFly(color, t.give, t.want);
     },
@@ -6076,6 +6083,10 @@
         return;
       }
       if (this.started && row.version === this.version) return;   // dedup my own echo / poll repeats
+      // v250: my own write echoing back while more of my moves are still saving. This phone is already ahead of it, so
+      // drawing it would step the screen BACK (cards vanish, then return). The version is left alone on purpose: the
+      // next save then sees the row moved and applies the merged result, so nobody else's change is ever skipped.
+      if (this.started && this.inflight > 0 && this.version !== -1 && row.version > this.version && row.state._w === this.myId) return;
       if (this.started && row.version < this.version) {
         // A lower version is EITHER a stale read (a poll response that raced a realtime update —
         // common) or the row was genuinely replaced (table reset + new game while this device
@@ -6139,8 +6150,9 @@
         if (error) { if (i < 4) { await new Promise((res) => setTimeout(res, 700 * (i + 1))); continue; } return this.lost(code); }   // nothing written yet: safe to retry
         if (!data || !data.state) return;
         const r = C.applyAction(data.state, action, actor);
-        if (!r.ok) { applyRemoteState(data.state); if (data.version > this.version) this.version = data.version; if (/Trade$/.test(action.type)) toast(r.error); return; }
+        if (!r.ok) { applyRemoteState(data.state); if (data.version > this.version) this.version = data.version; if (/Trade$|Exchange$/.test(action.type)) toast(action.type === 'bankExchange' ? "Exchange didn't go through: " + r.error : r.error); return; }
         if (data.state.sv && r.state.phase !== 'ended') r.state.sv = data.state.sv;   // keep a live surrender vote across moves
+        r.state._w = this.myId;   // who wrote this row: my own echoes are skipped while my later moves are still saving (onRow)
         const phase = r.state.phase === 'ended' ? 'ended' : 'playing';
         const { data: upd, error: uerr } = await netTimeout(c.from('games')
           .update({ state: r.state, version: data.version + 1, phase }).eq('code', code).eq('version', data.version)).select('version');
