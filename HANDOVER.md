@@ -1247,6 +1247,16 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    talk row at 874x402 (voice on/off), 667x375 and 568x320. Tapping it opens "Lower your white flag?"
    (`CATAN.flagTap` -> the existing `lowerFlag`). Opponents' flags unchanged (beside their corner: louder, and their
    pictures carry the unread dot and trade answers). The Leave dialog still raises/lowers too.
+85. ✅ **v251 (2026-11-10, deployed): Monopoly is a staged show on every screen** (built as v250 in a parallel session, renumbered on merge). Karim: Monopoly was too
+   fast, he only noticed it from the commentary. Before: only the player who played it saw a quick fly (110 ms apart, one
+   sound); everyone else saw nothing but the counts jump and a banner that gave the total away. Now, on every screen: a
+   centred card ("Monopoly! / Ramzi takes every / [icon] Brick", 1.5 s), then it slides up and a tally appears; each opponent
+   in seat order gets a red ring with "−3" (grey "0" if they had none) and their cards fly face-up one by one (240 ms apart,
+   160 ms when more than 12) into the player's corner, the tally and the hands ticking per card; it ends on "+7 Brick" with
+   a green ring on the taker, and only then the banner line ("Ramzi played Monopoly on Brick: took 7 💰"). Nobody had any:
+   "Nobody had any Brick 😬". Observers detect it from the engine log line (`detectMonopoly`), which also stops a one-card
+   Monopoly being misread as a robber steal or a bank trade. Non-blocking, follows the animation-speed setting. A
+   7-card, 3-player Monopoly takes ~7 s. `showMonopolyFly` in app.js, `.monoshow`/`.monoring` CSS in index.html.
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a

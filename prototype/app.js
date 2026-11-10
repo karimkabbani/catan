@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v250';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v251';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -316,8 +316,8 @@
     let mono = null;
     if (action.type === 'playMonopoly') {   // capture who's losing how many BEFORE the swap
       const from = state.players.filter((p) => p.color !== actor)
-        .map((p) => ({ color: p.color, n: p.resources[action.resource] })).filter((x) => x.n > 0);
-      if (from.length) mono = { res: action.resource, to: actor, from };
+        .map((p) => ({ color: p.color, n: p.resources[action.resource] || 0 }));
+      mono = { res: action.resource, to: actor, from };
     }
     const yop = action.type === 'playYearOfPlenty' ? { to: actor, resources: (action.resources || []) } : null;
     const fromRobber = state.robberHex;
@@ -1587,22 +1587,99 @@
     let d = 0;
     (resources || []).forEach((r2) => { flyImage('assets/hud/cardback.png', cx, cy, px, py, d, { card: true, onland: () => landCard(color, r2) }); d += 170; });
   }
-  // monopoly: the taken cards fly FACE-UP from every other player's panel into yours
+  // monopoly: a staged show on EVERY screen (v250). The card is announced in the middle ("Ramzi plays
+  // Monopoly / takes every Brick"), then each opponent in turn is ringed with their count and their cards
+  // fly FACE-UP one by one into the player's corner while a tally counts up; it ends on "+7 Brick".
+  // Non-blocking (pointer-events none) so the turn can carry on; the card counts tick with each fly.
+  const RES_NAME = { brick: 'Brick', wood: 'Wood', sheep: 'Sheep', wheat: 'Wheat', ore: 'Ore' };   // as the picker names them
+  let monoRun = 0;
   function showMonopolyFly(toColor, res, from) {
-    const ti = state.players.findIndex((p) => p.color === toColor);
-    const tp = $('p-' + seatKey(ti)); if (!tp) return;
-    const tr = tp.getBoundingClientRect();
-    const tx = tr.left + tr.width / 2, ty = tr.top + tr.height / 2;
+    const run = ++monoRun;
+    const panelOf = (c) => $('p-' + seatKey(state.players.findIndex((p) => p.color === c)));
+    const ctr = (el) => { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2, r }; };
+    const nameOf = (c) => { const p = state.players.find((x) => x.color === c); return p ? p.name : '?'; };
+    const mine = online ? toColor === myColor : false;
+    const who = mine ? 'You' : escapeHtml(nameOf(toColor));
     const resImg = (HUD.res && HUD.res[res]) || (ASSETS.icons && ASSETS.icons[res]);
-    playSound('trade', 0.5);
-    let d = 0;
-    for (const f of from) {
-      const fi = state.players.findIndex((p) => p.color === f.color);
-      const fp = $('p-' + seatKey(fi)); if (!fp) continue;
-      const fr = fp.getBoundingClientRect();
-      const fx = fr.left + fr.width / 2, fy = fr.top + fr.height / 2;
-      for (let i = 0; i < f.n; i++) { flyImage(resImg, fx, fy, tx, ty, d, { onlift: () => liftCard(f.color, res), onland: () => landCard(toColor, res) }); d += 110; }
+    const rn = RES_NAME[res] || res;
+    const total = from.reduce((a, f) => a + f.n, 0);
+    const T = aDur;   // every step follows the animation-speed setting
+    document.querySelectorAll('.monoshow, .monoring').forEach((e) => e.remove());
+    const box = document.createElement('div');
+    box.className = 'monoshow';
+    box.style.setProperty('--pc', PCOLOR[toColor] || '#e0b64a');
+    box.innerHTML = `<img class="mcard" src="assets/hud/dev-monopoly.png" alt="">
+      <div class="mtxt"><div class="mhead">Monopoly!</div>
+        <div class="mline">${who} ${mine ? 'take' : 'takes'} every</div>
+        <div class="mres"><img src="${resImg}" alt=""><span>${rn}</span></div>
+        <div class="mtally"><span class="mnum">0</span></div></div>`;
+    document.body.appendChild(box);
+    playSound('knight', 0.55);
+    const tally = box.querySelector('.mtally'), num = box.querySelector('.mnum');
+    let got = 0;
+    const later = (fn, ms) => setTimeout(() => { if (run === monoRun) fn(); }, ms);
+    const finish = (t) => {
+      later(() => {
+        announce(`${nameOf(toColor)} played Monopoly on ${rn}: ${total ? 'took ' + total + ' 💰' : 'nobody had any 😬'}`);   // announce escapes
+        if (total > 0) { num.textContent = '+' + total + ' ' + rn; tally.classList.add('done'); playSound('trade', 0.55); }
+        else { tally.innerHTML = `<span class="mnone">Nobody had any ${rn} 😬</span>`; tally.classList.add('on'); }
+        const tp = panelOf(toColor);
+        if (tp && total > 0) ring(tp, '+' + total, 'gain');
+      }, t);
+      later(() => { box.classList.add('out'); }, t + T(1500));
+      later(() => { box.remove(); document.querySelectorAll('.monoring').forEach((e) => e.remove()); }, t + T(1900));
+    };
+    // a coloured ring + count badge over a player's corner (an overlay, so a panel re-render can't drop it)
+    function ring(panel, label, kind) {
+      const r = panel.getBoundingClientRect();
+      const el = document.createElement('div');
+      el.className = 'monoring ' + kind;
+      el.style.left = (r.left - 4) + 'px'; el.style.top = (r.top - 4) + 'px';
+      el.style.width = (r.width + 8) + 'px'; el.style.height = (r.height + 8) + 'px';
+      el.innerHTML = `<b>${label}</b>`;
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), T(kind === 'gain' ? 1900 : 1400));
     }
+    let t = T(1500);   // the announcement holds the stage first
+    later(() => { box.classList.add('run'); tally.classList.add('on'); }, t - T(250));
+    const stag = T(total > 12 ? 160 : 240);
+    for (const f of from) {
+      const fp = panelOf(f.color);
+      if (!fp) continue;
+      later(() => ring(fp, f.n ? '−' + f.n : '0', f.n ? 'loss' : 'zero'), t);
+      if (!f.n) { t += T(650); continue; }
+      t += T(380);
+      for (let i = 0; i < f.n; i++) {
+        setTimeout(() => {   // not `later`: a superseded show must still settle the held card counts
+          const tp = panelOf(toColor), a = panelOf(f.color);
+          if (!tp || !a) { liftCard(f.color, res); landCard(toColor, res); return; }
+          const s0 = ctr(a), d0 = ctr(tp);
+          if (run !== monoRun) { liftCard(f.color, res); landCard(toColor, res); return; }
+          flyImage(resImg, s0.x, s0.y, d0.x, d0.y, 0, { sound: 'res_' + res, vol: 0.35,
+            onlift: () => liftCard(f.color, res),
+            onland: () => { if (run !== monoRun) return landCard(toColor, res); landCard(toColor, res); got++; num.textContent = '+' + got; tally.classList.remove('bump'); void tally.offsetWidth; tally.classList.add('bump'); } });
+        }, t);
+        t += stag;
+      }
+      t += T(520);   // breath before the next player
+    }
+    finish(t + T(500));
+  }
+  // a Monopoly from a remote state change: the engine logged "X monopolised R (+N)." in this update
+  function detectMonopoly(a, s) {
+    if (!a || !s || !s.log) return null;
+    for (let i = (a.log ? a.log.length : 0); i < s.log.length; i++) {
+      const m = /^(.*) monopolised (\w+) \(\+(\d+)\)\.$/.exec(s.log[i] || '');
+      if (!m || RES.indexOf(m[2]) < 0) continue;
+      const to = (s.players.find((p) => p.name === m[1]) || {}).color || s.order[s.currentPlayerIndex];
+      const res = m[2];
+      const from = a.players.filter((p) => p.color !== to).map((pa) => {
+        const ps = s.players.find((p) => p.color === pa.color);
+        return { color: pa.color, n: Math.max(0, (pa.resources[res] || 0) - ((ps && ps.resources[res]) || 0)) };
+      });
+      return { res, to, from };
+    }
+    return null;
   }
   // The card flies victim -> thief. Pass `res` to show it FACE-UP (the thief and the victim
   // know what changed hands); omit it and a face-down cardback flies (everyone else just sees
@@ -2642,7 +2719,7 @@
     if (/ played a knight\.$/.test(line)) return line.replace(/ played a knight\.$/, ' played a Knight ⚔️');
     if (/ played Road Building\.$/.test(line)) return line.replace(/\.$/, ' 🛣️');
     if (/ played Year of Plenty\.$/.test(line)) return line.replace(/\.$/, ' 🌾');
-    if ((m = line.match(/^(.*) monopolised (\w+) \(\+(\d+)\)\.$/))) return `${m[1]} played Monopoly — took ${m[3]} ${m[2]} 💰`;
+    if (/ monopolised \w+ \(\+\d+\)\.$/.test(line)) return null;   // the Monopoly show posts its own line when the tally lands
     if ((m = line.match(/^(.*) stole a card from (.+)\.$/))) return `${m[1]} robbed ${m[2]} 🃏`;
     if ((m = line.match(/^(.*) traded with (.+)\.$/))) return `${m[1]} traded with ${m[2]} 🤝`;
     return null;
@@ -5861,9 +5938,10 @@
     const trade = detectTrade(a, s);
     const disc = detectDiscard(a, s);
     const robberMoved = !!(a && a.robberHex !== s.robberHex);   // thief moved -> fly it on every screen
-    const stolen = (!rolled && !trade && !disc) ? detectSteal(a, s) : null;   // card flies victim->thief on every screen
+    const mono = detectMonopoly(a, s);   // the staged Monopoly show on every other screen
+    const stolen = (!rolled && !trade && !disc && !mono) ? detectSteal(a, s) : null;   // card flies victim->thief on every screen
     const devBuy = detectDevBuy(a, s);   // a face-down dev card flies to the buyer on every other screen
-    const bankTrade = (!rolled && !trade && !disc) ? detectBankTrade(a, s) : null;   // face-down cards fly to/from the bank
+    const bankTrade = (!rolled && !trade && !disc && !mono) ? detectBankTrade(a, s) : null;   // face-down cards fly to/from the bank
     const placed = detectPlacement(a, s);   // a building/road went down -> pop-in + camera on observers too
     if (!rolled && !trade && !disc && a) soundForRemote(a, s);   // roll/trade/discard/robber have their own sound+animation
     state = s;
@@ -5876,6 +5954,7 @@
     if (trade) lagTrade(trade.a, trade.b, trade.give, trade.want);
     if (bankTrade) RES.forEach((r) => { lagOut(bankTrade.color, r, (bankTrade.give && bankTrade.give[r]) || 0); lagIn(bankTrade.color, r, (bankTrade.want && bankTrade.want[r]) || 0); });
     if (disc) RES.forEach((r) => lagOut(disc.color, r, (disc.sel && disc.sel[r]) || 0));
+    if (mono) { mono.from.forEach((f) => lagOut(f.color, mono.res, f.n)); lagIn(mono.to, mono.res, mono.from.reduce((x, f) => x + f.n, 0)); }
     const keepMode = ['placeSettlement', 'placeCity', 'placeRoad'].includes(ui.mode) ? ui.mode : null;
     afterAction();
     // someone else's move (a trade answer, a flag) doesn't cancel the road/settlement I'm placing
@@ -5891,6 +5970,7 @@
       const fly = () => showStealFly(stolen.victim, stolen.thief, stolen.res, reveal);   // real resource for the counts; face-up only for thief + victim
       robberMoved ? setTimeout(fly, aDur(450)) : fly();   // let the robber land first if both happened at once
     }
+    if (mono) showMonopolyFly(mono.to, mono.res, mono.from);
     if (devBuy) showDevBuyFly(devBuy.buyer);   // the buyer themselves already saw it face-up via their own dispatch
     if (bankTrade) showBankFly(bankTrade.color, bankTrade.give, bankTrade.want, true);   // covered: the trader saw it face-up
     if (placed && !robberMoved && !rolled) cinematicPlace(placed.kind, placed.id, false);   // observer: gentle pan to the new piece
