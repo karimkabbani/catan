@@ -1520,7 +1520,7 @@
   .lobtgt-slider::-moz-range-thumb{width:18px; height:18px; border-radius:50%; background:radial-gradient(circle at 38% 32%,#ffe9ab,#c79a3e); border:1.5px solid #7a5c24;}
   .lobrow2{display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-top:4px;}
   /* "👁 N" watching badge in the in-game banner */
-  .watchtag{margin-left:8px; font-size:0.85em; opacity:0.85; padding:1px 7px; border-radius:10px; background:rgba(0,0,0,0.3);}
+  .watchtag{white-space:nowrap; margin-left:8px; font-size:0.85em; opacity:0.85; padding:1px 7px; border-radius:10px; background:rgba(0,0,0,0.3);}
   .loblist .lobrow{justify-content:space-between;}
   /* trade screen */
   /* ===== trade: half-height wood sheet, board shows above, 3-row placeholder grid ===== */
@@ -1855,7 +1855,7 @@
   #rotate .r-land, #rotate .r-port{display:none;}
   @media (orientation:portrait) and (pointer:coarse){   /* in a game + portrait -> rotate to landscape */
     body.ingame #stage, body.ingame #overlay, body.ingame #confirmbar, body.ingame #radialroot,
-    body.ingame #radialtab, body.ingame #dicetab, body.ingame #trophytab, body.ingame #emotray, body.ingame #reactchip, body.ingame .emoghost, body.ingame #rpsroot, body.ingame .rpsb, body.ingame .rpscrown, body.ingame #cuppill, body.ingame #rmbar, body.ingame .pkb, body.ingame #settingstab, body.ingame #dicereveal, body.ingame .monoshow, body.ingame .monoring, body.ingame #toast, body.ingame #tradeprompt, body.ingame .bcbubble, body.ingame #msghist, body.ingame #pokenote, body.ingame .emofloat, body.ingame .emothrow, body.ingame .emosplat, body.ingame .emocombo{display:none !important;}
+    body.ingame #radialtab, body.ingame #dicetab, body.ingame #trophytab, body.ingame #emotray, body.ingame #reactchip, body.ingame .emoghost, body.ingame #rpsroot, body.ingame .rpsb, body.ingame .rpscrown, body.ingame #cuppill, body.ingame #rmbar, body.ingame .pkb, body.ingame #settingstab, body.ingame #dicereveal, body.ingame .monoshow, body.ingame .monoring, body.ingame #toast, body.ingame #tradeprompt, body.ingame .bcbubble, body.ingame #msghist, body.ingame #pokenote, body.ingame .emofloat, body.ingame .emothrow, body.ingame .emosplat, body.ingame .emocombo, body.ingame #watchrail{display:none !important;}
     body.ingame #rotate{display:flex !important; position:fixed; inset:0; z-index:200; flex-direction:column; align-items:center; justify-content:center;
       gap:16px; background:radial-gradient(120% 120% at 50% 40%, #1f4f74, #0a2336); text-align:center; padding:24px;}
     body.ingame #rotate .r-land{display:block;}
@@ -1982,7 +1982,41 @@
   .vpic.vmini{margin:0 2px; vertical-align:middle;} .vpic.vmini .face{width:24px; height:24px; font-size:12px;}
   .vpic.vmini .vb{top:-5px; right:-6px; width:14px; height:14px;} .vpic.vmini .vb svg{width:8px; height:8px;}
   .watchtag .vpic{cursor:pointer;}
-  .vpic.vmini .vb.vcam, .speceye .vb.vcam{display:none;}   /* tiny faces: the live picture already says 'camera on' */
+  .vpic.vmini .vb.vcam, .speceye .vb.vcam{display:none;}
+  /* watchers around the island (one size everywhere): a full-screen click-through layer, each face placed by placeWatchers */
+  #watchrail{position:fixed; inset:0; z-index:12; pointer-events:none; transition:opacity .25s;}
+  #watchrail.zfade{opacity:0.18;} #watchrail.zfade .wseat{pointer-events:none;}
+  body:not(.ingame) #watchrail{display:none;}
+  #watchrail .wseat{position:absolute; left:0; top:0; width:44px; display:flex; flex-direction:column; align-items:center; pointer-events:auto;}
+  #watchrail .wpic{position:relative; width:44px; height:44px; border-radius:50%; cursor:pointer; flex:none;
+    border:2px solid #e9c45a; background:#2a1a0c; box-shadow:0 2px 6px rgba(0,0,0,0.55); box-sizing:border-box;}
+  #watchrail .wpic .face{width:100%; height:100%; border-radius:50%; overflow:hidden; display:flex; align-items:center; justify-content:center;
+    font-size:19px; font-weight:800; color:#f3e6c8; background:#5a3a1c;}
+  #watchrail .wpic .face img{width:100%; height:100%; object-fit:cover;}
+  #watchrail .wpic .vvid{border-radius:50%;}
+  #watchrail .wpic .vb{top:-6px; width:20px; height:20px;} #watchrail .wpic .vb svg{width:11px; height:11px;}
+  #watchrail .wpic .vb.vmic{right:-8px; left:auto;} #watchrail .wpic .vb.vcam{left:-8px; right:auto;}
+  #watchrail .wseat:not(.mine) .wpic .vb.vcam{display:none;}   /* others: the live picture already says 'camera on' */
+  #watchrail .wpic .vbars{display:none !important;}
+  #watchrail .wname{margin-top:2px; max-width:64px; font-size:10px; font-weight:800; color:#f3e6c8; text-align:center;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-shadow:0 1px 2px #000, 0 0 3px #000;}
+  #watchrail .wmore{display:flex; align-items:center; justify-content:center; padding:0; font-size:15px; font-weight:800; color:#e9c45a;
+    font-family:system-ui,-apple-system,sans-serif;}
+  #watchrail .wdot{position:absolute; top:-3px; left:-3px; z-index:9; width:12px; height:12px; border-radius:50%; background:#e0453a; border:2px solid #2a1608; animation:msgpulse 1.5s ease-out infinite; pointer-events:none;}
+  #watchrail .wchat{display:flex; gap:8px; margin-top:4px;}
+  #watchrail .wchat .pemo, #watchrail .wchat .pchat{position:relative; left:auto; top:auto; width:34px; height:34px;}
+  #watchrail .wchat svg{width:18px; height:18px;}
+  .watchtag{cursor:pointer;} .watchtag.off{opacity:0.5; text-decoration:line-through;}
+  /* a watcher's bottom bar: just whose cards they're looking at; the corner being looked at says so */
+  .spechand.specone{gap:12px;} .specwho{display:flex; align-items:center; gap:6px; font-weight:800; color:#f3e6c8; white-space:nowrap; flex:none;}
+  .pviewing{position:absolute; z-index:10; top:-11px; left:50%; transform:translateX(-50%); background:#e9c45a; color:#2b1b0b; font:800 10.5px system-ui,-apple-system,sans-serif;
+    padding:2px 8px; border-radius:9px; white-space:nowrap; box-shadow:0 2px 5px rgba(0,0,0,0.5); pointer-events:none;}
+  .bcbubble.b-side{transform-origin:left center;}
+  .bcbubble.b-side::before{left:-18px; top:11px; border-right-color:var(--gold-edge);}
+  .bcbubble.b-side::after{left:-14px; top:13px; border-right-color:#f6ecd2;}
+  .bcbubble.b-sider{transform-origin:right center;}
+  .bcbubble.b-sider::before{left:auto; right:-18px; border-right-color:transparent; border-left-color:var(--gold-edge);}
+  .bcbubble.b-sider::after{left:auto; right:-14px; border-right-color:transparent; border-left-color:#f6ecd2;}   /* tiny faces: the live picture already says 'camera on' */
   .watchtag .vpic.vmini .face{width:30px; height:30px;}
   .speceye.vpic{border:0; background:none; padding:0; margin-right:4px; cursor:pointer;}
   .speceye.vpic .face{width:34px; height:34px; border:2px solid var(--gold-edge);}
@@ -3014,6 +3048,12 @@
   }
   // is a seated player currently connected? Only a fresh heartbeat counts (liveIds: one in the last 18s,
   // which rides out a brief phone sleep); an 'away' roster entry is NOT online. No id (hotseat) -> present.
+  // watchers (spectators) chat and show on the left-edge rail. Their messages go out with colour null + their player
+  // id (the messages table's sender); on each phone they're keyed 'w:<player id>', which cornerOf / logMsg / the bubbles
+  // take like a seat colour.
+  function meKey() { return myColor || (online && AUTH.me ? 'w:' + AUTH.me.id : null); }
+  function isWKey(k) { return typeof k === 'string' && k.slice(0, 2) === 'w:'; }
+  function wName(k) { const id = String(k).slice(2), w = LOBBY.spectators().find((x) => x.id === id); return (w && w.name) || (MSGLOG[k] && MSGLOG[k].length && MSGLOG[k][MSGLOG[k].length - 1].name) || ''; }
   function seatPlayerId(color) { const s = (gameSeats || []).find((x) => x && x.color === color); return s ? s.playerId : null; }
   function isPlayerOnline(color) { const id = seatPlayerId(color); if (!id || /^bot-/.test(id)) return true; return LOBBY.liveIds.has(id); }
   // a seated player offline this long mid-game -> the others get an "End the game" bar
@@ -3076,7 +3116,9 @@
       const dot = (online && p.color !== myColor && UNREAD[p.color]) ? `<span class="pmsgdot"></span>` : '';
       // tap any online player's portrait to review their recent messages
       const pid = online ? seatPlayerId(p.color) : null;
-      const tap = online ? (p.color === myColor && voiceOn() && !LIVE.room ? ` onclick="CATAN.voiceCard(this)"` : ` onclick="CATAN.showMsgs('${p.color}')"`) : '';
+      const watching = online && !myColor && state.phase !== 'ended';   // a watcher: tap a player = look at their cards
+      const tap = watching ? ` onclick="CATAN.specView('${p.color}')"` : online ? (p.color === myColor && voiceOn() && !LIVE.room ? ` onclick="CATAN.voiceCard(this)"` : ` onclick="CATAN.showMsgs('${p.color}')"`) : '';
+      const viewing = watching && p.color === ((specView && state.players.some((x) => x.color === specView)) ? specView : activeColor()) ? '<span class="pviewing">👁 viewing</span>' : '';
       // online/offline status dot on the portrait (online games only) — greys out if they left the app
       const off = online && !isPlayerOnline(p.color);
       // v225: with voice, the mic/camera badges sit in the plaque's name row (off the picture, and out of the
@@ -3084,10 +3126,11 @@
       const vbs = pid ? voiceBadges(pid) : '', vrow = !!(vbs && document.body.classList.contains('vlive'));
       const statusDot = online ? `<span class="pstatus ${off ? 'off' : 'on'}" title="${off ? 'Offline' : 'Online'}"></span>` : '';
       const wtb = wtCornerBits(p.color);
-      el.innerHTML = `${di}${tbadge}${chatBtn}${dot}${wtb.mic}
+      el.innerHTML = `${di}${tbadge}${chatBtn}${dot}${viewing}${wtb.mic}
         <div class="pcol">${stat(bdg.res, cards, '🃏', 'Resource cards', false, cards > 7)}${stat(bdg.card, dev, '🎴', 'Development cards')}${stat(bdg.vp, vp, '⭐', 'Victory points')}${stat(bdg.army, p.playedKnights, '⚔️', 'Knights played', p.hasLargestArmy)}${stat(bdg.road, road, '🛣️', 'Longest road', p.hasLongestRoad)}</div>
         <div class="pport"${tap}><div class="pava${flagged ? ' flagged' : ''}${off ? ' offline' : ''}"${pid ? ` data-vid="${pid}"` : ''} style="border-color:${PCOLOR[p.color]}">${av}${statusDot}${pid ? (vrow ? '' : vbs) + voiceTag(pid) : ''}</div>${wtb.badge}${vrow ? `<div class="pname prow"><span class="nm">${escapeHtml(p.name)}</span><span class="vrow">${vbs}</span></div>` : `<div class="pname">${escapeHtml(p.name)}</div>`}</div>${flagged ? (p.color === myColor && online ? '<span class="pflag mine" title="Lower your white flag" onclick="event.stopPropagation();CATAN.flagTap()">🏳️</span>' : '<span class="pflag">🏳️</span>') : ''}${luckStrip(p)}${robbedPill(p.color)}${cupPts ? `<span class="pcup" title="Cup points">🏆<b>${cupPts[p.color]}</b></span>` : ''}`;
     });
+    renderWatchRail();
     voiceMountVideos();   // live camera pictures survive the corner re-render
     // which game of the cup this is, under the banner
     let pill = $('cuppill');
@@ -3403,10 +3446,10 @@
         const dev = `<span class="specdev">🎴 ${devs.length}${vpc ? ` · ⭐ ${vpc} VP` : ''}</span>`;
         return `<div class="spechand specview"><div class="specsel">${chips}</div><div class="specorbs">${orbs}</div>${dev}</div>`;
       }
-      const meBtn = voiceOn() && AUTH.me ? (LIVE.room ? `<span class="specvc vrow">${voiceBadges(AUTH.me.id)}</span>`   // v227: your mic/camera switches, as everywhere
-        : `<button class="speceye vpic" data-vid="${AUTH.me.id}" onclick="CATAN.voiceCard(this)" aria-label="Talk to the table">${faceHTML(AUTH.me.name, AUTH.me.avatar, 'sm')}${voiceBadges(AUTH.me.id, true)}</button>`) : '<span class="speceye">👁</span>';
-      return `<div class="spechand specview">${meBtn}<div class="specsel">${chips}</div>`
-        + `<div class="specorbs">${orbs}</div><button class="specleave" onclick="CATAN.exitGame()">Leave</button></div>`;
+      // a watcher's bar is just the cards of the player they're looking at: tap a corner to switch (it gets "👁 viewing");
+      // your mic/camera and 😀 💬 are on your own face in the sea, and leaving is in the menu ("Stop")
+      return `<div class="spechand specview specone"><span class="specwho"><span class="specdot" style="background:${PCOLOR[vp.color]}"></span>${escapeHtml(vp.name)}</span>`
+        + `<div class="specorbs">${orbs}</div></div>`;
     }
     // online: show MY hand; pass-and-play: show the active player's
     const p = (online && myColor) ? state.players.find((x) => x.color === myColor) : activePlayer();
@@ -3990,8 +4033,7 @@
   function watchingTag() {   // "👁 N" shown to everyone in an online game when people are spectating
     if (!online) return '';
     const sp = LOBBY.spectators(), n = sp.length;
-    if (n && LIVE.room) return ` <span class="watchtag">👁 ${sp.map((w) => `<span class="vpic vmini" data-vid="${w.id}" onclick="event.stopPropagation();CATAN.voiceWho('${w.id}',this)">${faceHTML(w.name, w.avatar, 'sm')}${voiceBadges(w.id)}</span>`).join('')}</span>`;
-    return n ? ` <span class="watchtag">👁 ${n}</span>` : '';
+    return n ? ` <span class="watchtag${wHidden ? ' off' : ''}" onclick="event.stopPropagation();CATAN.wToggle()" title="${wHidden ? 'Show the watchers' : 'Hide the watchers'}">👁 ${n}</span>` : '';
   }
   function banner() {
     if (state.phase === 'ended') return `🏆 Game over — ${escapeHtml(state.players.find((p) => p.color === state.winner).name)} wins<span class="bmore">Results ›</span>${watchingTag()}`;
@@ -4072,7 +4114,58 @@
     n.classList.remove('show'); void n.offsetWidth; n.classList.add('show');
     clearTimeout(n._t); n._t = setTimeout(() => n.classList.remove('show'), 2400);
   }
-  function renderBanner() { const b = $('banner'); if (b && state) { b.innerHTML = banner(); voiceMountVideos(); } }   // live count refresh from presence
+  function renderBanner() { const b = $('banner'); if (b && state) { b.innerHTML = banner(); renderWatchRail(); voiceMountVideos(); } }
+  // ---- watchers around the island: everyone spectating floats as a round face in the sea beside the board ----
+  // One size on every phone (44px). Spots in order: left of the island at mid-height, right of it, lower right, upper
+  // right (clear of the corners and their dice); a fifth+ watcher folds the last spot into "+N". On a watcher's own
+  // phone their face takes the left spot, with their camera/mic badges as switches and 😀 💬 under it. Live camera,
+  // white talking glow, unread dot; tap = their messages + mute for me. Tap "👁 N" in the banner to hide/show them on
+  // this phone (remembered). While the board is zoomed in they fade, since the island then fills the sea.
+  // #watchrail is a full-screen, click-through layer; each .wseat is placed on an ellipse around the island.
+  const WSZ = 44, WSPOTS = [180, 0, 28, 332];
+  let wrailSig = '', wHidden = (function () { try { return localStorage.getItem('catanHideWatchers') === '1'; } catch (_) { return false; } })();
+  function boardBox() {
+    let L = 1e9, T = 1e9, R = -1e9, B = -1e9;
+    document.querySelectorAll('[clip-path^="url(#hc"]').forEach((e) => { const r = e.getBoundingClientRect(); if (!r.width) return; L = Math.min(L, r.left); T = Math.min(T, r.top); R = Math.max(R, r.right); B = Math.max(B, r.bottom); });
+    return R > L ? { L, T, R, B } : null;
+  }
+  function renderWatchRail() {
+    let r = $('watchrail');
+    const me = AUTH.me && AUTH.me.id, list = online && state && inGame() ? LOBBY.spectators().slice() : [];
+    const all = wHidden ? list.filter((w) => w.id === me && !myColor) : list;   // hidden: the others go, your own face (your controls) stays
+    if (!all.length) { if (r) r.remove(); wrailSig = ''; return; }
+    const iWatch = !myColor && all.some((w) => w.id === me);
+    all.sort((a, b) => (b.id === me) - (a.id === me));   // you first: your face takes the left spot
+    const shown = all.length > WSPOTS.length ? all.slice(0, WSPOTS.length - 1) : all, more = all.length - shown.length;
+    const html = shown.map((w) => {
+      const mine = w.id === me, k = 'w:' + w.id;
+      const chat = mine && iWatch ? `<span class="wchat"><button class="pemo${$('emotray') && trayMode === 'emo' ? ' on' : ''}" onclick="event.stopPropagation();CATAN.openTray('emo')" aria-label="Emojis">${EMO_ICON}</button><button class="pchat${$('emotray') && trayMode === 'txt' ? ' on' : ''}" onclick="event.stopPropagation();CATAN.openTray('txt')" aria-label="Texts">${CHAT_ICON}</button></span>` : '';
+      return `<div class="wseat${mine ? ' mine' : ''}" data-w="${escapeHtml(w.id)}"><span class="wpic vpic" data-vid="${escapeHtml(w.id)}" onclick="${mine && voiceOn() && !LIVE.room ? 'CATAN.voiceCard(this)' : `CATAN.showMsgs('${escapeHtml(k)}')`}">${faceHTML(w.name, w.avatar)}${voiceBadges(w.id)}${!mine && UNREAD[k] ? '<span class="wdot"></span>' : ''}</span>`
+        + `<span class="wname">${escapeHtml(w.name || '?')}</span>${chat}</div>`;
+    }).join('') + (more ? `<div class="wseat"><button class="wpic wmore" onclick="CATAN.wrailMore()">+${more}</button><span class="wname">watching</span></div>` : '');
+    if (!r) { r = document.createElement('div'); r.id = 'watchrail'; document.body.appendChild(r); }
+    if (html !== wrailSig) { wrailSig = html; r.innerHTML = html; }
+    placeWatchers();
+  }
+  // seat each face on an ellipse just off the island's coast (measured at the default zoom; zoomed in = faded, kept still)
+  function placeWatchers() {
+    const r = $('watchrail'); if (!r) return;
+    const zoomed = zoom.s > 1.03;
+    r.classList.toggle('zfade', zoomed);
+    if (zoomed) return;
+    const bb = boardBox(); if (!bb) return;
+    const gap = 26, cx = (bb.L + bb.R) / 2, cy = (bb.T + bb.B) / 2;
+    const rx = (bb.R - bb.L) / 2 + gap + WSZ / 2, ry = (bb.B - bb.T) / 2 + gap * 0.4 + WSZ / 2;
+    [...r.children].forEach((el, i) => {
+      const a = WSPOTS[i] * Math.PI / 180;
+      const x = Math.round(Math.max(4, Math.min(window.innerWidth - WSZ - 4, cx + rx * Math.cos(a) - WSZ / 2)));
+      const y = Math.round(cy + ry * Math.sin(a) - WSZ / 2);
+      const v = `translate(${x}px,${y}px)`; if (el.style.transform !== v) el.style.transform = v;
+    });
+  }
+  let wPlaceQ = 0;
+  function placeWatchersSoon() { if (wPlaceQ || !$('watchrail')) return; wPlaceQ = requestAnimationFrame(() => { wPlaceQ = 0; placeWatchers(); }); }
+  window.addEventListener('resize', () => { if (state && inGame()) { wrailSig = ''; renderWatchRail(); voiceMountVideos(); } });
 
   function actionsBar() {
     if (state.phase === 'ended') return '';   // the results reopen from the 🏆 tab
@@ -4971,12 +5064,12 @@
   }
   function sendBroadcastText(text) {
     text = (text || '').trim().slice(0, 50);
-    if (!text || !online || !myColor) return;
+    if (!text || !online || !meKey()) return;
     if (Date.now() - lastBcAt < BC_COOLDOWN) { toast('Easy — one sec'); return; }
     lastBcAt = Date.now();
     const msg = { name: AUTH.me.name, avatar: AUTH.me.avatar || null, text, table: LOBBY.table || null, code: NET.code || LOBBY.table || null, color: myColor || null };
     LOBBY.sendBroadcast(msg);
-    showBroadcast(msg);   // local echo — broadcast doesn't deliver back to the sender
+    showBroadcast(Object.assign({}, msg, { color: meKey() }));   // local echo — broadcast doesn't deliver back to the sender
   }
   // ---- voice notes -------------------------------------------------------------------------
   // Recorded via Web Audio (NOT MediaRecorder, whose webm/opus won't play on iOS) and encoded to
@@ -5051,10 +5144,10 @@
     },
   };
   async function sendVoice(rec) {
-    if (!rec || !online || !myColor) return;
+    if (!rec || !online || !meKey()) return;
     if (Date.now() - lastBcAt < BC_COOLDOWN) { toast('Easy — one sec'); return; }
     lastBcAt = Date.now();
-    if (PRACTICE.on) { showBroadcast({ type: 'voice', url: URL.createObjectURL(rec.blob), dur: rec.dur, name: AUTH.me.name, avatar: AUTH.me.avatar || null, color: myColor }); return; }   // practice: played back here only
+    if (PRACTICE.on) { showBroadcast({ type: 'voice', url: URL.createObjectURL(rec.blob), dur: rec.dur, name: AUTH.me.name, avatar: AUTH.me.avatar || null, color: meKey() }); return; }   // practice: played back here only
     const c = NET.init(); const code = LOBBY.table || NET.code;
     if (!c || !code) return;
     const path = code + '/' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.wav';
@@ -5064,7 +5157,7 @@
     const url = c.storage.from('voice').getPublicUrl(path).data.publicUrl;
     const msg = { type: 'voice', url, dur: rec.dur, name: AUTH.me.name, avatar: AUTH.me.avatar || null, table: LOBBY.table || null, code: code || null, color: myColor || null };
     LOBBY.sendBroadcast(msg);
-    showBroadcast(msg);   // local echo — sender sees their own note bubble
+    showBroadcast(Object.assign({}, msg, { color: meKey() }));   // local echo — sender sees their own note bubble
   }
   // delete all of a game's voice clips (called when the game ends)
   async function purgeVoice(code) {
@@ -6005,7 +6098,7 @@
     const arr = (MSGLOG[msg.color] = MSGLOG[msg.color] || []);
     arr.push(Object.assign({ ts: Date.now() }, msg));
     if (arr.length > MSG_KEEP) arr.splice(0, arr.length - MSG_KEEP);
-    if (online && state && msg.color !== myColor) { UNREAD[msg.color] = true; renderPanels(); }   // dot for others' new messages
+    if (online && state && msg.color !== meKey()) { UNREAD[msg.color] = true; renderPanels(); }   // dot for others' new messages
   }
   // relative "sent time" for the history rows (snapshot when the popover opens)
   function relTime(ts) {
@@ -6023,15 +6116,16 @@
     const log = (MSGLOG[color] || []).slice().reverse();   // newest first
     const seat = state ? state.players.findIndex((p) => p.color === color) : -1;
     const pos = seat >= 0 ? seatKey(seat) : null;
-    const corner = pos ? $('p-' + pos) : null;
-    const pl = state && state.players.find((p) => p.color === color);
+    const wc = isWKey(color) ? cornerOf(color) : null;   // a watcher: their face on the rail
+    const corner = wc ? wc.el : pos ? $('p-' + pos) : null;
+    const pl = wc || isWKey(color) ? { name: wName(color) } : state && state.players.find((p) => p.color === color);
     const rows = log.length ? log.map((m) => { const t = `<span class="mhtime">${relTime(m.ts)}</span>`; return m.type === 'voice'
       ? `<div class="mhrow"><button class="bcplay mhplay" data-url="${escapeHtml(m.url)}">▶</button><span class="mhtxt">🎤 0:${String(m.dur || 1).padStart(2, '0')}</span>${t}</div>`
       : `<div class="mhrow"><span class="mhtxt">${escapeHtml(String(m.text).slice(0, 50))}</span>${t}</div>`; }).join('')
       : `<div class="mhrow muted">No messages yet</div>`;
     const b = document.createElement('div');
     b.id = 'msghist';
-    b.innerHTML = `<button class="popx" aria-label="Close">×</button><div class="mhscroll"><div class="mhhead">${escapeHtml((pl && pl.name) || '')}</div>${voiceMuteRow(seatPlayerId(color))}${rows}</div>`;
+    b.innerHTML = `<button class="popx" aria-label="Close">×</button><div class="mhscroll"><div class="mhhead">${escapeHtml((pl && pl.name) || '')}</div>${voiceMuteRow(isWKey(color) ? color.slice(2) : seatPlayerId(color))}${rows}</div>`;
     document.body.appendChild(b);
     // anchor to the player's picture (fall back to centred if no corner, e.g. offline)
     const pic = corner && (corner.querySelector('.pava') || corner);
@@ -6055,7 +6149,9 @@
     const seat = (inGameView && state && state.players && msg.color) ? state.players.findIndex((p) => p.color === msg.color) : -1;
     const pos = seat >= 0 ? seatKey(seat) : null;   // 'tl' | 'tr' | 'br' | 'bl'
     const corner = pos ? $('p-' + pos) : null;
-    if (corner && corner.style.display !== 'none') showBroadcastBubble(msg, corner, pos);
+    const wface = inGameView && isWKey(msg.color) ? cornerOf(msg.color) : null;
+    if (wface) showBroadcastBubble(msg, wface.el.closest('.wseat') || wface.el, wface.pos === 'wr' ? 'mr' : 'ml');
+    else if (corner && corner.style.display !== 'none') showBroadcastBubble(msg, corner, pos);
     else showBroadcastBanner(msg);
   }
   // ---- rock-paper-scissors decides who starts (online, when the host picked it in the lobby) ----
@@ -6791,11 +6887,13 @@
   const moments = {};   // key -> { text, at, counts: { emoji: n } }; key is shared by every client (log index)
   let liveMoment = null;
   function myCorner() {
+    if (state && online && !myColor && AUTH.me) { const w = document.querySelector('#watchrail .wseat.mine'); return w ? { el: w, pos: 'wl' } : null; }
     if (!state || !myColor) return null;
     const i = state.players.findIndex((p) => p.color === myColor);
     return i < 0 ? null : { el: $('p-' + seatKey(i)), pos: seatKey(i) };
   }
   function cornerOf(color) {
+    if (isWKey(color)) { const w = document.querySelector('#watchrail .wseat[data-w="' + CSS.escape(color.slice(2)) + '"] .wpic'); if (!w) return null; const q = w.getBoundingClientRect(); return { el: w, pos: q.left + q.width / 2 > window.innerWidth / 2 ? 'wr' : 'wl' }; }
     const i = state ? state.players.findIndex((p) => p.color === color) : -1;
     const el = i < 0 ? null : $('p-' + seatKey(i));
     return (el && el.style.display !== 'none') ? { el, pos: seatKey(i) } : null;
@@ -6832,7 +6930,7 @@
       t.textContent = label;
       const r = c.el.getBoundingClientRect();   // beside the corner, over the sea — never on its stats
       t.style.left = (left ? r.right + 34 : r.left - 34) + 'px'; t.style.top = o.y + 'px';
-      const tray = color === myColor && $('emotray');   // my own tray is open there -> sit just above it
+      const tray = color === meKey() && $('emotray');   // my own tray is open there -> sit just above it
       if (tray) { const tr = tray.getBoundingClientRect(); t.style.left = (left ? tr.left + 40 : tr.right - 40) + 'px'; t.style.top = (tr.top - 16) + 'px'; }
       t.classList.remove('pop'); void t.offsetWidth; t.classList.add('pop');
       clearTimeout(t._t); t._t = setTimeout(() => t.remove(), 1600);
@@ -6887,15 +6985,15 @@
   }
   // one tap = one emoji floating out right away; the run streams to the others in chunks (see above)
   function sendEmoji(emoji, key, target) {
-    if (!online || !myColor) return;
+    const me = meKey(); if (!online || !me) return;
     target = (target && target !== myColor) ? target : null;
     if (!key && liveMoment && moments[liveMoment] && Date.now() - moments[liveMoment].at < MOMENT_LIVE_MS) key = liveMoment;
     if (emoRun && (emoRun.emoji !== emoji || emoRun.key !== key || emoRun.target !== target)) endEmojiRun();
     if (!emoRun) emoRun = { id: Math.random().toString(36).slice(2, 8), emoji, key, target, t0: Date.now(), n: 0, taps: [] };
     if (emoRun.n >= EMO_MAX) return;
     emoRun.n++; emoRun.taps.push(Date.now() - emoRun.t0);
-    if (target) { emojiThrow(myColor, target, emoji); if (emoRun.n > 1) comboTag(myColor, `${emoji} ×${emoRun.n} → ${nameOf(target)}`); }
-    else emojiBurst(myColor, emoji, 1, emoRun.n);
+    if (target) { emojiThrow(me, target, emoji); if (emoRun.n > 1) comboTag(me, `${emoji} ×${emoRun.n} → ${nameOf(target)}`); }
+    else emojiBurst(me, emoji, 1, emoRun.n);
     if (key) addReaction(key, emoji, 1);
     if (!emoFlushT) emoFlushT = setTimeout(flushEmoji, EMO_CHUNK_MS);
     clearTimeout(emoIdleT); emoIdleT = setTimeout(endEmojiRun, EMO_IDLE_MS);
@@ -6962,7 +7060,7 @@
   }
   // above the button row, left-aligned with it; falls back to beside it when there's no room above
   function placeTray(t) {
-    const bs = [...document.querySelectorAll('.corner .pemo, .corner .pchat, .corner .pwt')].map((b) => b.getBoundingClientRect()).filter((r) => r.width);
+    const bs = [...document.querySelectorAll('.corner .pemo, .corner .pchat, .corner .pwt, #watchrail .pemo, #watchrail .pchat')].map((b) => b.getBoundingClientRect()).filter((r) => r.width);
     const c = myCorner(); if (!c || !c.el) return;
     const cr = c.el.getBoundingClientRect();
     const box = bs.length ? { l: Math.min(...bs.map((r) => r.left)), t: Math.min(...bs.map((r) => r.top)), r: Math.max(...bs.map((r) => r.right)), b: Math.max(...bs.map((r) => r.bottom)) } : { l: cr.right + 4, t: cr.top, r: cr.right + 4, b: cr.bottom };
@@ -7249,21 +7347,23 @@
   function showBroadcastBubble(msg, corner, pos) {
     const top = pos[0] === 't', left = pos[1] === 'l';
     const cr = corner.getBoundingClientRect();
-    const avEl = corner.querySelector('.pavawrap') || corner.querySelector('.pava') || corner;
+    const avEl = corner.querySelector('.pavawrap') || corner.querySelector('.pava') || corner.querySelector('.wpic') || corner;
     const ar = avEl.getBoundingClientRect(), avCx = ar.left + ar.width / 2;
     const id = 'bcb-' + (msg.color || msg.name);
     const old = document.getElementById(id); if (old) old.remove();   // one bubble per speaker
     const b = document.createElement('div');
     b.id = id;
-    const isVoice = msg.type === 'voice';
-    b.className = 'bcbubble ' + (top ? 'b-top' : 'b-bot') + ' ' + (left ? 'b-left' : 'b-right') + (isVoice ? ' bcvoice' : '');
+    const isVoice = msg.type === 'voice', side = pos === 'ml' || pos === 'mr';   // a watcher in the sea: beside the face (toward the board), tail pointing at it
+    b.className = 'bcbubble ' + (side ? (pos === 'mr' ? 'b-side b-sider' : 'b-side') : (top ? 'b-top' : 'b-bot') + ' ' + (left ? 'b-left' : 'b-right')) + (isVoice ? ' bcvoice' : '');
     b.innerHTML = isVoice
       ? `<button class="bcclose" aria-label="Close">×</button><button class="bcplay" aria-label="Play">▶</button><span class="bctext">🎤 0:${String(msg.dur || 1).padStart(2, '0')}</span>`
       : `<button class="bcclose" aria-label="Close">×</button><span class="bctext">${escapeHtml(String(msg.text).slice(0, 50))}</span>`;
     document.body.appendChild(b);
     const gap = 8, tail = 20;   // tail sits ~20px from the bubble's near edge
-    if (top) b.style.top = (cr.bottom + gap) + 'px'; else b.style.bottom = (window.innerHeight - cr.top + gap) + 'px';
-    if (left) b.style.left = Math.max(6, avCx - tail) + 'px';
+    if (side) { b.style.top = (ar.top + ar.height / 2 - 20) + 'px'; if (pos === 'mr') b.style.right = (window.innerWidth - ar.left + 14) + 'px'; else b.style.left = (ar.right + 14) + 'px'; }
+    else if (top) b.style.top = (cr.bottom + gap) + 'px'; else b.style.bottom = (window.innerHeight - cr.top + gap) + 'px';
+    if (side) { }
+    else if (left) b.style.left = Math.max(6, avCx - tail) + 'px';
     else b.style.right = Math.max(6, window.innerWidth - avCx - tail) + 'px';
     const kill = () => { b.classList.add('out'); setTimeout(() => b.remove(), 200); };
     const t = setTimeout(kill, isVoice ? 13000 : 7000);   // voice lingers longer so there's time to tap play
@@ -7875,7 +7975,7 @@
   function zApply(animate) {
     if (!zArea) return;
     zArea.style.transition = animate ? 'transform .26s ease' : 'none';
-    zArea.style.transform = `translate(${zoom.tx.toFixed(2)}px,${zoom.ty.toFixed(2)}px) scale(${zoom.s.toFixed(4)})`;
+    zArea.style.transform = `translate(${zoom.tx.toFixed(2)}px,${zoom.ty.toFixed(2)}px) scale(${zoom.s.toFixed(4)})`;    placeWatchersSoon(); if (animate) setTimeout(placeWatchersSoon, 300);   // the watchers follow the island, or fade while zoomed in
   }
   function zClamp() {
     const r = zRect(), W = r.width, H = r.height;
@@ -7917,7 +8017,7 @@
   function cineApply(ms) {
     if (!zArea) return;
     zArea.style.transition = 'transform ' + ms + 'ms cubic-bezier(.45,.05,.55,.95)';   // gentle ease-in-out
-    zArea.style.transform = `translate(${zoom.tx.toFixed(2)}px,${zoom.ty.toFixed(2)}px) scale(${zoom.s.toFixed(4)})`;
+    zArea.style.transform = `translate(${zoom.tx.toFixed(2)}px,${zoom.ty.toFixed(2)}px) scale(${zoom.s.toFixed(4)})`;    placeWatchersSoon(); setTimeout(placeWatchersSoon, ms + 40);
   }
   // identity-space content coords (stage px at zoom=1) of any SVG point, robust to the current transform
   function svgContentPoint(sx, sy) {
@@ -8254,8 +8354,9 @@
       if (!row || !row.id || row.id <= this.lastMsgId) return;
       this.lastMsgId = row.id;
       if (row.type === 'go') { if (!this.started) lvGoIn(row); return; }   // a room nudge to the host — lobby only
-      if (row.color && row.color === myColor) return;   // mine — already shown locally on send
-      showBroadcast({ type: row.type || 'text', text: row.body, url: row.url, dur: row.dur, name: row.name, avatar: row.avatar, color: row.color, code: row.code });   // 'emoji': body = emoji, dur = tap count, url = 'm:<moment key>'
+      const from = row.color || (row.sender ? 'w:' + row.sender : null);   // a watcher's message: no colour, keyed by who sent it
+      if (from && from === meKey()) return;   // mine — already shown locally on send
+      showBroadcast({ type: row.type || 'text', text: row.body, url: row.url, dur: row.dur, name: row.name, avatar: row.avatar, color: from, code: row.code });   // 'emoji': body = emoji, dur = tap count, url = 'm:<moment key>'
     },
     unsubscribeGame() {
       wtReset();
@@ -9458,11 +9559,13 @@
   window.CATAN.lchatSend = () => sendLobbyChat();
   window.CATAN.openQuickChat = () => openQuickChat();
   // spectator taps a player chip -> view their resources; tapping the active one again returns to follow-the-turn
-  window.CATAN.specView = (color) => { specView = (specView === color) ? null : color; const h = $('hand'); if (h) h.innerHTML = handBar(); };   // v237: only the bottom bar changes
+  window.CATAN.specView = (color) => { specView = (specView === color) ? null : color; const h = $('hand'); if (h) h.innerHTML = handBar(); if (online && !myColor) renderPanels(); };   // watchers: the corner's "👁 viewing" tag moves too   // v237: only the bottom bar changes
   window.CATAN.quickSendIdx = (i) => { const t = AUTH.quickList()[i]; if (t) quickSend(t); };
   window.CATAN.recStop = () => finishRec(false);
   window.CATAN.recCancel = () => finishRec(true);
   window.CATAN.showMsgs = (color) => showMsgHistory(color);
+  window.CATAN.wToggle = () => { wHidden = !wHidden; try { localStorage.setItem('catanHideWatchers', wHidden ? '1' : '0'); } catch (_) { } toast(wHidden ? 'Watchers hidden. Tap 👁 to show them' : 'Watchers shown'); renderBanner(); voiceMountVideos(); };
+  window.CATAN.wrailMore = () => { const me = AUTH.me && AUTH.me.id; toast('👁 ' + LOBBY.spectators().map((w) => (w.id === me ? 'you' : w.name)).join(', ')); };
   window.CATAN.voiceCard = (el) => voiceCard(el);
   window.CATAN.voiceWho = (id, el) => voiceWho(id, el);
   // v231: your own taps also update the remembered choice, so the next table starts the way you left it:
@@ -9698,7 +9801,8 @@
   function exitGameUI() {
     ['leavetab', 'radialtab', 'settingstab', 'dicetab', 'trophytab', 'dicereveal', 'toast', 'confirmbar', 'countdown'].forEach((id) => { const e = $(id); if (e) e.classList.add('hidden'); });
     const rr = $('radialroot'); if (rr) { rr.classList.remove('open'); rr.classList.add('hidden'); }
-    document.querySelectorAll('.flyres, .robberdrag, .emofloat, .emocombo, .emothrow, .emosplat, .emoghost, #cuppill, #rmbar').forEach((el) => el.remove());
+    document.querySelectorAll('.flyres, .robberdrag, .emofloat, .emocombo, .emothrow, .emosplat, .emoghost, #cuppill, #rmbar, #watchrail').forEach((el) => el.remove());
+    wrailSig = '';
     document.body.classList.remove('inlobby');
     closeEmojiTray(); hideChip(); const mp = $('momentpill'); if (mp) mp.classList.add('hidden'); const rpr = $('rpsroot'); if (rpr) rpr.classList.add('hidden'); rpsBodySync(); rpsBoardClear();
     document.body.classList.remove('ingame', 'trading', 'gameover');
