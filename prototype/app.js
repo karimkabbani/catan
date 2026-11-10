@@ -5402,12 +5402,15 @@
       RES.forEach((r) => { const u = Math.round(t.give[r] / bankRatio(color, r)); for (let i = 0; i < u; i++) giveUnits.push(r); });
       RES.forEach((r) => { for (let i = 0; i < t.want[r]; i++) wantCards.push(r); });
       if (!wantCards.length || giveUnits.length !== wantCards.length) return;
-      ui.tradeView = null; hideOverlay();
       // v250: the whole exchange is ONE move (bankExchange), saved once: all of it lands or none of it. It used to be one
       // move per card received, each saved separately, so a dropped save could leave half an exchange done.
       // Apply FIRST (same synchronous tick, so the new count never paints), THEN hold the count and fly so it ticks down/up.
       const give = {}, want = {}; RES.forEach((r) => { if (t.give[r]) give[r] = t.give[r]; if (t.want[r]) want[r] = t.want[r]; });
-      if (!dispatch({ type: 'bankExchange', give, want })) return;
+      const check = C.applyAction(state, { type: 'bankExchange', give, want }, color);
+      if (!check.ok && !/Unknown/.test(check.error)) { toast(check.error); return; }   // refused: keep the sheet open to fix it
+      ui.tradeView = null; hideOverlay();
+      if (check.ok) dispatch({ type: 'bankExchange', give, want });
+      else for (let i = 0; i < wantCards.length; i++) dispatch({ type: 'bankTrade', give: giveUnits[i], want: wantCards[i] });   // an older cached engine
       RES.forEach((r) => { lagOut(color, r, t.give[r] || 0); lagIn(color, r, t.want[r] || 0); }); renderCounts();
       showBankFly(color, t.give, t.want);
     },
