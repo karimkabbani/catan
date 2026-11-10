@@ -225,6 +225,31 @@ describe('trading and dev cards (unit-level)', () => {
     expect(r.state.players.find((p) => p.color === 'red')!.resources.ore).toBe(1);
   });
 
+  it('a multi-card bank exchange is one all-or-nothing move', () => {
+    let s = runSetup(createGame({ id: 'g7b', players: PLAYERS, seed: 12 }));
+    s = (applyAction(s, { type: 'rollDice' }, 'red') as any).state;
+    s.turnPhase = 'main';
+    const red = s.players.find((p) => p.color === 'red')!;
+    const total = (st: any) => st.players.reduce((n: number, p: any) => n + Object.values(p.resources as Record<string, number>).reduce((a, b) => a + b, 0), 0) + Object.values(st.bank as Record<string, number>).reduce((a: number, b: number) => a + b, 0);
+    // take the cards from the bank so the 19-per-resource total holds
+    for (const r of ['brick', 'wood', 'sheep', 'wheat', 'ore'] as const) { s.bank[r] += red.resources[r]; red.resources[r] = 0; }
+    red.resources.brick = 8; red.resources.wood = 4; s.bank.brick -= 8; s.bank.wood -= 4;
+    const before = total(s);
+    const r = applyAction(s, { type: 'bankExchange', give: { brick: 8, wood: 4 }, want: { ore: 2, wheat: 1 } }, 'red');
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const nr = r.state.players.find((p) => p.color === 'red')!.resources;
+    expect(nr).toMatchObject({ brick: 0, wood: 0, ore: 2, wheat: 1 });
+    expect(total(r.state)).toBe(before);
+    // anything that doesn't add up is refused whole, nothing moves
+    expect(applyAction(s, { type: 'bankExchange', give: { brick: 8, wood: 4 }, want: { ore: 4 } }, 'red').ok).toBe(false);
+    expect(applyAction(s, { type: 'bankExchange', give: { brick: 6 }, want: { ore: 1 } }, 'red').ok).toBe(false);
+    expect(applyAction(s, { type: 'bankExchange', give: { brick: 12 }, want: { ore: 3 } }, 'red').ok).toBe(false);
+    s.bank.ore = 1;
+    expect(applyAction(s, { type: 'bankExchange', give: { brick: 8 }, want: { ore: 2 } }, 'red').ok).toBe(false);
+    expect(red.resources.brick).toBe(8);
+  });
+
   it('monopoly takes a resource from every other player', () => {
     let s = runSetup(createGame({ id: 'g8', players: PLAYERS, seed: 13 }));
     s = (applyAction(s, { type: 'rollDice' }, 'red') as any).state;

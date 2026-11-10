@@ -36,6 +36,9 @@ export type Action =
   | { type: 'steal'; victim: PlayerColor }
   | { type: 'discard'; resources: Partial<Record<Resource, number>> }
   | { type: 'bankTrade'; give: Resource; want: Resource }
+  // several bank/port swaps in ONE move (e.g. 12 for 3): applied all-or-nothing, so a dropped save can never
+  // leave half an exchange done. give[r] must be whole bundles at that resource's ratio; one card back per bundle.
+  | { type: 'bankExchange'; give: Partial<Record<Resource, number>>; want: Partial<Record<Resource, number>> }
   | { type: 'offerTrade'; give: Partial<Record<Resource, number>>; want: Partial<Record<Resource, number>> }
   | { type: 'acceptTrade'; tid?: number }
   | { type: 'declineTrade'; tid?: number }
@@ -604,6 +607,28 @@ export function applyAction(state: GameState, action: Action, byColor: PlayerCol
       s.bank[action.give] += ratio;
       player.resources[action.want] += 1;
       s.bank[action.want] -= 1;
+      return { ok: true, state: s };
+    }
+
+    case 'bankExchange': {
+      if (s.turnPhase !== 'main') return err('Roll first.');
+      if (!countsOk(action.give) || !countsOk(action.want)) return err('Invalid card counts.');
+      let bundles = 0, wantTot = 0;
+      for (const r of RESOURCES) {
+        const g = action.give[r] ?? 0, w = action.want[r] ?? 0;
+        if (g && w) return err('You cannot give and get the same resource.');
+        const ratio = bankRatio(s, cur, r);
+        if (g % ratio !== 0) return err(`${r} goes in bundles of ${ratio}.`);
+        bundles += g / ratio; wantTot += w;
+        if (s.bank[r] < w) return err('The bank is out of that resource.');
+      }
+      if (bundles < 1 || bundles !== wantTot) return err('That exchange does not add up.');
+      if (!canPay(player, action.give)) return err('You do not have those cards.');
+      for (const r of RESOURCES) {
+        const g = action.give[r] ?? 0, w = action.want[r] ?? 0;
+        player.resources[r] += w - g;
+        s.bank[r] += g - w;
+      }
       return { ok: true, state: s };
     }
 

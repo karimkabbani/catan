@@ -1240,6 +1240,19 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    keeps the translucent status bar and the strip under the lobby's tab bar until re-added (Karim is telling the friends to
    delete and re-add the icon). Watch the LiveKit dashboard: the free tier is 5,000 minutes a month, a four-player evening on
    the call is ~480. First real Android run (Lapen's Pixel) is the remaining real-device check.
+84. 🟡 **2026-11-10: v250, "cards disappeared" during bank/port exchanges** (built on branch, NOT deployed yet). Players
+   reported cards vanishing when exchanging with the bank (e.g. 12 for 3). Cause found in code (not reproduced on a phone):
+   an N-card exchange was N separate `bankTrade` moves, each saved separately, so (a) a dropped save could leave part of the
+   exchange undone, and (b) this phone's own realtime echoes, arriving before the HTTP reply, were drawn as news, so the
+   hand stepped back through the in-between states (cards vanish, then return). Fix: engine action `bankExchange {give,want}`
+   (whole bundles at each resource's ratio, one card back per bundle, all-or-nothing; refused whole if it doesn't add up or
+   the bank can't cover it), dispatched once by `CATAN.tradeBank`; failure toasts "Exchange didn't go through: …".
+   Every write now stamps `state._w = NET.myId`; `NET.onRow` skips rows with my stamp while `NET.inflight > 0`, leaving
+   `NET.version` alone so the next save still sees the row moved and applies the merged result. Verified: engine test
+   (35/35), headless run with a fake Supabase (one save per exchange, totals conserved, dropped save rolls back cleanly,
+   landed-but-reply-lost keeps the whole exchange once, no step back; the control without the skip shows 2>1>2).
+   Next (agreed, not built): audit-log trigger + 19-per-resource guard in the database, block outdated app versions, a
+   "Report a problem" button. The card engine itself was checked: no path found that destroys cards.
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
