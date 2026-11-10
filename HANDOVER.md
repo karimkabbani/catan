@@ -1240,7 +1240,7 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    keeps the translucent status bar and the strip under the lobby's tab bar until re-added (Karim is telling the friends to
    delete and re-add the icon). Watch the LiveKit dashboard: the free tier is 5,000 minutes a month, a four-player evening on
    the call is ~480. First real Android run (Lapen's Pixel) is the remaining real-device check.
-84. ✅ **v250 (2026-11-10, built on branch, not yet deployed): your own white flag pinned on your portrait, tap to lower.**
+84. ✅ **v250 (2026-11-10, deployed): your own white flag pinned on your portrait, tap to lower.**
    Karim: his own flag was hidden. It sat beside his corner, under the 😀 💬 🎤 row (v214). Tried first: on top of the
    corner panel, but your last-roll dice land there and on a 16 Pro (camera on your side, voice on) the island clipped it.
    Now `.pflag.mine` sits on the top-left of your picture (24px, still waving), clear of dice, island, robbed pill and
