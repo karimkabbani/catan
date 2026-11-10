@@ -1270,7 +1270,7 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    landed-but-reply-lost keeps the whole exchange once, no step back; the control without the skip shows 2>1>2).
    Next (agreed, not built): audit-log trigger + 19-per-resource guard in the database, block outdated app versions, a
    "Report a problem" button. The card engine itself was checked: no path found that destroys cards.
-87. ✅ **v253 (2026-11-10, deployed together with v254; SQL `server/migrate-audit.sql` not run yet): card guard + audit log.** Follows item 86.
+87. ✅ **v253 (2026-11-10, deployed together with v254; SQL `server/migrate-audit.sql` run by Karim 2026-11-10): card guard + audit log.** Follows item 86.
    `server/migrate-audit.sql` (Karim runs it in the Supabase SQL editor): `catan_card_problems(state)` checks each resource
    across hands + bank is 19, nothing below 0, knights (deck + hands + `playedKnights`) 14, VP cards 5, road building /
    year of plenty / monopoly at most 2 each (played ones aren't kept in the state, so "exactly 25" can't be checked). A
@@ -1286,7 +1286,7 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    anon can't read the log; simulation test now also checks the dev-card rules (35/35); headless fake-server run 18/18
    incl. an injected card-losing engine (not saved, phone back on server copy). To investigate a report:
    `select * from game_audit where code = 'TABLE' order by at desc limit 50;`
-88. ✅ **v254 (2026-11-10, deployed; SQL `server/migrate-audit-2.sql` not run yet): outdated builds
+88. ✅ **v254 (2026-11-10, deployed; SQL `server/migrate-audit-2.sql` run by Karim 2026-11-10): outdated builds
    are blocked.** The update path (index.html `controllerchange` -> `catanUpdatePending`) never reloads while `catanBusy()`,
    which is true whenever the phone sits at a table, so a phone parked at the Main Game could run an old build for days.
    New `prototype/version.json` `{ "min": "vNNN" }` (network-first in sw.js). `APPGATE` in app.js reads it every 60 s (5 s
