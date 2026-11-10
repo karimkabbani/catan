@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v249';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v250';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -923,7 +923,7 @@
       const wtb = wtCornerBits(p.color);
       el.innerHTML = `${di}${tbadge}${chatBtn}${dot}${wtb.mic}
         <div class="pcol">${stat(bdg.res, cards, '🃏', 'Resource cards', false, cards > 7)}${stat(bdg.card, dev, '🎴', 'Development cards')}${stat(bdg.vp, vp, '⭐', 'Victory points')}${stat(bdg.army, p.playedKnights, '⚔️', 'Knights played', p.hasLargestArmy)}${stat(bdg.road, road, '🛣️', 'Longest road', p.hasLongestRoad)}</div>
-        <div class="pport"${tap}><div class="pava${flagged ? ' flagged' : ''}${off ? ' offline' : ''}"${pid ? ` data-vid="${pid}"` : ''} style="border-color:${PCOLOR[p.color]}">${av}${statusDot}${pid ? (vrow ? '' : vbs) + voiceTag(pid) : ''}</div>${wtb.badge}${vrow ? `<div class="pname prow"><span class="nm">${escapeHtml(p.name)}</span><span class="vrow">${vbs}</span></div>` : `<div class="pname">${escapeHtml(p.name)}</div>`}</div>${flagged ? '<span class="pflag">🏳️</span>' : ''}${luckStrip(p)}${robbedPill(p.color)}${cupPts ? `<span class="pcup" title="Cup points">🏆<b>${cupPts[p.color]}</b></span>` : ''}`;
+        <div class="pport"${tap}><div class="pava${flagged ? ' flagged' : ''}${off ? ' offline' : ''}"${pid ? ` data-vid="${pid}"` : ''} style="border-color:${PCOLOR[p.color]}">${av}${statusDot}${pid ? (vrow ? '' : vbs) + voiceTag(pid) : ''}</div>${wtb.badge}${vrow ? `<div class="pname prow"><span class="nm">${escapeHtml(p.name)}</span><span class="vrow">${vbs}</span></div>` : `<div class="pname">${escapeHtml(p.name)}</div>`}</div>${flagged ? (p.color === myColor && online ? '<span class="pflag mine" title="Lower your white flag" onclick="event.stopPropagation();CATAN.flagTap()">🏳️</span>' : '<span class="pflag">🏳️</span>') : ''}${luckStrip(p)}${robbedPill(p.color)}${cupPts ? `<span class="pcup" title="Cup points">🏆<b>${cupPts[p.color]}</b></span>` : ''}`;
     });
     voiceMountVideos();   // live camera pictures survive the corner re-render
     // which game of the cup this is, under the banner
@@ -7116,6 +7116,15 @@
   window.CATAN.quickDone = (from) => { clearTimeout(qmSaveT); persistQuick(); qmDraft = null; if (from === 'profile') manageProfile(); else { hideOverlay(); render(); } };
   window.CATAN.raiseFlag = () => { hideOverlay(); raiseFlag(); };
   window.CATAN.lowerFlag = () => { hideOverlay(); lowerFlag(); };
+  // v250: your own flag is pinned on your portrait (the talk buttons hid it beside the corner); tap it to take it back
+  window.CATAN.flagTap = () => {
+    if (!iAmFlagged() || !state || state.phase !== 'play') return;
+    showOverlay(`<h3>Lower your white flag?</h3>
+      <p class="muted" style="text-align:center;margin:6px 0 12px">You're back in the game. The table sees your flag come down.</p>
+      <button class="btn full" style="padding:16px;font-size:16px" onclick="CATAN.lowerFlag()">⬇ Lower it, keep playing</button>
+      <button class="btn wood full" style="padding:14px;font-size:15px;margin-top:9px" onclick="CATAN.close()">Keep it up</button>`);
+    const o = $('overlay'); o.onclick = (e) => { if (e.target === o) CATAN.close(); };
+  };
   window.CATAN.exitGame = () => {
     // ensure no higher layer (radial root sits at z-31, above the overlay) eats taps
     const rr = $('radialroot'); if (rr) { rr.classList.remove('open'); rr.classList.add('hidden'); }
