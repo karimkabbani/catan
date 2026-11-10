@@ -1359,6 +1359,12 @@
   .lobrow .tnm{display:flex; align-items:center; gap:8px; min-width:0;}
   .lobrow .tnm > span:nth-child(2){overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}   /* the name (a pref dot may follow) */
   /* ===== broadcast message banner (top-centre, ephemeral) ===== */
+  /* v254: shown when this build is below version.json's minimum (APPGATE in app.js) */
+  #appgate{position:fixed; left:50%; top:calc(var(--sa-t, 0px) + 58px); transform:translateX(-50%); z-index:10000; display:none;
+    align-items:center; gap:12px; max-width:92vw; padding:8px 8px 8px 16px; border-radius:22px; color:#f4e7c8; font-size:14px;
+    background:linear-gradient(180deg, rgba(44,30,15,0.98), rgba(24,16,7,0.98)); border:1px solid var(--gold-edge); box-shadow:0 6px 22px rgba(0,0,0,0.55);}
+  #appgate.show{display:flex;}
+  #appgate .btn{margin:0; padding:8px 16px; white-space:nowrap;}
   #bctoast{position:fixed; left:50%; top:calc(var(--sa-t) + 10px); transform:translateX(-50%) translateY(-14px);
     z-index:34; display:flex; align-items:center; gap:8px; max-width:86vw; pointer-events:none;
     background:linear-gradient(180deg, rgba(44,30,15,0.97), rgba(24,16,7,0.97)); border:1px solid var(--gold-edge);
@@ -2160,7 +2166,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v253';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v254';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -2436,6 +2442,7 @@
 
   // ---- dispatch ------------------------------------------------------------
   function dispatch(action, byColor) {
+    if (APPGATE.outdated && online && !PRACTICE.on && !ARCHIVE) { APPGATE.show(); toast('Update the app to keep playing'); return false; }
     const actor = byColor || activeColor();   // capture NOW — actions like endTurn change who's active
     const r = C.applyAction(state, action, actor);
     if (!r.ok) { toast(r.error); return false; }
@@ -6106,7 +6113,7 @@
       if (!data || !data.state || NET.code !== code) return;
       const s2 = JSON.parse(JSON.stringify(data.state));
       if (mut(s2) === false) { if (data.version > NET.version) { NET.version = data.version; applyRemoteState(data.state); } return; }
-      s2._w = NET.myId; s2._av = APP_VERSION; s2._a = 'rps';
+      s2._w = NET.myId; s2._av = APP_VERSION; s2._a = 'rps'; s2._n = writeNonce();
       const { data: upd, error: uerr } = await netTimeout(c.from('games').update({ state: s2, version: data.version + 1 }).eq('code', code).eq('version', data.version)).select('version');
       if (uerr) return NET.lost(code);
       if (upd && upd.length) { if (NET.code !== code) return; if (data.version + 1 > NET.version) NET.version = data.version + 1; applyRemoteState(s2); return; }
@@ -7297,7 +7304,7 @@
         if (stillHere() && data.version > NET.version) { NET.version = data.version; applyRemoteState(data.state); }
         return;
       }
-      s2._w = NET.myId; s2._av = APP_VERSION; s2._a = 'meta';   // flag, vote, rematch, gg: never touches cards
+      s2._w = NET.myId; s2._av = APP_VERSION; s2._a = 'meta'; s2._n = writeNonce();   // flag, vote, rematch, gg: never touches cards
       const phase = s2.phase === 'ended' ? 'ended' : 'playing';
       const { data: upd, error: uerr } = await netTimeout(c.from('games')
         .update({ state: s2, version: data.version + 1, phase }).eq('code', code).eq('version', data.version)).select('version');
@@ -8308,7 +8315,7 @@
         if (!r.ok) { applyRemoteState(data.state); if (data.version > this.version) this.version = data.version; if (/Trade$|Exchange$/.test(action.type)) toast(action.type === 'bankExchange' ? "Exchange didn't go through: " + r.error : r.error); return; }
         if (data.state.sv && r.state.phase !== 'ended') r.state.sv = data.state.sv;   // keep a live surrender vote across moves
         r.state._w = this.myId;   // who wrote this row: my own echoes are skipped while my later moves are still saving (onRow)
-        r.state._av = APP_VERSION; r.state._a = action.type;   // app version + move, for the database's audit log (server/migrate-audit.sql)
+        r.state._av = APP_VERSION; r.state._a = action.type; r.state._n = writeNonce();   // app version + move, for the database's audit log (server/migrate-audit.sql)
         // v253: never save a state where cards appeared or vanished (the database refuses it too). Stay on the server's copy.
         const bad = cardProblems(r.state);
         if (bad && !cardProblems(data.state)) { applyRemoteState(data.state); if (data.version > this.version) this.version = data.version; toast("That move didn't add up, so it wasn't saved"); console.warn('card check refused', action, bad); return; }
@@ -8333,6 +8340,49 @@
     },
   };
 
+  // v254: a fresh tag on every save. A build older than v254 copies the previous save's tags, so an unchanged (or
+  // missing) tag tells the database's audit log the save came from an old build (server/migrate-audit-2.sql).
+  function writeNonce() { return Math.random().toString(36).slice(2, 10); }
+  // v254: minimum build. version.json {"min": "vNNN"} is bumped by hand only for a release that matters for the game's
+  // integrity (a cosmetic deploy leaves it alone, so nobody is reloaded mid-game for it). A phone below it can't make
+  // moves, sees an "Update" bar, and reloads by itself at a calm moment (not on its turn, not in a countdown); a reload
+  // mid-game walks straight back into the game (LOBBY.join). At most one automatic reload per 2 minutes, so a phone that
+  // gets the old build again (offline) never loops.
+  const APPGATE = {
+    outdated: false, checkedAt: 0,
+    num: (v) => parseInt(String(v || '').replace(/[^0-9]/g, ''), 10) || 0,
+    check(force) {
+      if (!force && Date.now() - this.checkedAt < 60000) return;
+      this.checkedAt = Date.now();
+      fetch('version.json?x=' + Date.now(), { cache: 'no-store' }).then((r) => r.json()).then((c) => {
+        const was = this.outdated;
+        this.outdated = !!(c && c.min && this.num(c.min) > this.num(APP_VERSION));
+        if (this.outdated) { this.show(); this.maybeReload(); } else if (was) this.hide();
+      }).catch(() => { });
+    },
+    calm() {
+      if (cdRunning || document.hidden) return false;
+      if (document.activeElement && /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) return false;
+      return !(NET.started && state && state.phase !== 'ended' && isMyTurn());
+    },
+    maybeReload() {
+      if (!this.outdated || !this.calm()) return;
+      let last = 0; try { last = Number(sessionStorage.getItem('catanGateReload')) || 0; } catch (_) { }
+      if (Date.now() - last < 120000) return;
+      try { sessionStorage.setItem('catanGateReload', String(Date.now())); } catch (_) { }
+      location.reload();
+    },
+    show() {
+      let el = $('appgate');
+      if (!el) {
+        el = document.createElement('div'); el.id = 'appgate';
+        el.innerHTML = '<span>A new version is out. Update to keep playing.</span><button class="btn wood" onclick="location.reload()">Update</button>';
+        document.body.appendChild(el);
+      }
+      el.classList.add('show');
+    },
+    hide() { const el = $('appgate'); if (el) el.classList.remove('show'); },
+  };
   // v253: the same card rules the database guard checks (server/migrate-audit.sql): each resource across hands + bank
   // is 19, nothing below 0, knights (played included) 14, VP cards 5, the other dev cards at most 2 (played ones aren't
   // kept). Returns null when all is well, else what's off.
@@ -8622,7 +8672,7 @@
   };
   // A single 3s heartbeat while connected: expire stale presence-grace entries.
   let heartbeat = null;
-  function startHeartbeat() { if (heartbeat) return; heartbeat = setInterval(() => { try { LOBBY.track(); LOBBY.pollPresence(); if (!NET.started) { pollLobbyChat(); LOBBY.findMyGame(); } netWatchdog(); } catch (_) { } }, 5000); }
+  function startHeartbeat() { if (heartbeat) return; heartbeat = setInterval(() => { try { APPGATE.check(); APPGATE.maybeReload(); LOBBY.track(); LOBBY.pollPresence(); if (!NET.started) { pollLobbyChat(); LOBBY.findMyGame(); } netWatchdog(); } catch (_) { } }, 5000); }
   // The game must keep hearing from the server. If this phone has heard nothing for 12s it rebuilds its
   // connection; after 40s it reloads (and walks straight back into the game: LOBBY.join).
   function netWatchdog() {
@@ -8642,6 +8692,7 @@
     if (NET.started) renderBanner(); else { lobbySig = null; renderLobby(); }
   }
   document.addEventListener('visibilitychange', onWake);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) APPGATE.check(); });
   window.addEventListener('focus', onWake);
   window.addEventListener('online', onWake);
   // ===== lobby chat — ONE continuous group conversation shown in BOTH the games list and the

@@ -25,7 +25,8 @@ create table if not exists public.game_audit (
   hands     jsonb,     -- per player, per resource: + gained / - lost; "dev": change in dev cards held
   bank      jsonb,     -- the bank's change
   problems  jsonb,     -- what didn't add up (null = all fine)
-  refused   boolean not null default false
+  refused   boolean not null default false,
+  old_build boolean not null default false   -- v254: saved by a build older than v254 (writer/app/action unknown)
 );
 create index if not exists game_audit_code_at on public.game_audit (code, at desc);
 alter table public.game_audit enable row level security;   -- no policies: browsers can't read or write it
@@ -64,13 +65,15 @@ create or replace function public.games_card_guard() returns trigger
 language plpgsql security definer set search_path = public as $$
 declare
   bad jsonb; oldbad jsonb; hands jsonb := '{}'::jsonb; bankd jsonb := '{}'::jsonb;
-  pn jsonb; po jsonb; diff jsonb; r text; delta int; same_game boolean;
+  pn jsonb; po jsonb; diff jsonb; r text; delta int; same_game boolean; old_build boolean := false;
 begin
   if new.state is null then return new; end if;
   bad := public.catan_card_problems(new.state);
   same_game := tg_op = 'UPDATE' and old.state is not null and old.state->'board' = new.state->'board';
   if same_game then
     oldbad := public.catan_card_problems(old.state);
+    -- v254+ puts a fresh tag (_n) on every save; an older build copies the previous save's tags
+    old_build := new.state->>'_n' is null or new.state->>'_n' is not distinct from old.state->>'_n';
     for pn in select * from jsonb_array_elements(new.state->'players') loop
       select p into po from jsonb_array_elements(old.state->'players') p where p->>'color' = pn->>'color';
       diff := '{}'::jsonb;
@@ -89,11 +92,13 @@ begin
     end loop;
   end if;
   if bad is not null or hands <> '{}'::jsonb or bankd <> '{}'::jsonb then
-    insert into public.game_audit (code, v_old, v_new, writer, app, action, turn_of, hands, bank, problems, refused)
+    insert into public.game_audit (code, v_old, v_new, writer, app, action, turn_of, hands, bank, problems, refused, old_build)
     values (new.code, case when tg_op = 'UPDATE' then old.version end, new.version,
-            new.state->>'_w', new.state->>'_av', new.state->>'_a',
+            case when old_build then null else new.state->>'_w' end,
+            case when old_build then 'before v254' else new.state->>'_av' end,
+            case when old_build then null else new.state->>'_a' end,
             new.state->'order'->>(coalesce((new.state->>'currentPlayerIndex')::int, 0)),
-            nullif(hands, '{}'::jsonb), nullif(bankd, '{}'::jsonb), bad, bad is not null and oldbad is null);
+            nullif(hands, '{}'::jsonb), nullif(bankd, '{}'::jsonb), bad, bad is not null and oldbad is null, old_build);
   end if;
   if random() < 0.002 then delete from public.game_audit where at < now() - interval '30 days'; end if;
   -- refuse a write that breaks the card rules, unless the game was already broken before it

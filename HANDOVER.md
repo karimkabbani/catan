@@ -1286,6 +1286,21 @@ Status as of 2026-06-30. ✅ shipped · ◐ partial · ☐ pending.
    anon can't read the log; simulation test now also checks the dev-card rules (35/35); headless fake-server run 18/18
    incl. an injected card-losing engine (not saved, phone back on server copy). To investigate a report:
    `select * from game_audit where code = 'TABLE' order by at desc limit 50;`
+88. 🟡 **v254 (2026-11-10, built on branch, NOT deployed; SQL `server/migrate-audit-2.sql` not run yet): outdated builds
+   are blocked.** The update path (index.html `controllerchange` -> `catanUpdatePending`) never reloads while `catanBusy()`,
+   which is true whenever the phone sits at a table, so a phone parked at the Main Game could run an old build for days.
+   New `prototype/version.json` `{ "min": "vNNN" }` (network-first in sw.js). `APPGATE` in app.js reads it every 60 s (5 s
+   heartbeat, throttled) and on every return to the app; below the minimum: an "A new version is out. Update to keep
+   playing." bar (#appgate, top, above everything), `dispatch` refuses moves online, and the phone reloads by itself at a
+   calm moment (not its turn, not a countdown, not typing; at most once per 2 min via sessionStorage so an offline
+   phone can't loop). A mid-game reload walks back into the game (LOBBY.join). **Bump `min` by hand only for a release
+   that matters for the game's integrity**; cosmetic deploys leave it, so nobody is reloaded mid-game for them.
+   Builds before v254 can't read it; for those, every save now carries a fresh tag `state._n` (writeNonce), and the
+   database marks a save whose tag is missing or copied as `old_build` with app "before v254" and no writer/move, instead
+   of naming the previous phone. migrate-audit.sql is updated to include this for fresh installs. Verified: migration on
+   local Postgres 16 on top of the v253 install (twice) and fresh; headless: gate detects min v255, bar shows, moves
+   blocked, no reload on own turn, reloads when not, no reload loop, current build unblocked (7/7); exchange/sync suite
+   19/19 incl. a fresh tag on every save.
 ### Also shipped since multiplayer (2026-06)
 
 - **Concurrent games (table list).** The single hardcoded `'TABLE'` is gone — each game is a
