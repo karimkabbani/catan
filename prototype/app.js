@@ -3663,7 +3663,7 @@
   //      Bot moves go through applyRemoteState, the same path a real remote player's move takes.
   const PRACTICE = { room: false, on: false, bots: [], timer: null, turnKey: null, acts: 0, busyUntil: 0, fake: {}, talkAt: 0 };
   const PRACTICE_BOTS = [{ name: 'Zaatar', id: 'bot-zaatar' }, { name: 'Kibbeh', id: 'bot-kibbeh' }, { name: 'Tabbouleh', id: 'bot-tabbouleh' }];   // v249: three, so all four corners are in use
-  const PRACTICE_SAY = { robbed: ['sorry habibi', 'haha', 'tfeh'], won: ['yalla', 'fayyish'], seven: ['wleeee', 'ma32oul?!'] };
+  const PRACTICE_SAY = { robbed: ['sorry habibi', 'haha', 'tfeh'], won: ['yalla', 'fayyish'], seven: ['wleeee', 'ma32oul?!'], offer: ['yalla trade?', 'good deal habibi', 'anyone?'] };
   function practiceAllowed() { return !!(AUTH.me && /^test2?$/i.test(String(AUTH.me.name || '').trim())); }
   function practiceRoomCode() { return 'P' + String((AUTH.me && AUTH.me.id) || 'x').replace(/[^A-Za-z0-9]/g, '').slice(0, 10); }
   function isBot(color) { return PRACTICE.on && PRACTICE.bots.indexOf(color) >= 0; }
@@ -3748,7 +3748,41 @@
       const from = s.players.find((p) => p.color === t.from), pick = RES.filter((r) => !(t.want[r]) && from && from.resources[r] > 0).sort((a, b) => from.resources[b] - from.resources[a])[0];
       if (pick) return { type: 'counterTrade', give: { [pick]: 1 }, want: { ...t.want }, tid: t.id };
     }
+    if (!can && !isOpenAsk(t) && Math.random() < 0.6) {   // short of what I asked: swap the missing cards for its biggest piles (a counter)
+      const want = {}; let ok = true;
+      RES.forEach((r) => {
+        const n = t.want[r] || 0; if (!n) return;
+        const have = Math.min(n, me.resources[r] || 0), miss = n - have; if (have) want[r] = (want[r] || 0) + have;
+        if (!miss) return;
+        const sub = RES.filter((x) => !t.want[x] && !(t.give && t.give[x]) && (me.resources[x] || 0) - (want[x] || 0) >= miss).sort((a, b) => me.resources[b] - me.resources[a])[0];
+        if (sub) want[sub] = (want[sub] || 0) + miss; else ok = false;
+      });
+      if (ok) return { type: 'counterTrade', give: { ...t.give }, want, tid: t.id };
+    }
     return (can && !isOpenAsk(t) && Math.random() < 0.6) ? { type: 'acceptTrade', tid: t.id } : { type: 'declineTrade', tid: t.id };
+  }
+  // the computers offer ME trades on their turns, cycling the three kinds the trade screens handle: one I can't
+  // cover (swap the missing card and counter), an open request (name my price), and a plain one I can accept
+  function botOffer(s, col) {
+    const me = s.players.find((p) => p.color === col), hum = s.players.find((p) => p.color === PRACTICE.me);
+    if (!me || !hum) return null;
+    const big = RES.slice().sort((a, b) => me.resources[b] - me.resources[a])[0]; if (!me.resources[big]) return null;
+    const has = RES.filter((r) => r !== big && hum.resources[r] > 0).sort((a, b) => hum.resources[b] - hum.resources[a]);
+    const lacks = RES.filter((r) => r !== big && !hum.resources[r]);
+    const kind = PRACTICE.offerN % 3;
+    if (kind === 0 && lacks.length) return { type: 'offerTrade', give: { [big]: 1 }, want: { [lacks[(Math.random() * lacks.length) | 0]]: 1 } };
+    if (kind === 1 && has.length) return { type: 'offerTrade', give: {}, want: { [has[0]]: 1 } };
+    if (has.length) return { type: 'offerTrade', give: { [big]: 1 }, want: { [has[(Math.random() * has.length) | 0]]: 1 } };
+    return null;
+  }
+  // a computer's offer to me: the other computers pass at once; it waits for my answer (up to 45 s), then trades on
+  // my terms (accept or counter) or withdraws (I declined, or no answer)
+  function botOfferStep(pt) {
+    for (const b of PRACTICE.bots) if (b !== pt.from && !pt.declinedBy.includes(b) && !pt.acceptedBy.includes(b)) return [b, { type: 'declineTrade', tid: pt.id }];
+    const ctr = pt.counters && pt.counters[myColor];
+    if (ctr || pt.acceptedBy.includes(myColor)) return [pt.from, { type: 'confirmTrade', with: myColor, tid: pt.id, cv: ctr ? ctr.v : 0 }];
+    if (pt.declinedBy.includes(myColor) || Date.now() - (PRACTICE.offerAt || 0) > 45000) return [pt.from, { type: 'cancelTrade' }];
+    return null;   // waiting for me
   }
   function botSay(color, list) {
     if (!state || Math.random() < 0.4) return;
@@ -3766,16 +3800,29 @@
     if (!a && state.pendingTrade && state.pendingTrade.from === myColor) {
       for (const b of PRACTICE.bots) { a = botTradeAnswer(state, b); if (a) { col = b; break; } }
     }
+    if (!a && state.pendingTrade && isBot(state.pendingTrade.from)) {   // a computer's offer to me
+      const st = botOfferStep(state.pendingTrade); if (!st) return;
+      [col, a] = st;
+    }
     if (!a) {
       const cur = activeColor();
       if (isBot(cur)) {
         const k = state.phase + ':' + state.currentPlayerIndex + ':' + state.setupIndex + ':' + (state.rolls ? state.rolls.length : 0);
         if (k !== PRACTICE.turnKey) { PRACTICE.turnKey = k; PRACTICE.acts = 0; }
-        col = cur; a = botMove(state, col, PRACTICE.acts);
+        col = cur;
+        if (state.phase === 'play' && state.turnPhase === 'main' && PRACTICE.offeredKey !== k && Math.random() < 0.7) {   // most turns, offer me a trade first
+          PRACTICE.offeredKey = k; a = botOffer(state, col);
+        }
+        if (!a) a = botMove(state, col, PRACTICE.acts);
       }
     }
     if (!a) return;
-    const r = C.applyAction(state, a, col); if (!r.ok) return;
+    const r = C.applyAction(state, a, col);
+    if (!r.ok) {   // a trade that can no longer go through (cards moved meanwhile): the computer withdraws it
+      if (a.type === 'confirmTrade' && state.pendingTrade && isBot(state.pendingTrade.from)) { const c2 = C.applyAction(state, { type: 'cancelTrade' }, col); if (c2.ok) applyRemoteState(c2.state); }
+      return;
+    }
+    if (a.type === 'offerTrade') { PRACTICE.offerAt = Date.now(); PRACTICE.offerN++; botSay(col, PRACTICE_SAY.offer); }
     if (state.phase === 'play' && state.turnPhase === 'main') PRACTICE.acts++;
     const pre = state;
     applyRemoteState(r.state);
@@ -3815,30 +3862,27 @@
       const mi = s.order.indexOf(me); if (mi >= 0 && s.turnPhase === 'roll') s.currentPlayerIndex = mi;
     }
     s.pendingTrade = null; s.log = (s.log || []).slice(-5);
-    practiceMonopolySetup(s);
+    practiceTradeSetup(s);
     return s;
   }
-  // Monopoly try-out (mid-game only): "test" lands with a Monopoly card ready to play and the computers holding a
-  // pile of Wheat; "test2" lands holding a pile of Brick, and the computer right after them plays Monopoly on it
-  // on its first move. Bank cards move to the players, so the totals stay true.
-  function practiceMonopolySetup(s) {
+  // Trade try-out (mid-game only). "test" lands as on game night: holding ore, and nobody at the table has any wood,
+  // so asking for wood, the refusal lines and open requests can be tried. "test2" lands with no wheat and no wood,
+  // so the computers' offers (from the next turn) include one they can't cover. Cards move to and from the bank, so
+  // the totals stay true. (The Monopoly try-out this replaced is in git history, v258.)
+  function practiceTradeSetup(s) {
     if (s.phase !== 'play') return;
     const nm = String((AUTH.me && AUTH.me.name) || '').trim().toLowerCase();
     const me = s.players.find((p) => p.color === PRACTICE.me); if (!me) return;
-    const give = (p, r, n) => { for (let k = 0; k < n && s.bank[r] > 0; k++) { s.bank[r]--; p.resources[r]++; } };
-    const takeDev = (card) => { const i = (s.devDeck || []).indexOf(card); if (i >= 0) s.devDeck.splice(i, 1); };
-    s.hasPlayedDevCardThisTurn = false;
+    const set = (p, r, n) => { while (p.resources[r] > n) { p.resources[r]--; s.bank[r]++; } while (p.resources[r] < n && s.bank[r] > 0) { s.bank[r]--; p.resources[r]++; } };
     if (nm === 'test') {
-      takeDev('monopoly'); me.devCards.push('monopoly');
-      s.players.forEach((p) => { if (p.color !== me.color) give(p, 'wheat', 2 + ((Math.random() * 2) | 0)); });
-      PRACTICE.hint = 'You hold a Monopoly card: roll, then play it from your cards';
+      s.players.forEach((p) => { if (p.color !== me.color) set(p, 'wood', 0); });
+      set(me, 'wood', 0); set(me, 'ore', 3); set(me, 'wheat', 2); set(me, 'sheep', 1); set(me, 'brick', 1);   // 7 cards: a 7 costs nothing
+      // land already rolled (a 5, paying nothing): the automatic roll could hand a computer some wood
+      if (C.currentColor(s) === me.color && s.turnPhase === 'roll') { s.turnPhase = 'main'; s.hasRolledThisTurn = true; s.dice = [2, 3]; }
+      PRACTICE.hint = 'Nobody has wood. Try trading for some';
     } else if (nm === 'test2') {
-      const nextCol = s.order[(s.order.indexOf(me.color) + 1) % s.order.length];
-      const bot = s.players.find((p) => p.color === nextCol);
-      if (!bot) return;
-      takeDev('monopoly'); bot.devCards.push('monopoly');
-      give(me, 'brick', 5);
-      PRACTICE.hint = bot.name + ' is holding a Monopoly card. End your turn and watch';
+      set(me, 'wood', 0); set(me, 'wheat', 0); set(me, 'ore', 2); set(me, 'sheep', 3); set(me, 'brick', 2);
+      PRACTICE.hint = 'The computers will offer you trades. End your turn and watch';
     }
   }
   function practiceSeats() {
@@ -3856,7 +3900,7 @@
     try { s = mid ? practiceMidGame(players, target) : C.createGame({ id: 'table', players, seed: (Math.random() * 1e9) | 0, targetPoints: target, randomFirst: true }); }
     catch (e) { toast('Practice failed: ' + e.message); return; }
     s.whoStarts = 'random'; s.friendly = true;
-    PRACTICE.on = true; PRACTICE.room = false; PRACTICE.turnKey = null; PRACTICE.busyUntil = Date.now() + 1500;
+    PRACTICE.on = true; PRACTICE.room = false; PRACTICE.turnKey = null; PRACTICE.busyUntil = Date.now() + 1500; PRACTICE.offerN = 0; PRACTICE.offeredKey = null;
     LV.sheet = null; online = true; myColor = PRACTICE.me; gameSeats = seats; NET.started = true; NET.version = 0;
     victoryShownFor = null; endView = false;
     if (!PRACTICE.timer) PRACTICE.timer = setInterval(practiceTick, 450);
