@@ -3231,6 +3231,7 @@
   const LIVE = {
     cfg: null, lib: null, libP: null,
     room: null, roomName: null, connecting: false, fails: 0, retryAt: 0, joinedAt: 0, gen: 0, blocked: null, downNoted: false, wasLive: false,
+    hidAt: 0, parked: null,   // background rule: when the app went to the background; the call we left because of it
     mic: false, cam: false,
     peers: {},        // identity -> { deaf } from their data messages
     mutedForMe: {},   // identity -> true: I muted them (only on my phone)
@@ -3246,7 +3247,12 @@
     return !!(window.RTCPeerConnection && navigator.mediaDevices);
   }
   function voiceDown() { return !voiceOn() || !LIVE.room; }   // no call right now: the walkie-talkie button is the fallback
+  // background rule: 3 min with the app in the background (phone locked, in a pocket, another app) and we leave the call,
+  // so a forgotten phone stops using call minutes and stops listening. Back in the app = rejoin, mic off.
+  const VOICE_AWAY_MS = 3 * 60 * 1000;
+  function voiceAway() { return document.hidden && LIVE.hidAt > 0 && Date.now() - LIVE.hidAt >= VOICE_AWAY_MS; }
   function voiceWanted() {
+    if (voiceAway()) return null;
     if (LIVE.cfg && voiceOn() && AUTH.me && AUTH.me.token && (PRACTICE.room || PRACTICE.on)) return 'table-' + practiceRoomCode();   // practice: a call of its own
     if (!LIVE.cfg || !voiceOn() || !AUTH.me || !AUTH.me.token || !LOBBY.table || ARCHIVE) return null;
     const code = String(LOBBY.table).replace(/[^A-Za-z0-9]/g, '').slice(0, 12);
@@ -3262,7 +3268,8 @@
   function voiceSync() {
     document.body.classList.toggle('vlive', !!(LIVE.cfg && AUTH.me && voiceOn()));   // bigger corners etc. only for players with voice
     const want = voiceWanted();
-    if (LIVE.roomName && LIVE.roomName !== want) voiceLeave();
+    if (LIVE.roomName && LIVE.roomName !== want) { if (voiceAway()) voicePark(); else voiceLeave(); }
+    if (LIVE.parked && !document.hidden && LIVE.parked !== want) { LIVE.parked = null; LIVE.mutedForMe = {}; LIVE.autoDone = null; }   // came back somewhere else
     if (want && !LIVE.room && !LIVE.connecting && actx && Date.now() >= LIVE.retryAt) voiceJoin(want);
   }
   setInterval(voiceSync, 2000);
@@ -3291,6 +3298,7 @@
       LIVE.room = room; LIVE.joinedAt = Date.now(); LIVE.fails = 0; LIVE.connecting = false; LIVE.downNoted = false;
       try { await room.startAudio(); } catch (_) { }
       voiceSendState(); voiceVolumes(); voiceRefresh();
+      if (LIVE.parked === name) { LIVE.parked = null; toast('Voice back · your mic is off'); }
       voiceAfterJoin();
     } catch (e) {
       if (room) { try { room.disconnect(); } catch (_) { } }
@@ -3312,6 +3320,12 @@
     Object.keys(LIVE.vids).forEach((k) => { try { LIVE.vids[k].remove(); } catch (_) { } }); LIVE.vids = {};
     if (r) { try { r.disconnect(); } catch (_) { } }
     voiceRefresh();
+  }
+  // leaving because of the background rule: like voiceLeave, but the rejoin keeps the mic off (autoDone) and my mutes
+  function voicePark() {
+    const name = LIVE.roomName, done = LIVE.autoDone, mine = LIVE.mutedForMe;
+    voiceLeave();
+    LIVE.parked = name; LIVE.autoDone = done; LIVE.mutedForMe = mine; LIVE.wasLive = false;
   }
   function voiceWire(room, LK) {
     const E = LK.RoomEvent, again = () => { voiceVolumes(); voiceRefresh(); };
@@ -3363,6 +3377,8 @@
   function voiceLiveCam() { const lp = LIVE.room && LIVE.room.localParticipant; try { return !!(lp && lp.isCameraEnabled); } catch (_) { return false; } }
   // locking the phone / switching apps: mic and camera go off, and stay off on return (no surprise broadcast)
   document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { LIVE.hidAt = Date.now(); setTimeout(voiceSync, VOICE_AWAY_MS + 500); }   // the 2 s check is slowed in the background
+    else { LIVE.hidAt = 0; if (LIVE.parked) setTimeout(voiceSync, 0); }   // rejoin straight away, not at the next 2 s check
     if (document.hidden && LIVE.room && (LIVE.mic || LIVE.cam)) { LIVE.wasLive = true; if (LIVE.cam) voiceSetCam(false); if (LIVE.mic) voiceSetMic(false); }
     if (!document.hidden && LIVE.room) {
       // the background switch-off may not have finished, or may have failed: ask the call itself, not our own flags
