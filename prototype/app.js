@@ -2414,11 +2414,13 @@
       net = Math.max(-cap, Math.min(maxGive, net));
       t.give[r] = net > 0 ? net * ratio : 0; t.want[r] = net < 0 ? -net : 0;
     } else {
-      // give capped by the actor's hand; receive capped by the counterparty (the offerer in a counter, else the
-      // most any other player holds: the bank running dry doesn't stop players trading what they have)
-      let recvCap = Math.max(0, ...state.players.filter((p) => p.color !== tActorColor()).map((p) => p.resources[r] || 0));
+      // give: capped by the actor's hand (a responder's pre-filled give they can't cover stays put, so a swipe up on
+      // it is refused rather than clearing it). Receive from the table: anything, as at a real table (hands are
+      // hidden; nobody holding it just means no or a counter). In a counter: what the offerer holds (they must pay).
+      const giveCap = Math.max(hold, t.give[r] || 0);
+      let recvCap = 19;   // every card of that resource in the game
       if (t.mode === 'respond') { const from = state.players.find((p) => p.color === t.offerFrom); recvCap = from ? (from.resources[r] || 0) : 0; }
-      net = Math.max(-recvCap, Math.min(hold, net));
+      net = Math.max(-recvCap, Math.min(giveCap, net));
       t.give[r] = Math.max(0, net); t.want[r] = Math.max(0, -net);
     }
   }
@@ -2430,7 +2432,52 @@
       return credits >= 1 && credits === wantTot;
     }
     const gt = RES.reduce((n, r) => n + t.give[r], 0), wt = RES.reduce((n, r) => n + t.want[r], 0);
-    return gt > 0 && wt > 0;
+    return wt > 0 && (gt > 0 || online);   // giving nothing = an open request; online only (hotseat responders can't counter)
+  }
+  // an open request: you ask for something without offering anything ("what do you want for it?")
+  function tOpenAsk() { const t = ui.trade; return !!t && t.mode === 'players' && RES.every((r) => !t.give[r]) && RES.some((r) => t.want[r]); }
+  function isOpenAsk(pt) { return !!pt && !RES.some((r) => pt.give && pt.give[r]); }
+  // B: a swipe that changes nothing says why: the column shakes, a short buzz, a line for two seconds
+  function tradeRefused(r, dir) {
+    const t = ui.trade, nm = (RES_NAME[r] || r).toLowerCase(), hold = tActorPlayer().resources[r] || 0;
+    let msg;
+    if (tBankMode()) {
+      const ratio = bankRatio(tActorColor(), r), left = state.bank[r] || 0;
+      if (dir > 0) msg = hold < ratio ? `${ratio} ${nm} buys 1 card (you have ${hold})` : `You only have ${hold} ${nm}`;
+      else msg = left ? `The bank only has ${left} ${nm}` : `The bank has no ${nm} left`;
+    } else if (dir > 0) msg = hold ? `You only have ${hold} ${nm}` : `You have no ${nm}`;
+    else if (t.mode === 'respond') {
+      const from = state.players.find((p) => p.color === t.offerFrom), n = from ? (from.resources[r] || 0) : 0, who = from ? from.name : 'They';
+      msg = n ? `${who} only has ${n} ${nm}` : `${who} has no ${nm}`;
+    } else msg = `That's every ${nm} in the game`;
+    const root = document.querySelector('.traderoot'), col = root && root.querySelector('.tcol[data-r="' + r + '"]');
+    if (!root || !col) return;
+    col.classList.remove('tshake'); void col.offsetWidth; col.classList.add('tshake');
+    try { if (navigator.vibrate) navigator.vibrate(40); } catch (_) { }
+    let f = root.querySelector('.tflash');
+    if (!f) { f = document.createElement('div'); f.className = 'tflash'; root.appendChild(f); }
+    f.textContent = msg; f.classList.remove('on'); void f.offsetWidth;
+    // just above the table (above the faces when they straddle its edge), centred on the column, kept on screen
+    const sheet = root.querySelector('.tradesheet'), tg = root.querySelector('.ttargets');
+    let top = sheet ? sheet.getBoundingClientRect().top : innerHeight / 2;
+    if (tg && tg.offsetParent) top = Math.min(top, tg.getBoundingClientRect().top);
+    const cr = col.getBoundingClientRect(), w = f.offsetWidth;
+    f.style.left = Math.max(8, Math.min(innerWidth - w - 8, cr.left + cr.width / 2 - w / 2)) + 'px';
+    f.style.top = Math.max(4, top - f.offsetHeight - 8) + 'px';
+    f.classList.add('on');
+    clearTimeout(tradeRefused.tm); tradeRefused.tm = setTimeout(() => f.classList.remove('on'), 2200);
+  }
+  // C: in a reply, a card you're asked for but don't have is outlined, ✓ stays hidden, and a line says what to do
+  function tradeShortSync() {
+    const t = ui.trade, root = document.querySelector('.traderoot.respond');
+    if (!t || t.mode !== 'respond' || !root) return;
+    const me = tActorPlayer(), short = RES.filter((r) => (t.give[r] || 0) > (me.resources[r] || 0));
+    root.querySelectorAll('.tcol').forEach((col) => { const g = col.querySelector('.tslot.give'); if (g) g.classList.toggle('short', short.includes(col.dataset.r)); });
+    const m = root.querySelector('.tmsg'); if (!m) return;
+    if (!short.length) { m.classList.add('hidden'); return; }
+    const parts = short.map((r) => { const n = me.resources[r] || 0, nm = (RES_NAME[r] || r).toLowerCase(); return n ? `only ${n} ${nm}` : `no ${nm}`; });
+    m.textContent = `You have ${parts.join(' and ')}. Swap it for something you have, or decline.`;
+    m.classList.remove('hidden');
   }
   function tradeRespondMode() { return !!(ui.trade && ui.trade.mode === 'respond'); }
   function tradeRespValid() {   // the responder must give and receive something, and be able to pay what they give
@@ -2454,6 +2501,7 @@
     const before = tNetOf(r);
     tSetNet(r, before + dir);
     if (tNetOf(r) !== before) playSound('buy', 0.5);   // a card slid into / out of a slot (sfx_button_down)
+    else if (dir) { tradeRefused(r, dir); return; }
     const col = document.querySelector('.traderoot .tcol[data-r="' + r + '"]');
     if (!col) { renderTradeBuilder(); return; }
     const g = ui.trade.give[r], w = ui.trade.want[r];
@@ -2461,8 +2509,10 @@
     setSlot('.tslot.give', g);
     setSlot('.tslot.want', w);
     // middle count = what you'd hold if this trade goes through (gave some, received some)
-    const mid = col.querySelector('.tmid .tcount'); if (mid) mid.textContent = tActorPlayer().resources[r] - g + w;
+    const mid = col.querySelector('.tmid .tcount'); if (mid) mid.textContent = Math.max(0, tActorPlayer().resources[r] - g + w);
     const cf = document.querySelector('.tconfirm'); if (cf) cf.classList.toggle('hidden', !tradeRespondMode() ? !tradeValid() : !tradeRespValid());
+    const title = document.querySelector('.traderoot .ttitle2'); if (title && !tBankMode()) title.textContent = tOpenAsk() ? 'Ask the table' : 'Players';
+    tradeShortSync();
   }
   // switch Players <-> Bank IN PLACE (don't rebuild the sheet, which would replay the
   // slide-up animation): just retitle, move the highlight, show/hide ratios, clear the offer.
@@ -2504,7 +2554,7 @@
     }).join('');
     const valid = tradeValid();
     showFullMenu(`<div class="traderoot">
-      <div class="ttitle2">${bank ? 'Bank' : 'Players'}</div>
+      <div class="ttitle2">${bank ? 'Bank' : tOpenAsk() ? 'Ask the table' : 'Players'}</div>
       <div class="tradesheet${bank ? ' bank' : ''}">
         <div class="ttargets">${targets}</div>
         <div class="tgrid">${cols}</div>
@@ -2582,8 +2632,11 @@
     } else {
       const others = state.players.filter((p) => p.color !== pt.from);
       const allDec = others.length > 0 && others.every((p) => pt.declinedBy.includes(p.color));
-      bar.innerHTML = `<div class="tpoffer">You give ${offerStr(pt.give)} <span class="for">for</span> ${offerStr(pt.want)}</div>
-        <div class="tpmsg">${allDec ? 'Everyone declined.' : 'Tap a ✓ or ? on a corner to trade.'}</div>
+      const open = isOpenAsk(pt), nRep = Object.keys(pt.counters || {}).length;
+      const msg = allDec ? 'Everyone declined.' : !open ? 'Tap a ✓ or ? on a corner to trade.'
+        : nRep ? `${nRep} ${nRep > 1 ? 'replies' : 'reply'}. Tap a ? to see what ${nRep > 1 ? 'each wants' : 'they want'}.` : 'Waiting for their prices…';
+      bar.innerHTML = `<div class="tpoffer">${open ? `You asked for ${offerStr(pt.want)}` : `You give ${offerStr(pt.give)} <span class="for">for</span> ${offerStr(pt.want)}`}</div>
+        <div class="tpmsg">${msg}</div>
         <div class="tpbtns"><button class="btn ghost" onclick="CATAN.tradeReoffer()">New offer</button><button class="btn ghost" onclick="CATAN.tradeCancel()">Cancel</button></div>`;
     }
     bar.style.display = 'flex';
@@ -2594,10 +2647,9 @@
   function renderTradeRespond(pt, meColor) {
     const from = state.players.find((p) => p.color === pt.from), me = state.players.find((p) => p.color === meColor);
     const iAcc = pt.acceptedBy.includes(meColor), iDec = pt.declinedBy.includes(meColor), myCounter = pt.counters && pt.counters[meColor];
-    const canCover = RES.every((r) => (me.resources[r] || 0) >= (pt.want[r] || 0));   // you must be able to give what's asked
-    // No sheet when: auto-declining this turn, you can't cover the ask, or you already responded. In the
-    // first two cases auto-decline so the offerer isn't left waiting; otherwise just step aside and wait.
-    if (ui.autoDeclineIdx === state.currentPlayerIndex || !canCover) {
+    // No sheet when auto-declining this turn (decline so the offerer isn't left waiting) or you already responded.
+    // Short of what's asked, you still see the offer: swap the missing cards for ones you have (a counter) or decline.
+    if (ui.autoDeclineIdx === state.currentPlayerIndex) {
       if (!iDec && !iAcc && !myCounter) dispatch({ type: 'declineTrade', tid: pt.id }, meColor);
       hideTradeSheets(); return;
     }
@@ -2614,16 +2666,18 @@
     const res = HUD.res || {};
     const cols = HAND_ORDER.map((r) => {
       const hold = me.resources[r], g = ui.trade.give[r], w = ui.trade.want[r];
-      return `<div class="tcol" data-r="${r}">${tradeSlotHTML(r, g, 'give')}<div class="tmid"><img src="${res[r] || ''}" alt=""><span class="tcount">${hold - g + w}</span></div>${tradeSlotHTML(r, w, 'want')}</div>`;
+      return `<div class="tcol" data-r="${r}">${tradeSlotHTML(r, g, 'give')}<div class="tmid"><img src="${res[r] || ''}" alt=""><span class="tcount">${Math.max(0, hold - g + w)}</span></div>${tradeSlotHTML(r, w, 'want')}</div>`;
     }).join('');
     const valid = tradeRespValid();
     const avatar = seatAvatarSrc(from, state.players.indexOf(from));
     showFullMenu(`<div class="traderoot respond">
       <div class="tofferhead">
         <div class="tav" style="border-color:${PCOLOR[pt.from]}"><img src="${avatar}" alt="" onerror="this.style.display='none'"></div>
-        <div class="tofferline"><b>${escapeHtml(from.name)}</b> gives ${offerStr(pt.give)} <span class="for">for</span> ${offerStr(pt.want)}</div>
+        <div class="tofferline">${isOpenAsk(pt)
+          ? `<b>${escapeHtml(from.name)}</b> needs ${offerStr(pt.want)} <span class="for">·</span> what do you want for it?`
+          : `<b>${escapeHtml(from.name)}</b> gives ${offerStr(pt.give)} <span class="for">for</span> ${offerStr(pt.want)}`}</div>
       </div>
-      <div class="tradesheet"><div class="tgrid">${cols}</div></div>
+      <div class="tradesheet"><div class="tmsg hidden"></div><div class="tgrid">${cols}</div></div>
       <div class="trespbtns">
         <button class="tautodecline" onclick="CATAN.tradeAutoDecline()" title="Auto-decline every trade this turn"><img class="tadg" src="${(HUD.trade || {}).get || ''}" alt=""><img class="tadv" src="${(HUD.trade || {}).give || ''}" alt=""></button>
         <button class="tclose" onclick="CATAN.tradeRespDecline()"><img src="assets/hud/decline.png" alt="Decline"></button>
@@ -2632,6 +2686,7 @@
     </div>`);
     $('overlay').classList.add('trademode');
     document.body.classList.add('trading');
+    tradeShortSync();
     setTimeout(attachTradeSwipe, 0);
   }
   // the offer this phone is showing (answers carry its id: the engine refuses them if the offer changed meanwhile)
@@ -3689,7 +3744,11 @@
     const t = s.pendingTrade; if (!t || t.from === col || t.acceptedBy.includes(col) || t.declinedBy.includes(col) || (t.counters && t.counters[col])) return null;
     const me = s.players.find((p) => p.color === col);
     const can = RES.every((r) => (me.resources[r] || 0) >= ((t.want && t.want[r]) || 0));
-    return (can && Math.random() < 0.6) ? { type: 'acceptTrade', tid: t.id } : { type: 'declineTrade', tid: t.id };
+    if (can && isOpenAsk(t) && Math.random() < 0.6) {   // an open request: ask for 1 of what the offerer holds most of
+      const from = s.players.find((p) => p.color === t.from), pick = RES.filter((r) => !(t.want[r]) && from && from.resources[r] > 0).sort((a, b) => from.resources[b] - from.resources[a])[0];
+      if (pick) return { type: 'counterTrade', give: { [pick]: 1 }, want: { ...t.want }, tid: t.id };
+    }
+    return (can && !isOpenAsk(t) && Math.random() < 0.6) ? { type: 'acceptTrade', tid: t.id } : { type: 'declineTrade', tid: t.id };
   }
   function botSay(color, list) {
     if (!state || Math.random() < 0.4) return;

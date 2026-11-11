@@ -181,6 +181,9 @@ function legalRoadCount(s: GameState, color: PlayerColor): number {
 function countsOk(o: Partial<Record<Resource, number>> | undefined): boolean {
   return !!o && RESOURCES.every((r) => { const n = o[r] ?? 0; return Number.isInteger(n) && n >= 0; });
 }
+function anyCards(o: Partial<Record<Resource, number>> | undefined): boolean {
+  return !!o && RESOURCES.some((r) => (o[r] ?? 0) > 0);
+}
 
 function tallyOf(s: GameState, color: PlayerColor): Tally {
   s.tally ??= {}; // games saved before tallies existed
@@ -635,6 +638,8 @@ export function applyAction(state: GameState, action: Action, byColor: PlayerCol
     case 'offerTrade': {
       if (s.turnPhase !== 'main') return err('Roll first.');
       if (!countsOk(action.give) || !countsOk(action.want)) return err('Invalid card counts.');
+      // an empty `give` is an open request ("I need wood: what do you want for it?"): it can only be countered
+      if (!anyCards(action.want)) return err('Ask for something.');
       if (!canPay(player, action.give)) return err('You do not have what you are offering.');
       s.tradeSeq = (s.tradeSeq ?? 0) + 1;
       s.pendingTrade = { id: s.tradeSeq, from: cur, give: action.give, want: action.want, acceptedBy: [], declinedBy: [], counters: {} };
@@ -695,6 +700,7 @@ export function applyAction(state: GameState, action: Action, byColor: PlayerCol
 export function acceptTrade(state: GameState, byColor: PlayerColor): ApplyResult {
   if (!state.pendingTrade) return err('There is no trade to accept.');
   if (state.pendingTrade.from === byColor) return err('You cannot accept your own offer.');
+  if (!anyCards(state.pendingTrade.give)) return err('Say what you want for it.');   // an open request
   const other = getPlayer(state, byColor);
   if (!canPay(other, state.pendingTrade.want)) return err('You cannot cover this trade.');
   const s = clone(state);
@@ -717,6 +723,7 @@ export function counterTrade(
   if (state.pendingTrade.from === byColor) return err('You cannot counter your own offer.');
   const me = getPlayer(state, byColor);
   if (!countsOk(give) || !countsOk(want)) return err('Invalid card counts.');
+  if (!anyCards(give) || !anyCards(want)) return err('A counter-offer gives and receives something.');
   if (!canPay(me, want)) return err('You cannot cover your counter-offer.');
   const s = clone(state);
   const t = s.pendingTrade!;
