@@ -409,6 +409,25 @@ describe('trade answers never land on changed terms (v200)', () => {
   });
 });
 
+describe('open requests: ask without offering (trade A-D)', () => {
+  it('an offer may give nothing but must ask for something; it can only be countered', () => {
+    let s = runSetup(createGame({ id: 't', players: [{ color: 'red', name: 'A' }, { color: 'blue', name: 'B' }], seed: 9 }));
+    s = structuredClone(s); s.turnPhase = 'main'; s.hasRolledThisTurn = true;
+    const me = currentColor(s), other = s.order.find((c) => c !== me)!;
+    s.players.forEach((p) => { p.resources = { brick: 3, wood: 3, sheep: 3, wheat: 3, ore: 3 }; });
+    expect(applyAction(s, { type: 'offerTrade', give: { ore: 1 }, want: {} }, me).ok).toBe(false);
+    expect(applyAction(s, { type: 'offerTrade', give: {}, want: {} }, me).ok).toBe(false);
+    let r = applyAction(s, { type: 'offerTrade', give: {}, want: { wood: 1 } }, me); if (!r.ok) throw new Error(r.error);
+    const tid = r.state.pendingTrade!.id;
+    expect(applyAction(r.state, { type: 'acceptTrade', tid }, other).ok).toBe(false);   // would be a gift
+    expect(applyAction(r.state, { type: 'counterTrade', give: {}, want: { wood: 1 }, tid }, other).ok).toBe(false);
+    r = applyAction(r.state, { type: 'counterTrade', give: { ore: 1 }, want: { wood: 1 }, tid }, other); if (!r.ok) throw new Error(r.error);
+    r = applyAction(r.state, { type: 'confirmTrade', with: other, tid, cv: r.state.pendingTrade!.counters![other].v }, me); if (!r.ok) throw new Error(r.error);
+    expect(r.state.players.find((p) => p.color === me)!.resources).toMatchObject({ wood: 4, ore: 2 });
+    expect(r.state.players.find((p) => p.color === other)!.resources).toMatchObject({ wood: 2, ore: 4 });
+  });
+});
+
 describe('confirm never trades on a counter the offerer did not see (v202)', () => {
   it('an accept that turned into a counter meanwhile is refused', () => {
     let s = runSetup(createGame({ id: 't', players: [{ color: 'red', name: 'A' }, { color: 'blue', name: 'B' }], seed: 9 }));
