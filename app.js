@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v261';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v262';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -6888,14 +6888,14 @@
       return Object.values(m).map((p) => ({ key: p.key, name: STATS.nameFor(p.key), gp: p.gp, w: p.w, lr: p.lr, la: p.la, pen: p.pen, winpct: Math.round((100 * p.w) / p.gp), rate: p.w / p.gp, ranked: p.gp >= STATS_MIN_GAMES, avg: p.ps / p.gp }))
         .sort((a, b) => (b.ranked - a.ranked) || b.rate - a.rate || b.w - a.w || a.avg - b.avg);
     },
-    streak(key) {
-      const gs = STATS.games.filter((g) => g.standings.some((s) => pkey(s) === key)).slice().reverse();   // oldest -> newest
+    streak(key, games = STATS.games) {
+      const gs = games.filter((g) => g.standings.some((s) => pkey(s) === key)).slice().reverse();   // oldest -> newest
       let best = 0, run = 0; gs.forEach((g) => { if (pkey(g.standings[0]) === key) { run++; if (run > best) best = run; } else run = 0; });
       return { cur: run, best };
     },
-    h2h(key) {
+    h2h(key, games = STATS.games) {
       const h = {};
-      STATS.games.forEach((g) => { const me = g.standings.findIndex((s) => pkey(s) === key); if (me < 0) return;
+      games.forEach((g) => { const me = g.standings.findIndex((s) => pkey(s) === key); if (me < 0) return;
         g.standings.forEach((s, i) => { const ok = pkey(s); if (ok === key) return; const o = (h[ok] = h[ok] || { w: 0, l: 0, name: STATS.nameFor(ok) }); if (me < i) o.w++; else o.l++; }); });
       return h;
     },
@@ -6909,7 +6909,7 @@
       });
       return Object.values(by);
     },
-    detail(key) { const a = STATS.board(STATS.games).find((p) => p.key === key); return a ? { ...a, ...STATS.streak(key), h2h: STATS.h2h(key) } : null; },
+    detail(key, games = STATS.games) { const a = STATS.board(games).find((p) => p.key === key); return a ? { ...a, ...STATS.streak(key, games), h2h: STATS.h2h(key, games) } : null; },
   };
   // Write one row when a game ends. Every seated client attempts it; a board-fingerprint game_id
   // (identical on every device, stable across reconnects) dedups so exactly one row lands.
@@ -6971,7 +6971,8 @@
   function closePastGame() { ARCHIVE = null; showLobby(); }
   const ROAD_ICO = (ASSETS.pieces && ASSETS.pieces['road-eastwest'] && (ASSETS.pieces['road-eastwest'].yellow || ASSETS.pieces['road-eastwest'].red)) || '';
   let statsSeason = null;   // null = current season, 'all' = all-time
-  let statsCount = null;    // null = all table sizes; 2 | 3 | 4 = only that many players
+  let statsMore = 12;       // recent-games items on screen; "Show more games" adds 12, a new filter resets it
+  let statsCount = 'big';   // 'big' = 3 & 4 players (the default: the group doesn't count 2-player games); null = all sizes; 2 | 3 | 4 = only that many
   function recentRowsHTML(games, limit) {
     const gs = limit ? games.slice(0, limit) : games;
     return gs.map((g) => {
@@ -6998,17 +6999,53 @@
   }
   function stArg(k) { return encodeURIComponent(k).replace(/'/g, '%27'); }
   // cups, rebuilt from the tagged game rows (latest game of each cup = its final standings)
-  function cupsHTML() {
-    const all = STATS.cups(); if (!all.length) return '';
-    const done = all.filter((c) => c.fin), wins = {};
-    done.forEach((c) => { const k = pkey(c.rows[0]); wins[k] = (wins[k] || 0) + 1; });
-    const line = (c) => { const who = escapeHtml(STATS.nameFor(pkey(c.rows[0]))), nm = escapeHtml(cupTitle(c.name, c.of)), d = c.date.replace(/, \d{4}$/, '');
-      return c.fin ? `<div class="st2cupl"><b>${who}</b> won ${nm}<span>${d}</span></div>` : `<div class="st2cupl">${nm} · unfinished, ${c.n} of ${c.of} played<span>${d}</span></div>`; };
-    const tally = Object.keys(wins).sort((x, y) => wins[y] - wins[x]).map((k) => `<span>🏆 ${escapeHtml(STATS.nameFor(k))} ×${wins[k]}</span>`).join('');
-    const last = done[0];
-    const hero = last ? `<div class="st2champ">${stAv(STATS.nameFor(pkey(last.rows[0])), 'md')}<div><b>${escapeHtml(STATS.nameFor(pkey(last.rows[0])))} won ${escapeHtml(cupTitle(last.name, last.of))}</b><span>${last.n < last.of ? last.n + ' of ' + last.of + ' games, ended early' : last.of + ' games'} · ${last.date.replace(/, \d{4}$/, '')}</span></div></div>` : '';
-    const more = all.filter((c) => c !== last).slice(0, 6).map(line).join('');
-    return `<div class="st2sect">CUPS</div><div class="st2cup">${hero}${tally ? `<div class="st2tally">${tally}</div>` : ''}${more}</div>`;
+  // ---- Cups inside Stats (2026-11-12): a cup is one card among the recent games, trophies sit on people,
+  // and each cup has its own page (cup table + its games). Cup points only decide the cup: every cup game
+  // also counts as a normal win or loss on the leaderboard.
+  const TROPHY_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M6 3h12v3h3v3a5 5 0 0 1-5 5h-.3A6 6 0 0 1 13 16.9V19h4v2H7v-2h4v-2.1A6 6 0 0 1 8.3 14H8a5 5 0 0 1-5-5V6h3zm0 5H5v1a3 3 0 0 0 1.1 2.3zm12 0v3.3A3 3 0 0 0 19 9V8z"/></svg>';
+  function gCup(g) { const c = g.standings[0] && g.standings[0].cup; return c && c.id ? c : null; }
+  // cups with a game among `games` (the month / size filter on screen), newest first
+  function cupsIn(games) { const ids = new Set(); games.forEach((g) => { const c = gCup(g); if (c) ids.add(c.id); }); return STATS.cups().filter((c) => ids.has(c.id)); }
+  function cupGames(id) { return STATS.games.filter((g) => { const c = gCup(g); return c && c.id === id; }).sort((a, b) => gCup(b).n - gCup(a).n); }
+  function cupWins(games) { const w = {}; cupsIn(games).filter((c) => c.fin).forEach((c) => { const k = pkey(c.rows[0]); w[k] = (w[k] || 0) + 1; }); return w; }
+  function trophyTag(n) { return n ? `<span class="st2tro" title="Cups won">${TROPHY_SVG}${n > 1 ? n : ''}</span>` : ''; }
+  function cupLine(c) {
+    const champ = STATS.nameFor(pkey(c.rows[0])), second = c.rows[1] ? STATS.nameFor(pkey(c.rows[1])) : '';
+    const len = c.n < c.of ? (c.fin ? `${c.n} of ${c.of} games, ended early` : `${c.n} of ${c.of} played so far`) : `${c.of} games`;
+    return { champ, title: c.fin ? `${champ} won ${cupTitle(c.name, c.of)}` : `${cupTitle(c.name, c.of)} · unfinished`, sub: len + (c.fin && second ? ` · ${second} 2nd` : '') };
+  }
+  function cupCardHTML(c, open) {
+    const L = cupLine(c), gs = cupGames(c.id);
+    const inner = open ? gs.map((g) => { const w = g.standings[0];
+      return `<div class="st2cg"><span class="st2cgn">Game ${gCup(g).n}</span>${stAv(w.n, 'sm')}<span class="st2cgt">${escapeHtml(w.n)} won · beat ${escapeHtml(g.standings.slice(1).map((x) => x.n).join(', '))}</span></div>`; }).join('') : '';
+    return `<button class="st2cc${open ? ' open' : ''}" onclick="CATAN.statsCup('${stArg(c.id)}')"><span class="st2cch"><span class="st2cci">${TROPHY_SVG}</span><span class="st2gt"><b>${escapeHtml(L.title)}</b><span>${escapeHtml(L.sub)}</span></span><span class="st2gw">${stWhen(gs[0] ? gs[0].at : 0)}<span class="st2gv">›</span></span></span>${inner}</button>`;
+  }
+  function statsCupScreen(id) {
+    const c = STATS.cups().find((x) => x.id === id);
+    if (!c) { statsScreen(); return; }
+    const L = cupLine(c), gs = cupGames(id), vp = {};
+    gs.forEach((g) => g.standings.forEach((x) => { const k = pkey(x); vp[k] = (vp[k] || 0) + (x.pts || 0); }));
+    const ptsRule = c.rows.length >= 4 ? '3 for a win, 2 for 2nd, 1 for 3rd' : c.rows.length === 3 ? '3 for a win, 1 for 2nd' : '3 for a win';
+    const table = c.rows.map((r, i) => { const k = pkey(r);
+      return `<button class="st2ct" onclick="CATAN.statsPlayer('${stArg(k)}')"><span class="st2rk">${i + 1}</span>${stAv(STATS.nameFor(k), 'sm')}<b>${escapeHtml(STATS.nameFor(k))}</b><span class="st2ctv">${vp[k] || 0}</span><span class="st2ctp">${r.cup.cp}</span></button>`; }).join('');
+    const games = gs.map((g) => { const w = g.standings[0], open = g.snap && g.gid ? ` onclick="CATAN.openPast('${encodeURIComponent(g.gid)}')"` : '';
+      return `<div class="st2g${open ? ' tap' : ''}"${open}>${stAv(w.n, 'sm')}<span class="st2gt"><b>Game ${gCup(g).n} · ${escapeHtml(w.n)} won</b><span>beat ${escapeHtml(g.standings.slice(1).map((x) => x.n).join(', '))}</span></span><span class="st2gw">${stWhen(g.at)}${open ? '<span class="st2gv">🗺️ board ›</span>' : ''}</span></div>`; }).join('');
+    const unplayed = c.fin ? Array.from({ length: Math.max(0, c.of - c.n) }, (_, i) => `<div class="st2g dim"><span class="st2gt"><b>Game ${c.n + i + 1}</b><span>not played</span></span></div>`).join('') : '';
+    const last = gs[0] ? new Date(gs[0].at) : null;
+    statsOut(`<div class="st2" id="st2player"><div class="st2phead"><button class="lobback" onclick="CATAN.openStats()" title="Back to stats">←</button><h3>${escapeHtml(cupTitle(c.name, c.of))}</h3></div>
+      <div class="st2champ big">${stAv(L.champ, c.fin ? 'xl' : 'md')}<div><b>${c.fin ? escapeHtml(L.champ) + ' is the champion' : 'Not finished yet'}</b><span>${c.of}-game cup${c.n < c.of && c.fin ? ', ended early after ' + c.n : ''}${last ? ' · ' + MONTH_ABBR[last.getMonth()] + ' ' + last.getDate() : ''}</span></div></div>
+      <div class="st2sect"><span>CUP TABLE</span><span class="st2cth"><span>VP</span><span>PTS</span></span></div><div class="st2list">${table}</div>
+      <div class="st2note">Cup points: ${ptsRule}. Ties go to most wins, then most VP. They decide the cup only: every cup game also counts as a normal win or loss on the leaderboard.</div>
+      <div class="st2sect">GAMES</div><div class="st2list">${games}${unplayed}</div></div>`);
+  }
+  // table-size filter, shared by the Stats screen and a player's page: 'big' (3 & 4, default) | null (all) | 2 | 3 | 4
+  function statsSizes() { const sizes = [...new Set(STATS.games.map((g) => g.standings.length))].sort(); if (typeof statsCount === 'number' && !sizes.includes(statsCount)) statsCount = 'big'; return sizes; }
+  function sizeGames(gs) { return statsCount === 'big' ? gs.filter((g) => g.standings.length >= 3) : statsCount ? gs.filter((g) => g.standings.length === statsCount) : gs; }
+  function sizeLabel() { return statsCount === 'big' ? '3 & 4 players' : statsCount ? statsCount + ' players' : 'all sizes'; }
+  function sizeSelHTML(sizes, key) {
+    if (sizes.length < 2) return '';
+    const opt = (v, on, lbl) => `<option value="${v}"${on ? ' selected' : ''}>${lbl}</option>`;
+    return `<select class="st2size" onchange="CATAN.statsCount(this.value === 'big' ? 'big' : this.value ? +this.value : null${key ? `, '${stArg(key)}'` : ''})">${opt('big', statsCount === 'big', '3 & 4 players')}${opt('', statsCount === null, 'All sizes')}${sizes.map((n) => opt(n, statsCount === n, n + ' players')).join('')}</select>`;
   }
   function statsScreen() {
     const back = lvOn() ? '' : `<div class="lobhead"><button class="lobback" onclick="CATAN.showLobby()" title="Back to lobby">←</button><h3>🏆 Stats</h3></div>`;
@@ -7022,9 +7059,8 @@
     let season = isAll ? 'all' : (statsSeason || STATS.curSeason());
     if (!isAll && !STATS.seasons().includes(season)) season = STATS.curSeason();
     const seasonGames = STATS.filter(season);
-    const sizes = [...new Set(STATS.games.map((g) => g.standings.length))].sort();
-    if (statsCount && !sizes.includes(statsCount)) statsCount = null;
-    const games = statsCount ? seasonGames.filter((g) => g.standings.length === statsCount) : seasonGames;
+    const sizes = statsSizes();
+    const games = sizeGames(seasonGames);
     const board = STATS.board(games);
     const selLbl = isAll ? 'All-time' : MONTH_FULL[STATS.monthShort(season)] + ' ' + season.split('-')[0];   // always with the year
     // chips: All-time + months (one year), or All-time + years and that year's months
@@ -7037,45 +7073,56 @@
       chips = chip(isAll, "CATAN.statsSeason('all')", 'All-time') + years.map((y) => chip(!isAll && selYear === y, `CATAN.statsYear(${y})`, y)).join('')
         + (isAll ? '' : STATS.monthsIn(selYear).slice().reverse().map((ym) => chip(season === ym, `CATAN.statsSeason('${ym}')`, STATS.monthShort(ym) + " '" + String(selYear).slice(2))).join(''));
     }
-    const sizeSel = sizes.length > 1 ? `<select class="st2size" onchange="CATAN.statsCount(this.value ? +this.value : null)"><option value="">All sizes</option>${sizes.map((n) => `<option value="${n}"${statsCount === n ? ' selected' : ''}>${n} players</option>`).join('')}</select>` : '';
-    const ranked = board.filter((p) => p.ranked), unranked = board.filter((p) => !p.ranked);
+    const sizeSel = sizeSelHTML(sizes, '');
+    const ranked = board.filter((p) => p.ranked), unranked = board.filter((p) => !p.ranked), tw = cupWins(games);
     const pod = ranked.slice(0, 3), order = [pod[1], pod[0], pod[2]].filter(Boolean);
     const podium = pod.length ? `<div class="st2pod">${order.map((p) => { const i = pod.indexOf(p);
-      return `<button class="st2pc p${i + 1}" onclick="CATAN.statsPlayer('${stArg(p.key)}')">${i === 0 ? '<span class="st2crown">👑</span>' : ''}${stAv(p.name, i === 0 ? 'xl' : 'md')}<b>${escapeHtml(p.name)}</b><span class="st2pct">${p.winpct}%</span><span class="st2sub">${p.w} of ${p.gp}</span><span class="st2step">${i + 1}</span></button>`; }).join('')}</div>` : '';
-    const row = (p, rk) => `<button class="st2row${p.ranked ? '' : ' dim'}" onclick="CATAN.statsPlayer('${stArg(p.key)}')"><span class="st2rk">${rk}</span>${stAv(p.name, 'md')}<span class="st2nm"><b>${escapeHtml(p.name)}</b><span>${p.w} win${p.w === 1 ? '' : 's'} · ${p.gp} game${p.gp === 1 ? '' : 's'}${p.ranked ? '' : ' · not ranked yet'}</span></span>`
+      return `<button class="st2pc p${i + 1}" onclick="CATAN.statsPlayer('${stArg(p.key)}')">${i === 0 ? '<span class="st2crown">👑</span>' : ''}${stAv(p.name, i === 0 ? 'xl' : 'md')}<b>${escapeHtml(p.name)}${trophyTag(tw[p.key])}</b><span class="st2pct">${p.winpct}%</span><span class="st2sub">${p.w} of ${p.gp}</span><span class="st2step">${i + 1}</span></button>`; }).join('')}</div>` : '';
+    const row = (p, rk) => `<button class="st2row${p.ranked ? '' : ' dim'}" onclick="CATAN.statsPlayer('${stArg(p.key)}')"><span class="st2rk">${rk}</span>${stAv(p.name, 'md')}<span class="st2nm"><b>${escapeHtml(p.name)}${trophyTag(tw[p.key])}</b><span>${p.w} win${p.w === 1 ? '' : 's'} · ${p.gp} game${p.gp === 1 ? '' : 's'}${p.ranked ? '' : ' · not ranked yet'}</span></span>`
       + `<span class="st2wp"><b>${p.winpct}%</b><span class="st2bar"><i style="width:${p.winpct}%"></i></span></span><span class="st2go">›</span></button>`;
     const rows = ranked.slice(3).map((p, i) => row(p, i + 4)).join('') + unranked.map((p) => row(p, '–')).join('');
-    const recent = games.slice(0, 12).map((g) => { const w = g.standings[0], cup = w.cup ? ' · 🏆 cup' : '';
-      const open = g.snap && g.gid ? ` onclick="CATAN.openPast('${encodeURIComponent(g.gid)}')"` : '';
-      return `<div class="st2g${open ? ' tap' : ''}"${open}>${stAv(w.n, 'sm')}<span class="st2gt"><b>${escapeHtml(w.n)} won</b><span>beat ${escapeHtml(g.standings.slice(1).map((x) => x.n).join(', '))} · ${g.standings.length} players${cup}</span></span><span class="st2gw">${stWhen(g.at)}${open ? '<span class="st2gv">🗺️ board ›</span>' : ''}</span></div>`; }).join('');
+    // recent games, newest first: a cup's games fold into one card where its latest game sits; the newest cup is open
+    const seen = new Set(), items = [];
+    let firstCup = true;
+    let more = false;
+    for (const g of games) {
+      if (items.length >= statsMore) { more = true; break; }
+      const c = gCup(g);
+      if (c) { if (seen.has(c.id)) continue; seen.add(c.id); const cup = STATS.cups().find((x) => x.id === c.id); if (cup) { items.push(cupCardHTML(cup, firstCup)); firstCup = false; continue; } }
+      const w = g.standings[0], open = g.snap && g.gid ? ` onclick="CATAN.openPast('${encodeURIComponent(g.gid)}')"` : '';
+      items.push(`<div class="st2g${open ? ' tap' : ''}"${open}>${stAv(w.n, 'sm')}<span class="st2gt"><b>${escapeHtml(w.n)} won</b><span>beat ${escapeHtml(g.standings.slice(1).map((x) => x.n).join(', '))} · ${g.standings.length} players</span></span><span class="st2gw">${stWhen(g.at)}${open ? '<span class="st2gv">🗺️ board ›</span>' : ''}</span></div>`);
+    }
+    const recent = items.join('');
     const body = games.length
-      ? `${podium}${rows ? `<div class="st2sect"><span>LEADERBOARD · ${escapeHtml(selLbl.toUpperCase())}</span><span>WIN %</span></div><div class="st2list">${rows}</div>` : ''}
-         <div class="st2note">Ranked by win %, from ${STATS_MIN_GAMES} games. Tap anyone for head to head.</div>
-         ${cupsHTML()}
-         <div class="st2sect">RECENT GAMES · ${escapeHtml(selLbl.toUpperCase())}</div><div class="st2list">${recent}</div>`
-      : `<p class="muted" style="text-align:center;padding:22px 8px">No ${statsCount ? statsCount + '-player ' : ''}games ${isAll ? 'recorded' : 'in ' + selLbl} yet.</p>${cupsHTML()}`;
+      ? `${podium}
+         <div class="st2sect">RECENT GAMES · ${escapeHtml(selLbl.toUpperCase())}</div><div class="st2list">${recent}${more ? '<button class="st2more" onclick="CATAN.statsMore()">Show more games</button>' : ''}</div>
+         ${rows ? `<div class="st2sect"><span>LEADERBOARD · ${escapeHtml(selLbl.toUpperCase())}</span><span>WIN %</span></div><div class="st2list">${rows}</div>` : ''}
+         <div class="st2note">Ranked by win %, from ${STATS_MIN_GAMES} games. Cup games count too. Tap anyone for head to head.</div>`
+      : `<p class="muted" style="text-align:center;padding:22px 8px">No ${statsCount === 'big' ? '3 or 4-player ' : statsCount ? statsCount + '-player ' : ''}games ${isAll ? 'recorded' : 'in ' + selLbl} yet.</p>`;
     statsOut(`${back}<div class="st2">
       <div class="st2filters"><div class="st2chips">${chips}</div>${sizeSel}</div>
       ${body}</div>`);
     requestAnimationFrame(() => { const strip = document.querySelector('.st2chips'), on = strip && strip.querySelector('.on'); if (on) strip.scrollLeft = on.offsetLeft - strip.clientWidth / 2 + on.clientWidth / 2; });
   }
   function statsPlayerScreen(key) {
-    const d = STATS.detail(key);
-    if (!d) { statsScreen(); return; }
-    const mine = STATS.games.filter((g) => g.standings.some((x) => pkey(x) === key));
+    if (!STATS.games.some((g) => g.standings.some((x) => pkey(x) === key))) { statsScreen(); return; }
+    const sizeSel = sizeSelHTML(statsSizes(), key), games = sizeGames(STATS.games), d = STATS.detail(key, games);
+    const head = (name) => `<div class="st2phead"><button class="lobback" onclick="CATAN.openStats()" title="Back to stats">←</button><h3>${escapeHtml(name)}</h3>${sizeSel ? `<span class="st2pfs">${sizeSel}</span>` : ''}</div>`;
+    if (!d) { statsOut(`<div class="st2" id="st2player">${head(STATS.nameFor(key))}<p class="muted" style="text-align:center;padding:22px 8px">No ${escapeHtml(sizeLabel().replace('players', 'player'))} games for ${escapeHtml(STATS.nameFor(key))} yet.</p></div>`); return; }
+    const mine = games.filter((g) => g.standings.some((x) => pkey(x) === key));
     const form = mine.slice(0, 10).reverse().map((g) => pkey(g.standings[0]) === key ? '<i class="w">W</i>' : '<i class="l">L</i>').join('');
     const seconds = mine.filter((g) => g.standings[1] && pkey(g.standings[1]) === key).length;
-    const rank = STATS.board(STATS.games).filter((p) => p.ranked).findIndex((p) => p.key === key);
-    const cups = STATS.cups().filter((c) => c.fin), cupsIn = cups.filter((c) => c.rows.some((r) => pkey(r) === key)), cupsWon = cupsIn.filter((c) => pkey(c.rows[0]) === key).length;
-    const tiles = [[d.avg.toFixed(1), 'AVG PLACE'], [d.cur, 'STREAK · BEST ' + d.best], [cupsIn.length ? cupsWon + ' / ' + cupsIn.length : '–', 'CUPS WON'],
+    const rank = STATS.board(games).filter((p) => p.ranked).findIndex((p) => p.key === key);
+    const cups = cupsIn(games).filter((c) => c.fin), myCups = cups.filter((c) => c.rows.some((r) => pkey(r) === key)), cupsWon = myCups.filter((c) => pkey(c.rows[0]) === key).length;
+    const tiles = [[d.avg.toFixed(1), 'AVG PLACE'], [d.cur, 'STREAK · BEST ' + d.best], [myCups.length ? cupsWon + ' / ' + myCups.length : '–', 'CUPS WON'],
       [d.lr, '🛣️ LONGEST ROAD'], [d.la, '⚔️ LARGEST ARMY'], [seconds, 'TIMES 2ND']].map((t) => `<div class="st2tile"><b>${t[0]}</b><span>${t[1]}</span></div>`).join('');
     const h2h = Object.keys(d.h2h).sort((a, b) => (d.h2h[b].w + d.h2h[b].l) - (d.h2h[a].w + d.h2h[a].l)).map((ok) => { const r = d.h2h[ok], tot = r.w + r.l, pct = tot ? Math.round(100 * r.w / tot) : 50;
       return `<div class="st2h">${stAv(r.name, 'sm')}<b>vs ${escapeHtml(r.name)}</b><span class="st2split"><span class="st2sc"><span class="pos">${r.w}</span> – <span class="neg">${r.l}</span></span><span class="st2sb"><i style="width:${pct}%"></i></span></span></div>`; }).join('');
-    statsOut(`<div class="st2" id="st2player"><div class="st2phead"><button class="lobback" onclick="CATAN.openStats()" title="Back to stats">←</button><h3>${escapeHtml(d.name)}</h3></div>
+    statsOut(`<div class="st2" id="st2player">${head(d.name)}
       <div class="st2ptop">${stAv(d.name, 'xl')}<div class="st2big"><b>${d.winpct}%</b><span>${d.w} win${d.w === 1 ? '' : 's'} from ${d.gp} game${d.gp === 1 ? '' : 's'}${rank >= 0 ? ' · #' + (rank + 1) : ' · not ranked yet'}</span><div class="st2form">${form}</div></div></div>
       <div class="st2tiles">${tiles}</div>
       <div class="st2sect">HEAD TO HEAD</div><div class="st2list">${h2h}</div>
-      <div class="st2note">Head to head: who finished higher, in every game you both played (any table size, all time).</div></div>`);
+      <div class="st2note">Head to head: who finished higher, in every game you both played (${escapeHtml(sizeLabel())}, all time).</div></div>`);
   }
   // ===== Lobby (v170): three tabs (Play · Chat · Stats) over the SAME tables/presence plumbing.
   // Play shows one card for what's happening now; a table is a "room" of four seats. Taking a seat
@@ -7401,10 +7448,12 @@
     voiceMountVideos();   // live camera pictures survive the redraw
   }
   window.CATAN.openStats = () => statsScreen();
-  window.CATAN.statsSeason = (s) => { statsSeason = s; statsScreen(); };
-  window.CATAN.statsYear = (y) => { statsSeason = STATS.latestMonthIn(y) || 'all'; statsScreen(); };   // pick a year -> its most recent month
-  window.CATAN.statsCount = (n) => { statsCount = n; statsScreen(); };
+  window.CATAN.statsSeason = (s) => { statsSeason = s; statsMore = 12; statsScreen(); };
+  window.CATAN.statsYear = (y) => { statsSeason = STATS.latestMonthIn(y) || 'all'; statsMore = 12; statsScreen(); };   // pick a year -> its most recent month
+  window.CATAN.statsCount = (n, key) => { statsCount = n; statsMore = 12; if (key) statsPlayerScreen(decodeURIComponent(key)); else statsScreen(); };
+  window.CATAN.statsMore = () => { const d = $('lobby-dyn'), y = d ? d.scrollTop : 0; statsMore += 12; statsScreen(); if (d) d.scrollTop = y; };
   window.CATAN.statsPlayer = (n) => statsPlayerScreen(decodeURIComponent(n));
+  window.CATAN.statsCup = (id) => statsCupScreen(decodeURIComponent(id));
   window.CATAN.lobbyBack = () => { if (PRACTICE.room) practiceLeave(); else if (LOBBY.table) CATAN.leaveTable(); else CATAN.lobbyLogout(); };
   window.CATAN.lvTab = (t) => {
     LV.tab = t === 'chat' || t === 'stats' ? t : 'play'; LV.sheet = null; lobbySig = null;
