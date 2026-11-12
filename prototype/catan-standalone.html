@@ -9194,7 +9194,7 @@
   const ROAD_ICO = (ASSETS.pieces && ASSETS.pieces['road-eastwest'] && (ASSETS.pieces['road-eastwest'].yellow || ASSETS.pieces['road-eastwest'].red)) || '';
   let statsSeason = null;   // null = current season, 'all' = all-time
   let statsMore = 12;       // recent-games items on screen; "Show more games" adds 12, a new filter resets it
-  let statsCount = null;    // null = all table sizes; 2 | 3 | 4 = only that many players
+  let statsCount = 'big';   // 'big' = 3 & 4 players (the default: the group doesn't count 2-player games); null = all sizes; 2 | 3 | 4 = only that many
   function recentRowsHTML(games, limit) {
     const gs = limit ? games.slice(0, limit) : games;
     return gs.map((g) => {
@@ -9273,8 +9273,8 @@
     if (!isAll && !STATS.seasons().includes(season)) season = STATS.curSeason();
     const seasonGames = STATS.filter(season);
     const sizes = [...new Set(STATS.games.map((g) => g.standings.length))].sort();
-    if (statsCount && !sizes.includes(statsCount)) statsCount = null;
-    const games = statsCount ? seasonGames.filter((g) => g.standings.length === statsCount) : seasonGames;
+    if (typeof statsCount === 'number' && !sizes.includes(statsCount)) statsCount = 'big';
+    const games = statsCount === 'big' ? seasonGames.filter((g) => g.standings.length >= 3) : statsCount ? seasonGames.filter((g) => g.standings.length === statsCount) : seasonGames;
     const board = STATS.board(games);
     const selLbl = isAll ? 'All-time' : MONTH_FULL[STATS.monthShort(season)] + ' ' + season.split('-')[0];   // always with the year
     // chips: All-time + months (one year), or All-time + years and that year's months
@@ -9287,7 +9287,8 @@
       chips = chip(isAll, "CATAN.statsSeason('all')", 'All-time') + years.map((y) => chip(!isAll && selYear === y, `CATAN.statsYear(${y})`, y)).join('')
         + (isAll ? '' : STATS.monthsIn(selYear).slice().reverse().map((ym) => chip(season === ym, `CATAN.statsSeason('${ym}')`, STATS.monthShort(ym) + " '" + String(selYear).slice(2))).join(''));
     }
-    const sizeSel = sizes.length > 1 ? `<select class="st2size" onchange="CATAN.statsCount(this.value ? +this.value : null)"><option value="">All sizes</option>${sizes.map((n) => `<option value="${n}"${statsCount === n ? ' selected' : ''}>${n} players</option>`).join('')}</select>` : '';
+    const opt = (v, on, lbl) => `<option value="${v}"${on ? ' selected' : ''}>${lbl}</option>`;
+    const sizeSel = sizes.length > 1 ? `<select class="st2size" onchange="CATAN.statsCount(this.value === 'big' ? 'big' : this.value ? +this.value : null)">${opt('big', statsCount === 'big', '3 & 4 players')}${opt('', statsCount === null, 'All sizes')}${sizes.map((n) => opt(n, statsCount === n, n + ' players')).join('')}</select>` : '';
     const ranked = board.filter((p) => p.ranked), unranked = board.filter((p) => !p.ranked), tw = cupWins(games);
     const pod = ranked.slice(0, 3), order = [pod[1], pod[0], pod[2]].filter(Boolean);
     const podium = pod.length ? `<div class="st2pod">${order.map((p) => { const i = pod.indexOf(p);
@@ -9312,7 +9313,7 @@
          <div class="st2sect">RECENT GAMES · ${escapeHtml(selLbl.toUpperCase())}</div><div class="st2list">${recent}${more ? '<button class="st2more" onclick="CATAN.statsMore()">Show more games</button>' : ''}</div>
          ${rows ? `<div class="st2sect"><span>LEADERBOARD · ${escapeHtml(selLbl.toUpperCase())}</span><span>WIN %</span></div><div class="st2list">${rows}</div>` : ''}
          <div class="st2note">Ranked by win %, from ${STATS_MIN_GAMES} games. Cup games count too. Tap anyone for head to head.</div>`
-      : `<p class="muted" style="text-align:center;padding:22px 8px">No ${statsCount ? statsCount + '-player ' : ''}games ${isAll ? 'recorded' : 'in ' + selLbl} yet.</p>`;
+      : `<p class="muted" style="text-align:center;padding:22px 8px">No ${statsCount === 'big' ? '3 or 4-player ' : statsCount ? statsCount + '-player ' : ''}games ${isAll ? 'recorded' : 'in ' + selLbl} yet.</p>`;
     statsOut(`${back}<div class="st2">
       <div class="st2filters"><div class="st2chips">${chips}</div>${sizeSel}</div>
       ${body}</div>`);
