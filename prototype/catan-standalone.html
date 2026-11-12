@@ -1004,6 +1004,27 @@
   .trknav:active{transform:scale(0.92);}
   .trknum{color:var(--gold); font-weight:800; font-size:13px; min-width:26px; text-align:center; text-shadow:0 1px 1px #000;}
   #radialtab.pulse{animation:tabpulse 1.5s ease-in-out infinite;}
+  /* End turn, out of the ring: left of the ← menu button, only on your turn after the roll. Tap once to arm (a gold
+     ring counts down 2 s and a label appears above), tap again inside the window to end the turn. */
+  #endtab{position:fixed; right:79px; top:50%; transform:translateY(-50%); z-index:8; width:50px; height:50px; cursor:pointer;
+    touch-action:manipulation; -webkit-tap-highlight-color:transparent; user-select:none; -webkit-user-select:none;}
+  #endtab.hidden{display:none;}
+  #endtab img{width:100%; height:100%; display:block; pointer-events:none; transition:transform .15s, filter .15s;
+    filter:drop-shadow(-2px 3px 5px rgba(0,0,0,0.5));}
+  #endtab:active img{transform:scale(0.94);}
+  #endtab.armed img{transform:scale(1.1); filter:drop-shadow(0 0 10px rgba(233,196,90,0.85)) drop-shadow(-2px 3px 5px rgba(0,0,0,0.5));}
+  #endtab .endring{position:absolute; left:-8px; top:-8px; width:66px; height:66px; transform:rotate(-90deg); pointer-events:none; display:none;}
+  #endtab.armed .endring{display:block;}
+  #endtab .endring circle{fill:none; stroke-width:4;}
+  #endtab .endring .trk{stroke:rgba(0,0,0,0.45);}
+  #endtab .endring .run{stroke:var(--gold); stroke-linecap:round; stroke-dasharray:188.5; stroke-dashoffset:0;}
+  #endtab.armed .endring .run{animation:endrun 2s linear forwards;}
+  @keyframes endrun{to{stroke-dashoffset:188.5;}}
+  #endtab .endlbl{position:absolute; right:-72px; bottom:calc(100% + 16px); white-space:nowrap; pointer-events:none;
+    font-family:var(--serif); font-size:16px; color:var(--gold); padding:7px 14px 6px; border-radius:16px;
+    background:linear-gradient(180deg,#2c1d0d,#140b03); border:1px solid var(--gold-edge); box-shadow:0 3px 10px rgba(0,0,0,0.55);
+    text-shadow:0 1px 2px #000; opacity:0; transform:translateY(4px); transition:opacity .15s, transform .15s;}
+  #endtab.armed .endlbl{opacity:1; transform:none;}
   /* always-available leave button during a game (left edge) */
   /* dice-stats quick button: tucked under the radial tab (same centre line), opens the chart */
   #dicetab{position:fixed; right:73px; top:50%; transform:translateY(-50%); z-index:8; width:44px; height:44px; cursor:pointer;   /* left of the ← menu button (58px at right:7px) */
@@ -1883,7 +1904,7 @@
   #rotate .r-land, #rotate .r-port{display:none;}
   @media (orientation:portrait) and (pointer:coarse){   /* in a game + portrait -> rotate to landscape */
     body.ingame #stage, body.ingame #overlay, body.ingame #confirmbar, body.ingame #radialroot,
-    body.ingame #radialtab, body.ingame #dicetab, body.ingame #trophytab, body.ingame #emotray, body.ingame #reactchip, body.ingame .emoghost, body.ingame #rpsroot, body.ingame .rpsb, body.ingame .rpscrown, body.ingame #cuppill, body.ingame #rmbar, body.ingame .pkb, body.ingame #settingstab, body.ingame #dicereveal, body.ingame .monoshow, body.ingame .monoring, body.ingame #toast, body.ingame #tradeprompt, body.ingame .bcbubble, body.ingame #msghist, body.ingame #pokenote, body.ingame .emofloat, body.ingame .emothrow, body.ingame .emosplat, body.ingame .emocombo, body.ingame #watchrail{display:none !important;}
+    body.ingame #radialtab, body.ingame #endtab, body.ingame #dicetab, body.ingame #trophytab, body.ingame #emotray, body.ingame #reactchip, body.ingame .emoghost, body.ingame #rpsroot, body.ingame .rpsb, body.ingame .rpscrown, body.ingame #cuppill, body.ingame #rmbar, body.ingame .pkb, body.ingame #settingstab, body.ingame #dicereveal, body.ingame .monoshow, body.ingame .monoring, body.ingame #toast, body.ingame #tradeprompt, body.ingame .bcbubble, body.ingame #msghist, body.ingame #pokenote, body.ingame .emofloat, body.ingame .emothrow, body.ingame .emosplat, body.ingame .emocombo, body.ingame #watchrail{display:none !important;}
     body.ingame #rotate{display:flex !important; position:fixed; inset:0; z-index:200; flex-direction:column; align-items:center; justify-content:center;
       gap:16px; background:radial-gradient(120% 120% at 50% 40%, #1f4f74, #0a2336); text-align:center; padding:24px;}
     body.ingame #rotate .r-land{display:block;}
@@ -2117,9 +2138,11 @@
   /* the round menu button (and its neighbours) step away from the camera when it is on the right */
   body.cut-r #radialtab, body.cut-r #trophytab{right:calc(var(--sa-r) + 4px);}
   body.cut-r #dicetab{right:calc(var(--sa-r) + 70px);}
+  body.cut-r #endtab{right:calc(var(--sa-r) + 76px);}
   /* v246: on the turned board the home-indicator strip is the game's right edge (or left, flipped): same step-in */
   html.sideturned #radialtab, html.sideturned #trophytab{right:calc(var(--sa-r) + 7px);}
   html.sideturned #dicetab{right:calc(var(--sa-r) + 73px);}
+  html.sideturned #endtab{right:calc(var(--sa-r) + 79px);}
   html.sideturned #leavetab{left:var(--sa-l);}
   body.cut-l #leavetab{left:var(--sa-l);}   /* whoever is talking lights up, even when it isn't their turn */
   body.vwin .corner.vwinner .pava::after{content:'👑'; position:absolute; top:1px; left:50%; transform:translateX(-50%); font-size:14px; line-height:1; z-index:12; filter:drop-shadow(0 1px 2px rgba(0,0,0,0.7));}
@@ -2153,6 +2176,7 @@
     <button onclick="CATAN.cancelPlace()"><img src="assets/hud/decline.png" alt="Cancel"></button>
   </div>
   <div id="radialtab" class="hidden" onclick="CATAN.openRadial()"></div>
+  <div id="endtab" class="hidden" onclick="CATAN.endTap()" role="button" aria-label="End turn (tap twice)"><img src="assets/hud/radial/end.png" alt=""><svg class="endring" viewBox="0 0 66 66" aria-hidden="true"><circle class="trk" cx="33" cy="33" r="30"/><circle class="run" cx="33" cy="33" r="30"/></svg><span class="endlbl">Tap again to end turn</span></div>
   <div id="settingstab" class="hidden" onclick="CATAN.openSettings()" aria-label="Settings">⚙</div>
   <div id="trophytab" class="hidden" onclick="CATAN.showResults()" aria-label="Results">🏆</div>
   <div id="dicetab" class="hidden" onclick="CATAN.openDiceStats()" aria-label="Dice stats"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="10" width="4" height="7" rx="1"/><rect x="8" y="4" width="4" height="13" rx="1"/><rect x="13.5" y="8" width="4" height="9" rx="1"/></svg></div>
@@ -2228,7 +2252,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v263';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v264';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -2655,6 +2679,7 @@
     o.classList.add('qmode');
     document.body.classList.remove('trading');
     $('radialtab').classList.add('hidden');   // no left-arrow tab behind the question
+    endHide();
   }
   // during "Show game map" the right-edge radial tab becomes an X that returns to the question
   function showRollPrompt() { const e = $('radialtab'); if (e) { e.classList.remove('hidden'); e.classList.add('xback'); } }
@@ -3183,7 +3208,9 @@
     const d = $('dock'), h = $('hand'); if (!d || !h) return;
     const W = window.innerWidth, vl = !!state && document.body.classList.contains('vlive');
     // reads
-    const m = $('radialtab'), mr = m && m.offsetWidth ? m.getBoundingClientRect() : null;
+    const m = $('radialtab'), et = $('endtab');
+    let mr = m && m.offsetWidth ? m.getBoundingClientRect() : null;
+    if (mr && et && et.offsetWidth) { const er = et.getBoundingClientRect(); mr = { left: Math.min(mr.left, er.left), top: Math.min(mr.top, er.top), bottom: Math.max(mr.bottom, er.bottom) }; }   // the right dice clear End turn too
     const dice = [...document.querySelectorAll('.corner.tr .pdice, .corner.br .pdice')].map((x) => ({ x, r: x.getBoundingClientRect(), ml: parseFloat(x.style.marginLeft) || 0 }));
     let lim = 0;
     if (vl) document.querySelectorAll('.corner.bl, .corner.br').forEach((c) => {
@@ -3795,6 +3822,7 @@
     o.classList.add('qmode');
     document.body.classList.remove('trading');
     $('radialtab').classList.add('hidden');   // no left-arrow tab behind the dialog
+    endHide();
   }
   // everyone else: a face-down dev card flies from the deck (island centre) to the buyer
   function showDevBuyFly(buyerColor) {
@@ -4184,10 +4212,12 @@
     const bb = boardBox(); if (!bb) return;
     const gap = 26, cx = (bb.L + bb.R) / 2, cy = (bb.T + bb.B) / 2;
     const rx = (bb.R - bb.L) / 2 + gap + WSZ / 2, ry = (bb.B - bb.T) / 2 + gap * 0.4 + WSZ / 2;
+    const et = $('endtab'), er = et && et.offsetWidth ? et.getBoundingClientRect() : null;   // small phones: keep clear of End turn
     [...r.children].forEach((el, i) => {
       const a = WSPOTS[i] * Math.PI / 180;
-      const x = Math.round(Math.max(4, Math.min(window.innerWidth - WSZ - 4, cx + rx * Math.cos(a) - WSZ / 2)));
+      let x = Math.round(Math.max(4, Math.min(window.innerWidth - WSZ - 4, cx + rx * Math.cos(a) - WSZ / 2)));
       const y = Math.round(cy + ry * Math.sin(a) - WSZ / 2);
+      if (er && x + WSZ > er.left - 6 && x < er.right && y + WSZ > er.top && y < er.bottom) x = Math.round(er.left - 6 - WSZ);
       const v = `translate(${x}px,${y}px)`; if (el.style.transform !== v) el.style.transform = v;
     });
   }
@@ -7767,6 +7797,9 @@
     $('trophytab').classList.toggle('hidden', hideTab || state.phase !== 'ended');   // game over: reopen the results
     $('settingstab').classList.add('hidden');   // settings + dice stats live in the radial's arc now
     $('radialtab').classList.toggle('pulse', radialPhase && !hideTab);
+    const endWas = !$('endtab').classList.contains('hidden');
+    if (radialPhase && !hideTab) $('endtab').classList.remove('hidden'); else endHide();   // End turn beside ←, your turn after the roll only
+    if (endWas !== !$('endtab').classList.contains('hidden')) placeWatchersSoon();
     $('dicetab').classList.add('hidden');
     // ✓/✗ once a spot is chosen; a lone ✗ while still choosing (so you can back out of the build)
     $('confirmbar').classList.toggle('hidden', !ui.confirm && !placing);
@@ -7808,6 +7841,19 @@
     });
     return html;
   }
+  // End turn beside the ← menu button: the first tap arms it for 2 s (ring + "Tap again to end turn"), a second tap
+  // inside that window ends the turn; otherwise it quietly settles back (guards against a stray tap)
+  let endArm = 0;
+  function endDisarm() { if (endArm) { clearTimeout(endArm); endArm = 0; } const e = $('endtab'); if (e) e.classList.remove('armed'); }
+  function endHide() { endDisarm(); const e = $('endtab'); if (e) e.classList.add('hidden'); }
+  function endTap() {
+    const e = $('endtab');
+    if (!state || state.phase !== 'play' || state.turnPhase !== 'main' || !isMyTurn() || ui.confirm) { endHide(); return; }
+    if (endArm) { endDisarm(); window.CATAN.endTurn(); return; }
+    e.classList.remove('armed'); void e.offsetWidth; e.classList.add('armed');   // restart the ring
+    try { if (navigator.vibrate) navigator.vibrate(30); } catch (err) { }
+    endArm = setTimeout(endDisarm, 2000);
+  }
   function closeRadial() {
     const r = $('radialroot');
     r.classList.remove('open');
@@ -7845,6 +7891,7 @@
       const r = $('radialroot'); r.classList.remove('hidden'); requestAnimationFrame(() => r.classList.add('open'));
     },
     closeRadial,
+    endTap: () => endTap(),
     radial: (k) => {
       closeRadial();
       if (k === 'roll') window.CATAN.roll();
@@ -9960,7 +10007,7 @@
     t.innerHTML = `${banner}<div class="t-body"><div class="t-card">${html}<p class="verline">Catan · ${APP_VERSION}</p></div></div>`;
     t.classList.remove('hidden'); hideOverlay(); stopMusic(); document.body.classList.remove('ingame');   // pre-game: portrait allowed
     document.body.style.background = MENU_BG;   // canvas (incl. iOS safe-area strip) matches the wood menu
-    $('leavetab').classList.add('hidden'); $('radialtab').classList.add('hidden'); $('settingstab').classList.add('hidden'); $('dicetab').classList.add('hidden'); $('trophytab').classList.add('hidden');
+    $('leavetab').classList.add('hidden'); $('radialtab').classList.add('hidden'); endHide(); $('settingstab').classList.add('hidden'); $('dicetab').classList.add('hidden'); $('trophytab').classList.add('hidden');
     scheduleFit();
   }
   async function showIdentity(mode) {
@@ -9995,6 +10042,7 @@
   // element so nothing lingers over the lobby — a stray fly/countdown layer, the rotate
   // gate, or a half-open radial can all make the footer look dead.
   function exitGameUI() {
+    endHide();
     ['leavetab', 'radialtab', 'settingstab', 'dicetab', 'trophytab', 'dicereveal', 'toast', 'confirmbar', 'countdown'].forEach((id) => { const e = $(id); if (e) e.classList.add('hidden'); });
     const rr = $('radialroot'); if (rr) { rr.classList.remove('open'); rr.classList.add('hidden'); }
     document.querySelectorAll('.flyres, .robberdrag, .emofloat, .emocombo, .emothrow, .emosplat, .emoghost, #cuppill, #rmbar, #watchrail').forEach((el) => el.remove());

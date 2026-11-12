@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v263';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v264';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -432,6 +432,7 @@
     o.classList.add('qmode');
     document.body.classList.remove('trading');
     $('radialtab').classList.add('hidden');   // no left-arrow tab behind the question
+    endHide();
   }
   // during "Show game map" the right-edge radial tab becomes an X that returns to the question
   function showRollPrompt() { const e = $('radialtab'); if (e) { e.classList.remove('hidden'); e.classList.add('xback'); } }
@@ -960,7 +961,9 @@
     const d = $('dock'), h = $('hand'); if (!d || !h) return;
     const W = window.innerWidth, vl = !!state && document.body.classList.contains('vlive');
     // reads
-    const m = $('radialtab'), mr = m && m.offsetWidth ? m.getBoundingClientRect() : null;
+    const m = $('radialtab'), et = $('endtab');
+    let mr = m && m.offsetWidth ? m.getBoundingClientRect() : null;
+    if (mr && et && et.offsetWidth) { const er = et.getBoundingClientRect(); mr = { left: Math.min(mr.left, er.left), top: Math.min(mr.top, er.top), bottom: Math.max(mr.bottom, er.bottom) }; }   // the right dice clear End turn too
     const dice = [...document.querySelectorAll('.corner.tr .pdice, .corner.br .pdice')].map((x) => ({ x, r: x.getBoundingClientRect(), ml: parseFloat(x.style.marginLeft) || 0 }));
     let lim = 0;
     if (vl) document.querySelectorAll('.corner.bl, .corner.br').forEach((c) => {
@@ -1572,6 +1575,7 @@
     o.classList.add('qmode');
     document.body.classList.remove('trading');
     $('radialtab').classList.add('hidden');   // no left-arrow tab behind the dialog
+    endHide();
   }
   // everyone else: a face-down dev card flies from the deck (island centre) to the buyer
   function showDevBuyFly(buyerColor) {
@@ -1961,10 +1965,12 @@
     const bb = boardBox(); if (!bb) return;
     const gap = 26, cx = (bb.L + bb.R) / 2, cy = (bb.T + bb.B) / 2;
     const rx = (bb.R - bb.L) / 2 + gap + WSZ / 2, ry = (bb.B - bb.T) / 2 + gap * 0.4 + WSZ / 2;
+    const et = $('endtab'), er = et && et.offsetWidth ? et.getBoundingClientRect() : null;   // small phones: keep clear of End turn
     [...r.children].forEach((el, i) => {
       const a = WSPOTS[i] * Math.PI / 180;
-      const x = Math.round(Math.max(4, Math.min(window.innerWidth - WSZ - 4, cx + rx * Math.cos(a) - WSZ / 2)));
+      let x = Math.round(Math.max(4, Math.min(window.innerWidth - WSZ - 4, cx + rx * Math.cos(a) - WSZ / 2)));
       const y = Math.round(cy + ry * Math.sin(a) - WSZ / 2);
+      if (er && x + WSZ > er.left - 6 && x < er.right && y + WSZ > er.top && y < er.bottom) x = Math.round(er.left - 6 - WSZ);
       const v = `translate(${x}px,${y}px)`; if (el.style.transform !== v) el.style.transform = v;
     });
   }
@@ -5544,6 +5550,9 @@
     $('trophytab').classList.toggle('hidden', hideTab || state.phase !== 'ended');   // game over: reopen the results
     $('settingstab').classList.add('hidden');   // settings + dice stats live in the radial's arc now
     $('radialtab').classList.toggle('pulse', radialPhase && !hideTab);
+    const endWas = !$('endtab').classList.contains('hidden');
+    if (radialPhase && !hideTab) $('endtab').classList.remove('hidden'); else endHide();   // End turn beside ←, your turn after the roll only
+    if (endWas !== !$('endtab').classList.contains('hidden')) placeWatchersSoon();
     $('dicetab').classList.add('hidden');
     // ✓/✗ once a spot is chosen; a lone ✗ while still choosing (so you can back out of the build)
     $('confirmbar').classList.toggle('hidden', !ui.confirm && !placing);
@@ -5585,6 +5594,19 @@
     });
     return html;
   }
+  // End turn beside the ← menu button: the first tap arms it for 2 s (ring + "Tap again to end turn"), a second tap
+  // inside that window ends the turn; otherwise it quietly settles back (guards against a stray tap)
+  let endArm = 0;
+  function endDisarm() { if (endArm) { clearTimeout(endArm); endArm = 0; } const e = $('endtab'); if (e) e.classList.remove('armed'); }
+  function endHide() { endDisarm(); const e = $('endtab'); if (e) e.classList.add('hidden'); }
+  function endTap() {
+    const e = $('endtab');
+    if (!state || state.phase !== 'play' || state.turnPhase !== 'main' || !isMyTurn() || ui.confirm) { endHide(); return; }
+    if (endArm) { endDisarm(); window.CATAN.endTurn(); return; }
+    e.classList.remove('armed'); void e.offsetWidth; e.classList.add('armed');   // restart the ring
+    try { if (navigator.vibrate) navigator.vibrate(30); } catch (err) { }
+    endArm = setTimeout(endDisarm, 2000);
+  }
   function closeRadial() {
     const r = $('radialroot');
     r.classList.remove('open');
@@ -5622,6 +5644,7 @@
       const r = $('radialroot'); r.classList.remove('hidden'); requestAnimationFrame(() => r.classList.add('open'));
     },
     closeRadial,
+    endTap: () => endTap(),
     radial: (k) => {
       closeRadial();
       if (k === 'roll') window.CATAN.roll();
@@ -7737,7 +7760,7 @@
     t.innerHTML = `${banner}<div class="t-body"><div class="t-card">${html}<p class="verline">Catan · ${APP_VERSION}</p></div></div>`;
     t.classList.remove('hidden'); hideOverlay(); stopMusic(); document.body.classList.remove('ingame');   // pre-game: portrait allowed
     document.body.style.background = MENU_BG;   // canvas (incl. iOS safe-area strip) matches the wood menu
-    $('leavetab').classList.add('hidden'); $('radialtab').classList.add('hidden'); $('settingstab').classList.add('hidden'); $('dicetab').classList.add('hidden'); $('trophytab').classList.add('hidden');
+    $('leavetab').classList.add('hidden'); $('radialtab').classList.add('hidden'); endHide(); $('settingstab').classList.add('hidden'); $('dicetab').classList.add('hidden'); $('trophytab').classList.add('hidden');
     scheduleFit();
   }
   async function showIdentity(mode) {
@@ -7772,6 +7795,7 @@
   // element so nothing lingers over the lobby — a stray fly/countdown layer, the rotate
   // gate, or a half-open radial can all make the footer look dead.
   function exitGameUI() {
+    endHide();
     ['leavetab', 'radialtab', 'settingstab', 'dicetab', 'trophytab', 'dicereveal', 'toast', 'confirmbar', 'countdown'].forEach((id) => { const e = $(id); if (e) e.classList.add('hidden'); });
     const rr = $('radialroot'); if (rr) { rr.classList.remove('open'); rr.classList.add('hidden'); }
     document.querySelectorAll('.flyres, .robberdrag, .emofloat, .emocombo, .emothrow, .emosplat, .emoghost, #cuppill, #rmbar, #watchrail').forEach((el) => el.remove());
