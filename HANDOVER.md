@@ -1444,6 +1444,8 @@ customisation, lifetime awards in Stats, replay (#8).
 
 ---
 
+NEXT. 🔨 **vNEXT (2026-11-12, built on branch claude/cool-dirac-dtydqh): Stats, cups follow the month; Recent games above Cups.** Karim on Stats · November saw the 2el3ab Cup, which was played on 27 Oct (2 of 3 games, ended early by the 6h rule). `cupsHTML` showed every cup ever, whatever the filter. Now `cupsHTML(games, lbl)` shows only cups with a game among the games on screen (so the month chip and the size select both apply; a cup straddling midnight on the 31st shows in both months), and the heading reads "CUPS · OCTOBER 2026". The section moved below Recent games, and a month with no games no longer shows a cups card. The player page's "Cups won" stays all-time. Verified headless (fake Oct + Nov games): Nov has no cups section, Oct shows 2el3ab under Recent games. Open: the wider Stats vs Cups design (Karim wants to rethink it).
+
 ## 9. Continuing in Claude Code — first steps
 
 The early-phase version of this section is gone — multiplayer, the lobby,

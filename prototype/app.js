@@ -6998,8 +6998,9 @@
   }
   function stArg(k) { return encodeURIComponent(k).replace(/'/g, '%27'); }
   // cups, rebuilt from the tagged game rows (latest game of each cup = its final standings)
-  function cupsHTML() {
-    const all = STATS.cups(); if (!all.length) return '';
+  function cupsHTML(games, lbl) {   // only the cups played in the games on screen (the month / size filter)
+    const ids = new Set(); (games || []).forEach((g) => { const c = g.standings[0] && g.standings[0].cup; if (c && c.id) ids.add(c.id); });
+    const all = STATS.cups().filter((c) => ids.has(c.id)); if (!all.length) return '';
     const done = all.filter((c) => c.fin), wins = {};
     done.forEach((c) => { const k = pkey(c.rows[0]); wins[k] = (wins[k] || 0) + 1; });
     const line = (c) => { const who = escapeHtml(STATS.nameFor(pkey(c.rows[0]))), nm = escapeHtml(cupTitle(c.name, c.of)), d = c.date.replace(/, \d{4}$/, '');
@@ -7008,7 +7009,7 @@
     const last = done[0];
     const hero = last ? `<div class="st2champ">${stAv(STATS.nameFor(pkey(last.rows[0])), 'md')}<div><b>${escapeHtml(STATS.nameFor(pkey(last.rows[0])))} won ${escapeHtml(cupTitle(last.name, last.of))}</b><span>${last.n < last.of ? last.n + ' of ' + last.of + ' games, ended early' : last.of + ' games'} · ${last.date.replace(/, \d{4}$/, '')}</span></div></div>` : '';
     const more = all.filter((c) => c !== last).slice(0, 6).map(line).join('');
-    return `<div class="st2sect">CUPS</div><div class="st2cup">${hero}${tally ? `<div class="st2tally">${tally}</div>` : ''}${more}</div>`;
+    return `<div class="st2sect">CUPS${lbl ? ' · ' + escapeHtml(lbl.toUpperCase()) : ''}</div><div class="st2cup">${hero}${tally ? `<div class="st2tally">${tally}</div>` : ''}${more}</div>`;
   }
   function statsScreen() {
     const back = lvOn() ? '' : `<div class="lobhead"><button class="lobback" onclick="CATAN.showLobby()" title="Back to lobby">←</button><h3>🏆 Stats</h3></div>`;
@@ -7051,9 +7052,9 @@
     const body = games.length
       ? `${podium}${rows ? `<div class="st2sect"><span>LEADERBOARD · ${escapeHtml(selLbl.toUpperCase())}</span><span>WIN %</span></div><div class="st2list">${rows}</div>` : ''}
          <div class="st2note">Ranked by win %, from ${STATS_MIN_GAMES} games. Tap anyone for head to head.</div>
-         ${cupsHTML()}
-         <div class="st2sect">RECENT GAMES · ${escapeHtml(selLbl.toUpperCase())}</div><div class="st2list">${recent}</div>`
-      : `<p class="muted" style="text-align:center;padding:22px 8px">No ${statsCount ? statsCount + '-player ' : ''}games ${isAll ? 'recorded' : 'in ' + selLbl} yet.</p>${cupsHTML()}`;
+         <div class="st2sect">RECENT GAMES · ${escapeHtml(selLbl.toUpperCase())}</div><div class="st2list">${recent}</div>
+         ${cupsHTML(games, selLbl)}`
+      : `<p class="muted" style="text-align:center;padding:22px 8px">No ${statsCount ? statsCount + '-player ' : ''}games ${isAll ? 'recorded' : 'in ' + selLbl} yet.</p>`;
     statsOut(`${back}<div class="st2">
       <div class="st2filters"><div class="st2chips">${chips}</div>${sizeSel}</div>
       ${body}</div>`);
