@@ -6888,14 +6888,14 @@
       return Object.values(m).map((p) => ({ key: p.key, name: STATS.nameFor(p.key), gp: p.gp, w: p.w, lr: p.lr, la: p.la, pen: p.pen, winpct: Math.round((100 * p.w) / p.gp), rate: p.w / p.gp, ranked: p.gp >= STATS_MIN_GAMES, avg: p.ps / p.gp }))
         .sort((a, b) => (b.ranked - a.ranked) || b.rate - a.rate || b.w - a.w || a.avg - b.avg);
     },
-    streak(key) {
-      const gs = STATS.games.filter((g) => g.standings.some((s) => pkey(s) === key)).slice().reverse();   // oldest -> newest
+    streak(key, games = STATS.games) {
+      const gs = games.filter((g) => g.standings.some((s) => pkey(s) === key)).slice().reverse();   // oldest -> newest
       let best = 0, run = 0; gs.forEach((g) => { if (pkey(g.standings[0]) === key) { run++; if (run > best) best = run; } else run = 0; });
       return { cur: run, best };
     },
-    h2h(key) {
+    h2h(key, games = STATS.games) {
       const h = {};
-      STATS.games.forEach((g) => { const me = g.standings.findIndex((s) => pkey(s) === key); if (me < 0) return;
+      games.forEach((g) => { const me = g.standings.findIndex((s) => pkey(s) === key); if (me < 0) return;
         g.standings.forEach((s, i) => { const ok = pkey(s); if (ok === key) return; const o = (h[ok] = h[ok] || { w: 0, l: 0, name: STATS.nameFor(ok) }); if (me < i) o.w++; else o.l++; }); });
       return h;
     },
@@ -6909,7 +6909,7 @@
       });
       return Object.values(by);
     },
-    detail(key) { const a = STATS.board(STATS.games).find((p) => p.key === key); return a ? { ...a, ...STATS.streak(key), h2h: STATS.h2h(key) } : null; },
+    detail(key, games = STATS.games) { const a = STATS.board(games).find((p) => p.key === key); return a ? { ...a, ...STATS.streak(key, games), h2h: STATS.h2h(key, games) } : null; },
   };
   // Write one row when a game ends. Every seated client attempts it; a board-fingerprint game_id
   // (identical on every device, stable across reconnects) dedups so exactly one row lands.
@@ -7038,6 +7038,15 @@
       <div class="st2note">Cup points: ${ptsRule}. Ties go to most wins, then most VP. They decide the cup only: every cup game also counts as a normal win or loss on the leaderboard.</div>
       <div class="st2sect">GAMES</div><div class="st2list">${games}${unplayed}</div></div>`);
   }
+  // table-size filter, shared by the Stats screen and a player's page: 'big' (3 & 4, default) | null (all) | 2 | 3 | 4
+  function statsSizes() { const sizes = [...new Set(STATS.games.map((g) => g.standings.length))].sort(); if (typeof statsCount === 'number' && !sizes.includes(statsCount)) statsCount = 'big'; return sizes; }
+  function sizeGames(gs) { return statsCount === 'big' ? gs.filter((g) => g.standings.length >= 3) : statsCount ? gs.filter((g) => g.standings.length === statsCount) : gs; }
+  function sizeLabel() { return statsCount === 'big' ? '3 & 4 players' : statsCount ? statsCount + ' players' : 'all sizes'; }
+  function sizeSelHTML(sizes, key) {
+    if (sizes.length < 2) return '';
+    const opt = (v, on, lbl) => `<option value="${v}"${on ? ' selected' : ''}>${lbl}</option>`;
+    return `<select class="st2size" onchange="CATAN.statsCount(this.value === 'big' ? 'big' : this.value ? +this.value : null${key ? `, '${stArg(key)}'` : ''})">${opt('big', statsCount === 'big', '3 & 4 players')}${opt('', statsCount === null, 'All sizes')}${sizes.map((n) => opt(n, statsCount === n, n + ' players')).join('')}</select>`;
+  }
   function statsScreen() {
     const back = lvOn() ? '' : `<div class="lobhead"><button class="lobback" onclick="CATAN.showLobby()" title="Back to lobby">←</button><h3>🏆 Stats</h3></div>`;
     if (!STATS.loaded) { statsOut(`${back}<p class="muted" style="text-align:center;padding:26px 0">Loading…</p>`); STATS.load().then(() => statsScreen()); return; }
@@ -7050,9 +7059,8 @@
     let season = isAll ? 'all' : (statsSeason || STATS.curSeason());
     if (!isAll && !STATS.seasons().includes(season)) season = STATS.curSeason();
     const seasonGames = STATS.filter(season);
-    const sizes = [...new Set(STATS.games.map((g) => g.standings.length))].sort();
-    if (typeof statsCount === 'number' && !sizes.includes(statsCount)) statsCount = 'big';
-    const games = statsCount === 'big' ? seasonGames.filter((g) => g.standings.length >= 3) : statsCount ? seasonGames.filter((g) => g.standings.length === statsCount) : seasonGames;
+    const sizes = statsSizes();
+    const games = sizeGames(seasonGames);
     const board = STATS.board(games);
     const selLbl = isAll ? 'All-time' : MONTH_FULL[STATS.monthShort(season)] + ' ' + season.split('-')[0];   // always with the year
     // chips: All-time + months (one year), or All-time + years and that year's months
@@ -7065,8 +7073,7 @@
       chips = chip(isAll, "CATAN.statsSeason('all')", 'All-time') + years.map((y) => chip(!isAll && selYear === y, `CATAN.statsYear(${y})`, y)).join('')
         + (isAll ? '' : STATS.monthsIn(selYear).slice().reverse().map((ym) => chip(season === ym, `CATAN.statsSeason('${ym}')`, STATS.monthShort(ym) + " '" + String(selYear).slice(2))).join(''));
     }
-    const opt = (v, on, lbl) => `<option value="${v}"${on ? ' selected' : ''}>${lbl}</option>`;
-    const sizeSel = sizes.length > 1 ? `<select class="st2size" onchange="CATAN.statsCount(this.value === 'big' ? 'big' : this.value ? +this.value : null)">${opt('big', statsCount === 'big', '3 & 4 players')}${opt('', statsCount === null, 'All sizes')}${sizes.map((n) => opt(n, statsCount === n, n + ' players')).join('')}</select>` : '';
+    const sizeSel = sizeSelHTML(sizes, '');
     const ranked = board.filter((p) => p.ranked), unranked = board.filter((p) => !p.ranked), tw = cupWins(games);
     const pod = ranked.slice(0, 3), order = [pod[1], pod[0], pod[2]].filter(Boolean);
     const podium = pod.length ? `<div class="st2pod">${order.map((p) => { const i = pod.indexOf(p);
@@ -7098,22 +7105,24 @@
     requestAnimationFrame(() => { const strip = document.querySelector('.st2chips'), on = strip && strip.querySelector('.on'); if (on) strip.scrollLeft = on.offsetLeft - strip.clientWidth / 2 + on.clientWidth / 2; });
   }
   function statsPlayerScreen(key) {
-    const d = STATS.detail(key);
-    if (!d) { statsScreen(); return; }
-    const mine = STATS.games.filter((g) => g.standings.some((x) => pkey(x) === key));
+    if (!STATS.games.some((g) => g.standings.some((x) => pkey(x) === key))) { statsScreen(); return; }
+    const sizeSel = sizeSelHTML(statsSizes(), key), games = sizeGames(STATS.games), d = STATS.detail(key, games);
+    const head = (name) => `<div class="st2phead"><button class="lobback" onclick="CATAN.openStats()" title="Back to stats">←</button><h3>${escapeHtml(name)}</h3>${sizeSel ? `<span class="st2pfs">${sizeSel}</span>` : ''}</div>`;
+    if (!d) { statsOut(`<div class="st2" id="st2player">${head(STATS.nameFor(key))}<p class="muted" style="text-align:center;padding:22px 8px">No ${escapeHtml(sizeLabel().replace('players', 'player'))} games for ${escapeHtml(STATS.nameFor(key))} yet.</p></div>`); return; }
+    const mine = games.filter((g) => g.standings.some((x) => pkey(x) === key));
     const form = mine.slice(0, 10).reverse().map((g) => pkey(g.standings[0]) === key ? '<i class="w">W</i>' : '<i class="l">L</i>').join('');
     const seconds = mine.filter((g) => g.standings[1] && pkey(g.standings[1]) === key).length;
-    const rank = STATS.board(STATS.games).filter((p) => p.ranked).findIndex((p) => p.key === key);
-    const cups = STATS.cups().filter((c) => c.fin), cupsIn = cups.filter((c) => c.rows.some((r) => pkey(r) === key)), cupsWon = cupsIn.filter((c) => pkey(c.rows[0]) === key).length;
-    const tiles = [[d.avg.toFixed(1), 'AVG PLACE'], [d.cur, 'STREAK · BEST ' + d.best], [cupsIn.length ? cupsWon + ' / ' + cupsIn.length : '–', 'CUPS WON'],
+    const rank = STATS.board(games).filter((p) => p.ranked).findIndex((p) => p.key === key);
+    const cups = cupsIn(games).filter((c) => c.fin), myCups = cups.filter((c) => c.rows.some((r) => pkey(r) === key)), cupsWon = myCups.filter((c) => pkey(c.rows[0]) === key).length;
+    const tiles = [[d.avg.toFixed(1), 'AVG PLACE'], [d.cur, 'STREAK · BEST ' + d.best], [myCups.length ? cupsWon + ' / ' + myCups.length : '–', 'CUPS WON'],
       [d.lr, '🛣️ LONGEST ROAD'], [d.la, '⚔️ LARGEST ARMY'], [seconds, 'TIMES 2ND']].map((t) => `<div class="st2tile"><b>${t[0]}</b><span>${t[1]}</span></div>`).join('');
     const h2h = Object.keys(d.h2h).sort((a, b) => (d.h2h[b].w + d.h2h[b].l) - (d.h2h[a].w + d.h2h[a].l)).map((ok) => { const r = d.h2h[ok], tot = r.w + r.l, pct = tot ? Math.round(100 * r.w / tot) : 50;
       return `<div class="st2h">${stAv(r.name, 'sm')}<b>vs ${escapeHtml(r.name)}</b><span class="st2split"><span class="st2sc"><span class="pos">${r.w}</span> – <span class="neg">${r.l}</span></span><span class="st2sb"><i style="width:${pct}%"></i></span></span></div>`; }).join('');
-    statsOut(`<div class="st2" id="st2player"><div class="st2phead"><button class="lobback" onclick="CATAN.openStats()" title="Back to stats">←</button><h3>${escapeHtml(d.name)}</h3></div>
+    statsOut(`<div class="st2" id="st2player">${head(d.name)}
       <div class="st2ptop">${stAv(d.name, 'xl')}<div class="st2big"><b>${d.winpct}%</b><span>${d.w} win${d.w === 1 ? '' : 's'} from ${d.gp} game${d.gp === 1 ? '' : 's'}${rank >= 0 ? ' · #' + (rank + 1) : ' · not ranked yet'}</span><div class="st2form">${form}</div></div></div>
       <div class="st2tiles">${tiles}</div>
       <div class="st2sect">HEAD TO HEAD</div><div class="st2list">${h2h}</div>
-      <div class="st2note">Head to head: who finished higher, in every game you both played (any table size, all time).</div></div>`);
+      <div class="st2note">Head to head: who finished higher, in every game you both played (${escapeHtml(sizeLabel())}, all time).</div></div>`);
   }
   // ===== Lobby (v170): three tabs (Play · Chat · Stats) over the SAME tables/presence plumbing.
   // Play shows one card for what's happening now; a table is a "room" of four seats. Taking a seat
@@ -7441,7 +7450,7 @@
   window.CATAN.openStats = () => statsScreen();
   window.CATAN.statsSeason = (s) => { statsSeason = s; statsMore = 12; statsScreen(); };
   window.CATAN.statsYear = (y) => { statsSeason = STATS.latestMonthIn(y) || 'all'; statsMore = 12; statsScreen(); };   // pick a year -> its most recent month
-  window.CATAN.statsCount = (n) => { statsCount = n; statsMore = 12; statsScreen(); };
+  window.CATAN.statsCount = (n, key) => { statsCount = n; statsMore = 12; if (key) statsPlayerScreen(decodeURIComponent(key)); else statsScreen(); };
   window.CATAN.statsMore = () => { const d = $('lobby-dyn'), y = d ? d.scrollTop : 0; statsMore += 12; statsScreen(); if (d) d.scrollTop = y; };
   window.CATAN.statsPlayer = (n) => statsPlayerScreen(decodeURIComponent(n));
   window.CATAN.statsCup = (id) => statsCupScreen(decodeURIComponent(id));
