@@ -987,6 +987,27 @@
   .trknav:active{transform:scale(0.92);}
   .trknum{color:var(--gold); font-weight:800; font-size:13px; min-width:26px; text-align:center; text-shadow:0 1px 1px #000;}
   #radialtab.pulse{animation:tabpulse 1.5s ease-in-out infinite;}
+  /* End turn, out of the ring: left of the ← menu button, only on your turn after the roll. Tap once to arm (a gold
+     ring counts down 2 s and a label appears above), tap again inside the window to end the turn. */
+  #endtab{position:fixed; right:79px; top:50%; transform:translateY(-50%); z-index:8; width:50px; height:50px; cursor:pointer;
+    touch-action:manipulation; -webkit-tap-highlight-color:transparent; user-select:none; -webkit-user-select:none;}
+  #endtab.hidden{display:none;}
+  #endtab img{width:100%; height:100%; display:block; pointer-events:none; transition:transform .15s, filter .15s;
+    filter:drop-shadow(-2px 3px 5px rgba(0,0,0,0.5));}
+  #endtab:active img{transform:scale(0.94);}
+  #endtab.armed img{transform:scale(1.1); filter:drop-shadow(0 0 10px rgba(233,196,90,0.85)) drop-shadow(-2px 3px 5px rgba(0,0,0,0.5));}
+  #endtab .endring{position:absolute; left:-8px; top:-8px; width:66px; height:66px; transform:rotate(-90deg); pointer-events:none; display:none;}
+  #endtab.armed .endring{display:block;}
+  #endtab .endring circle{fill:none; stroke-width:4;}
+  #endtab .endring .trk{stroke:rgba(0,0,0,0.45);}
+  #endtab .endring .run{stroke:var(--gold); stroke-linecap:round; stroke-dasharray:188.5; stroke-dashoffset:0;}
+  #endtab.armed .endring .run{animation:endrun 2s linear forwards;}
+  @keyframes endrun{to{stroke-dashoffset:188.5;}}
+  #endtab .endlbl{position:absolute; right:-72px; bottom:calc(100% + 16px); white-space:nowrap; pointer-events:none;
+    font-family:var(--serif); font-size:16px; color:var(--gold); padding:7px 14px 6px; border-radius:16px;
+    background:linear-gradient(180deg,#2c1d0d,#140b03); border:1px solid var(--gold-edge); box-shadow:0 3px 10px rgba(0,0,0,0.55);
+    text-shadow:0 1px 2px #000; opacity:0; transform:translateY(4px); transition:opacity .15s, transform .15s;}
+  #endtab.armed .endlbl{opacity:1; transform:none;}
   /* always-available leave button during a game (left edge) */
   /* dice-stats quick button: tucked under the radial tab (same centre line), opens the chart */
   #dicetab{position:fixed; right:73px; top:50%; transform:translateY(-50%); z-index:8; width:44px; height:44px; cursor:pointer;   /* left of the ← menu button (58px at right:7px) */
@@ -1866,7 +1887,7 @@
   #rotate .r-land, #rotate .r-port{display:none;}
   @media (orientation:portrait) and (pointer:coarse){   /* in a game + portrait -> rotate to landscape */
     body.ingame #stage, body.ingame #overlay, body.ingame #confirmbar, body.ingame #radialroot,
-    body.ingame #radialtab, body.ingame #dicetab, body.ingame #trophytab, body.ingame #emotray, body.ingame #reactchip, body.ingame .emoghost, body.ingame #rpsroot, body.ingame .rpsb, body.ingame .rpscrown, body.ingame #cuppill, body.ingame #rmbar, body.ingame .pkb, body.ingame #settingstab, body.ingame #dicereveal, body.ingame .monoshow, body.ingame .monoring, body.ingame #toast, body.ingame #tradeprompt, body.ingame .bcbubble, body.ingame #msghist, body.ingame #pokenote, body.ingame .emofloat, body.ingame .emothrow, body.ingame .emosplat, body.ingame .emocombo, body.ingame #watchrail{display:none !important;}
+    body.ingame #radialtab, body.ingame #endtab, body.ingame #dicetab, body.ingame #trophytab, body.ingame #emotray, body.ingame #reactchip, body.ingame .emoghost, body.ingame #rpsroot, body.ingame .rpsb, body.ingame .rpscrown, body.ingame #cuppill, body.ingame #rmbar, body.ingame .pkb, body.ingame #settingstab, body.ingame #dicereveal, body.ingame .monoshow, body.ingame .monoring, body.ingame #toast, body.ingame #tradeprompt, body.ingame .bcbubble, body.ingame #msghist, body.ingame #pokenote, body.ingame .emofloat, body.ingame .emothrow, body.ingame .emosplat, body.ingame .emocombo, body.ingame #watchrail{display:none !important;}
     body.ingame #rotate{display:flex !important; position:fixed; inset:0; z-index:200; flex-direction:column; align-items:center; justify-content:center;
       gap:16px; background:radial-gradient(120% 120% at 50% 40%, #1f4f74, #0a2336); text-align:center; padding:24px;}
     body.ingame #rotate .r-land{display:block;}
@@ -2100,9 +2121,11 @@
   /* the round menu button (and its neighbours) step away from the camera when it is on the right */
   body.cut-r #radialtab, body.cut-r #trophytab{right:calc(var(--sa-r) + 4px);}
   body.cut-r #dicetab{right:calc(var(--sa-r) + 70px);}
+  body.cut-r #endtab{right:calc(var(--sa-r) + 76px);}
   /* v246: on the turned board the home-indicator strip is the game's right edge (or left, flipped): same step-in */
   html.sideturned #radialtab, html.sideturned #trophytab{right:calc(var(--sa-r) + 7px);}
   html.sideturned #dicetab{right:calc(var(--sa-r) + 73px);}
+  html.sideturned #endtab{right:calc(var(--sa-r) + 79px);}
   html.sideturned #leavetab{left:var(--sa-l);}
   body.cut-l #leavetab{left:var(--sa-l);}   /* whoever is talking lights up, even when it isn't their turn */
   body.vwin .corner.vwinner .pava::after{content:'👑'; position:absolute; top:1px; left:50%; transform:translateX(-50%); font-size:14px; line-height:1; z-index:12; filter:drop-shadow(0 1px 2px rgba(0,0,0,0.7));}
@@ -2136,6 +2159,7 @@
     <button onclick="CATAN.cancelPlace()"><img src="assets/hud/decline.png" alt="Cancel"></button>
   </div>
   <div id="radialtab" class="hidden" onclick="CATAN.openRadial()"></div>
+  <div id="endtab" class="hidden" onclick="CATAN.endTap()" role="button" aria-label="End turn (tap twice)"><img src="assets/hud/radial/end.png" alt=""><svg class="endring" viewBox="0 0 66 66" aria-hidden="true"><circle class="trk" cx="33" cy="33" r="30"/><circle class="run" cx="33" cy="33" r="30"/></svg><span class="endlbl">Tap again to end turn</span></div>
   <div id="settingstab" class="hidden" onclick="CATAN.openSettings()" aria-label="Settings">⚙</div>
   <div id="trophytab" class="hidden" onclick="CATAN.showResults()" aria-label="Results">🏆</div>
   <div id="dicetab" class="hidden" onclick="CATAN.openDiceStats()" aria-label="Dice stats"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="10" width="4" height="7" rx="1"/><rect x="8" y="4" width="4" height="13" rx="1"/><rect x="13.5" y="8" width="4" height="9" rx="1"/></svg></div>
