@@ -1445,6 +1445,8 @@ customisation, lifetime awards in Stats, replay (#8).
 
 ---
 
+NEXT. 🔨 **vNEXT (2026-11-12, built on branch claude/cool-dirac-dtydqh): Stats, the rest of the leaderboard goes back above Recent games.** Karim, after v262: order is now podium, leaderboard (4th down), the ranking note, then Recent games (cup cards and Show more unchanged). Verified headless with the real games (October).
+
 ## 9. Continuing in Claude Code — first steps
 
 The early-phase version of this section is gone — multiplayer, the lobby,

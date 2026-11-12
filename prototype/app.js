@@ -7095,9 +7095,9 @@
     const recent = items.join('');
     const body = games.length
       ? `${podium}
-         <div class="st2sect">RECENT GAMES · ${escapeHtml(selLbl.toUpperCase())}</div><div class="st2list">${recent}${more ? '<button class="st2more" onclick="CATAN.statsMore()">Show more games</button>' : ''}</div>
          ${rows ? `<div class="st2sect"><span>LEADERBOARD · ${escapeHtml(selLbl.toUpperCase())}</span><span>WIN %</span></div><div class="st2list">${rows}</div>` : ''}
-         <div class="st2note">Ranked by win %, from ${STATS_MIN_GAMES} games. Cup games count too. Tap anyone for head to head.</div>`
+         <div class="st2note">Ranked by win %, from ${STATS_MIN_GAMES} games. Cup games count too. Tap anyone for head to head.</div>
+         <div class="st2sect">RECENT GAMES · ${escapeHtml(selLbl.toUpperCase())}</div><div class="st2list">${recent}${more ? '<button class="st2more" onclick="CATAN.statsMore()">Show more games</button>' : ''}</div>`
       : `<p class="muted" style="text-align:center;padding:22px 8px">No ${statsCount === 'big' ? '3 or 4-player ' : statsCount ? statsCount + '-player ' : ''}games ${isAll ? 'recorded' : 'in ' + selLbl} yet.</p>`;
     statsOut(`${back}<div class="st2">
       <div class="st2filters"><div class="st2chips">${chips}</div>${sizeSel}</div>
