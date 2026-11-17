@@ -2184,9 +2184,29 @@
   .corner.sa .pdice, .corner.sb .pdice, .corner.sc .pdice, .corner.sd .pdice{top:calc(100% + 16px);}
   .corner.sc .pdice{left:auto; right:0;}   /* inner-right seat: dice toward the screen edge, away from a watcher's face */
   .corner.sa.active, .corner.sb.active{transform-origin:top left;} .corner.sc.active, .corner.sd.active{transform-origin:top right;}
-  /* narrow phones (6 players under 820 wide, 5 under 740): the top seats become round chips (picture, points and
-     cards; tap for the rest), so the bar in the middle still fits */
-  @media (max-width:819px){ body.np6 .corner.sa, body.np6 .corner.sb, body.np6 .corner.sc, body.np6 .corner.sd{padding:3px 8px 3px 3px; border-radius:28px; gap:5px; align-items:center;}
+  /* mid-width (the sideways board on an iPhone 16 Pro is 778-812 wide): the same plaques with every stat, a 40px
+     picture and smaller numbers, so the bar still fits between the two pairs (6 players 700-819 wide, 5 players 710-739) */
+  @media (min-width:700px) and (max-width:819px){
+    body.np6 .corner.sa, body.np6 .corner.sb, body.np6 .corner.sc, body.np6 .corner.sd{padding:3px 3px 13px; gap:3px; max-width:112px; box-sizing:border-box;}
+    body.np6 .corner.sa .pava, body.np6 .corner.sb .pava, body.np6 .corner.sc .pava, body.np6 .corner.sd .pava,
+    body.vlive.np6 .corner.sa .pava, body.vlive.np6 .corner.sb .pava, body.vlive.np6 .corner.sc .pava, body.vlive.np6 .corner.sd .pava{width:40px; height:42px;}
+    body.np6 .corner.sa .pcol, body.np6 .corner.sb .pcol, body.np6 .corner.sc .pcol, body.np6 .corner.sd .pcol{gap:2px 3px;}
+    body.np6 .corner.sa .pstat, body.np6 .corner.sb .pstat, body.np6 .corner.sc .pstat, body.np6 .corner.sd .pstat{font-size:10px; gap:2px;}
+    body.np6 .corner.sa .pstat img, body.np6 .corner.sb .pstat img, body.np6 .corner.sc .pstat img, body.np6 .corner.sd .pstat img{width:12px; height:12px; flex:0 0 12px;}
+    body.np6 .corner.sa .pname, body.np6 .corner.sb .pname, body.np6 .corner.sc .pname, body.np6 .corner.sd .pname{font-size:9.5px; max-width:44px;}
+    body.np6 .corner.sb{left:calc(var(--sa-l) * 0.15 + 118px);} body.np6 .corner.sc{right:calc(var(--sa-r) * 0.15 + 118px);} }
+  @media (min-width:710px) and (max-width:739px){
+    body.np5 .corner.sa, body.np5 .corner.sb, body.np5 .corner.sc, body.np5 .corner.sd{padding:3px 3px 13px; gap:3px; max-width:112px; box-sizing:border-box;}
+    body.np5 .corner.sa .pava, body.np5 .corner.sb .pava, body.np5 .corner.sc .pava, body.np5 .corner.sd .pava,
+    body.vlive.np5 .corner.sa .pava, body.vlive.np5 .corner.sb .pava, body.vlive.np5 .corner.sc .pava, body.vlive.np5 .corner.sd .pava{width:40px; height:42px;}
+    body.np5 .corner.sa .pcol, body.np5 .corner.sb .pcol, body.np5 .corner.sc .pcol, body.np5 .corner.sd .pcol{gap:2px 3px;}
+    body.np5 .corner.sa .pstat, body.np5 .corner.sb .pstat, body.np5 .corner.sc .pstat, body.np5 .corner.sd .pstat{font-size:10px; gap:2px;}
+    body.np5 .corner.sa .pstat img, body.np5 .corner.sb .pstat img, body.np5 .corner.sc .pstat img, body.np5 .corner.sd .pstat img{width:12px; height:12px; flex:0 0 12px;}
+    body.np5 .corner.sa .pname, body.np5 .corner.sb .pname, body.np5 .corner.sc .pname, body.np5 .corner.sd .pname{font-size:9.5px; max-width:44px;}
+    body.np5 .corner.sb{left:calc(var(--sa-l) * 0.15 + 118px);} }
+  /* small phones (6 players under 700 wide, 5 under 710): the top seats become round chips (picture, points and
+     cards), so the bar in the middle still fits */
+  @media (max-width:699px){ body.np6 .corner.sa, body.np6 .corner.sb, body.np6 .corner.sc, body.np6 .corner.sd{padding:3px 8px 3px 3px; border-radius:28px; gap:5px; align-items:center;}
     body.np6 .corner.sa .pava, body.np6 .corner.sb .pava, body.np6 .corner.sc .pava, body.np6 .corner.sd .pava,
     body.vlive.np6 .corner.sa .pava, body.vlive.np6 .corner.sb .pava, body.vlive.np6 .corner.sc .pava, body.vlive.np6 .corner.sd .pava{width:40px; height:40px; border-radius:50%;}
     body.np6 .corner.sa .pname, body.np6 .corner.sb .pname, body.np6 .corner.sc .pname, body.np6 .corner.sd .pname,
@@ -2195,7 +2215,7 @@
     body.np6 .corner.bl .pcol .pstat:nth-child(n), body.np6 .corner.br .pcol .pstat:nth-child(n){display:flex;}
     body.np6 .corner.sa .pcol, body.np6 .corner.sb .pcol, body.np6 .corner.sc .pcol, body.np6 .corner.sd .pcol{display:flex; flex-direction:column; gap:2px;}
     body.np6 .corner.sb{left:calc(var(--sa-l) * 0.15 + 104px);} body.np6 .corner.sc{right:calc(var(--sa-r) * 0.15 + 104px);} }
-  @media (max-width:739px){ body.np5 .corner.sa, body.np5 .corner.sb, body.np5 .corner.sc, body.np5 .corner.sd{padding:3px 8px 3px 3px; border-radius:28px; gap:5px; align-items:center;}
+  @media (max-width:709px){ body.np5 .corner.sa, body.np5 .corner.sb, body.np5 .corner.sc, body.np5 .corner.sd{padding:3px 8px 3px 3px; border-radius:28px; gap:5px; align-items:center;}
     body.np5 .corner.sa .pava, body.np5 .corner.sb .pava, body.np5 .corner.sc .pava, body.np5 .corner.sd .pava,
     body.vlive.np5 .corner.sa .pava, body.vlive.np5 .corner.sb .pava, body.vlive.np5 .corner.sc .pava, body.vlive.np5 .corner.sd .pava{width:40px; height:40px; border-radius:50%;}
     body.np5 .corner.sa .pname, body.np5 .corner.sb .pname, body.np5 .corner.sc .pname, body.np5 .corner.sd .pname,
