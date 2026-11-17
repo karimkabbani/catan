@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v266';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v267';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -4085,7 +4085,7 @@
     const pn = practiceN();
     return `<div class="lvsect">🧪 PRACTICE TABLE · ONLY YOU SEE THIS</div>
       <div class="seg lvseg" style="margin:0 0 10px">${[4, 5, 6].map((k) => `<button class="${pn === k ? 'on' : ''}" onclick="CATAN.practiceN(${k})">${k} players</button>`).join('')}</div>
-      <div class="lvseats${pn >= 5 ? ' many' : ''}">${mine}${bots}</div>
+      <div class="lvseats">${mine}${bots}</div>
       <div class="lvsub small" style="text-align:center;margin:10px 0">Nothing here reaches the real games or the stats. The call is real, so you can try your mic and camera.</div>
       <div class="lvact"><button class="btn full lvbig" onclick="CATAN.practiceStart(false)">Start a new game</button>
       <button class="btn wood full" style="margin-top:8px" onclick="CATAN.practiceStart(true)">Jump into a game in progress</button>
@@ -7476,7 +7476,7 @@
     } else {
       act = `<button class="btn full lvbig" onclick="CATAN.lobbyReady()">${seated.length >= MAX_SEATS ? 'Get in line' : 'Take a seat'}</button><button class="linkbtn" onclick="CATAN.lobbySpectate()">Just watch</button>`;
     }
-    return `${last}<div class="lvseats${seated.length >= 4 ? ' many' : ''}">${seats}</div>${extras.join('')}${setl}<div class="lvact">${act}</div>`;
+    return `${last}<div class="lvseats">${seats}</div>${extras.join('')}${setl}<div class="lvact">${act}</div>`;
   }
 
   // ---- sheets ----
