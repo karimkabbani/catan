@@ -2161,6 +2161,12 @@
   body.vlive .corner.sa .pava, body.vlive .corner.sb .pava, body.vlive .corner.sc .pava, body.vlive .corner.sd .pava{width:48px; height:50px;}
   .corner.sa .pcol, .corner.sb .pcol, .corner.sc .pcol, .corner.sd .pcol{display:grid; grid-template-columns:auto auto; gap:3px 6px; align-content:center;}
   .corner.sa .pname, .corner.sb .pname, .corner.sc .pname, .corner.sd .pname{font-size:10.5px; max-width:52px;}
+  /* cameras on: the mic / camera badges sit on the small picture (no badge row up here), so they shrink to its top
+     corners and leave the face visible */
+  body.vlive .corner.sa .pava .vb, body.vlive .corner.sb .pava .vb, body.vlive .corner.sc .pava .vb, body.vlive .corner.sd .pava .vb{width:15px !important; height:15px !important; top:1px !important;}
+  body.vlive .corner.sa .pava .vb svg, body.vlive .corner.sb .pava .vb svg, body.vlive .corner.sc .pava .vb svg, body.vlive .corner.sd .pava .vb svg{width:9px !important; height:9px !important;}
+  body.vlive .corner.sa .pava .vb.vmic, body.vlive .corner.sb .pava .vb.vmic, body.vlive .corner.sc .pava .vb.vmic, body.vlive .corner.sd .pava .vb.vmic{right:1px !important;}
+  body.vlive .corner.sa .pava .vb.vcam, body.vlive .corner.sb .pava .vb.vcam, body.vlive .corner.sc .pava .vb.vcam, body.vlive .corner.sd .pava .vb.vcam{left:1px !important;}
   /* the luck gauge lies flat inside the plaque's bottom edge (beside it sits the neighbouring seat) */
   .corner.sa .pluck, .corner.sb .pluck, .corner.sc .pluck, .corner.sd .pluck{left:6px; right:6px; top:auto; bottom:3px; width:auto; height:9px; flex-direction:row; gap:4px;}
   .corner.sa .pluck .lkico, .corner.sb .pluck .lkico, .corner.sc .pluck .lkico, .corner.sd .pluck .lkico{width:11px; height:10px; margin:0;}
