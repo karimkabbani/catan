@@ -6654,12 +6654,20 @@
     x = Math.max(EDGE, Math.min(W - EDGE - w, x));
     el.style.right = ''; el.style.left = x + 'px';
     el.style.top = (TOP_ROW[k.seat] ? r.bottom + 10 : Math.max(4, r.top - 6 - el.offsetHeight)) + 'px';   // under a top-row plaque / above my seat
+    // narrow phones (top seats as chips): two hands can meet. A top-row hand drops below the one it would cover, mine
+    // moves right of it. Laid-out boxes (offset*), not getBoundingClientRect: the pop-in animation scales them.
+    const box = (e) => ({ l: e.offsetLeft, t: e.offsetTop, r: e.offsetLeft + e.offsetWidth, b: e.offsetTop + e.offsetHeight });
+    document.querySelectorAll('.rpsb, .pkb').forEach((o) => {
+      if (o === el) return; const q = box(o), c = box(el);
+      if (!(c.l < q.r && q.l < c.r && c.t < q.b && q.t < c.b)) return;
+      if (TOP_ROW[k.seat]) el.style.top = (q.b + 6) + 'px'; else el.style.left = (q.r + 6) + 'px';
+    });
   }
   function rpsBoardClear() { document.querySelectorAll('.rpsb, .rpscrown, .pkb').forEach((el) => el.remove()); }
   // poker on the board: everyone else's 5 cards beside their corner, face-down while they decide, face-up at the reveal
   function pkBoard(R, V) {
     rpsBoardClear();
-    const list = V ? Object.keys(V.hands) : R.alive.filter((c) => c !== myColor);
+    const list = (V ? Object.keys(V.hands) : R.alive.filter((c) => c !== myColor)).sort((a, b) => (a === myColor) - (b === myColor));   // mine last: it steps round the others (handSpot)
     list.forEach((c) => {
       const k = cornerOf(c); if (!k) return;
       const r = k.el.getBoundingClientRect(), left = k.pos[1] === 'l', top = k.pos[0] === 't';
@@ -6682,7 +6690,7 @@
   // each player's hand pops out beside their own corner (over the sea), all at once
   function rpsBoardHands(V) {
     rpsBoardClear();
-    Object.keys(V.picks).forEach((c) => {
+    Object.keys(V.picks).sort((a, b) => (a === myColor) - (b === myColor)).forEach((c) => {   // mine last: it steps round the others (handSpot)
       const k = cornerOf(c); if (!k) return;
       const r = k.el.getBoundingClientRect(), left = k.pos[1] === 'l';
       const won = V.winners.includes(c) || (!V.winners.length && !V.tooMany), auto = V.auto.includes(c);
