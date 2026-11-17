@@ -110,24 +110,16 @@
     transition:opacity .35s ease, transform .35s cubic-bezier(.2,.9,.3,1.25), filter .35s ease;}
   /* small inset from the physical edges (a fraction of the safe area + a hair) so the stats clear
      rounded corners without pushing the plaques too far in */
-  .corner.tl, /* small inset from the physical edges (a fraction of the safe area + a hair) so the stats clear
-     rounded corners without pushing the plaques too far in */
-  .corner.sa,/* small inset from the physical edges (a fraction of the safe area + a hair) so the stats clear
-     rounded corners without pushing the plaques too far in */
-  .corner.sb{top:calc(var(--sa-t) * 0.4 + 8px);    left:calc(var(--sa-l) * 0.15 + 2px);}
-  .corner.tr, .corner.sc,.corner.sd{top:calc(var(--sa-t) * 0.4 + 8px);    right:calc(var(--sa-r) * 0.15 + 2px);}
+  .corner.tl, .corner.sa, .corner.sb{top:calc(var(--sa-t) * 0.4 + 8px);    left:calc(var(--sa-l) * 0.15 + 2px);}
+  .corner.tr, .corner.sc, .corner.sd{top:calc(var(--sa-t) * 0.4 + 8px);    right:calc(var(--sa-r) * 0.15 + 2px);}
   .corner.bl{bottom:calc(var(--sa-b) * 0.4 + 8px); left:calc(var(--sa-l) * 0.15 + 2px);}
   .corner.br{bottom:calc(var(--sa-b) * 0.4 + 8px); right:calc(var(--sa-r) * 0.15 + 2px);}
   /* portrait always at the SCREEN EDGE (like the original): right corners keep natural order
      (stats | portrait), left corners reverse (portrait | stats). */
-  .corner.tl, .corner.bl, left corners reverse (portrait | stats). */
-  .corner.sa,left corners reverse (portrait | stats). */
-  .corner.sb{flex-direction:row-reverse;}
+  .corner.tl, .corner.bl, .corner.sa, .corner.sb{flex-direction:row-reverse;}
   /* ...and the number sits next to the portrait, the icon toward the centre. Right corners already
      do this (icon | number, portrait on the right); left corners reverse each stat so it's number | icon. */
-  .corner.tl .pstat, .corner.bl .pstat, portrait on the right); left corners reverse each stat so it's number | icon. */
-  .corner.sa .pstat,portrait on the right); left corners reverse each stat so it's number | icon. */
-  .corner.sb .pstat{flex-direction:row-reverse;}
+  .corner.tl .pstat, .corner.bl .pstat, .corner.sa .pstat, .corner.sb .pstat{flex-direction:row-reverse;}
   /* turn clarity: dim everyone who isn't up, lift + glow the active player */
   .corner:not(.active){opacity:0.85; filter:saturate(0.5) brightness(0.88);}
   .corner.active{border-color:var(--gold); box-shadow:0 0 0 1px var(--gold), 0 0 16px rgba(233,196,90,0.7), 0 4px 12px rgba(0,0,0,0.5); transform:scale(1.07); z-index:8;}
@@ -135,7 +127,7 @@
   .corner.spin-on{border-color:var(--gold); box-shadow:0 0 0 2px var(--gold), 0 0 22px rgba(233,196,90,0.95); transform:scale(1.08); z-index:9; transition:transform .09s ease, box-shadow .09s ease;}
   .corner.spin-win{border-color:#fff; box-shadow:0 0 0 3px var(--gold), 0 0 40px 10px rgba(233,196,90,1); transform:scale(1.16); z-index:10; animation:spinwin .5s ease;}
   @keyframes spinwin{0%{transform:scale(1.08);}55%{transform:scale(1.24);}100%{transform:scale(1.16);}}
-  .corner.tl.active, .corner.sa.active,.corner.sb.active{transform-origin:top left;}     .corner.tr.active, .corner.sc.active,.corner.sd.active{transform-origin:top right;}
+  .corner.tl.active, .corner.sa.active, .corner.sb.active{transform-origin:top left;}     .corner.tr.active, .corner.sc.active, .corner.sd.active{transform-origin:top right;}
   .corner.bl.active{transform-origin:bottom left;}  .corner.br.active{transform-origin:bottom right;}
   .pcol{display:flex; flex-direction:column; justify-content:center; gap:2px;}
   .pstat{display:flex; align-items:center; gap:4px; font-size:11.5px; line-height:1;}
@@ -159,10 +151,8 @@
     box-shadow:0 3px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,220,170,0.18); cursor:pointer; white-space:nowrap;}
   .probbed img{height:20px; width:auto; filter:drop-shadow(0 1px 1px rgba(0,0,0,0.6));}
   .probbed b{font-family:-apple-system, system-ui, 'Segoe UI', Roboto, sans-serif; color:var(--gold); font-size:15px; font-weight:800; line-height:1; text-shadow:0 1px 2px #000; font-variant-numeric:lining-nums tabular-nums;}   /* the display font draws 1 like a Roman I */
-  .corner.tl .probbed, .corner.bl .probbed, /* the display font draws 1 like a Roman I */
-  .corner.sa .probbed,/* the display font draws 1 like a Roman I */
-  .corner.sb .probbed{left:calc(100% + 28px);}
-  .corner.tr .probbed, .corner.br .probbed, .corner.sc .probbed,.corner.sd .probbed{right:calc(100% + 28px);}
+  .corner.tl .probbed, .corner.bl .probbed, .corner.sa .probbed, .corner.sb .probbed{left:calc(100% + 28px);}
+  .corner.tr .probbed, .corner.br .probbed, .corner.sc .probbed, .corner.sd .probbed{right:calc(100% + 28px);}
   .corner.bl .probbed, .corner.br .probbed{bottom:auto; top:36px;}   /* bottom corners: under the cup pill, above the hand bar (never on it) */
   .probbed.bump{animation:robbump .7s ease;}
   @keyframes robbump{0%{scale:1;} 25%{scale:1.45; rotate:-6deg;} 50%{scale:1.25; rotate:5deg;} 100%{scale:1; rotate:0deg;}}
@@ -551,8 +541,8 @@
   .pcup{position:absolute; z-index:6; top:6px; display:flex; align-items:center; gap:3px; height:24px; padding:0 8px 0 6px; border-radius:12px;
     background:rgba(30,16,4,0.85); border:1.5px solid var(--gold); font-size:13px; pointer-events:none;}
   .pcup b{font-family:-apple-system, system-ui, 'Segoe UI', Roboto, sans-serif; color:#ffd76b; font-size:14px; font-weight:800;}
-  .corner.tl .pcup, .corner.bl .pcup, .corner.sa .pcup,.corner.sb .pcup{left:calc(100% + 28px);}
-  .corner.tr .pcup, .corner.br .pcup, .corner.sc .pcup,.corner.sd .pcup{right:calc(100% + 28px);}
+  .corner.tl .pcup, .corner.bl .pcup, .corner.sa .pcup, .corner.sb .pcup{left:calc(100% + 28px);}
+  .corner.tr .pcup, .corner.br .pcup, .corner.sc .pcup, .corner.sd .pcup{right:calc(100% + 28px);}
   #cuppill{position:fixed; z-index:30; top:calc(var(--sa-t) + 50px); left:50%; transform:translateX(-50%); padding:3px 12px; border-radius:12px;
     background:rgba(0,0,0,0.55); border:1px solid rgba(233,196,90,0.5); font-size:12px; font-weight:800; color:#ffd76b; white-space:nowrap; pointer-events:none;}
   /* the choice, revealed to everyone: headline + the turn order it makes */
@@ -607,8 +597,8 @@
   /* luck meter: a slim level gauge on each corner's board-facing edge (die on top, number under).
      The middle line is fair dice; it fills up (green) when the dice have paid more cards, down (blue) when fewer. */
   .pluck{position:absolute; z-index:6; top:0; bottom:0; width:16px; display:flex; flex-direction:column; align-items:center; gap:2px; cursor:pointer;}
-  .corner.tl .pluck, .corner.bl .pluck, .corner.sa .pluck,.corner.sb .pluck{left:calc(100% + 6px);}
-  .corner.tr .pluck, .corner.br .pluck, .corner.sc .pluck,.corner.sd .pluck{right:calc(100% + 6px);}
+  .corner.tl .pluck, .corner.bl .pluck, .corner.sa .pluck, .corner.sb .pluck{left:calc(100% + 6px);}
+  .corner.tr .pluck, .corner.br .pluck, .corner.sc .pluck, .corner.sd .pluck{right:calc(100% + 6px);}
   .pluck .lkico{width:19px; height:17px; flex:none; margin:0 -2px; filter:drop-shadow(0 1px 1.5px rgba(0,0,0,0.7));}
   .pluck .lkbar{position:relative; flex:1; width:11px; border-radius:6px; background:#0d0a05; border:1.5px solid var(--gold-edge); box-shadow:0 2px 6px rgba(0,0,0,0.5); overflow:hidden;}
   .pluck .lkbar:after{content:''; position:absolute; left:0; right:0; top:calc(50% - 1px); height:2px; background:#fff3d6; opacity:0.85;}
@@ -730,12 +720,8 @@
     filter:drop-shadow(0 1px 2px #000); transform-origin:bottom center; animation:flagwave 1.2s ease-in-out infinite;}
   /* raise the flag toward the board (inside the screen) so it isn't clipped at the edge:
      left corners -> flag on their right; right corners -> flag on their left */
-  .corner.tl .pflag, .corner.bl .pflag, /* raise the flag toward the board (inside the screen) so it isn't clipped at the edge:
-     left corners -> flag on their right; right corners -> flag on their left */
-  .corner.sa .pflag,/* raise the flag toward the board (inside the screen) so it isn't clipped at the edge:
-     left corners -> flag on their right; right corners -> flag on their left */
-  .corner.sb .pflag{left:calc(100% + 26px);}
-  .corner.tr .pflag, .corner.br .pflag, .corner.sc .pflag,.corner.sd .pflag{right:calc(100% + 26px);}
+  .corner.tl .pflag, .corner.bl .pflag, .corner.sa .pflag, .corner.sb .pflag{left:calc(100% + 26px);}
+  .corner.tr .pflag, .corner.br .pflag, .corner.sc .pflag, .corner.sd .pflag{right:calc(100% + 26px);}
   /* v250: your own flag would sit under the 😀 💬 🎤 row (and the spot above the corner takes your dice and, on
      a 16 Pro, the camera island): pin it on the top-left of your portrait instead, tappable to lower it */
   .corner .pflag.mine{left:6px; right:auto; top:5px; font-size:24px; z-index:8; pointer-events:auto; cursor:pointer;}
@@ -779,14 +765,14 @@
   .pwt .wtlive{position:absolute; bottom:calc(100% + 9px); left:0; height:20px; display:flex; align-items:center; gap:4px;
     padding:0 7px; border-radius:10px; background:#e5483b; color:#fff; font:900 11px/1 -apple-system, system-ui, 'Segoe UI', Roboto, sans-serif;
     letter-spacing:.05em; white-space:nowrap; font-variant-numeric:lining-nums tabular-nums; box-shadow:0 2px 6px rgba(0,0,0,0.5); pointer-events:none;}
-  .corner.tl .pwt .wtlive, .corner.tr .pwt .wtlive, .corner.sa .pwt .wtlive,.corner.sb .pwt .wtlive,.corner.sc .pwt .wtlive,.corner.sd .pwt .wtlive{bottom:auto; top:calc(100% + 9px);}
-  .corner.tr .pwt .wtlive, .corner.br .pwt .wtlive, .corner.sc .pwt .wtlive,.corner.sd .pwt .wtlive{left:auto; right:0;}
+  .corner.tl .pwt .wtlive, .corner.tr .pwt .wtlive, .corner.sa .pwt .wtlive, .corner.sb .pwt .wtlive, .corner.sc .pwt .wtlive, .corner.sd .pwt .wtlive{bottom:auto; top:calc(100% + 9px);}
+  .corner.tr .pwt .wtlive, .corner.br .pwt .wtlive, .corner.sc .pwt .wtlive, .corner.sd .pwt .wtlive{left:auto; right:0;}
   .pwt .wtlive b{width:6px; height:6px; border-radius:50%; background:#fff; display:block;}
   /* someone talking: their corner glows red + a bouncing-bars badge on the photo (mine glows while I'm live) */
   .corner.wtalk{border-color:#e5483b !important; outline:3px solid #e5483b; outline-offset:1px; box-shadow:0 0 22px 8px rgba(229,72,59,0.75) !important;}
   .pwteq, .pwtmute{position:absolute; left:-8px; top:30px; z-index:8; width:22px; height:22px; border-radius:50%; display:none;
     align-items:center; justify-content:center; box-shadow:0 2px 5px rgba(0,0,0,0.55); pointer-events:none;}
-  .corner.tr .pwteq, .corner.tr .pwtmute, .corner.br .pwteq, .corner.br .pwtmute, .corner.sc .pwteq,.corner.sd .pwteq,.corner.sc .pwtmute,.corner.sd .pwtmute{left:auto; right:-8px;}
+  .corner.tr .pwteq, .corner.tr .pwtmute, .corner.br .pwteq, .corner.br .pwtmute, .corner.sc .pwteq, .corner.sd .pwteq, .corner.sc .pwtmute, .corner.sd .pwtmute{left:auto; right:-8px;}
   .pwteq{background:#e5483b; border:1.5px solid #fff; gap:2px;}
   .corner.wtalk .pwteq{display:flex;}
   .pwteq i{width:2.5px; height:6px; border-radius:2px; background:#fff; display:block; animation:wteq .6s ease-in-out infinite alternate;}
@@ -858,9 +844,9 @@
      and away from the screen edge, so never under the camera cutout */
   .pdice{position:absolute; display:flex; gap:5px; z-index:7;}
   .corner.bl .pdice, .corner.br .pdice{bottom:calc(100% + 7px);}
-  .corner.tl .pdice, .corner.tr .pdice, .corner.sa .pdice,.corner.sb .pdice,.corner.sc .pdice,.corner.sd .pdice{top:calc(100% + 7px);}
-  .corner.tl .pdice, .corner.bl .pdice, .corner.sa .pdice,.corner.sb .pdice{right:0;}
-  .corner.tr .pdice, .corner.br .pdice, .corner.sc .pdice,.corner.sd .pdice{left:0;}
+  .corner.tl .pdice, .corner.tr .pdice, .corner.sa .pdice, .corner.sb .pdice, .corner.sc .pdice, .corner.sd .pdice{top:calc(100% + 7px);}
+  .corner.tl .pdice, .corner.bl .pdice, .corner.sa .pdice, .corner.sb .pdice{right:0;}
+  .corner.tr .pdice, .corner.br .pdice, .corner.sc .pdice, .corner.sd .pdice{left:0;}
   .pdice img{width:34px; height:34px; filter:drop-shadow(0 2px 4px rgba(0,0,0,0.6));}
   .logo{max-width:78%;max-height:96px;display:block;margin:0 auto 12px;}
 
@@ -1680,7 +1666,7 @@
   .tbadge{position:absolute; top:-9px; left:50%; transform:translateX(-50%); z-index:9; width:26px; height:26px; border-radius:50%;
     display:flex; align-items:center; justify-content:center; font-weight:900; font-size:15px; line-height:1; color:#fff;
     border:2px solid #fff; box-shadow:0 2px 6px rgba(0,0,0,0.6);}
-  .corner.tl .tbadge, .corner.tr .tbadge, .corner.sa .tbadge,.corner.sb .tbadge,.corner.sc .tbadge,.corner.sd .tbadge{top:auto; bottom:-9px;}
+  .corner.tl .tbadge, .corner.tr .tbadge, .corner.sa .tbadge, .corner.sb .tbadge, .corner.sc .tbadge, .corner.sd .tbadge{top:auto; bottom:-9px;}
   .tbadge.acc{background:#3da34d; cursor:pointer;}
   .tbadge.dec{background:#cf3b34;}
   .tbadge.counter{background:#e0a72a; cursor:pointer;}
@@ -2141,20 +2127,16 @@
   .corner.vtalkin:not(.rps-out){filter:none !important;}   /* v237: class set by the glow loop, was :has() */
   /* v225: badges live in the plaque's name row, never on the picture. The row hugs the screen edge (under the picture for
      the bottom corners, above it for the top ones): name on the edge side, badges on the board side. */
-  body.vlive .corner.tl .pport, body.vlive .corner.tr .pport, badges on the board side. */
-  body.vlive .corner.sa .pport,badges on the board side. */
-  body.vlive .corner.sb .pport,body.vlive .corner.sc .pport,body.vlive .corner.sd .pport{flex-direction:column-reverse;}
+  body.vlive .corner.tl .pport, body.vlive .corner.tr .pport, body.vlive .corner.sa .pport, body.vlive .corner.sb .pport, body.vlive .corner.sc .pport, body.vlive .corner.sd .pport{flex-direction:column-reverse;}
   body.vlive .pname.prow{display:flex; align-items:center; justify-content:space-between; gap:5px; width:100%; max-width:none !important; box-sizing:border-box; padding:0 1px; overflow:visible;}
-  body.vlive .corner.tr .pname.prow, body.vlive .corner.br .pname.prow, body.vlive .corner.sc .pname.prow,body.vlive .corner.sd .pname.prow{flex-direction:row-reverse;}
+  body.vlive .corner.tr .pname.prow, body.vlive .corner.br .pname.prow, body.vlive .corner.sc .pname.prow, body.vlive .corner.sd .pname.prow{flex-direction:row-reverse;}
   .prow .nm{overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0;}
   .vrow{display:flex; gap:4px; flex:none;}
   .vrow .vb{position:relative; top:auto; left:auto; right:auto; width:20px; height:20px;} .vrow .vb svg{width:11px; height:11px;}
   .corner.bl .vrow .vbars, .corner.br .vrow .vbars{top:auto; bottom:calc(100% + 2px);}
   @media (min-width:740px) and (min-height:370px){ .vrow .vb{width:24px; height:24px;} .vrow .vb svg{width:13px; height:13px;} }
   /* v247: no 26px badge tier either (see the retired 800+ rule above) */
-  body.vlive .corner.tr .pstatus, body.vlive .corner.br .pstatus, /* v247: no 26px badge tier either (see the retired 800+ rule above) */
-  body.vlive .corner.sc .pstatus,/* v247: no 26px badge tier either (see the retired 800+ rule above) */
-  body.vlive .corner.sd .pstatus{right:auto; left:2px;}   /* the online dot on the board side too */
+  body.vlive .corner.tr .pstatus, body.vlive .corner.br .pstatus, body.vlive .corner.sc .pstatus, body.vlive .corner.sd .pstatus{right:auto; left:2px;}   /* the online dot on the board side too */
   /* the round menu button (and its neighbours) step away from the camera when it is on the right */
   body.cut-r #radialtab, body.cut-r #trophytab{right:calc(var(--sa-r) + 4px);}
   body.cut-r #dicetab{right:calc(var(--sa-r) + 70px);}
@@ -2167,7 +2149,6 @@
   body.cut-l #leavetab{left:var(--sa-l);}   /* whoever is talking lights up, even when it isn't their turn */
   body.vwin .corner.vwinner .pava::after{content:'👑'; position:absolute; top:1px; left:50%; transform:translateX(-50%); font-size:14px; line-height:1; z-index:12; filter:drop-shadow(0 1px 2px rgba(0,0,0,0.7));}
   body.vwin .corner.vwinner .pava{border-color:#ffd76b !important; box-shadow:0 0 0 3px rgba(255,215,107,0.45), 0 0 18px 6px rgba(255,215,107,0.5);}
-
   /* v-NEXT 5-6 players, layout D (HANDOVER §8). The extra seats sit in the top row on shorter plaques: 'sa' + 'sb' in the
      top-left corner, 'sc' + 'sd' top-right, the top-centre bar (feed, narrator, pills) left as it is. Every rule written
      for .corner.tl / .corner.tr above also applies to them; these are the differences. Checked headless at 852/932/844

@@ -1998,7 +1998,7 @@
   // this phone (remembered). While the board is zoomed in they fade, since the island then fills the sea.
   // #watchrail is a full-screen, click-through layer; each .wseat is placed on an ellipse around the island.
   const WSZ = 44, WSPOTS = [180, 0, 28, 332];
-  const WSPOTS_BIG = [180, 8, 28, 348];   // 5-6 players: the right-hand faces sit a little lower, clear of the top row
+  const WSPOTS_BIG = [180, 8, 28, 352];   // 5-6 players: the right-hand faces sit a little lower, clear of the top row
   let wrailSig = '', wHidden = (function () { try { return localStorage.getItem('catanHideWatchers') === '1'; } catch (_) { return false; } })();
   function boardBox() {
     let L = 1e9, T = 1e9, R = -1e9, B = -1e9;
@@ -4344,15 +4344,16 @@
   // v-NEXT: beside a seat is not always free. A top-row seat (5-6 players) has a neighbour beside it, so its hand goes
   // UNDER the plaque (aligned to its inner edge, clear of the camera cutout); my own hand goes ABOVE my seat, where it
   // no longer covers my emoji / text / walkie buttons (it did on every reveal before).
+  // Called once the hand is on the page (so its width is known): kept 52px from both side edges, clear of a camera cutout.
   function handSpot(el, k, r) {
-    if (TOP_ROW[k.seat]) {
-      el.style.top = (r.bottom + 10) + 'px';
-      if (k.pos[1] === 'l') { el.style.left = ''; el.style.right = (window.innerWidth - r.right) + 'px'; }
-      else { el.style.right = ''; el.style.left = r.left + 'px'; }
-    } else if (k.seat === 'bl' && online && myColor && cornerOf(myColor) && cornerOf(myColor).el === k.el) {
-      // above my seat, lined up with its inner edge: clear of the camera cutout (mid-height on the left edge)
-      el.style.top = Math.max(4, r.top - 82) + 'px'; el.style.left = ''; el.style.right = (window.innerWidth - r.right) + 'px';
-    }
+    const mine = k.seat === 'bl' && online && myColor && cornerOf(myColor) && cornerOf(myColor).el === k.el;
+    if (!TOP_ROW[k.seat] && !mine) return;
+    const w = el.offsetWidth, W = window.innerWidth, EDGE = 52;
+    // a left-side seat lines its hand up with the plaque's inner (right) edge, a right-side seat with its inner (left) edge
+    let x = k.pos[1] === 'l' ? r.right - w : r.left;
+    x = Math.max(EDGE, Math.min(W - EDGE - w, x));
+    el.style.right = ''; el.style.left = x + 'px';
+    el.style.top = (TOP_ROW[k.seat] ? r.bottom + 10 : Math.max(4, r.top - 6 - el.offsetHeight)) + 'px';   // under a top-row plaque / above my seat
   }
   function rpsBoardClear() { document.querySelectorAll('.rpsb, .rpscrown, .pkb').forEach((el) => el.remove()); }
   // poker on the board: everyone else's 5 cards beside their corner, face-down while they decide, face-up at the reveal
@@ -4374,8 +4375,8 @@
       }
       el.style.top = (top ? Math.max(4, avatarCentre(k).y - 40) : avatarCentre(k).y - 40) + 'px';   // level with the player's portrait
       if (left) el.style.left = (r.right + 12) + 'px'; else el.style.right = (window.innerWidth - r.left + 12) + 'px';
-      handSpot(el, k, r);
       document.body.appendChild(el);
+      handSpot(el, k, r);
     });
   }
   // each player's hand pops out beside their own corner (over the sea), all at once
@@ -4390,8 +4391,8 @@
       el.innerHTML = `<span class="rpsbh">${RPS_HAND[V.picks[c]]}</span>${auto ? '<span class="rpsdice">🎲</span><span class="rpsbtag">random</span>' : ''}`;
       el.style.top = (avatarCentre(k).y - 36) + 'px';   // level with the player's own portrait
       if (left) el.style.left = (r.right + 12) + 'px'; else el.style.right = (window.innerWidth - r.left + 12) + 'px';
-      handSpot(el, k, r);
       document.body.appendChild(el);
+      handSpot(el, k, r);
     });
   }
   function rpsCrown(color) {
