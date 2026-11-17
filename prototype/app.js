@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v264';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v265';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -769,6 +769,7 @@
   function onBoardClick(e) {
     if (zoom.swallowClick) { zoom.swallowClick = false; return; }  // a pan/pinch/double-tap, not a tap-to-place
     if (online && !isMyTurn()) return;                            // only the active player touches the board online
+    if (ui.mode === 'placeSettlement' || ui.mode === 'placeCity' || ui.mode === 'placeRoad') { snapPlace(e); return; }
     const t = e.target.closest('.hit'); if (!t) return;
     const kind = t.getAttribute('data-kind');
     // steal: tapping a blinking victim building steals from that player immediately
@@ -778,6 +779,53 @@
     if (kind === 'vertex') { ui.confirm = { action: ui.mode === 'placeCity' ? { type: 'buildCity', vertex: id } : { type: 'buildSettlement', vertex: id }, color }; render(); }
     else if (kind === 'edge') { ui.confirm = { action: { type: 'buildRoad', edge: id }, color }; render(); }
     else if (kind === 'hex') { ui.confirm = { action: { type: 'moveRobber', hex: id }, color }; render(); }
+  }
+
+  // ---- "tap near it" (HANDOVER §8, vNEXT): a tap while placing a settlement, city or road picks the NEAREST legal
+  // spot within SNAP_PX screen pixels (so it feels the same at any zoom), instead of needing to land on the tiny
+  // invisible .hit target. Distances are measured in screen px through the board's CTM, which already carries the
+  // pan/zoom transform; inside rotate.html's frame the click and the CTM are both in the frame's own (upright)
+  // coordinates, so the sideways board needs nothing extra. Roads measure to the edge's segment, not its midpoint.
+  // Near-ties (within SNAP_TIE_PX): the closest wins, but tapping again when the ghost already sits on it moves it
+  // to the next one, so a crowded corner never feels stuck. An exact .hit still always counts, however zoomed.
+  const SNAP_PX = 30, SNAP_TIE_PX = 6;
+  function segDist(px, py, ax, ay, bx, by) {
+    const dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy;
+    const t = L ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / L)) : 0;
+    return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+  }
+  function snapCandidates(clientX, clientY, exact) {
+    const svg = $('board-dyn'), m = svg && svg.getScreenCTM ? svg.getScreenCTM() : null; if (!m) return [];
+    const scr = (x, y) => ({ x: m.a * x + m.c * y + m.e, y: m.b * x + m.d * y + m.f });
+    const color = activeColor(), out = [];
+    if (ui.mode === 'placeRoad') {
+      for (const eid of legalRoadEdges(color)) {
+        const [a, b] = state.board.edges[eid].v, A = scr(vX(a), vY(a)), B = scr(vX(b), vY(b));
+        out.push({ kind: 'edge', id: eid, d: segDist(clientX, clientY, A.x, A.y, B.x, B.y) });
+      }
+    } else {
+      const list = ui.mode === 'placeCity' ? legalCityVertices(color) : legalSettlementVertices(color);
+      for (const id of list) { const P = scr(vX(id), vY(id)); out.push({ kind: 'vertex', id, d: Math.hypot(clientX - P.x, clientY - P.y) }); }
+    }
+    return out.filter((c) => c.d <= SNAP_PX || (exact && exact.kind === c.kind && exact.id === c.id)).sort((p, q) => p.d - q.d);
+  }
+  function snapPick(clientX, clientY, exact) {
+    const cands = snapCandidates(clientX, clientY, exact); if (!cands.length) return null;
+    const ties = cands.filter((c) => c.d - cands[0].d <= SNAP_TIE_PX);
+    const act = ui.confirm && ui.confirm.action;
+    const curId = act ? (act.type === 'buildRoad' ? act.edge : act.vertex) : null;
+    const curKind = act ? (act.type === 'buildRoad' ? 'edge' : 'vertex') : null;
+    const at = ties.findIndex((c) => c.kind === curKind && c.id === curId);
+    return at >= 0 ? ties[(at + 1) % ties.length] : ties[0];   // already on one of the tied spots -> move to the next
+  }
+  function snapPlace(e) {
+    const t = e.target && e.target.closest ? e.target.closest('.hit') : null;
+    const exact = t ? { kind: t.getAttribute('data-kind'), id: Number(t.getAttribute('data-id')) } : null;
+    const pick = snapPick(e.clientX, e.clientY, exact); if (!pick) return;   // too far from every legal spot: nothing, as before
+    const color = activeColor();
+    if (pick.kind === 'edge') ui.confirm = { action: { type: 'buildRoad', edge: pick.id }, color };
+    else ui.confirm = { action: ui.mode === 'placeCity' ? { type: 'buildCity', vertex: pick.id } : { type: 'buildSettlement', vertex: pick.id }, color };
+    render();
   }
 
   // ---- drag the robber onto a hex (on a 7 / knight) ------------------------
