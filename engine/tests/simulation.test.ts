@@ -6,19 +6,21 @@ import { GameState, PlayerColor, RESOURCES } from '../src/types.js';
 // A greedy auto-player good enough to drive full games and stress the engine.
 // It never makes an illegal move on purpose, but the engine still validates.
 
+// 5-6 player games use the extension's bigger supply: 24 of each resource, 20 knights, 3 of each progress card
+const big = (s: GameState) => s.players.length >= 5;
 function conserved(s: GameState): boolean {
   return RESOURCES.every((res) => {
     const held = s.players.reduce((n, p) => n + p.resources[res], 0);
-    return held + s.bank[res] === 19;
+    return held + s.bank[res] === (big(s) ? 24 : 19);
   }) && devCardsOk(s);
 }
 // the same check the database guard runs (server/migrate-audit.sql): played Monopoly / Road Building / Year of
 // Plenty cards aren't kept, so those can only be "at most 2"; knights (played ones counted) and VP cards are exact
 function devCardsOk(s: GameState): boolean {
   const all = [...s.devDeck, ...s.players.flatMap((p) => [...p.devCards, ...p.newDevCards])];
-  const n = (c: string) => all.filter((x) => x === c).length;
-  return n('knight') + s.players.reduce((k, p) => k + p.playedKnights, 0) === 14 && n('victory_point') === 5
-    && n('road_building') <= 2 && n('year_of_plenty') <= 2 && n('monopoly') <= 2;
+  const n = (c: string) => all.filter((x) => x === c).length, prog = big(s) ? 3 : 2;
+  return n('knight') + s.players.reduce((k, p) => k + p.playedKnights, 0) === (big(s) ? 20 : 14) && n('victory_point') === 5
+    && n('road_building') <= prog && n('year_of_plenty') <= prog && n('monopoly') <= prog;
 }
 
 function vertexFree(s: GameState, v: number): boolean {
@@ -211,5 +213,40 @@ describe('full-game simulation', () => {
     // stayed conserved (asserted inside step()). We also confirm games can and
     // do reach a legitimate 10-VP win.
     expect(wins).toBeGreaterThanOrEqual(6);
+  });
+});
+
+describe('5 and 6 player games (the extension island)', () => {
+  const COLS: PlayerColor[] = ['red', 'blue', 'green', 'yellow', 'purple', 'black'];
+  for (const n of [5, 6]) {
+    // the greedy test bot is slow to finish a 5-6 player game, so this plays long stretches rather than whole
+    // games: the point is that every move stays legal and every card stays accounted for (checked after each move)
+    it(`plays long ${n}-player games: every move legal, bank (24 each) and deck (34) conserved`, () => {
+      let best = 0;
+      for (let seed = 1; seed <= 3; seed++) {
+        const s0 = createGame({ id: `sim${n}-${seed}`, players: COLS.slice(0, n).map((c) => ({ color: c, name: c })), seed });
+        expect(s0.board.hexes.length).toBe(30);
+        expect(Object.values(s0.bank).every((x) => x === 24)).toBe(true);
+        expect(s0.devDeck.length).toBe(34);
+        expect(s0.board.hexes[s0.robberHex].terrain).toBe('desert');
+        expect(s0.setupOrder.length).toBe(n * 2);
+        expect(s0.targetPoints).toBe(10);
+        let s = runSetup(s0);
+        expect(Object.keys(s.settlements).length).toBe(n * 2);
+        let turns = 0;
+        while (s.phase !== 'ended' && turns++ < 600) s = playTurn(s);
+        expect(conserved(s)).toBe(true);
+        if (s.phase === 'ended') expect(victoryPoints(s, s.winner!)).toBeGreaterThanOrEqual(10);
+        best = Math.max(best, ...s.players.map((p) => victoryPoints(s, p.color, true)));
+      }
+      expect(best).toBeGreaterThanOrEqual(6);   // the games really moved on (builds, cities, cards), not stalled
+    });
+  }
+  it('still refuses 7 players and keeps 2-4 player games on the 19-hex board', () => {
+    expect(() => createGame({ id: 'x', players: [...COLS, 'red'].map((c, i) => ({ color: c as PlayerColor, name: 'p' + i })), seed: 1 })).toThrow();
+    const g4 = createGame({ id: 'g4', players: COLS.slice(0, 4).map((c) => ({ color: c, name: c })), seed: 3 });
+    expect(g4.board.hexes.length).toBe(19);
+    expect(Object.values(g4.bank).every((x) => x === 19)).toBe(true);
+    expect(g4.devDeck.length).toBe(25);
   });
 });

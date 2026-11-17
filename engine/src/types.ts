@@ -19,8 +19,9 @@ export const TERRAIN_RESOURCE: Record<Terrain, Resource | null> = {
   desert: null,
 };
 
-export type PlayerColor = 'red' | 'blue' | 'green' | 'yellow';
-export const PLAYER_COLORS: PlayerColor[] = ['red', 'blue', 'green', 'yellow'];
+export type PlayerColor = 'red' | 'blue' | 'green' | 'yellow' | 'purple' | 'black';
+// purple and black are the 5th and 6th seats (5-6 player games)
+export const PLAYER_COLORS: PlayerColor[] = ['red', 'blue', 'green', 'yellow', 'purple', 'black'];
 
 export type PortType = '3:1' | Resource;
 

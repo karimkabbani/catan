@@ -9,7 +9,7 @@
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
-  const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f' };
+  const PCOLOR = { red: '#cf3b34', blue: '#2f6bd6', green: '#3da34d', yellow: '#e8c41f', purple: '#8e4cc9', black: '#3a3a40' };   // purple + black: seats 5 and 6
   // Document-canvas backgrounds per screen. iOS standalone paints the safe-area strip
   // (below the home indicator) with the <body> bg, which no fixed element can cover —
   // so we switch body bg to match: dark wood on menus, deep sea in-game.
@@ -48,8 +48,8 @@
   // Animation speed setting -> a time multiplier applied to JS-timed animations.
   function aScale() { return SETTINGS.anim === 'slow' ? 1.5 : (SETTINGS.anim === 'fast' ? 0.6 : 1); }
   function aDur(ms) { return Math.round(ms * aScale()); }
-  const PSTROKE = { red: '#7d1f1b', blue: '#17376f', green: '#1f6b2c', yellow: '#9a7d0c' };
-  const PINK = { red: '#fff', blue: '#fff', green: '#fff', yellow: '#23303c' };
+  const PSTROKE = { red: '#7d1f1b', blue: '#17376f', green: '#1f6b2c', yellow: '#9a7d0c', purple: '#4a1f75', black: '#0d0d10' };
+  const PINK = { red: '#fff', blue: '#fff', green: '#fff', yellow: '#23303c', purple: '#fff', black: '#fff' };
   function hexA(hex, a) { const n = parseInt(hex.slice(1), 16); return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`; }
 
   // ---- sound (Web Audio: overlapping SFX + iOS unlock-on-first-tap) ----------
@@ -208,21 +208,28 @@
   // The #board layers are 2x the viewport, so the viewBox is 2x too (VB_HALF below);
   // the water rect must reach the viewBox corners (±VB_HALF) plus the wide letterbox,
   // or a drag would expose the deep-ocean backdrop instead of hexes.
-  const WATER_X = 26, WATER_Y = 13;
-  const VB_HALF = 12.4;           // viewBox half-size (keep in sync with boardSVG + #board CSS 2x)
+  // v-NEXT: the 5-6 player island is bigger (30 hexes), so its viewBox is wider (tiles ~17% smaller on screen) and
+  // the sea reaches further. Both follow the board in play (boardSVG sets VB_HALF; waterHexes() per board size).
+  const VB_SMALL = 12.4, VB_BIG = 15.0;
+  let VB_HALF = VB_SMALL;         // viewBox half-size (keep in sync with boardSVG + #board CSS 2x)
   let boardCx = 0, boardCy = 0;   // island/viewBox centre, set in boardSVG, used by zClamp
   let boardHalfW = 4, boardHalfH = 4;   // island half-extent (board units, from vertices) — pan clamp
-  const WATER_HEXES = (() => {
+  const waterMemo = {};
+  function waterHexes(board) {
+    const big = !!(board && board.hexes.length > 19), k = big ? 'big' : 'small';
+    if (waterMemo[k]) return waterMemo[k];
+    const WATER_X = big ? 32 : 26, WATER_Y = big ? 16 : 13;
+    const island = new Set(board ? board.hexes.map((h) => h.q + ',' + h.r) : []);
     const out = [];
-    for (let q = -18; q <= 18; q++) for (let r = -18; r <= 18; r++) {
+    for (let q = -21; q <= 21; q++) for (let r = -21; r <= 21; r++) {
       const s = -q - r;
-      if (Math.max(Math.abs(q), Math.abs(r), Math.abs(s)) < 3) continue;   // skip the island region
+      if (board ? island.has(q + ',' + r) : Math.max(Math.abs(q), Math.abs(r), Math.abs(s)) < 3) continue;   // skip the island region
       const cx = 1.5 * q, cy = Math.sqrt(3) * (r + q / 2);
       if (Math.abs(cx) > WATER_X || Math.abs(cy) > WATER_Y) continue;        // rectangular sea
       out.push({ cx, cy, pts: HEX_PTS.map(([dx, dy]) => [cx + dx, cy + dy]) });
     }
-    return out;
-  })();
+    return (waterMemo[k] = out);
+  }
 
   let state = null;
   let ui = { mode: 'idle', pending: null };
@@ -466,7 +473,7 @@
       const pts = hx.vertices.map((id) => `${vX(id).toFixed(3)},${vY(id).toFixed(3)}`).join(' ');
       g += `<clipPath id="hc${hx.id}"><polygon points="${pts}"/></clipPath>`;
     }
-    WATER_HEXES.forEach((wh, i) => {
+    waterHexes(state.board).forEach((wh, i) => {
       const pts = wh.pts.map((p) => `${p[0].toFixed(3)},${p[1].toFixed(3)}`).join(' ');
       g += `<clipPath id="wc${i}"><polygon points="${pts}"/></clipPath>`;
     });
@@ -541,6 +548,7 @@
     const cx0 = (Math.min(...xs) + Math.max(...xs)) / 2, cy0 = (Math.min(...ys) + Math.max(...ys)) / 2;
     boardCx = cx0; boardCy = cy0;
     boardHalfW = (Math.max(...xs) - Math.min(...xs)) / 2; boardHalfH = (Math.max(...ys) - Math.min(...ys)) / 2;
+    VB_HALF = state.board.hexes.length > 19 ? VB_BIG : VB_SMALL;   // the 5-6 player island: zoomed out to fit
     const half = VB_HALF;
     const minx = cx0 - half, miny = cy0 - half, w = half * 2, h = half * 2;
     const P = [defs(state.board.hexes)];
@@ -548,7 +556,7 @@
     if (stat) {
     // authentic coast: a ring of water hexes (real ripped water tile) around the
     // island; the animated sea texture shows beyond it.
-    WATER_HEXES.forEach((wh, i) => {
+    waterHexes(state.board).forEach((wh, i) => {
       const pts = wh.pts.map((p) => `${p[0].toFixed(3)},${p[1].toFixed(3)}`).join(' ');
       P.push(`<polygon points="${pts}" fill="#1f6aa8"/>`);
       P.push(`<image href="assets/tiles/water.png" x="${wh.cx - 1}" y="${wh.cy - 1}" width="2" height="2" preserveAspectRatio="xMidYMid slice" clip-path="url(#wc${i})"/>`);
@@ -893,11 +901,18 @@
   const SEATS = ['tl', 'tr', 'br', 'bl'];
   // Egocentric seating (like physical Catan): each device sees ITS OWN player bottom-left, and the
   // rest in turn order around the table. Relative position (0 = me) -> corner, per player count.
-  const ROT_ORDER = { 2: ['bl', 'tr'], 3: ['bl', 'tl', 'tr'], 4: ['bl', 'tl', 'tr', 'br'] };
+  // v-NEXT 5-6 players (HANDOVER §8, layout D): the extra seats sit in the TOP ROW on shorter plaques, two per top
+  // corner, so the side edges stay clear (the camera cutout is mid-height on one of them) and the top-centre bar keeps
+  // its feed and pills. 'sa' outer / 'sb' inner on the left, 'sc' inner / 'sd' outer on the right. Clockwise from me.
+  const ROT_ORDER = { 2: ['bl', 'tr'], 3: ['bl', 'tl', 'tr'], 4: ['bl', 'tl', 'tr', 'br'], 5: ['bl', 'sa', 'sb', 'sd', 'br'], 6: ['bl', 'sa', 'sb', 'sc', 'sd', 'br'] };
+  const TOP_ROW = { sa: 'tl', sb: 'tl', sc: 'tr', sd: 'tr' };
+  const ALL_SEATS = ['tl', 'tr', 'br', 'bl', 'sa', 'sb', 'sc', 'sd'];
+  function seatSide(key) { return TOP_ROW[key] || key; }   // which corner a seat belongs to: 'tl' | 'tr' | 'bl' | 'br'
   function seatKey(i) {
     const n = (state && state.players) ? state.players.length : 0;
     const myIdx = (online && myColor && state && state.players) ? state.players.findIndex((p) => p.color === myColor) : -1;
     if (myIdx >= 0 && ROT_ORDER[n]) return ROT_ORDER[n][(i - myIdx + n) % n];
+    if (n >= 5) return ROT_ORDER[n][i];   // 5-6 players offline / watching: the same table, seat 0 bottom-left
     return SEATS[i];   // offline pass-and-play / spectator: original fixed layout
   }
   // is a seated player currently connected? Only a fresh heartbeat counts (liveIds: one in the last 18s,
@@ -977,7 +992,9 @@
       const off = online && !isPlayerOnline(p.color);
       // v225: with voice, the mic/camera badges sit in the plaque's name row (off the picture, and out of the
       // phone's camera cutout, which in landscape is always mid-height on a side edge)
-      const vbs = pid ? voiceBadges(pid) : '', vrow = !!(vbs && document.body.classList.contains('vlive'));
+      // top-row seats (5-6 players) keep the badges on the picture: their plaques are too narrow for a badge row, and
+      // up there they are far from the camera cutout (which is why v225 moved them off the picture)
+      const vbs = pid ? voiceBadges(pid) : '', vrow = !!(vbs && document.body.classList.contains('vlive')) && !TOP_ROW[seatKey(i)];
       const statusDot = online ? `<span class="pstatus ${off ? 'off' : 'on'}" title="${off ? 'Offline' : 'Online'}"></span>` : '';
       const wtb = wtCornerBits(p.color);
       el.innerHTML = `${di}${tbadge}${chatBtn}${dot}${viewing}${wtb.mic}
@@ -995,7 +1012,8 @@
     } else if (pill) pill.remove();
     document.body.classList.toggle('hascuppill', !!$('cuppill'));
     const usedSeats = {}; state.players.forEach((_, i) => { usedSeats[seatKey(i)] = 1; });
-    ['tl', 'tr', 'br', 'bl'].forEach((k) => { if (!usedSeats[k]) { const el = $('p-' + k); if (el) el.style.display = 'none'; } });
+    ALL_SEATS.forEach((k) => { if (!usedSeats[k]) { const el = $('p-' + k); if (el) el.style.display = 'none'; } });
+    document.body.classList.toggle('np5', state.players.length === 5); document.body.classList.toggle('np6', state.players.length === 6);   // layout D sizing (index.html)
     fitDockSoon();
   }
   // v221: with the bigger voice corners, keep the bottom bar (your resources, or the watcher's strip) between the
@@ -1122,7 +1140,7 @@
   function luckStrip(p) {
     if (!state.luckLog || state.phase === 'setup') return '';
     const warm = luckWarm(), v = warm ? 0 : luckOf(p.color), n = Math.round(v);
-    const fill = n ? `<i class="${n > 0 ? 'up' : 'down'}" style="height:${(Math.min(Math.abs(v) / LUCK_FULL, 1) * 50).toFixed(1)}%"></i>` : '';
+    const fill = n ? `<i class="${n > 0 ? 'up' : 'down'}" style="--lk:${(Math.min(Math.abs(v) / LUCK_FULL, 1) * 50).toFixed(1)}%"></i>` : '';   // --lk: a height, or a width on the flat top-row gauge
     return `<span class="pluck${warm ? ' warm' : ''}" title="Dice luck" onclick="event.stopPropagation();CATAN.luck('${p.color}')">${luckIcon()}<span class="lkbar">${fill}</span><b>${warm ? '·' : fmtLuck(v)}</b></span>`;
   }
   // a word for the number, matching the end-of-game awards at the far ends
@@ -1980,6 +1998,7 @@
   // this phone (remembered). While the board is zoomed in they fade, since the island then fills the sea.
   // #watchrail is a full-screen, click-through layer; each .wseat is placed on an ellipse around the island.
   const WSZ = 44, WSPOTS = [180, 0, 28, 332];
+  const WSPOTS_BIG = [180, 8, 28, 348];   // 5-6 players: the right-hand faces sit a little lower, clear of the top row
   let wrailSig = '', wHidden = (function () { try { return localStorage.getItem('catanHideWatchers') === '1'; } catch (_) { return false; } })();
   function boardBox() {
     let L = 1e9, T = 1e9, R = -1e9, B = -1e9;
@@ -2015,7 +2034,7 @@
     const rx = (bb.R - bb.L) / 2 + gap + WSZ / 2, ry = (bb.B - bb.T) / 2 + gap * 0.4 + WSZ / 2;
     const et = $('endtab'), er = et && et.offsetWidth ? et.getBoundingClientRect() : null;   // small phones: keep clear of End turn
     [...r.children].forEach((el, i) => {
-      const a = WSPOTS[i] * Math.PI / 180;
+      const a = (state && state.players.length >= 5 ? WSPOTS_BIG : WSPOTS)[i] * Math.PI / 180;
       let x = Math.round(Math.max(4, Math.min(window.innerWidth - WSZ - 4, cx + rx * Math.cos(a) - WSZ / 2)));
       const y = Math.round(cy + ry * Math.sin(a) - WSZ / 2);
       if (er && x + WSZ > er.left - 6 && x < er.right && y + WSZ > er.top && y < er.bottom) x = Math.round(er.left - 6 - WSZ);
@@ -3731,8 +3750,8 @@
   //      written to the game server (no games row, no chat rows, no stats), but the voice/video call is real
   //      (its own LiveKit room), so the call, the bigger corners and every in-game screen can be tried alone.
   //      Bot moves go through applyRemoteState, the same path a real remote player's move takes.
-  const PRACTICE = { room: false, on: false, bots: [], timer: null, turnKey: null, acts: 0, busyUntil: 0, fake: {}, talkAt: 0 };
-  const PRACTICE_BOTS = [{ name: 'Zaatar', id: 'bot-zaatar' }, { name: 'Kibbeh', id: 'bot-kibbeh' }, { name: 'Tabbouleh', id: 'bot-tabbouleh' }];   // v249: three, so all four corners are in use
+  const PRACTICE = { room: false, on: false, bots: [], timer: null, turnKey: null, acts: 0, busyUntil: 0, fake: {}, talkAt: 0, n: 4 };   // n: players at the practice table
+  const PRACTICE_BOTS = [{ name: 'Zaatar', id: 'bot-zaatar' }, { name: 'Kibbeh', id: 'bot-kibbeh' }, { name: 'Tabbouleh', id: 'bot-tabbouleh' }, { name: 'Hummus', id: 'bot-hummus' }, { name: 'Fattoush', id: 'bot-fattoush' }];   // v-NEXT: 4 by default, 5 or 6 to try the bigger table   // v249: three, so all four corners are in use
   const PRACTICE_SAY = { robbed: ['sorry habibi', 'haha', 'tfeh'], won: ['yalla', 'fayyish'], seven: ['wleeee', 'ma32oul?!'], offer: ['yalla trade?', 'good deal habibi', 'anyone?'] };
   function practiceAllowed() { return !!(AUTH.me && /^test2?$/i.test(String(AUTH.me.name || '').trim())); }
   function practiceRoomCode() { return 'P' + String((AUTH.me && AUTH.me.id) || 'x').replace(/[^A-Za-z0-9]/g, '').slice(0, 10); }
@@ -3957,9 +3976,9 @@
   }
   function practiceSeats() {
     const pref = (LOBBY.myPref && LOBBY.myPref()) || 'red';
-    const cols = ['red', 'blue', 'green', 'yellow'].filter((c) => c !== pref);
+    const cols = SEAT_COLORS.filter((c) => c !== pref);
     return [{ color: pref, playerId: AUTH.me.id, name: AUTH.me.name, avatar: AUTH.me.avatar || null }]
-      .concat(PRACTICE_BOTS.map((b, i) => ({ color: cols[i], playerId: b.id, name: b.name, avatar: null })));
+      .concat(PRACTICE_BOTS.slice(0, (PRACTICE.n || 4) - 1).map((b, i) => ({ color: cols[i], playerId: b.id, name: b.name, avatar: null })));
   }
   function practiceStart(mid, quiet) {
     if (!practiceAllowed()) return;
@@ -4055,8 +4074,10 @@
       + `${lvNameRow(AUTH.me.id, escapeHtml(AUTH.me.name) + ' (you)')}${!LIVE.room && voiceOn() ? '<span class="lvhint">connecting the call…</span>' : ''}</div>`;
     const bots = seats.slice(1).map((b, i) => `<div class="lvseat"><span class="lvcd" style="background:${PCOLOR[b.color]}"></span>`
       + `<span class="vpic vseat" data-vid="${b.playerId}"${LIVE.room ? ` onclick="event.stopPropagation();CATAN.voiceWho('${b.playerId}',this)"` : ''}>${faceHTML(b.name, (ASSETS.avatars && ASSETS.avatars[i + 1]) || null, 'xl')}</span>${lvNameRow(b.playerId, escapeHtml(b.name))}${voiceTag(b.playerId)}<span class="lvhint">computer${LIVE.room ? ' · tap to mute' : ''}</span></div>`).join('');
+    const pn = PRACTICE.n || 4;
     return `<div class="lvsect">🧪 PRACTICE TABLE · ONLY YOU SEE THIS</div>
-      <div class="lvseats">${mine}${bots}<div class="lvseat empty"><span class="lvplus">+</span>Open seat</div></div>
+      <div class="seg lvseg" style="margin:0 0 10px">${[4, 5, 6].map((k) => `<button class="${pn === k ? 'on' : ''}" onclick="CATAN.practiceN(${k})">${k} players</button>`).join('')}</div>
+      <div class="lvseats${pn >= 5 ? ' many' : ''}">${mine}${bots}</div>
       <div class="lvsub small" style="text-align:center;margin:10px 0">Nothing here reaches the real games or the stats. The call is real, so you can try your mic and camera.</div>
       <div class="lvact"><button class="btn full lvbig" onclick="CATAN.practiceStart(false)">Start a new game</button>
       <button class="btn wood full" style="margin-top:8px" onclick="CATAN.practiceStart(true)">Jump into a game in progress</button>
@@ -4129,7 +4150,7 @@
     const corner = pos ? $('p-' + pos) : null;
     const wface = inGameView && isWKey(msg.color) ? cornerOf(msg.color) : null;
     if (wface) showBroadcastBubble(msg, wface.el.closest('.wseat') || wface.el, wface.pos === 'wr' ? 'mr' : 'ml');
-    else if (corner && corner.style.display !== 'none') showBroadcastBubble(msg, corner, pos);
+    else if (corner && corner.style.display !== 'none') showBroadcastBubble(msg, corner, seatSide(pos));   // a top-row seat hangs its bubble like a top corner
     else showBroadcastBanner(msg);
   }
   // ---- rock-paper-scissors decides who starts (online, when the host picked it in the lobby) ----
@@ -4320,6 +4341,19 @@
     if (V.kind === 'poker' && !V.hands[color]) return ' rps-out';   // sat this round out (lost an earlier one)
     return V.winners.includes(color) ? ' rps-won' : ' rps-out';
   }
+  // v-NEXT: beside a seat is not always free. A top-row seat (5-6 players) has a neighbour beside it, so its hand goes
+  // UNDER the plaque (aligned to its inner edge, clear of the camera cutout); my own hand goes ABOVE my seat, where it
+  // no longer covers my emoji / text / walkie buttons (it did on every reveal before).
+  function handSpot(el, k, r) {
+    if (TOP_ROW[k.seat]) {
+      el.style.top = (r.bottom + 10) + 'px';
+      if (k.pos[1] === 'l') { el.style.left = ''; el.style.right = (window.innerWidth - r.right) + 'px'; }
+      else { el.style.right = ''; el.style.left = r.left + 'px'; }
+    } else if (k.seat === 'bl' && online && myColor && cornerOf(myColor) && cornerOf(myColor).el === k.el) {
+      // above my seat, lined up with its inner edge: clear of the camera cutout (mid-height on the left edge)
+      el.style.top = Math.max(4, r.top - 82) + 'px'; el.style.left = ''; el.style.right = (window.innerWidth - r.right) + 'px';
+    }
+  }
   function rpsBoardClear() { document.querySelectorAll('.rpsb, .rpscrown, .pkb').forEach((el) => el.remove()); }
   // poker on the board: everyone else's 5 cards beside their corner, face-down while they decide, face-up at the reveal
   function pkBoard(R, V) {
@@ -4340,6 +4374,7 @@
       }
       el.style.top = (top ? Math.max(4, avatarCentre(k).y - 40) : avatarCentre(k).y - 40) + 'px';   // level with the player's portrait
       if (left) el.style.left = (r.right + 12) + 'px'; else el.style.right = (window.innerWidth - r.left + 12) + 'px';
+      handSpot(el, k, r);
       document.body.appendChild(el);
     });
   }
@@ -4355,6 +4390,7 @@
       el.innerHTML = `<span class="rpsbh">${RPS_HAND[V.picks[c]]}</span>${auto ? '<span class="rpsdice">🎲</span><span class="rpsbtag">random</span>' : ''}`;
       el.style.top = (avatarCentre(k).y - 36) + 'px';   // level with the player's own portrait
       if (left) el.style.left = (r.right + 12) + 'px'; else el.style.right = (window.innerWidth - r.left + 12) + 'px';
+      handSpot(el, k, r);
       document.body.appendChild(el);
     });
   }
@@ -4563,7 +4599,7 @@
   //   cup = { name, games, n (this game's number), host (playerId), hist: [past games], stop }
   //   each past game = { place: {color: 1..n}, vp: {color: VP}, robbed: {color: times robbed} }
   // Between games everyone readies up (the rematch vote, never lapsing); the next game waits for all.
-  const CUP_PTS = { 2: [3, 0], 3: [3, 1, 0], 4: [3, 2, 1, 0] };
+  const CUP_PTS = { 2: [3, 0], 3: [3, 1, 0], 4: [3, 2, 1, 0], 5: [3, 2, 1, 0, 0], 6: [3, 2, 1, 0, 0, 0] };
   const CUP_NAMES = ['Yalla Classic', 'Khalesna Cup', 'Habibi Open', 'Shu Hal 7azz Trophy', 'Ma32oul?! Masters', 'Wleeee Invitational',
     'Fayyish Finals', 'Tfeh Trophy', 'Ya Haram Open', 'Hek Sarit? Cup', 'Slakh Series', 'Khroti Classic', 'Yalla Yalla Open', 'Habibi Masters', 'Khalesna Classic'];
   function pickCupName(avoid) {
@@ -4874,7 +4910,7 @@
     if (isWKey(color)) { const w = document.querySelector('#watchrail .wseat[data-w="' + CSS.escape(color.slice(2)) + '"] .wpic'); if (!w) return null; const q = w.getBoundingClientRect(); return { el: w, pos: q.left + q.width / 2 > window.innerWidth / 2 ? 'wr' : 'wl' }; }
     const i = state ? state.players.findIndex((p) => p.color === color) : -1;
     const el = i < 0 ? null : $('p-' + seatKey(i));
-    return (el && el.style.display !== 'none') ? { el, pos: seatKey(i) } : null;
+    return (el && el.style.display !== 'none') ? { el, pos: seatSide(seatKey(i)), seat: seatKey(i) } : null;   // pos: the corner it belongs to
   }
   function avatarCentre(corner) {
     const av = corner.el.querySelector('.pavawrap') || corner.el.querySelector('.pava') || corner.el;
@@ -4908,6 +4944,7 @@
       t.textContent = label;
       const r = c.el.getBoundingClientRect();   // beside the corner, over the sea — never on its stats
       t.style.left = (left ? r.right + 34 : r.left - 34) + 'px'; t.style.top = o.y + 'px';
+      if (TOP_ROW[c.seat]) { t.style.left = (r.left + r.width / 2) + 'px'; t.style.top = (r.bottom + 30) + 'px'; }   // a neighbour sits beside it
       const tray = color === meKey() && $('emotray');   // my own tray is open there -> sit just above it
       if (tray) { const tr = tray.getBoundingClientRect(); t.style.left = (left ? tr.left + 40 : tr.right - 40) + 'px'; t.style.top = (tr.top - 16) + 'px'; }
       t.classList.remove('pop'); void t.offsetWidth; t.classList.add('pop');
@@ -5339,7 +5376,8 @@
     document.body.appendChild(b);
     const gap = 8, tail = 20;   // tail sits ~20px from the bubble's near edge
     if (side) { b.style.top = (ar.top + ar.height / 2 - 20) + 'px'; if (pos === 'mr') b.style.right = (window.innerWidth - ar.left + 14) + 'px'; else b.style.left = (ar.right + 14) + 'px'; }
-    else if (top) b.style.top = (cr.bottom + gap) + 'px'; else b.style.bottom = (window.innerHeight - cr.top + gap) + 'px';
+    else if (top) b.style.top = (cr.bottom + gap + (corner.classList.contains('sb') || corner.classList.contains('sc') ? 38 : 0)) + 'px';   // an inner top-row seat: one row lower, so two neighbours can talk at once
+    else b.style.bottom = (window.innerHeight - cr.top + gap) + 'px';
     if (side) { }
     else if (left) b.style.left = Math.max(6, avCx - tail) + 'px';
     else b.style.right = Math.max(6, window.innerWidth - avCx - tail) + 'px';
@@ -5811,7 +5849,7 @@
     _boardSVG: () => boardSVG(),
   };
 
-  const SEAT_COLORS = ['red', 'blue', 'green', 'yellow'];
+  const SEAT_COLORS = ['red', 'blue', 'green', 'yellow', 'purple', 'black'];   // 5th and 6th seats: purple, black
   // Seat-color assignment honouring player preferences (profile -> presence `pref`).
   // Each contested color goes to ONE random claimant; everyone else draws from the
   // remaining colors in seat order. Runs only on the host (single writer), so plain
@@ -6697,7 +6735,7 @@
       if (!host || host.id !== AUTH.me.id) { toast('Only the game creator can start'); return; }
       if (!ready.some((r) => r.id === host.id)) { toast('Ready up before starting'); return; }
       const asleep = ready.filter((p) => p.away && p.id !== AUTH.me.id);
-      const seated = ready.filter((p) => !asleep.includes(p)).slice(0, 4), n = seated.length;
+      const seated = ready.filter((p) => !asleep.includes(p)).slice(0, MAX_SEATS), n = seated.length;
       if (n < 2) { toast('Need at least 2 players with the app open'); return; }
       if (asleep.length) toast(`Started without ${nameList2(asleep.map((p) => p.name))} (phone asleep)`);
       // honour preferred colors; ties resolved randomly. The host's OWN pref comes from local
@@ -7112,11 +7150,12 @@
   // table-size filter, shared by the Stats screen and a player's page: 'big' (3 & 4, default) | null (all) | 2 | 3 | 4
   function statsSizes() { const sizes = [...new Set(STATS.games.map((g) => g.standings.length))].sort(); if (typeof statsCount === 'number' && !sizes.includes(statsCount)) statsCount = 'big'; return sizes; }
   function sizeGames(gs) { return statsCount === 'big' ? gs.filter((g) => g.standings.length >= 3) : statsCount ? gs.filter((g) => g.standings.length === statsCount) : gs; }
-  function sizeLabel() { return statsCount === 'big' ? '3 & 4 players' : statsCount ? statsCount + ' players' : 'all sizes'; }
+  function bigLabel() { return STATS.games.some((g) => g.standings.length >= 5) ? '3+ players' : '3 & 4 players'; }   // 'big' = 3 or more (5-6 count too)
+  function sizeLabel() { return statsCount === 'big' ? bigLabel() : statsCount ? statsCount + ' players' : 'all sizes'; }
   function sizeSelHTML(sizes, key) {
     if (sizes.length < 2) return '';
     const opt = (v, on, lbl) => `<option value="${v}"${on ? ' selected' : ''}>${lbl}</option>`;
-    return `<select class="st2size" onchange="CATAN.statsCount(this.value === 'big' ? 'big' : this.value ? +this.value : null${key ? `, '${stArg(key)}'` : ''})">${opt('big', statsCount === 'big', '3 & 4 players')}${opt('', statsCount === null, 'All sizes')}${sizes.map((n) => opt(n, statsCount === n, n + ' players')).join('')}</select>`;
+    return `<select class="st2size" onchange="CATAN.statsCount(this.value === 'big' ? 'big' : this.value ? +this.value : null${key ? `, '${stArg(key)}'` : ''})">${opt('big', statsCount === 'big', bigLabel())}${opt('', statsCount === null, 'All sizes')}${sizes.map((n) => opt(n, statsCount === n, n + ' players')).join('')}</select>`;
   }
   function statsScreen() {
     const back = lvOn() ? '' : `<div class="lobhead"><button class="lobback" onclick="CATAN.showLobby()" title="Back to lobby">←</button><h3>🏆 Stats</h3></div>`;
@@ -7296,6 +7335,10 @@
   function lvMini(p, crown) {
     return `<div class="lvmini">${crown ? '<span class="lvminicrown">👑</span>' : ''}${faceHTML(p.name, p.avatar, 'md' + (crown ? ' hostring' : ''))}<span class="lvmn">${escapeHtml(p.name)}</span></div>`;
   }
+  // v-NEXT: a table seats up to 6 (5-6 play on the bigger island). Four seats show as open until four are taken,
+  // then the 5th and 6th; a 7th ready player gets in line, as before.
+  const MAX_SEATS = 6;
+  function openSeats(n) { return Math.max(0, (n >= 4 ? MAX_SEATS : 4) - n); }
   const LV_OPEN = `<div class="lvmini"><span class="lvopen">+</span><span class="lvmn muted">Open</span></div>`;
 
   // ---- Play tab, not in a room: one card for what's happening now ----
@@ -7316,15 +7359,15 @@
       more = gathering.map((t) => `<button class="lvrowg" onclick="CATAN.lvJoin('${t.code}')"><span><b>${escapeHtml(lvTableName(t))}</b> · ${t.ready.length} seated</span><b class="gold">Join ›</b></button>`)
         .concat(live.map((t) => `<button class="lvrowg" onclick="CATAN.lvWatchJoin('${t.code}')"><span><span class="lvrec"></span> <b>${escapeHtml(namesAnd(t.m.filter((p) => pmode(p) === 'playing').map((p) => p.name)))}</b> playing</span><b class="gold">Watch ›</b></button>`));
     } else if (gathering.length) {
-      const g = gathering[0], seated = g.ready.slice(0, 4), full = g.ready.length >= 4;
+      const g = gathering[0], seated = g.ready.slice(0, MAX_SEATS), full = g.ready.length >= MAX_SEATS;
       const nobodyHosts = !g.m.some((p) => p.created === g.code) && !g.ready.length;
       const who = nobodyHosts ? 'Friends are gathering' : `${escapeHtml(g.host.name)} is getting a game going`;
       const idle = g.m.filter((p) => !p.away && (pmode(p) === 'idle' || pmode(p) === 'spectate'));
       hero = `<div class="lvhero hot"><div class="lvkick"><span class="lvlive"></span>STARTING SOON</div><div class="lvh1">${who}</div>
-        <div class="lvminis">${seated.map((p) => lvMini(p, p.id === g.host.id)).join('')}${LV_OPEN.repeat(Math.max(0, 4 - seated.length))}</div>
+        <div class="lvminis${seated.length >= 4 ? ' many' : ''}">${seated.map((p) => lvMini(p, p.id === g.host.id)).join('')}${LV_OPEN.repeat(openSeats(seated.length))}</div>
         ${idle.length ? `<div class="lvsub small">Also here: ${escapeHtml(namesAnd(idle.map((p) => p.name)))}</div>` : ''}
-        <div class="lvchip">${lvSettingsLine(g.host, Math.min(4, Math.max(2, g.m.filter((p) => pmode(p) !== 'spectate').length + 1)))}</div>
-        <button class="btn full lvbig" onclick="CATAN.lvJoin('${g.code}')">${full ? 'Join · first in line' : seated.length === 3 ? 'Join · last seat' : 'Join'}</button>
+        <div class="lvchip">${lvSettingsLine(g.host, Math.min(MAX_SEATS, Math.max(2, g.m.filter((p) => pmode(p) !== 'spectate').length + 1)))}</div>
+        <button class="btn full lvbig" onclick="CATAN.lvJoin('${g.code}')">${full ? 'Join · first in line' : seated.length === MAX_SEATS - 1 ? 'Join · last seat' : 'Join'}</button>
         <button class="linkbtn" onclick="CATAN.lvWatchJoin('${g.code}')">Just watch</button></div>`;
       more = gathering.slice(1).map((t) => `<button class="lvrowg" onclick="CATAN.lvJoin('${t.code}')"><span><b>${escapeHtml(lvTableName(t))}</b> · ${t.ready.length} seated</span><b class="gold">Join ›</b></button>`)
         .concat(live.map((t) => `<button class="lvrowg" onclick="CATAN.lvWatchJoin('${t.code}')"><span><span class="lvrec"></span> <b>${escapeHtml(namesAnd(t.m.filter((p) => pmode(p) === 'playing').map((p) => p.name)))}</b> playing</span><b class="gold">Watch ›</b></button>`));
@@ -7383,12 +7426,12 @@
     }
     const members = LOBBY.tableMembers(), ready = LOBBY.readyList(), host = lvRoomHost(), iAmHost = !!host && host.id === AUTH.me.id;
     const creator = LOBBY.creatorOf(LOBBY.table), canEdit = iAmHost && (!creator || creator.id === AUTH.me.id);   // a stand-in host can start, not re-set the game
-    const seated = ready.slice(0, 4), line = ready.slice(4);
+    const seated = ready.slice(0, MAX_SEATS), line = ready.slice(MAX_SEATS);
     const iSeated = seated.some((p) => p.id === AUTH.me.id), inLine = line.some((p) => p.id === AUTH.me.id);
     const idle = members.filter((p) => pmode(p) === 'idle' && p.id !== AUTH.me.id), watching = members.filter((p) => pmode(p) === 'spectate');
-    const playerN = seated.length >= 2 ? seated.length : (Math.min(4, members.filter((m) => pmode(m) !== 'spectate').length) || seated.length);   // the auto target follows who's seated
+    const playerN = seated.length >= 2 ? seated.length : (Math.min(MAX_SEATS, members.filter((m) => pmode(m) !== 'spectate').length) || seated.length);   // the auto target follows who's seated
     const seats = seated.map((p) => lvSeat(p, host && p.id === host.id)).join('')
-      + `<div class="lvseat empty"><span class="lvplus">+</span>Open seat</div>`.repeat(Math.max(0, 4 - seated.length));
+      + `<div class="lvseat empty"><span class="lvplus">+</span>Open seat</div>`.repeat(openSeats(seated.length));
     const extras = [];
     if (line.length) extras.push(`<div class="lvline">⏳ <span><b>${escapeHtml(namesAnd(line.map((p) => p.name)))}</b> · first in line if a seat opens</span></div>`);
     if (idle.length) extras.push(`<div class="lvline">💤 <span><b>${escapeHtml(namesAnd(idle.map((p) => p.name)))}</b> · here, not seated</span></div>`);
@@ -7414,9 +7457,9 @@
     } else if (LOBBY.mode === 'spectate') {
       act = `<button class="btn full lvbig" onclick="CATAN.lobbyReady()">Take a seat</button><button class="linkbtn" onclick="CATAN.lobbySpectate()">Stop watching</button>`;
     } else {
-      act = `<button class="btn full lvbig" onclick="CATAN.lobbyReady()">${seated.length >= 4 ? 'Get in line' : 'Take a seat'}</button><button class="linkbtn" onclick="CATAN.lobbySpectate()">Just watch</button>`;
+      act = `<button class="btn full lvbig" onclick="CATAN.lobbyReady()">${seated.length >= MAX_SEATS ? 'Get in line' : 'Take a seat'}</button><button class="linkbtn" onclick="CATAN.lobbySpectate()">Just watch</button>`;
     }
-    return `${last}<div class="lvseats">${seats}</div>${extras.join('')}${setl}<div class="lvact">${act}</div>`;
+    return `${last}<div class="lvseats${seated.length >= 4 ? ' many' : ''}">${seats}</div>${extras.join('')}${setl}<div class="lvact">${act}</div>`;
   }
 
   // ---- sheets ----
@@ -7424,7 +7467,7 @@
     const s = LV.sheet; if (!s) return '';
     let body = '';
     if (s === 'settings') {
-      const n = Math.min(4, LOBBY.tableMembers().filter((m) => pmode(m) !== 'spectate').length);
+      const n = Math.min(MAX_SEATS, LOBBY.tableMembers().filter((m) => pmode(m) !== 'spectate').length);
       const cup = LOBBY.cup, tgt = LOBBY.targetPoints, nums = [];
       for (let v = cup ? 6 : 9; v <= 15; v++) nums.push(v);
       body = `<div class="lvst">Game settings</div>
@@ -7448,10 +7491,10 @@
     } else if (s.startsWith('guard:')) {
       const code = s.slice(6), g = lvTables().find((t) => t.code === code);
       if (!g) { LV.sheet = null; return ''; }
-      const seated = g.ready.slice(0, 4);
+      const seated = g.ready.slice(0, MAX_SEATS);
       body = `<div class="lvst">${escapeHtml(lvTableName(g))} already has ${g.m.length} waiting</div>
         <div class="lvsub">Starting your own splits the group.</div>
-        <div class="lvminis">${seated.map((p) => lvMini(p, p.id === g.host.id)).join('')}${LV_OPEN.repeat(Math.max(0, 4 - seated.length))}</div>
+        <div class="lvminis${seated.length >= 4 ? ' many' : ''}">${seated.map((p) => lvMini(p, p.id === g.host.id)).join('')}${LV_OPEN.repeat(openSeats(seated.length))}</div>
         <button class="btn full lvbig" onclick="CATAN.lvJoin('${code}')">Join ${escapeHtml(lvTableName(g))}</button>
         <button class="btn wood full" onclick="CATAN.lvStartGo()">Start a separate game anyway</button>`;
       return `<div class="lvdim" onclick="CATAN.lvSheet(null)"></div><div class="lvsheet"><div class="lvgrab"></div>${body}</div>`;
@@ -7595,6 +7638,7 @@
   window.CATAN.practiceStart = (mid, win) => { practiceStart(!!mid, !!win); if (win && PRACTICE.on) setTimeout(() => practiceWin(win), 2500); };
   window.CATAN.practiceWin = (who) => practiceWin(who);
   window.CATAN.practiceLeave = () => practiceLeave();
+  window.CATAN.practiceN = (n) => { PRACTICE.n = n; lobbySig = ''; renderLobby(); };
   window.CATAN.practiceToRoom = () => practiceToRoom();
   // hoisted helpers registered here, after window.CATAN exists, so onclick="CATAN.x()" works
   window.CATAN.sendBroadcast = sendBroadcastMsg;
@@ -7766,7 +7810,7 @@
       return r;
     },
     async setSettings(s) { if (!this.me) return { ok: false, error: 'Not logged in' }; return await this.rpc('player_set_settings', { p_token: this.me.token, p_settings: s }); },
-    // preferred seat color ('red'|'blue'|'green'|'yellow') or null = no preference
+    // preferred seat color (one of SEAT_COLORS) or null = no preference
     async setPrefColor(color) {
       if (!this.me) return { ok: false, error: 'Not logged in' };
       const r = await this.rpc('player_set_pref_color', { p_token: this.me.token, p_color: color || null });

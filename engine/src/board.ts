@@ -7,20 +7,31 @@ import {
   Terrain,
   Vertex,
 } from './types.js';
-import { shuffle } from './random.js';
+import { nextInt, shuffle } from './random.js';
 
 // ---------------------------------------------------------------------------
 // Board geometry. We use flat-top hexes laid out on axial coordinates within
-// radius 2 (the standard 19-hex Catan island). Vertices and edges are derived
+// radius 2 (the standard 19-hex Catan island), or the 30-hex 5-6 player island. Vertices and edges are derived
 // from hex corners and de-duplicated by rounded position, which yields exact
 // adjacency (vertex<->vertex, vertex<->edge, vertex<->hex) for free.
 // ---------------------------------------------------------------------------
 
 const HEX_SIZE = 1; // unit; multiply by a pixel scale at render time.
 
-/** All 19 axial hex coordinates (|q|,|r|,|q+r| <= 2). */
-function hexCoords(): { q: number; r: number }[] {
+/** All 19 axial hex coordinates (|q|,|r|,|q+r| <= 2); with big=true the 30-hex 5-6 player island. */
+function hexCoords(big = false): { q: number; r: number }[] {
   const coords: { q: number; r: number }[] = [];
+  if (big) {
+    // The 5-6 player island: seven columns of 3-4-5-6-5-4-3 hexes (flat-top, so on screen it is wider
+    // than tall, like the extension's frame). Column q holds n hexes centred half a hex above y = 0;
+    // every r comes out whole, so the water grid around it lines up.
+    const L = [3, 4, 5, 6, 5, 4, 3];
+    for (let q = -3; q <= 3; q++) {
+      const n = L[q + 3], y0 = -0.5 - (n - 1) / 2;
+      for (let k = 0; k < n; k++) coords.push({ q, r: y0 + k - q / 2 });
+    }
+    return coords;
+  }
   for (let q = -2; q <= 2; q++) {
     for (let r = -2; r <= 2; r++) {
       const s = -q - r;
@@ -53,8 +64,8 @@ const key = (x: number, y: number) => `${x.toFixed(3)},${y.toFixed(3)}`;
  * Build the static graph: hexes, vertices (corners), edges, and all adjacency.
  * Terrain/tokens/ports are filled in separately so geometry stays deterministic.
  */
-export function buildGeometry(): Board {
-  const coords = hexCoords();
+export function buildGeometry(big = false): Board {
+  const coords = hexCoords(big);
   const hexes: Hex[] = [];
 
   const vertexMap = new Map<string, Vertex>();
@@ -137,6 +148,19 @@ const TERRAIN_BAG: Terrain[] = [
 const TOKEN_BAG: number[] = [2, 3, 3, 4, 4, 5, 5, 6, 6, 8, 8, 9, 9, 10, 10, 11, 11, 12];
 const RED_TOKENS = new Set([6, 8]);
 
+// The 5-6 player extension's supply (30 hexes): 2 more of each terrain plus a second desert,
+// 28 number tokens (2 and 12 twice, every other number three times), 11 harbours (+1 sheep, +1 generic).
+const TERRAIN_BAG_BIG: Terrain[] = [
+  ...Array<Terrain>(5).fill('brick'),
+  ...Array<Terrain>(6).fill('wood'),
+  ...Array<Terrain>(6).fill('sheep'),
+  ...Array<Terrain>(6).fill('wheat'),
+  ...Array<Terrain>(5).fill('ore'),
+  'desert', 'desert',
+];
+const TOKEN_BAG_BIG: number[] = [2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 6, 6, 6, 8, 8, 8, 9, 9, 9, 10, 10, 10, 11, 11, 11, 12, 12];
+const PORT_TYPES_BIG: PortType[] = ['3:1', 'wheat', 'ore', '3:1', 'sheep', '3:1', 'brick', 'wood', '3:1', 'sheep', '3:1'];
+
 // Nine ports around the coast. Resource/type assignment is fixed; their exact
 // coastal positions can be tuned later to match the original art precisely.
 const PORT_TYPES: PortType[] = ['3:1', 'wheat', 'ore', '3:1', 'sheep', '3:1', 'brick', 'wood', '3:1'];
@@ -189,9 +213,9 @@ function hasAdjacentGenericPorts(types: PortType[]): boolean {
 }
 
 /** Shuffle the harbours until no two 3:1 are neighbours (~7% of shuffles pass; bounded retry). */
-function shufflePorts(rng: number): { result: PortType[]; state: number } {
-  let ps = shuffle(PORT_TYPES, rng);
-  for (let t = 0; t < 200 && hasAdjacentGenericPorts(ps.result); t++) ps = shuffle(PORT_TYPES, ps.state);
+function shufflePorts(rng: number, types: PortType[] = PORT_TYPES): { result: PortType[]; state: number } {
+  let ps = shuffle(types, rng);
+  for (let t = 0; t < 200 && hasAdjacentGenericPorts(ps.result); t++) ps = shuffle(types, ps.state);
   return ps;
 }
 
@@ -219,9 +243,53 @@ function hasOverproductiveVertex(board: Board): boolean {
   return false;
 }
 
-function assignPorts(board: Board, types: PortType[]): void {
-  const center = { x: 0, y: 0 };
+/** How badly a board breaks the token rules (0 = fine): touching reds, touching duplicates, over-strong spots. */
+function tokenProblems(board: Board, nb: Map<number, number[]>): { score: number; bad: number[] } {
+  let score = 0;
+  const bad = new Set<number>();
+  for (const h of board.hexes) {
+    if (h.token === null) continue;
+    for (const n of nb.get(h.id)!) {
+      if (n < h.id) continue;   // each touching pair once
+      const o = board.hexes[n].token;
+      if (o === null) continue;
+      if (o === h.token || (RED_TOKENS.has(h.token) && RED_TOKENS.has(o))) { score++; bad.add(h.id); bad.add(n); }
+    }
+  }
+  for (const v of board.vertices) {
+    let pips = 0;
+    for (const hid of v.hexes) { const t = board.hexes[hid].token; if (t !== null) pips += PIPS[t] || 0; }
+    if (pips > MAX_VERTEX_PIPS) { score += pips - MAX_VERTEX_PIPS; for (const hid of v.hexes) if (board.hexes[hid].token !== null) bad.add(hid); }
+  }
+  return { score, bad: [...bad] };
+}
+
+/** Big island only: with 3 of most numbers on 30 hexes a random shuffle almost never passes the rules (about 1 in
+ *  a few thousand), so swap tokens until it does: take a hex that breaks a rule, swap its token with a random other
+ *  one, keep the swap unless it made things worse. Deterministic from the rng. */
+function repairTokens(board: Board, nb: Map<number, number[]>, rng: number): number {
+  const withToken = board.hexes.filter((h) => h.token !== null).map((h) => h.id);
+  let cur = tokenProblems(board, nb);
+  for (let i = 0; i < 600 && cur.score > 0; i++) {
+    const a = nextInt(rng, cur.bad.length); rng = a.state;
+    const b = nextInt(rng, withToken.length); rng = b.state;
+    const ha = board.hexes[cur.bad[a.value]], hb = board.hexes[withToken[b.value]];
+    if (ha.id === hb.id) continue;
+    [ha.token, hb.token] = [hb.token, ha.token];
+    const next = tokenProblems(board, nb);
+    if (next.score <= cur.score) cur = next; else [ha.token, hb.token] = [hb.token, ha.token];
+  }
+  return rng;
+}
+
+function assignPorts(board: Board, types: PortType[], big = false): void {
   const coastal = board.edges.filter((e) => e.hexes.length === 1);
+  // the 19-hex island is centred on (0,0); the big one sits half a hex higher, so use its own centre
+  const center = { x: 0, y: 0 };
+  if (big) {
+    const xs = board.vertices.map((v) => v.x), ys = board.vertices.map((v) => v.y);
+    center.x = (Math.min(...xs) + Math.max(...xs)) / 2; center.y = (Math.min(...ys) + Math.max(...ys)) / 2;
+  }
   // Order coastal edges by the angle of their midpoint around the board center.
   const withAngle = coastal.map((e) => {
     const a = board.vertices[e.v[0]];
@@ -232,7 +300,9 @@ function assignPorts(board: Board, types: PortType[]): void {
   });
   withAngle.sort((p, q) => p.angle - q.angle);
 
-  PORT_EDGE_SLOTS.forEach((slot, i) => {
+  // big island: spread the 11 harbours evenly round its coast (no two ever share a corner)
+  const slots = big ? types.map((_, i) => Math.round((i * withAngle.length) / types.length)) : PORT_EDGE_SLOTS;
+  slots.forEach((slot, i) => {
     const e = withAngle[slot % withAngle.length].edge;
     const type = types[i];
     board.vertices[e.v[0]].port = type;
@@ -244,18 +314,19 @@ function assignPorts(board: Board, types: PortType[]): void {
  * Produce a full, legal board: shuffled terrain + tokens (no two reds touching)
  * + ports. Deterministic given the rng seed. Returns the new rng state too.
  */
-export function generateBoard(seed: number): { board: Board; rngState: number } {
+export function generateBoard(seed: number, big = false): { board: Board; rngState: number } {
   let rng = seed;
-  const nb = hexNeighbors(buildGeometry());
+  const nb = hexNeighbors(buildGeometry(big));
+  const TB = big ? TERRAIN_BAG_BIG : TERRAIN_BAG, KB = big ? TOKEN_BAG_BIG : TOKEN_BAG, PT = big ? PORT_TYPES_BIG : PORT_TYPES;
 
   for (let attempt = 0; attempt < 1000; attempt++) {
-    const board = buildGeometry();
+    const board = buildGeometry(big);
 
-    const st = shuffle(TERRAIN_BAG, rng);
+    const st = shuffle(TB, rng);
     rng = st.state;
     const terrains = st.result;
 
-    const tk = shuffle(TOKEN_BAG, rng);
+    const tk = shuffle(KB, rng);
     rng = tk.state;
     const tokens = tk.result;
 
@@ -264,29 +335,30 @@ export function generateBoard(seed: number): { board: Board; rngState: number } 
       h.terrain = terrains[i];
       h.token = h.terrain === 'desert' ? null : tokens[ti++];
     });
+    if (big) rng = repairTokens(board, nb, rng);   // the 19-hex board keeps its plain re-shuffle (unchanged boards)
 
     if (hasAdjacentRedTokens(board, nb)) continue;    // official: no two red (6/8) adjacent
     if (hasAdjacentSameNumber(board, nb)) continue;   // balance: no duplicate numbers touching
     if (hasOverproductiveVertex(board)) continue;     // balance: cap the pip total at any settlement spot
 
-    const ps = shufflePorts(rng); rng = ps.state;   // randomise the harbours (no adjacent 3:1s)
-    assignPorts(board, ps.result);
+    const ps = shufflePorts(rng, PT); rng = ps.state;   // randomise the harbours (no adjacent 3:1s)
+    assignPorts(board, ps.result, big);
     return { board, rngState: rng };
   }
 
   // Extremely unlikely fallback: accept the last board.
-  const board = buildGeometry();
-  const st = shuffle(TERRAIN_BAG, rng);
+  const board = buildGeometry(big);
+  const st = shuffle(TB, rng);
   rng = st.state;
-  const tk = shuffle(TOKEN_BAG, rng);
+  const tk = shuffle(KB, rng);
   rng = tk.state;
   let ti = 0;
   board.hexes.forEach((h, i) => {
     h.terrain = st.result[i];
     h.token = h.terrain === 'desert' ? null : tk.result[ti++];
   });
-  const ps = shufflePorts(rng); rng = ps.state;
-  assignPorts(board, ps.result);
+  const ps = shufflePorts(rng, PT); rng = ps.state;
+  assignPorts(board, ps.result, big);
   return { board, rngState: rng };
 }
 
