@@ -63,7 +63,7 @@ const PHONE = IPHONE ? 'iPhone 15' : 'Pixel 7';
   const m2 = await f.evaluate(() => CATAN._trayMode()); ok('swipe in the tray flips to texts', m2 === 'txt', 'mode ' + m2);
   // 6. hold an emoji and throw it at a player
   if (m2 === 'txt') await drag([tr[0] + tr[2] * 0.2, tr[1] + tr[3] * 0.5], [tr[0] + tr[2] * 0.8, tr[1] + tr[3] * 0.5], 8);
-  const e2 = await centre('#emotray .etbig .emobtn'); const opp = await centre('.corner.tr .pava') || await centre('.corner.tl .pava');
+  const e2 = await centre('#emotray .etbig .emobtn'); const opp = await centre('.corner.tr .pava') || await centre('.corner.tl .pava') || await centre('.corner.sd .pava') || await centre('.corner.sa .pava');   // 5-6 players (the 'test' practice table opens at 5): a top-row seat
   const thrB = await f.evaluate(() => document.querySelectorAll('.emothrow, .emosplat').length);
   if (e2 && opp) await drag(e2, opp, 12, 420);
   await p.waitForTimeout(300);

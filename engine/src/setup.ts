@@ -18,13 +18,14 @@ function emptyResources(): Record<Resource, number> {
   return { brick: 0, wood: 0, sheep: 0, wheat: 0, ore: 0 };
 }
 
-function buildDevDeck(): DevCard[] {
+// big = the 5-6 player extension's deck: 6 more knights and one more of each progress card (34 cards)
+function buildDevDeck(big = false): DevCard[] {
   return [
-    ...Array<DevCard>(14).fill('knight'),
+    ...Array<DevCard>(big ? 20 : 14).fill('knight'),
     ...Array<DevCard>(5).fill('victory_point'),
-    ...Array<DevCard>(2).fill('road_building'),
-    ...Array<DevCard>(2).fill('year_of_plenty'),
-    ...Array<DevCard>(2).fill('monopoly'),
+    ...Array<DevCard>(big ? 3 : 2).fill('road_building'),
+    ...Array<DevCard>(big ? 3 : 2).fill('year_of_plenty'),
+    ...Array<DevCard>(big ? 3 : 2).fill('monopoly'),
   ];
 }
 
@@ -51,14 +52,16 @@ export function createGame(opts: {
 }): GameState {
   const { id, players: ps, seed } = opts;
   // Base Catan is 3-4; we allow 2 as a house rule so two friends can play/test online.
-  if (ps.length < 2 || ps.length > 4) {
-    throw new Error('This game supports 2 to 4 players.');
+  // 5 and 6 play on the extension's 30-hex island with its bigger bank and deck.
+  if (ps.length < 2 || ps.length > 6) {
+    throw new Error('This game supports 2 to 6 players.');
   }
   const targetPoints = opts.targetPoints ?? targetForCount(ps.length);
+  const big = ps.length >= 5;
 
-  const { board, rngState } = generateBoard(seed);
+  const { board, rngState } = generateBoard(seed, big);
 
-  const deckShuffle = shuffle(buildDevDeck(), rngState);
+  const deckShuffle = shuffle(buildDevDeck(big), rngState);
 
   const players: Player[] = ps.map((p) => ({
     color: p.color,
@@ -75,7 +78,7 @@ export function createGame(opts: {
   }));
 
   const bank: Record<Resource, number> = {} as Record<Resource, number>;
-  for (const r of RESOURCES) bank[r] = 19;
+  for (const r of RESOURCES) bank[r] = big ? 24 : 19;   // the 5-6 extension adds 5 of each
 
   const pendingDiscards: Record<PlayerColor, number> = {} as Record<PlayerColor, number>;
   for (const p of players) pendingDiscards[p.color] = 0;
