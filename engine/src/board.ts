@@ -215,7 +215,9 @@ function hasAdjacentGenericPorts(types: PortType[]): boolean {
 /** Shuffle the harbours until no two 3:1 are neighbours (~7% of shuffles pass; bounded retry). */
 function shufflePorts(rng: number, types: PortType[] = PORT_TYPES): { result: PortType[]; state: number } {
   let ps = shuffle(types, rng);
-  for (let t = 0; t < 200 && hasAdjacentGenericPorts(ps.result); t++) ps = shuffle(types, ps.state);
+  // the big island's 5 generic harbours in 11 slots pass only ~2.4% of shuffles, so it gets more tries (2-4 players: unchanged)
+  const tries = types.length > PORT_TYPES.length ? 3000 : 200;
+  for (let t = 0; t < tries && hasAdjacentGenericPorts(ps.result); t++) ps = shuffle(types, ps.state);
   return ps;
 }
 

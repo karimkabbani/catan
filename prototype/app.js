@@ -218,7 +218,7 @@
   function waterHexes(board) {
     const big = !!(board && board.hexes.length > 19), k = big ? 'big' : 'small';
     if (waterMemo[k]) return waterMemo[k];
-    const WATER_X = big ? 32 : 26, WATER_Y = big ? 16 : 13;
+    const WATER_X = big ? 32 : 26, WATER_Y = big ? 17 : 13;   // the big island sits half a hex high: 17 keeps the sea past the top edge
     const island = new Set(board ? board.hexes.map((h) => h.q + ',' + h.r) : []);
     const out = [];
     for (let q = -21; q <= 21; q++) for (let r = -21; r <= 21; r++) {
@@ -4049,7 +4049,8 @@
     practiceFakes();
     if (Date.now() < PRACTICE.talkAt) return;
     PRACTICE.talkAt = Date.now() + 9000 + Math.random() * 9000;
-    const fs = Object.values(PRACTICE.fake);
+    const seated = new Set(practiceSeats().map((x) => x.playerId));   // only the computers at the table talk (4 / 5 / 6 players)
+    const fs = Object.values(PRACTICE.fake).filter((x) => seated.has(x.identity));
     const k = fs[0];   // Zaatar (on camera) mutes himself now and then: the red badge shows on his picture; he comes back later
     if (k && Math.random() < 0.25) { k.mic = !k.mic; voiceRefresh(); if (!k.mic) return; }
     const f = fs.filter((x) => x.mic)[(Math.random() * fs.filter((x) => x.mic).length) | 0]; if (!f) return;
