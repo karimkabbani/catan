@@ -6055,7 +6055,7 @@
   //      written to the game server (no games row, no chat rows, no stats), but the voice/video call is real
   //      (its own LiveKit room), so the call, the bigger corners and every in-game screen can be tried alone.
   //      Bot moves go through applyRemoteState, the same path a real remote player's move takes.
-  const PRACTICE = { room: false, on: false, bots: [], timer: null, turnKey: null, acts: 0, busyUntil: 0, fake: {}, talkAt: 0, n: 4 };   // n: players at the practice table
+  const PRACTICE = { room: false, on: false, bots: [], timer: null, turnKey: null, acts: 0, busyUntil: 0, fake: {}, talkAt: 0, n: 0 };   // n: players picked at the practice table (0 = the account's default, practiceN)
   const PRACTICE_BOTS = [{ name: 'Zaatar', id: 'bot-zaatar' }, { name: 'Kibbeh', id: 'bot-kibbeh' }, { name: 'Tabbouleh', id: 'bot-tabbouleh' }, { name: 'Hummus', id: 'bot-hummus' }, { name: 'Fattoush', id: 'bot-fattoush' }];   // v-NEXT: 4 by default, 5 or 6 to try the bigger table   // v249: three, so all four corners are in use
   const PRACTICE_SAY = { robbed: ['sorry habibi', 'haha', 'tfeh'], won: ['yalla', 'fayyish'], seven: ['wleeee', 'ma32oul?!'], offer: ['yalla trade?', 'good deal habibi', 'anyone?'] };
   function practiceAllowed() { return !!(AUTH.me && /^test2?$/i.test(String(AUTH.me.name || '').trim())); }
@@ -6279,11 +6279,18 @@
       PRACTICE.hint = 'The computers will offer you trades. End your turn and watch';
     }
   }
+  // players at the practice table: what was picked, else 5 for the 'test' account and 6 for 'test2' (Karim's two
+  // accounts for trying the 5 and 6 player games), 4 otherwise
+  function practiceN() {
+    if (PRACTICE.n) return PRACTICE.n;
+    const nm = String((AUTH.me && AUTH.me.name) || '').trim().toLowerCase();
+    return nm === 'test2' ? 6 : nm === 'test' ? 5 : 4;
+  }
   function practiceSeats() {
     const pref = (LOBBY.myPref && LOBBY.myPref()) || 'red';
     const cols = SEAT_COLORS.filter((c) => c !== pref);
     return [{ color: pref, playerId: AUTH.me.id, name: AUTH.me.name, avatar: AUTH.me.avatar || null }]
-      .concat(PRACTICE_BOTS.slice(0, (PRACTICE.n || 4) - 1).map((b, i) => ({ color: cols[i], playerId: b.id, name: b.name, avatar: null })));
+      .concat(PRACTICE_BOTS.slice(0, practiceN() - 1).map((b, i) => ({ color: cols[i], playerId: b.id, name: b.name, avatar: null })));
   }
   function practiceStart(mid, quiet) {
     if (!practiceAllowed()) return;
@@ -6380,7 +6387,7 @@
       + `${lvNameRow(AUTH.me.id, escapeHtml(AUTH.me.name) + ' (you)')}${!LIVE.room && voiceOn() ? '<span class="lvhint">connecting the call…</span>' : ''}</div>`;
     const bots = seats.slice(1).map((b, i) => `<div class="lvseat"><span class="lvcd" style="background:${PCOLOR[b.color]}"></span>`
       + `<span class="vpic vseat" data-vid="${b.playerId}"${LIVE.room ? ` onclick="event.stopPropagation();CATAN.voiceWho('${b.playerId}',this)"` : ''}>${faceHTML(b.name, (ASSETS.avatars && ASSETS.avatars[i + 1]) || null, 'xl')}</span>${lvNameRow(b.playerId, escapeHtml(b.name))}${voiceTag(b.playerId)}<span class="lvhint">computer${LIVE.room ? ' · tap to mute' : ''}</span></div>`).join('');
-    const pn = PRACTICE.n || 4;
+    const pn = practiceN();
     return `<div class="lvsect">🧪 PRACTICE TABLE · ONLY YOU SEE THIS</div>
       <div class="seg lvseg" style="margin:0 0 10px">${[4, 5, 6].map((k) => `<button class="${pn === k ? 'on' : ''}" onclick="CATAN.practiceN(${k})">${k} players</button>`).join('')}</div>
       <div class="lvseats${pn >= 5 ? ' many' : ''}">${mine}${bots}</div>
