@@ -63,12 +63,12 @@ language sql immutable as $$
 $$;
 
 create or replace function public.games_log() returns trigger
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   st jsonb := new.state;
   ost jsonb := case when tg_op = 'UPDATE' then old.state end;
   tags text[] := array['_w', '_av', '_a', '_n', '_act'];
-  g text; act jsonb; seats_now jsonb; seats_chg jsonb; p jsonb; gone jsonb; endsnap jsonb;
+  g text; minted boolean := false; act jsonb; seats_now jsonb; seats_chg jsonb; p jsonb; gone jsonb; endsnap jsonb;
   res text[] := array['brick', 'wood', 'sheep', 'wheat', 'ore'];
 begin
   -- the log must never cost a move: if anything below fails, the save goes through unlogged (a warning in the
@@ -86,7 +86,9 @@ begin
 
   -- a new game: no id yet (a fresh state from Start or Rematch), or nothing before it
   if st->>'gid' is null or jsonb_typeof(ost) is distinct from 'object' or ost->>'gid' is distinct from st->>'gid' then
+    if st->>'gid' is null and st->>'phase' = 'ended' then return new; end if;   -- finished before the log went in: nothing to replay
     g := coalesce(st->>'gid', gen_random_uuid()::text);
+    minted := st->>'gid' is null;
     st := jsonb_set(st, '{gid}', to_jsonb(g));
     new.state := st;
     insert into game_moves (gid, code, version, kind, label, app, writer, snap, seats)
@@ -125,10 +127,14 @@ begin
   values (g, new.code, new.version, 'meta', st->>'_a', st->>'_av', st->>'_w', p, nullif(gone, '[]'::jsonb), endsnap, seats_chg);
   return new;
   exception when others then
+    if minted then new.state := new.state - 'gid'; end if;   -- no start row: the next save tries again
     raise warning 'games_log: % (%), save of % v% kept unlogged', sqlerrm, sqlstate, new.code, new.version;
     return new;
   end;
 end $$;
+
+revoke all on function public.games_log() from public, anon, authenticated;
+revoke all on function public.catan_seats(jsonb) from public, anon, authenticated;
 
 drop trigger if exists games_log on public.games;
 create trigger games_log before insert or update on public.games

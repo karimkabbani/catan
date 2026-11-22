@@ -5,14 +5,17 @@
 //   node server/moves/replay.mjs rows.json                 check every game in the file
 //   node server/moves/replay.mjs rows.json --out dir       ...and write dir/games.jsonl + dir/decisions.jsonl
 //   node server/moves/replay.mjs rows.json --out dir --full   decisions keep every hand (no hiding)
+//   --current-engine   replay every move with today's engine instead of the one its build ran (found in git by version)
 //
-// rows.json: game_moves rows as JSON (an array, or one row per line), any number of games, e.g. from the SQL editor:
-//   select json_agg(m order by m.id) from game_moves m where m.gid in (select gid from game_move_games where finished);
+// rows.json: game_moves rows as JSON (an array, or one row per line), any number of games. A game is ~130 KB, so export
+// a few at a time from the SQL editor, e.g. select json_agg(m order by m.id) from game_moves m where m.gid = '...';
+// or everything with psql: \copy (select row_to_json(m) from game_moves m order by m.id) to 'rows.json'
 //
 // The check: start from the game's first saved state, apply each move with the same engine the app runs
 // (prototype/catan-engine.js) and each other save's recorded changes, and after every move compare the rng cursor, the
 // bank, every hand and the turn with what the database saw (chk). At the end, the rebuilt state must equal the saved
-// end state. A game that passes is complete: nothing happened in it that the log doesn't hold.
+// end state in every key. A game that gets there is verified: nothing happened in it that the log doesn't hold.
+// Moves are replayed with the engine of the build that made them (by app version, from git).
 //
 // games.jsonl: one line per game: gid, code, start time, seats (colour -> name, player id), the board, who won and the
 //   final points. decisions.jsonl: one line per move a player chose (the app's automatic moves are left out): the game,
@@ -23,16 +26,33 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
+import { execFileSync } from 'node:child_process';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
 const TAGS = ['_w', '_av', '_a', '_n', '_act'];
 
-export function loadEngine(file = path.join(here, '../../prototype/catan-engine.js')) {
+function engineFrom(code) {
   const ctx = { structuredClone, console };
   vm.createContext(ctx);
-  vm.runInContext(fs.readFileSync(file, 'utf8') + '\n;globalThis.Catan = Catan;', ctx);
+  vm.runInContext(code + '\n;globalThis.Catan = Catan;', ctx);
   return ctx.Catan;
+}
+export function loadEngine(file = path.join(here, '../../prototype/catan-engine.js')) { return engineFrom(fs.readFileSync(file, 'utf8')); }
+// The engine of the build that made a move: each deploy is a commit "vNNN: ..." on main (deploy.sh), so its bundle is
+// in git. A move is replayed with the rules the phone played it with; unknown builds (vNEXT, a branch) use today's.
+const ENGINES = new Map();
+export function engineForApp(app, fallback) {
+  if (!app || !/^v\d+$/.test(app)) return fallback;
+  if (ENGINES.has(app)) return ENGINES.get(app) || fallback;
+  let C = null;
+  try {
+    const git = (args) => execFileSync('git', args, { cwd: here, encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'ignore'] });
+    const h = git(['log', '--all', '-1', '--format=%H', '--grep', '^' + app + ':']).trim();
+    if (h) C = engineFrom(git(['show', h + ':prototype/catan-engine.js']));
+  } catch (_) { C = null; }
+  ENGINES.set(app, C);
+  return C || fallback;
 }
 
 export function readRows(file) {
@@ -56,9 +76,12 @@ export function chkOf(s) {
   return { g: s.rngState, b: RES.map((r) => s.bank[r]), h: s.players.map((p) => RES.map((r) => p.resources[r])), t: s.currentPlayerIndex, p: s.turnPhase };
 }
 // what the engine owns: compared against the saved end state
-const ENGINE_KEYS = ['players', 'bank', 'devDeck', 'settlements', 'roads', 'robberHex', 'rngState', 'rolls', 'phase', 'turnPhase', 'winner',
-  'currentPlayerIndex', 'longestRoadOwner', 'largestArmyOwner', 'log', 'tally', 'luckLog', 'pendingTrade'];
-const pick = (s, keys) => Object.fromEntries(keys.filter((k) => s[k] !== undefined).map((k) => [k, s[k]]));
+// the end check compares every key the end state holds (it is saved without the board) except the save tags
+const endKeys = (a, b) => Array.from(new Set([...Object.keys(a), ...Object.keys(b)])).filter((k) => k !== 'board' && !TAGS.includes(k)).sort();
+// engine actions, for spotting moves an older build saved as plain changes (applied, but not re-checked by the engine)
+const ACTION_TYPES = new Set(['rollDice', 'buildSettlement', 'buildRoad', 'buildCity', 'buyDevCard', 'playKnight', 'playRoadBuilding', 'playYearOfPlenty',
+  'playMonopoly', 'moveRobber', 'steal', 'discard', 'bankTrade', 'bankExchange', 'offerTrade', 'acceptTrade', 'declineTrade', 'counterTrade',
+  'confirmTrade', 'cancelTrade', 'endTurn']);
 
 // what `color` could see at the table
 export function viewFor(s, color, full) {
@@ -77,7 +100,7 @@ export function viewFor(s, color, full) {
 
 export function replayGame(C, rows, opts = {}) {
   rows = rows.slice().sort((a, b) => Number(a.id) - Number(b.id));
-  const out = { gid: rows[0] && rows[0].gid, ok: true, problems: [], moves: 0, metas: 0, decisions: [], game: null, state: null };
+  const out = { gid: rows[0] && rows[0].gid, ok: true, verified: false, problems: [], moves: 0, metas: 0, unchecked: 0, decisions: [], game: null, state: null };
   const fail = (row, msg) => { out.ok = false; out.problems.push(`#${row ? row.id : '?'} (v${row ? row.version : '?'}): ${msg}`); };
   const startAt = rows.findIndex((r) => r.kind === 'start');
   if (startAt < 0) { fail(null, 'no start row'); return out; }
@@ -92,7 +115,8 @@ export function replayGame(C, rows, opts = {}) {
     if (row.kind === 'move') {
       const action = parse(row.action);
       const before = s;
-      const r = C.applyAction(s, action, row.actor);
+      const E = opts.currentEngine ? C : engineForApp(row.app, C);
+      const r = E.applyAction(s, action, row.actor);
       if (!r.ok) { fail(row, `the engine refused ${action && action.type} by ${row.actor}: ${r.error}`); break; }
       s = r.state; out.moves++;
       const chk = parse(row.chk);
@@ -106,6 +130,7 @@ export function replayGame(C, rows, opts = {}) {
       s = Object.assign(clone(s), parse(row.patch) || {});
       for (const k of parse(row.gone) || []) delete s[k];
       out.metas++;
+      if (ACTION_TYPES.has(row.label)) out.unchecked++;   // an engine move from an older build: taken as saved
     } else if (row.kind === 'close') {
       break;
     } else if (row.kind === 'start') {
@@ -114,14 +139,15 @@ export function replayGame(C, rows, opts = {}) {
     prevAt = Number.isFinite(at) ? at : prevAt;
     if (row.snap) {
       ended = parse(row.snap);
-      const a = canon(pick(s, ENGINE_KEYS)), b = canon(pick(ended, ENGINE_KEYS));
-      if (a !== b) {
-        const diff = ENGINE_KEYS.filter((k) => canon(s[k]) !== canon(ended[k]));
-        fail(row, 'the rebuilt end state differs from the saved one in: ' + diff.join(', '));
-      }
+      const diff = endKeys(s, ended).filter((k) => canon(s[k]) !== canon(ended[k]));
+      if (diff.length) fail(row, 'the rebuilt end state differs from the saved one in: ' + diff.join(', '));
+      else out.endChecked = true;
     }
   }
   out.state = s;
+  // verified = it reached the saved end state and matched it in every key; a game without one (still running, reset)
+  // only had the per-move check (rng, bank, hands, turn), so it isn't
+  out.verified = out.ok && !!out.endChecked;
   out.game.finished = s.phase === 'ended';
   out.game.ended_at = ended ? rows[rows.length - 1].at : null;
   out.game.winner = s.winner || null;
@@ -133,20 +159,22 @@ export function replayGame(C, rows, opts = {}) {
 function main(argv) {
   const file = argv[0];
   if (!file) { console.error('usage: node server/moves/replay.mjs rows.json [--out dir] [--full]'); process.exit(2); }
-  const outDir = argv.includes('--out') ? argv[argv.indexOf('--out') + 1] : null, full = argv.includes('--full');
+  const outDir = argv.includes('--out') ? argv[argv.indexOf('--out') + 1] : null, full = argv.includes('--full'), currentEngine = argv.includes('--current-engine');
   const C = loadEngine();
   const byGame = new Map();
   for (const r of readRows(file)) { if (!byGame.has(r.gid)) byGame.set(r.gid, []); byGame.get(r.gid).push(r); }
   let bad = 0;
   const games = [], decisions = [];
+  let verified = 0;
   for (const [gid, rows] of byGame) {
-    const g = replayGame(C, rows, { full });
-    const status = g.ok ? 'ok ' : 'BAD';
-    console.log(`${status} ${gid}  ${g.game ? g.game.code : '?'}  ${g.moves} moves, ${g.metas} other saves, ${g.decisions.length} choices${g.game && g.game.finished ? ', finished' : ''}`);
+    const g = replayGame(C, rows, { full, currentEngine });
+    const status = !g.ok ? 'BAD' : g.verified ? 'ok ' : 'ok?';
+    console.log(`${status} ${gid}  ${g.game ? g.game.code : '?'}  ${g.moves} moves, ${g.metas} other saves${g.unchecked ? ` (${g.unchecked} moves from older builds, taken as saved)` : ''}, ${g.decisions.length} choices, ${g.verified ? 'end state matches' : g.game && g.game.finished ? 'finished' : 'no end state to check'}`);
     for (const p of g.problems) console.log('    ' + p);
     if (!g.ok) bad++;
-    if (g.game) games.push(Object.assign({ verified: g.ok }, g.game));
-    decisions.push(...g.decisions.map((d) => Object.assign({ verified: g.ok }, d)));
+    if (g.verified) verified++;
+    if (g.game) games.push(Object.assign({ verified: g.verified, unchecked_moves: g.unchecked }, g.game));
+    decisions.push(...g.decisions.map((d) => Object.assign({ verified: g.verified }, d)));
   }
   if (outDir) {
     fs.mkdirSync(outDir, { recursive: true });
@@ -154,7 +182,7 @@ function main(argv) {
     fs.writeFileSync(path.join(outDir, 'decisions.jsonl'), decisions.map((d) => JSON.stringify(d)).join('\n') + '\n');
     console.log(`wrote ${games.length} games and ${decisions.length} decisions to ${outDir}`);
   }
-  console.log(`${byGame.size - bad} of ${byGame.size} games replay exactly`);
+  console.log(`${byGame.size - bad} of ${byGame.size} games replay without a problem; ${verified} also match their saved end state (verified)`);
   process.exit(bad ? 1 : 0);
 }
 

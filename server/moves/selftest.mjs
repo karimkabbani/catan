@@ -205,6 +205,13 @@ if (mode === 'before') {
   sql(`delete from game_moves where code = 'T9'`);
   console.log('T9: a save whose log row failed still landed');
 
+  // T8: a game that had already ended when the log went in (rematch votes still being saved) is left alone
+  const g8 = newGame(3); g8.s.phase = 'ended';
+  sql(`insert into games (code, phase, players, state, version) values ('T8', 'ended', ${lit(g8.seats)}, ${lit(g8.s)}, 1)`);
+  meta('T8', 'meta', (x) => { x.rm = { votes: { red: 'y' } }; });
+  assert(sql(`select count(*) from game_moves where code = 'T8'`) === '0' && !getRow('T8').state.gid, 'an already-finished game is not logged');
+  console.log('T8: a game finished before the log went in is not logged');
+
   // what the database holds
   const starts = JSON.parse(sql(`select json_agg(json_build_object('code', code, 'label', label) order by id) from game_moves where kind = 'start'`));
   assert(starts.map((x) => x.code + ':' + x.label).join(' ') === 'T0:mid-game T1:new T1:new T5:new', 'start rows: ' + JSON.stringify(starts));
@@ -213,7 +220,7 @@ if (mode === 'before') {
   assert(nMoves === newSaves - 1, `move rows ${nMoves}, saves from this build ${newSaves}`);
   assert(sql(`select count(*) from game_moves where seats::text like '%avatar%'`) === '0', 'no photos in the log');
   assert(sql(`select count(*) from game_moves where kind = 'close'`) === '1', 'one reset');
-  assert(sql(`select count(*) from games where state is not null and state->>'gid' is null`) === '0', 'every live game has an id');
+  assert(sql(`select count(*) from games where state is not null and state->>'gid' is null and code <> 'T8'`) === '0', 'every live game has an id');
   assert(sql(`select count(*) from game_moves where kind = 'meta' and label = 'rps'`) === '5', 'who-starts saves logged');
   const sizes = sql(`select string_agg(code || ' ' || n || ' rows ' || round(kb) || ' KB', ', ' order by code) from (select min(code) code, count(*) n, sum(pg_column_size(m.*)) / 1024.0 kb from game_moves m group by gid) x`);
   console.log('stored: ' + sizes);
@@ -222,10 +229,12 @@ if (mode === 'before') {
   const dir = process.argv[3], rowsFile = process.argv[4];
   const games = fs.readFileSync(path.join(dir, 'games.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
   const decs = fs.readFileSync(path.join(dir, 'decisions.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
-  assert(games.length === 4 && games.every((g) => g.verified), 'four games, all verified');
-  assert(games.filter((g) => g.finished).length === 3, 'three finished');
+  assert(games.length === 4, 'four games');
+  assert(games.filter((g) => g.finished && g.verified).length === 3, 'the three finished games verified against their end state');
+  assert(games.filter((g) => !g.finished && !g.verified).length === 1, 'the reset game is not marked verified (no end state to check)');
+  assert(games.find((g) => g.code === 'T1' && g.finished).unchecked_moves >= 3, "older builds' moves are counted as taken-as-saved");
   assert(games.every((g) => g.board && g.seats.length >= 4), 'each game has its board and seats');
-  assert(decs.length > 500 && decs.every((d) => d.verified && d.playerId && d.state && !d.state.board), 'decisions carry who and what they saw');
+  assert(decs.length > 500 && decs.every((d) => d.playerId && d.state && !d.state.board), 'decisions carry who and what they saw');
   const d = decs.find((x) => x.state.phase === 'play');
   assert(d.state.players.every((p) => (p.color === d.color) === (typeof p.resources === 'object')), "others' hands are counts");
   assert(typeof d.state.devDeck === 'number' && d.state.rngState === undefined, 'deck hidden, no rng');
@@ -237,6 +246,8 @@ if (mode === 'before') {
   assert(!replayGame(C, bad1).ok, 'a changed move is caught');
   const bad2 = clone(t5); bad2.splice(bad2.findIndex((r) => r.kind === 'move' && r.action.type === 'endTurn'), 1);
   assert(!replayGame(C, bad2).ok, 'a missing move is caught');
-  assert(replayGame(C, t5).ok, 'the real log passes');
+  assert(replayGame(C, t5).ok && replayGame(C, t5).verified, 'the real log passes');
+  const bad3 = clone(t5); const end = bad3.find((r) => r.snap && r.kind !== 'start'); end.snap.robberBy = end.snap.robberBy === 'red' ? 'blue' : 'red';
+  assert(!replayGame(C, bad3).ok, 'a difference in any key of the end state is caught');
   console.log(`check: ${games.length} games, ${decs.length} decisions, doctored logs caught`);
 }
