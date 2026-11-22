@@ -2611,7 +2611,8 @@
   function bankRatio(color, give) { if (ownsPort(color, give)) return 2; if (ownsPort(color, '3:1')) return 3; return 4; }
 
   // ---- dispatch ------------------------------------------------------------
-  function dispatch(action, byColor) {
+  // auto: the app made this move for the player, not their own choice ('roll' | 'steal' | 'decline'), for the move log
+  function dispatch(action, byColor, auto) {
     if (APPGATE.outdated && online && !PRACTICE.on && !ARCHIVE) { APPGATE.show(); toast('Update the app to keep playing'); return false; }
     const actor = byColor || activeColor();   // capture NOW — actions like endTurn change who's active
     const r = C.applyAction(state, action, actor);
@@ -2667,7 +2668,7 @@
     if (robberMoved) ui.robberFlying = true;
     // queue the server sync BEFORE afterAction — afterAction can chain a follow-up action
     // (e.g. the auto-steal after the robber moves), and the syncs must persist in that order.
-    if (online && !PRACTICE.on) NET.syncAction(action, actor);
+    if (online && !PRACTICE.on) NET.syncAction(action, actor, auto);
     // hold card counts behind the transfer flies so the numbers tick with the animation, not before it
     if (steal) { lagOut(steal.victim, steal.res, 1); lagIn(steal.thief, steal.res, 1); }
     if (trade) lagTrade(trade.a, trade.b, trade.give, trade.want);
@@ -2742,7 +2743,7 @@
     setTimeout(() => {
       if (state.turnPhase === 'roll' && isMyTurn()) {
         ui.diceRevealing = true;          // suppress the corner dice during the reveal
-        dispatch({ type: 'rollDice' });
+        dispatch({ type: 'rollDice' }, undefined, 'roll');
         showDiceReveal(state.dice);
       }
     }, 350);
@@ -4494,7 +4495,7 @@
   }
   function promptSteal() {
     const cands = state.stealCandidates;
-    if (cands.length === 1) { dispatch({ type: 'steal', victim: cands[0] }, activeColor()); return; }
+    if (cands.length === 1) { dispatch({ type: 'steal', victim: cands[0] }, activeColor(), 'steal'); return; }
     // several opponents on the hex: keep the island visible and blink their buildings;
     // the active player taps one to steal (handled as data-kind="steal" in onBoardClick)
     ui.mode = 'steal'; hideOverlay();
@@ -5047,7 +5048,7 @@
     // No sheet when auto-declining this turn (decline so the offerer isn't left waiting) or you already responded.
     // Short of what's asked, you still see the offer: swap the missing cards for ones you have (a counter) or decline.
     if (ui.autoDeclineIdx === state.currentPlayerIndex) {
-      if (!iDec && !iAcc && !myCounter) dispatch({ type: 'declineTrade', tid: pt.id }, meColor);
+      if (!iDec && !iAcc && !myCounter) dispatch({ type: 'declineTrade', tid: pt.id }, meColor, 'decline');
       hideTradeSheets(); return;
     }
     if (iAcc || iDec || myCounter) { hideTradeSheets(); return; }   // you've responded -> wait for the offerer
@@ -8811,9 +8812,9 @@
     // in order, or the second reads a state where it's invalid, "reverts", and the move is lost.
     _syncQ: Promise.resolve(),
     inflight: 0,
-    syncAction(action, actor) {
+    syncAction(action, actor, auto) {
       this.inflight++;
-      this._syncQ = this._syncQ.then(() => this._doSync(action, actor)).catch(() => { }).then(() => {
+      this._syncQ = this._syncQ.then(() => this._doSync(action, actor, auto)).catch(() => { }).then(() => {
         this.inflight--;
         if (!this.inflight && this.version > 0 && state && state.phase === 'ended') recordResult();   // the win is confirmed now
       });
@@ -8822,7 +8823,7 @@
     // A move is applied on this phone first, then written here. If it can't be written, this phone must
     // never stay out of step with the game (a lost "End turn" used to freeze everyone): `lost()` makes the
     // next poll/realtime row re-apply the server's state, which keeps the move if it landed, else undoes it.
-    async _doSync(action, actor) {
+    async _doSync(action, actor, auto) {
       const c = this.init(); if (!c) return;
       const before = this.version, code = this.code;
       for (let i = 0; i < 8; i++) {
@@ -8834,6 +8835,9 @@
         if (data.state.sv && r.state.phase !== 'ended') r.state.sv = data.state.sv;   // keep a live surrender vote across moves
         r.state._w = this.myId;   // who wrote this row: my own echoes are skipped while my later moves are still saving (onRow)
         r.state._av = APP_VERSION; r.state._a = action.type; r.state._n = writeNonce();   // app version + move, for the database's audit log (server/migrate-audit.sql)
+        // the move itself, for the move log (server/migrate-moves.sql): it carries this save's tag, so a later save that
+        // only copies it along is never mistaken for a new move
+        r.state._act = { a: action, by: actor, n: r.state._n }; if (auto) r.state._act.auto = auto;
         // v253: never save a state where cards appeared or vanished (the database refuses it too). Stay on the server's copy.
         const bad = cardProblems(r.state);
         if (bad && !cardProblems(data.state)) { applyRemoteState(data.state); if (data.version > this.version) this.version = data.version; toast("That move didn't add up, so it wasn't saved"); console.warn('card check refused', action, bad); return; }
