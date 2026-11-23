@@ -1356,7 +1356,7 @@
     const el = $('countdown');
     if (!el) { if (done) done(); return; }
     if (cdRunning) return;
-    cdRunning = true;
+    cdRunning = true; el.classList.toggle('overpod', podOn());   // over the results: dim them behind the number
     let n = from || 3;
     (function step() {
       if (n <= 0) { el.classList.add('hidden'); el.innerHTML = ''; cdRunning = false; if (done) done(); return; }
@@ -2937,11 +2937,17 @@
   // the vote on each face: ✓ said yes, … not yet, ✗ said no (for 4 s after); GG tag for those who said it
   function podMark(c) {
     const rm = state.rm, gg = (state.gg || []).includes(c) ? '<i class="pgg">GG</i>' : '';
-    let v = '';
-    if ((state.left || []).length) return gg;
-    if (rmPending(rm)) v = rm.votes && rm.votes[c] === 'y' ? `<i class="pv y">${POD_ICO.tick}</i>` : '<i class="pv w">…</i>';
-    else if (rm && rm.no === c && !rm.cancel && rmEndSeen[rm.id] && Date.now() - rmEndSeen[rm.id] < 4000) v = `<i class="pv n">${POD_ICO.cross}</i>`;
-    return gg + v;
+    return gg;   // v-NEXT: the vote lives in the strip (option A's design); all in = every face glows green (.pod.allin)
+  }
+  // the vote box in the strip: "Rematch?", a small face per player (✓ in, ✗ said no, dimmed = not yet), the time left
+  function podVoteBox(rm, label, tail) {
+    const faces = finishOrder(state).map(({ p }) => {
+      const c = p.color, src = seatAvatarSrc(p, state.players.indexOf(p));
+      const v = rm.votes && rm.votes[c] === 'y' ? 'y' : rm.no === c && !rm.cancel ? 'n' : 'w';
+      return `<span class="pmf ${v}" style="border-color:${PCOLOR[c]};background:${PCOLOR[c]}" title="${escapeHtml(p.name)}">${src ? `<img src="${src}" alt="">` : `<b>${escapeHtml((p.name || '?')[0])}</b>`}`
+        + (v === 'w' ? '' : `<i>${v === 'y' ? POD_ICO.tick : POD_ICO.cross}</i>`) + '</span>';
+    }).join('');
+    return `<div class="pvbox${tail ? ' end' : ''}"><span class="pq">${label}</span>${faces}${tail || '<span class="ptm" data-rmtm></span><span class="pprog" id="podprog" style="width:' + podPct(rm) + '%"></span>'}</div>`;
   }
   // practice: try the vote from the other side (a computer asks); the computers answer a vote within a few seconds
   function podPracHTML() { return PRACTICE.on && !rmPending(state.rm) ? '<button class="linkbtn pprac" onclick="CATAN.practiceBotAsk()">🧪 Let a computer ask for a rematch</button>' : ''; }
@@ -2976,25 +2982,22 @@
     if (qvOpen(state)) return '<div class="pmsg">First the table votes at the top ↑</div>' + icons() + B(' ic', 'CATAN.leaveEnded()', POD_ICO.door, '', 'Leave for the lobby');
     const exitI = B(' ic', 'CATAN.leaveEnded()', POD_ICO.door, '', 'Leave for the lobby');
     if (rmPending(rm)) {
-      if (rmAllIn(rm)) return `<div class="pgo">${POD_ICO.tick}Everyone's in! New game starting…</div>`;
-      const P = state.players, waitFor = nameList(P.filter((p) => !(rm.votes && rm.votes[p.color] === 'y')).map((p) => p.color));
-      if (rm.votes && rm.votes[myColor] === 'y') {
-        return `<div class="pwait"><span class="pwtxt">${rm.by === myColor ? 'Waiting for ' : 'You\'re in · waiting for '}${escapeHtml(waitFor)}</span><span class="ptm" data-rmtm></span><span class="pprog" id="podprog" style="width:${podPct(rm)}%"></span></div>`
-          + (rm.by === myColor ? B('', 'CATAN.rmCancel()', '', 'Cancel', 'Cancel the rematch') : '') + icons() + exitI;
-      }
-      return `<button class="btn pb grow" onclick="CATAN.rmVote('y')">${POD_ICO.tick}I'm in</button>` + B('', "CATAN.rmVote('n')", '', 'Not this time') + icons() + exitI;
+      if (rmAllIn(rm)) return `<div class="pgo">${POD_ICO.tick}Everyone's in!</div>`;
+      if (rm.votes && rm.votes[myColor] === 'y') return podVoteBox(rm, 'Rematch?') + (rm.by === myColor ? B('', 'CATAN.rmCancel()', '', 'Cancel', 'Cancel the rematch') : '') + icons() + exitI;
+      return podVoteBox(rm, 'Rematch?') + `<button class="btn pb pin" onclick="CATAN.rmVote('y')">I'm in</button>` + B(' pnot', "CATAN.rmVote('n')", '', 'Not now') + icons() + exitI;
     }
     if (rm && rm.id) {   // said no / ran out / cancelled: say so for 4 s, then the normal strip comes back
       const t0 = rmEndSeen[rm.id] || (rmEndSeen[rm.id] = Date.now());
       if (Date.now() - t0 < 4000) {
         const who = rm.no === myColor ? 'You' : escapeHtml(nameOf(rm.no));
-        const msg = rm.cancel ? `${who} cancelled the rematch.` : rm.no ? `${who}: not this time. No rematch.` : 'Not everyone answered. No rematch.';
-        return `<div class="pmsg no">${rm.cancel ? '' : POD_ICO.cross}${msg}</div>` + icons() + exitI;
+        const msg = rm.cancel ? `${who} cancelled` : rm.no ? `${who}: not now` : 'Time ran out';
+        return podVoteBox(rm, 'No rematch', `<span class="pnomsg">${msg}</span>`) + icons() + exitI;
       }
     }
     return `<button class="btn pb grow" onclick="CATAN.rmPropose()">${POD_ICO.re}Rematch</button>` + gg + full() + lobby(PRACTICE.on ? 'Back' : 'Lobby');
   }
-  function podAskHTML() {   // under the title, for whoever hasn't answered yet: "Karim wants a rematch 0:52"
+  function podAskHTML() {   // v-NEXT: the question moved into the strip's vote box (kept as a no-op for the refresh)
+    return '';
     const rm = state.rm;
     if (!online || !myColor || !rmPending(rm) || rmAllIn(rm) || (rm.votes && rm.votes[myColor] === 'y')) return '';
     return `<div class="pask">${POD_ICO.re}<span><b>${escapeHtml(nameOf(rm.by))}</b> wants a rematch</span><span class="ptm" data-rmtm></span></div>`;
