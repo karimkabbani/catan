@@ -6881,7 +6881,14 @@
     creatorOf(code) { return this.online().find((p) => (p.table || null) === code && p.created === code) || null; },
     // who can start the room: its creator, unless their phone is asleep (then the first seated player who's here)
     // (a quick switch to WhatsApp to invite people doesn't hand the room over: only 90s+ without the app does)
-    roomHost() { const cr = this.creatorOf(this.table), ready = this.readyList(); return (cr && !(cr.away && cr.age > 90) ? cr : null) || ready.find((p) => !p.away) || cr || ready[0] || null; },
+    // a creator who stands up hands Start to the first seated player until they sit again (before, a standing
+    // creator stayed host with no Start button and the seated players waited on them)
+    roomHost() {
+      const cr = this.creatorOf(this.table), ready = this.readyList();
+      const crSeated = cr && (cr.id === (AUTH.me && AUTH.me.id) ? this.mode === 'ready' : pmode(cr) === 'ready');
+      const crOk = cr && !(cr.away && cr.age > 90) && (crSeated || !ready.some((p) => !p.away));
+      return (crOk ? cr : null) || ready.find((p) => !p.away) || cr || ready[0] || null;
+    },
     gameName(code) { if (code === HOME_CODE) return 'Main Game'; const c = this.creatorOf(code); return c ? c.name + "'s Game" : 'Game'; },
     // enter / switch tables (a table is a presence grouping keyed by a game code)
     enterTable(code) { LV.gos = {}; this.friendly = false; if (this.created !== code) this.created = null; try { localStorage.setItem('catanLastTable', code); } catch (_) { } this.table = code; NET.code = code; this.mode = 'idle'; this.readyAt = 0; this.inProgress = false; this.targetPoints = null; this.prefGame = undefined; NET.subscribe(); this.track(); lobbySig = null; renderLobby(); },
@@ -7566,7 +7573,7 @@
     const tgt = isMe ? LOBBY.targetPoints : (host ? host.target : null);
     const w = isMe ? { cup: LOBBY.cup, ws: LOBBY.whoStarts, friendly: LOBBY.friendly } : wsInfo(host && host.ws);
     const pts = tgt != null ? tgt : (n >= 2 ? targetForN(n) + ' (auto)' : 'auto');
-    return (w.cup ? `🏆 ${isMe && (LOBBY.cupName || '').trim() ? escapeHtml(LOBBY.cupName.trim()) : 'Tournament'} · ${w.cup} games to ${pts}` : `🎯 Win at ${pts} · One game`) + ({ rps: ' · ✊ Who starts', poker: ' · 🃏 Poker hand' }[w.ws] || ' · 🎲 Random start') + (w.friendly ? ' · 🤝 Friendly' : '');
+    return (w.cup ? `🏆 ${isMe && (LOBBY.cupName || '').trim() ? escapeHtml(LOBBY.cupName.trim()) : 'Tournament'} · ${w.cup} games to ${pts}` : `🎯 Win at ${pts} · One game`) + ' · <span class="nw">' + ({ rps: '✊ Rock-paper-scissors to start', poker: '🃏 Poker hand to start' }[w.ws] || '🎲 Random start') + '</span>' + (w.friendly ? ' · 🤝 Friendly' : '');
   }
   function lvMini(p, crown) {
     return `<div class="lvmini">${crown ? '<span class="lvminicrown">👑</span>' : ''}${faceHTML(p.name, p.avatar, 'md' + (crown ? ' hostring' : ''))}<span class="lvmn">${escapeHtml(p.name)}</span></div>`;
@@ -7575,7 +7582,7 @@
   // then the 5th and 6th; a 7th ready player gets in line, as before.
   const MAX_SEATS = 6;
   function openSeats(n) { return Math.max(0, (n >= 4 ? MAX_SEATS : 4) - n); }
-  const LV_OPEN = `<div class="lvmini"><span class="lvopen">+</span><span class="lvmn muted">Open</span></div>`;
+  const LV_OPEN = `<div class="lvmini"><span class="lvopen"></span><span class="lvmn muted">Free</span></div>`;   // a headcount: Join is the way in
 
   // ---- Play tab, not in a room: one card for what's happening now ----
   function lvPlayHTML() {
@@ -7643,7 +7650,7 @@
     const mine = p.id === AUTH.me.id, pref = mine ? LOBBY.myPref() : p.pref, col = pref && PCOLOR[pref];
     return `<div class="lvseat${isHost ? ' host' : ''}${mine ? ' mine' : ''}${p.away ? ' away' : ''}"${mine ? ` onclick="CATAN.lvSheet('colour')"` : ''}>`
       + `${isHost ? '<span class="lvcrown">👑</span>' : ''}<span class="lvcd${col ? '' : ' any'}"${col ? ` style="background:${col}"` : ''}></span>`
-      + `${Date.now() - (LV.gos[p.id] || 0) < GO_SHOW_MS ? '<span class="lvgo">👉 Go!</span>' : ''}<span class="vpic vseat" data-vid="${p.id}"${LIVE.room && !mine ? ` onclick="event.stopPropagation();CATAN.voiceWho('${p.id}',this)"` : ''}>${faceHTML(p.name, p.avatar, 'xl')}</span>${lvNameRow(p.id, escapeHtml(p.name) + (mine ? ' (you)' : ''))}${voiceTag(p.id)}${mine && !LIVE.room ? '<span class="lvhint">tap for colour</span>' : !mine && p.away ? '<span class="lvhint">away…</span>' : ''}</div>`;
+      + `${Date.now() - (LV.gos[p.id] || 0) < GO_SHOW_MS ? '<span class="lvgo">👉 Go!</span>' : ''}<span class="vpic vseat" data-vid="${p.id}"${LIVE.room && !mine ? ` onclick="event.stopPropagation();CATAN.voiceWho('${p.id}',this)"` : ''}>${faceHTML(p.name, p.avatar, 'xl')}</span>${lvNameRow(p.id, escapeHtml(p.name) + (mine ? ' (you)' : ''))}${voiceTag(p.id)}${mine ? '<span class="lvhint">tap: colour or stand up</span>' : !mine && p.away ? '<span class="lvhint">away…</span>' : ''}</div>`;
   }
   function lvRoomHTML() {
     // a cup paused between games that I'm in: the whole tab is the cup
@@ -7664,15 +7671,29 @@
     const creator = LOBBY.creatorOf(LOBBY.table), canEdit = iAmHost && (!creator || creator.id === AUTH.me.id);   // a stand-in host can start, not re-set the game
     const seated = ready.slice(0, MAX_SEATS), line = ready.slice(MAX_SEATS);
     const iSeated = seated.some((p) => p.id === AUTH.me.id), inLine = line.some((p) => p.id === AUTH.me.id);
-    const idle = members.filter((p) => pmode(p) === 'idle' && p.id !== AUTH.me.id), watching = members.filter((p) => pmode(p) === 'spectate');
+    // v-NEXT: the seats are the buttons. Standing: tap an open seat to sit. Seated: tap your own seat for colour or to
+    // stand up. The gold button is only ever about the game (Start / Go!). Not seated = one "watching" row.
+    const standing = !iSeated && !inLine, full = seated.length >= MAX_SEATS;
+    const notSeated = members.filter((p) => p.id !== AUTH.me.id && (pmode(p) === 'idle' || pmode(p) === 'spectate'));
     const playerN = seated.length >= 2 ? seated.length : (Math.min(MAX_SEATS, members.filter((m) => pmode(m) !== 'spectate').length) || seated.length);   // the auto target follows who's seated
-    const seats = seated.map((p) => lvSeat(p, host && p.id === host.id)).join('')
-      + `<div class="lvseat empty"><span class="lvplus">+</span>Open seat</div>`.repeat(openSeats(seated.length));
+    const openTile = standing
+      ? `<button class="lvseat empty live" onclick="CATAN.lvSit()"><span class="lvplus">+</span><span class="lvsit">Sit here</span></button>`
+      : `<div class="lvseat empty">Open seat</div>`;
+    const myPos = line.findIndex((p) => p.id === AUTH.me.id);
+    const lineTile = inLine
+      ? `<button class="lvseat mine lvq" onclick="CATAN.lobbyReady()">${faceHTML(AUTH.me.name, AUTH.me.avatar, 'sm')}<span class="lvqt"><b>${myPos > 0 ? `You're number ${myPos + 1} in line` : "You're next in line"}</b><span class="lvhint">tap to leave the line</span></span></button>`
+      : standing && full ? `<button class="lvseat empty live lvq" onclick="CATAN.lvSit()"><span class="lvplus">+</span><span class="lvsit">Get in line for the next seat</span></button>` : '';
+    const seats = seated.map((p) => lvSeat(p, host && p.id === host.id)).join('') + openTile.repeat(openSeats(seated.length)) + lineTile;
     const extras = [];
-    if (line.length) extras.push(`<div class="lvline">⏳ <span><b>${escapeHtml(namesAnd(line.map((p) => p.name)))}</b> · first in line if a seat opens</span></div>`);
-    if (idle.length) extras.push(`<div class="lvline">💤 <span><b>${escapeHtml(namesAnd(idle.map((p) => p.name)))}</b> · here, not seated</span></div>`);
-    if (watching.length) extras.push(`<div class="lvline">👁 ${LIVE.room ? watching.map((w) => `<span class="vpic vmini" data-vid="${w.id}" onclick="CATAN.voiceWho('${w.id}',this)">${faceHTML(w.name, w.avatar, 'sm')}${voiceBadges(w.id)}</span>`).join('') : ''}<span><b>${escapeHtml(namesAnd(watching.map((p) => p.name)))}</b> · watching</span></div>`);
-    if (voiceOn() && !seated.some((p) => p.id === AUTH.me.id)) extras.push(LIVE.room
+    const others = line.filter((p) => p.id !== AUTH.me.id);
+    if (others.length) extras.push(`<div class="lvline">⏳ <span><b>${escapeHtml(namesAnd(others.map((p) => p.name)))}</b> · ${inLine ? 'in line too' : 'first in line if a seat opens'}</span></div>`);
+    if (notSeated.length || standing) {
+      const faces = notSeated.map((w) => LIVE.room ? `<span class="vpic vmini" data-vid="${w.id}" onclick="CATAN.voiceWho('${w.id}',this)">${faceHTML(w.name, w.avatar, 'sm')}${voiceBadges(w.id)}</span>` : faceHTML(w.name, w.avatar, 'sm')).join('')
+        + (standing ? `<span class="lvyou">${faceHTML(AUTH.me.name, AUTH.me.avatar, 'sm')}</span>` : '');
+      const names = notSeated.map((p) => escapeHtml(p.name)).concat(standing ? ['you'] : []);
+      extras.push(`<div class="lvline lvwatch"><span class="lvwf">${faces}</span><span><b>${namesAnd(names)}</b> · watching</span></div>`);
+    }
+    if (voiceOn() && !iSeated) extras.push(LIVE.room
       ? `<div class="vchip"><span class="vpic vmini vchipface" data-vid="${AUTH.me.id}">${faceHTML(AUTH.me.name, AUTH.me.avatar, 'sm')}</span><span>Talk to the table</span><span class="vrow">${voiceBadges(AUTH.me.id)}</span></div>`   // v227: tap 📷 / 🎤
       : `<button class="vchip" onclick="CATAN.voiceCard(this)">${VI_MIC}<span>Talk to the table</span><span class="vpic vmini vchipface" data-vid="${AUTH.me.id}">${faceHTML(AUTH.me.name, AUTH.me.avatar, 'sm')}${voiceBadges(AUTH.me.id, true)}</span></button>`);
     const onResults = members.filter((p) => pmode(p) === 'results' && p.id !== AUTH.me.id);
@@ -7684,16 +7705,15 @@
       const wantGo = seated.filter((p) => p.id !== AUTH.me.id && Date.now() - (LV.gos[p.id] || 0) < GO_COUNT_MS).length;
       act = ready.length < 2 ? `<div class="lvstatus">Waiting for at least 1 more player…</div>`
         : `<button class="btn full lvbig" onclick="CATAN.lobbyStart()">${LOBBY.cup ? `🏆 Start ${escapeHtml((LOBBY.cupName || '').trim() || 'the tourney')} · ${seated.length} players` : `Start · ${seated.length} players`}${wantGo ? ` · ${wantGo} want to go` : ''}</button>`;
-      act += `<button class="linkbtn" onclick="CATAN.lobbyReady()">Leave seat</button>`;
     } else if (iSeated) {
       act = `<div class="lvstatus">⏳ Waiting for ${escapeHtml(host ? host.name : 'the host')} to start</div>`
-        + `<button class="btn full lvbig lvgobtn" onclick="CATAN.lvGo()">${Date.now() - LV.goAt < 2500 ? 'Go! ✓' : 'Go!'}</button><button class="linkbtn" onclick="CATAN.lobbyReady()">Leave seat</button>`;
+        + `<button class="btn full lvbig lvgobtn" onclick="CATAN.lvGo()">${Date.now() - LV.goAt < 2500 ? 'Go! ✓' : 'Go!'}</button>`;
     } else if (inLine) {
-      act = `<div class="lvstatus">You're first in line for a seat</div><button class="linkbtn" onclick="CATAN.lobbyReady()">Leave the line</button>`;
-    } else if (LOBBY.mode === 'spectate') {
-      act = `<button class="btn full lvbig" onclick="CATAN.lobbyReady()">Take a seat</button><button class="linkbtn" onclick="CATAN.lobbySpectate()">Stop watching</button>`;
+      act = `<div class="lvhelp">You get the first seat that opens</div>`;
+    } else if (full) {
+      act = `<div class="lvhelp">All ${MAX_SEATS} seats are taken</div>`;
     } else {
-      act = `<button class="btn full lvbig" onclick="CATAN.lobbyReady()">${seated.length >= MAX_SEATS ? 'Get in line' : 'Take a seat'}</button><button class="linkbtn" onclick="CATAN.lobbySpectate()">Just watch</button>`;
+      act = `<div class="lvhelp">Tap an open seat to play</div><div class="lvghost">${creator && creator.id === AUTH.me.id ? 'Start' : 'Go!'} · once you sit</div>`;
     }
     return `${last}<div class="lvseats">${seats}</div>${extras.join('')}${setl}<div class="lvact">${act}</div>`;
   }
@@ -7719,11 +7739,12 @@
         <div><div class="lvlbl">Who starts</div><div class="seg lvseg"><button class="${LOBBY.whoStarts === 'rps' ? 'on' : ''}" onclick="CATAN.lobbyWhoStarts('rps')">✊ Rock-paper-scissors</button><button class="${LOBBY.whoStarts === 'poker' ? 'on' : ''}" onclick="CATAN.lobbyWhoStarts('poker')">🃏 Poker hand</button><button class="${LOBBY.whoStarts === 'random' ? 'on' : ''}" onclick="CATAN.lobbyWhoStarts('random')">🎲 Random</button></div>${LOBBY.whoStarts === 'poker' ? '<div class="lvsub small" style="margin-top:6px">Everyone is dealt 5 cards, holds the ones they like and draws new ones for the rest, once. Best hand wins and picks when to go.</div>' : ''}</div>`;
     } else if (s === 'colour') {
       const mine = LOBBY.myPref(), others = LOBBY.tableMembers().filter((p) => p.id !== AUTH.me.id && pmode(p) === 'ready');
-      body = `<div class="lvst">Your colour this game</div>
+      body = `<div class="lvst">${LOBBY.mode === 'ready' ? 'Your seat' : 'Your colour this game'}</div>
         <div class="lvsw">${SEAT_COLORS.map((c) => { const w = others.find((p) => p.pref === c);
           return `<button class="lvswb${mine === c ? ' on' : ''}" onclick="CATAN.lobbyPref('${c}')"><i style="background:${PCOLOR[c]}">${w ? faceHTML(w.name, w.avatar, 'xs') : ''}</i><span>${w ? escapeHtml(w.name) + ' wants' : c[0].toUpperCase() + c.slice(1)}</span></button>`; }).join('')}
           <button class="lvswb${!mine ? ' on' : ''}" onclick="CATAN.lobbyPref(null)"><i class="any">Any</i><span>No pref</span></button></div>
-        <div class="lvsub small">If two people want the same colour, the game settles it at random when it starts. Your default lives in your profile.</div>`;
+        <div class="lvsub small">If two people want the same colour, the game settles it at random when it starts. Your default lives in your profile.</div>
+        ${LOBBY.mode === 'ready' ? '<button class="btn wood full" onclick="CATAN.lvStand()">Stand up</button>' : ''}`;
     } else if (s.startsWith('guard:')) {
       const code = s.slice(6), g = lvTables().find((t) => t.code === code);
       if (!g) { LV.sheet = null; return ''; }
@@ -7865,6 +7886,9 @@
   window.CATAN.joinTable = (code) => LOBBY.enterTable(code);
   window.CATAN.leaveTable = () => LOBBY.leaveTable();
   window.CATAN.lobbyReady = () => LOBBY.setReady();
+  // the room's seats are the controls: an open seat (or the line tile) sits you; your seat's sheet stands you up
+  window.CATAN.lvSit = () => { if (LOBBY.mode !== 'ready') LOBBY.setReady(); };
+  window.CATAN.lvStand = () => { LV.sheet = null; lobbySig = null; if (LOBBY.mode === 'ready') LOBBY.setReady(); else renderLobby(); };
   // pick a color for THIS game only (doesn't touch the profile preference)
   window.CATAN.lobbyPref = (c) => { LOBBY.prefGame = c; LOBBY.track(); lobbySig = null; renderLobby(); };
   window.CATAN.lobbySpectate = () => LOBBY.setSpectate();
