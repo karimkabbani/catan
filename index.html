@@ -916,6 +916,7 @@
   /* game-start countdown: a big number pops over the lobby (above the menu, z>40), 3..2..1 */
   #countdown{position:fixed; inset:0; z-index:50; display:flex; align-items:center; justify-content:center; pointer-events:none;}
   #countdown.hidden{display:none;}
+  #countdown.overpod{background:radial-gradient(ellipse at 50% 50%, rgba(8,5,2,0.84) 0%, rgba(8,5,2,0.62) 45%, rgba(8,5,2,0.28) 78%);}
   #countdown{flex-direction:column;}
   #countdown .cd-label{font-family:var(--serif); font-size:6vh; color:#f3e6c8; text-shadow:0 2px 8px #000; margin-bottom:-2vh;}
   /* GG at the end of a game */
@@ -1969,6 +1970,20 @@
   .pprog{position:absolute; left:0; bottom:0; height:3px; background:#ffd76b; transition:width 1s linear;}
   .pgo{flex:1; height:44px; box-sizing:border-box; display:flex; align-items:center; justify-content:center; gap:8px; border-radius:12px; background:linear-gradient(180deg,#7fe08f,#2e9a44); border:2px solid #d9ffe0; color:#fff; font-family:var(--serif); font-size:17px; text-shadow:0 1px 2px rgba(0,0,0,0.35);}
   .pgo svg{width:20px; height:20px;}
+  /* v-NEXT: the rematch vote in the strip (option A's design, canvas board 21) */
+  .pvbox{position:relative; flex:1; min-width:0; height:44px; box-sizing:border-box; display:flex; align-items:center; gap:5px; padding:0 8px; border-radius:12px; border:1.5px solid #ffd76b; background:rgba(0,0,0,0.55); overflow:hidden;}
+  .pvbox.end{border-color:rgba(235,120,100,0.7); background:rgba(70,18,12,0.85);}
+  .pq{flex:none; font-family:var(--serif); font-size:14px; color:#ffd76b; white-space:nowrap; margin-right:2px;}
+  .pvbox.end .pq{color:#ffb3a6;}
+  .pmf{position:relative; flex:none; width:28px; height:28px; box-sizing:border-box; border:2px solid; border-radius:50%; overflow:visible; display:flex; align-items:center; justify-content:center;}
+  .pmf img{width:100%; height:100%; border-radius:50%; object-fit:cover; object-position:50% 14%;}
+  .pmf b{font-family:var(--serif); font-size:13px; color:#fff;}
+  .pmf.w{opacity:0.42;}
+  .pmf i{position:absolute; right:-5px; bottom:-4px; width:14px; height:14px; box-sizing:border-box; border-radius:50%; border:1.5px solid #fff; display:flex; align-items:center; justify-content:center; color:#fff;}
+  .pmf i svg{width:8px; height:8px;} .pmf.y i{background:#2e9a44;} .pmf.n i{background:#c8372d;}
+  .pvbox .ptm{margin-left:auto;}
+  .pnomsg{margin-left:auto; min-width:0; font-size:12.5px; font-weight:700; color:#ffb3a6; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .pstrip .btn.pin{padding:0 13px;} .pstrip .btn.pnot{padding:0 10px; font-size:14px;}
   @keyframes confettifall{0%{transform:translate(0,-14vh) rotate(0);opacity:0}
     8%{opacity:1}92%{opacity:1}100%{transform:translate(var(--sway,0px),106vh) rotate(700deg);opacity:0.2}}
   .sheet{width:min(440px,92vw); max-height:88vh; overflow:auto;
