@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v270';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v271';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -2836,7 +2836,9 @@
   function podMain() {
     podTok++; podSel = null;
     showOverlay(podHTML());   // replaces the intro (and its confetti)
-    const o = $('overlay'); o.classList.add('podmode'); o.onclick = null;
+    const o = $('overlay'); o.classList.add('podmode');
+    // tap empty space = look at the board (anything that does something, a player or the strip keeps its own tap)
+    o.onclick = (e) => { if (!podOn() || (e.target.closest && e.target.closest('button, a, .pslot, .pdrow, #podpanel, .pstrip, .pnotes, .pasks'))) return; CATAN.viewBoard(); };
     podFit(); voiceMountVideos(); podRefresh(); syncRmBar();
   }
   const POD_ICO = {
@@ -2973,14 +2975,14 @@
     const B = (cls, click, ico, label, aria) => `<button class="btn wood pb${cls}" onclick="${click}"${aria ? ` aria-label="${aria}"` : ''}>${ico || ''}${label || ''}</button>`;
     const icons = () => B(' ic', 'CATAN.viewBoard()', POD_ICO.board, '', 'Look at the board') + B(' ic', "CATAN.openDiceStats('victory')", POD_ICO.dice, '', 'Dice stats');
     const full = () => B('', 'CATAN.viewBoard()', POD_ICO.board, 'Board') + B('', "CATAN.openDiceStats('victory')", POD_ICO.dice, 'Dice');
-    if (ARCHIVE) return full() + B(' grow', 'CATAN.closePast()', POD_ICO.door, 'Back to stats');
-    if (!online || !myColor) return full() + B(' grow', 'CATAN.confirmExit()', POD_ICO.door, 'Lobby');   // watching
+    if (ARCHIVE) return full() + B(' grow pexit', 'CATAN.closePast()', POD_ICO.door, 'Back to stats');
+    if (!online || !myColor) return full() + B(' grow pexit', 'CATAN.confirmExit()', POD_ICO.door, 'Lobby');   // watching
     const gg = !(state.gg || []).includes(myColor) ? B('', 'CATAN.gg()', '', 'GG', 'Say good game') : '';
-    const lobby = (lbl) => B('', 'CATAN.leaveEnded()', POD_ICO.door, lbl, 'Leave for the lobby');
+    const lobby = (lbl) => B(' pexit', 'CATAN.leaveEnded()', POD_ICO.door, lbl, 'Leave for the lobby');
     const rm = state.rm, left = state.left || [];
-    if (left.length) return `<div class="pmsg">🚪 ${escapeHtml(nameList(left))} ${left.length > 1 ? 'have' : 'has'} left. No rematch.</div>` + gg + icons() + B(' ic', 'CATAN.leaveEnded()', POD_ICO.door, '', 'Leave for the lobby');
-    if (qvOpen(state)) return '<div class="pmsg">First the table votes at the top ↑</div>' + icons() + B(' ic', 'CATAN.leaveEnded()', POD_ICO.door, '', 'Leave for the lobby');
-    const exitI = B(' ic', 'CATAN.leaveEnded()', POD_ICO.door, '', 'Leave for the lobby');
+    if (left.length) return `<div class="pmsg">🚪 ${escapeHtml(nameList(left))} ${left.length > 1 ? 'have' : 'has'} left. No rematch.</div>` + gg + icons() + B(' ic pexit', 'CATAN.leaveEnded()', POD_ICO.door, '', 'Leave for the lobby');
+    if (qvOpen(state)) return '<div class="pmsg">First the table votes at the top ↑</div>' + icons() + B(' ic pexit', 'CATAN.leaveEnded()', POD_ICO.door, '', 'Leave for the lobby');
+    const exitI = B(' ic pexit', 'CATAN.leaveEnded()', POD_ICO.door, '', 'Leave for the lobby');
     if (rmPending(rm)) {
       if (rmAllIn(rm)) return `<div class="pgo">${POD_ICO.tick}Everyone's in!</div>`;
       if (rm.votes && rm.votes[myColor] === 'y') return podVoteBox(rm, 'Rematch?') + (rm.by === myColor ? B('', 'CATAN.rmCancel()', '', 'Cancel', 'Cancel the rematch') : '') + icons() + exitI;
