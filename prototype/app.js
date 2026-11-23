@@ -6881,14 +6881,7 @@
     creatorOf(code) { return this.online().find((p) => (p.table || null) === code && p.created === code) || null; },
     // who can start the room: its creator, unless their phone is asleep (then the first seated player who's here)
     // (a quick switch to WhatsApp to invite people doesn't hand the room over: only 90s+ without the app does)
-    // a creator who stands up hands Start to the first seated player until they sit again (before, a standing
-    // creator stayed host with no Start button and the seated players waited on them)
-    roomHost() {
-      const cr = this.creatorOf(this.table), ready = this.readyList();
-      const crSeated = cr && (cr.id === (AUTH.me && AUTH.me.id) ? this.mode === 'ready' : pmode(cr) === 'ready');
-      const crOk = cr && !(cr.away && cr.age > 90) && (crSeated || !ready.some((p) => !p.away));
-      return (crOk ? cr : null) || ready.find((p) => !p.away) || cr || ready[0] || null;
-    },
+    roomHost() { const cr = this.creatorOf(this.table), ready = this.readyList(); return (cr && !(cr.away && cr.age > 90) ? cr : null) || ready.find((p) => !p.away) || cr || ready[0] || null; },
     gameName(code) { if (code === HOME_CODE) return 'Main Game'; const c = this.creatorOf(code); return c ? c.name + "'s Game" : 'Game'; },
     // enter / switch tables (a table is a presence grouping keyed by a game code)
     enterTable(code) { LV.gos = {}; this.friendly = false; if (this.created !== code) this.created = null; try { localStorage.setItem('catanLastTable', code); } catch (_) { } this.table = code; NET.code = code; this.mode = 'idle'; this.readyAt = 0; this.inProgress = false; this.targetPoints = null; this.prefGame = undefined; NET.subscribe(); this.track(); lobbySig = null; renderLobby(); },
@@ -7706,7 +7699,9 @@
       act = ready.length < 2 ? `<div class="lvstatus">Waiting for at least 1 more player…</div>`
         : `<button class="btn full lvbig" onclick="CATAN.lobbyStart()">${LOBBY.cup ? `🏆 Start ${escapeHtml((LOBBY.cupName || '').trim() || 'the tourney')} · ${seated.length} players` : `Start · ${seated.length} players`}${wantGo ? ` · ${wantGo} want to go` : ''}</button>`;
     } else if (iSeated) {
-      act = `<div class="lvstatus">⏳ Waiting for ${escapeHtml(host ? host.name : 'the host')} to start</div>`
+      // a creator who's standing (after a game everyone is) keeps the table: say so, rather than "to start"
+      const hostUp = host && !seated.some((p) => p.id === host.id);
+      act = `<div class="lvstatus">⏳ Waiting for ${escapeHtml(host ? host.name : 'the host')} to ${hostUp ? 'sit down' : 'start'}</div>`
         + `<button class="btn full lvbig lvgobtn" onclick="CATAN.lvGo()">${Date.now() - LV.goAt < 2500 ? 'Go! ✓' : 'Go!'}</button>`;
     } else if (inLine) {
       act = `<div class="lvhelp">You get the first seat that opens</div>`;
