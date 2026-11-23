@@ -2793,7 +2793,7 @@
   function showVictory(quiet) {   // quiet = returning from the dice stats: no fanfare/confetti replay
     if (quittingNow) return;     // I just quit: no fanfare on my way out
     if (ARCHIVE) quiet = true;   // a past game: no fanfare
-    victoryShownFor = gameKey(); victoryFinal = cupFinal(state); if (voiceOn() && LIVE.room) document.body.classList.add('vwin');   // with voice on: corners grow, faces stay live
+    victoryShownFor = gameKey(); victoryFinal = cupFinal(state); if (state.cup && voiceOn() && LIVE.room) document.body.classList.add('vwin');   // cups, with voice on: corners grow around the card (the podium shows the faces itself)
     if (!quiet) playSound('win', 0.8);
     if (state.cup) { showCupVictory(quiet); return; }
     if (!ARCHIVE) STATS.loaded = false;   // a game just ended -> every client refetches stats on the next lobby visit
@@ -2938,6 +2938,7 @@
   function podMark(c) {
     const rm = state.rm, gg = (state.gg || []).includes(c) ? '<i class="pgg">GG</i>' : '';
     let v = '';
+    if ((state.left || []).length) return gg;
     if (rmPending(rm)) v = rm.votes && rm.votes[c] === 'y' ? `<i class="pv y">${POD_ICO.tick}</i>` : '<i class="pv w">…</i>';
     else if (rm && rm.no === c && !rm.cancel && rmEndSeen[rm.id] && Date.now() - rmEndSeen[rm.id] < 4000) v = `<i class="pv n">${POD_ICO.cross}</i>`;
     return gg + v;
@@ -2960,6 +2961,7 @@
     rmWrite((s) => { if (!s.rm || s.rm.id !== id || !rmPending(s.rm)) return false; if (no) s.rm.no = c; else s.rm.votes[c] = 'y'; });
   }
   const PRACTICE_RM_NO = {};
+  function podPct(rm) { const t0 = rmSeen[rm.id] || Date.now(); return Math.max(0, Math.min(100, 100 * (RM_MS - (Date.now() - t0)) / RM_MS)).toFixed(1); }
   function podTm(ms) { const s = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
   function podStripHTML() {
     const B = (cls, click, ico, label, aria) => `<button class="btn wood pb${cls}" onclick="${click}"${aria ? ` aria-label="${aria}"` : ''}>${ico || ''}${label || ''}</button>`;
@@ -2977,7 +2979,7 @@
       if (rmAllIn(rm)) return `<div class="pgo">${POD_ICO.tick}Everyone's in! New game starting…</div>`;
       const P = state.players, waitFor = nameList(P.filter((p) => !(rm.votes && rm.votes[p.color] === 'y')).map((p) => p.color));
       if (rm.votes && rm.votes[myColor] === 'y') {
-        return `<div class="pwait"><span class="pwtxt">${rm.by === myColor ? 'Waiting for ' : 'You\'re in · waiting for '}${escapeHtml(waitFor)}</span><span class="ptm" data-rmtm></span><span class="pprog" id="podprog"></span></div>`
+        return `<div class="pwait"><span class="pwtxt">${rm.by === myColor ? 'Waiting for ' : 'You\'re in · waiting for '}${escapeHtml(waitFor)}</span><span class="ptm" data-rmtm></span><span class="pprog" id="podprog" style="width:${podPct(rm)}%"></span></div>`
           + (rm.by === myColor ? B('', 'CATAN.rmCancel()', '', 'Cancel', 'Cancel the rematch') : '') + icons() + exitI;
       }
       return `<button class="btn pb grow" onclick="CATAN.rmVote('y')">${POD_ICO.tick}I'm in</button>` + B('', "CATAN.rmVote('n')", '', 'Not this time') + icons() + exitI;
@@ -4972,7 +4974,7 @@
     const mine = rm.votes[myColor] === 'y';
     const head = mine ? `🔁 Rematch · you're in` : `🔁 <b>${escapeHtml(nameOf(rm.by))}</b> wants ${state.cup ? 'to rematch the cup' : 'a rematch'}`;
     return { cls: '', timer: true, html: `<div class="rmbt"><div class="rmbh">${head}<span class="rmbtm" id="rmbsecs"></span></div><div class="rmbchips">${rmChips(rm)}</div></div>`
-      + (mine ? `<div class="rmbwait">⏳ Waiting for ${escapeHtml(waitFor())}…</div>`
+      + (mine ? `<div class="rmbwait">⏳ Waiting for ${escapeHtml(waitFor())}…</div>` + (rm.by === myColor ? `<button class="btn wood rmbno" onclick="CATAN.rmCancel()">Cancel</button>` : '')
         : `<button class="btn rmbyes" onclick="CATAN.rmVote('y')">✓ I'm in</button><button class="btn wood rmbno" onclick="CATAN.rmVote('n')">Not this time</button>`) };
   }
   // draw it (only rewritten when its content changes, so a tap never lands on a vanishing button)
@@ -5158,7 +5160,8 @@
     if (combo > 1) comboTag(color, emoji + ' ×' + combo);
   }
   function comboTag(color, label) {
-    const c = cornerOf(color); if (!c) return;
+    const pt = podOn() && document.querySelector('#overlay .pod [data-pc="' + color + '"]');
+    const c = pt ? { el: pt, pos: 'bl' } : cornerOf(color); if (!c) return;
     const o = avatarCentre(c), top = c.pos[0] === 't', left = c.pos[1] === 'l';
     {
       const id = 'emocombo-' + color; let t = document.getElementById(id);
@@ -6012,7 +6015,7 @@
       if (trayMode === 'emo') { trayDraft.e = EMOJI_DEFAULT.split(' '); saveTrayEmojis(); } else { trayDraft.t = DEFAULT_QUICK_MSGS.slice(); saveTrayTexts(); }
       trayEdit();
     },
-    viewBoard: () => { endView = true; hideOverlay(); render(); },   // dismiss the victory to study the final board
+    viewBoard: () => { endView = true; hideOverlay(); render(); syncRmBar(); },   // dismiss the victory to study the final board
     showResults: () => { if (state && state.phase === 'ended') showVictory(true); },
     bannerTap: () => { if (state && state.phase === 'ended' && $('overlay').classList.contains('hidden')) showVictory(true); },
     dev: (c) => { hideOverlay(); if (c === 'knight') dispatch({ type: 'playKnight' }); else if (c === 'road_building') dispatch({ type: 'playRoadBuilding' }); else if (c === 'year_of_plenty') openYoP(); else if (c === 'monopoly') openMonopoly(); },

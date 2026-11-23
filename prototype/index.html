@@ -1882,10 +1882,10 @@
   .podskip{margin-top:12px; font-size:12px; color:rgba(243,230,207,0.5); font-family:-apple-system, system-ui, sans-serif;}
   @media (max-height:430px){ .podin .winhead{height:142px !important;} #overlay .winwrap.podin .winava{width:92px; height:92px;} #overlay .winwrap.podin .crown{width:60px;} .winwrap.podin h2{font-size:36px;} }
   .pod{position:relative; width:580px; height:393px; flex:none; transform:scale(var(--podk,1)); color:var(--ink);
-    font-family:-apple-system, system-ui, 'Segoe UI', Roboto, sans-serif; text-align:left; animation:podrise .45s cubic-bezier(.2,.9,.3,1.15) both;}
+    font-family:-apple-system, system-ui, 'Segoe UI', Roboto, sans-serif; text-align:left; animation:podrise .45s cubic-bezier(.2,.9,.3,1.15) backwards;}
   @keyframes podrise{from{opacity:0; transform:scale(calc(var(--podk,1) * 0.94));} to{opacity:1; transform:scale(var(--podk,1));}}
   .phead{position:absolute; left:14px; top:8px; right:218px; display:flex; align-items:center; gap:8px;}
-  .phead h2{margin:0; font-family:var(--serif); font-weight:400; font-size:26px; line-height:1.15; color:#ffd76b; text-shadow:0 2px 0 #6b3d0e; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .pod .phead h2{margin:0; font-family:var(--serif); font-weight:400; font-size:26px; line-height:1.15; color:#ffd76b; text-shadow:0 2px 0 #6b3d0e; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   .pdom{flex:none; font-family:var(--serif); font-size:11px; letter-spacing:1.5px; color:#2a1605; background:linear-gradient(180deg,#ffd76b,#d8a52f); border-radius:7px; padding:2px 7px;}
   .pasks{position:absolute; left:14px; top:44px; z-index:5;} .pasks:empty{display:none;}
   .pnotes{flex:none; display:flex; flex-direction:column; gap:4px;}
@@ -1941,7 +1941,7 @@
   .pdrow:not(.me) .pvr .vb:not(.vred){display:none;}   /* others: the live picture already says 'on'; only a red 'off' shows */
   .prvp{flex:none; font-size:18px; font-weight:800; color:#fff;}
   .pod.n6 .pdrow{height:40px;} .pod.n6 .prface{width:32px; height:32px;}
-  #podpanel{flex:1; min-height:0; display:flex; flex-direction:column; gap:5px; overflow:hidden;}
+  #podpanel{flex:1; min-height:0; display:flex; flex-direction:column; gap:5px; overflow-x:hidden; overflow-y:auto; overscroll-behavior:contain;}
   .pah{font-size:10.5px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:#e9c45a; margin:3px 0 0 2px;}
   .paw{flex:none; display:flex; align-items:center; gap:7px; padding:5px 8px; border-radius:10px; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.16); cursor:pointer;}
   .paic{font-size:18px; line-height:1; flex:none;}
