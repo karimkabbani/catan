@@ -1868,6 +1868,107 @@
   .confetti{position:fixed;top:0;width:9px;height:13px;z-index:32;pointer-events:none;border-radius:2px;will-change:transform;
     animation-name:confettifall;animation-timing-function:linear;animation-iteration-count:infinite;}
   .confetti.star{border-radius:0;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.35));}
+  /* v-NEXT: game over, option B (HANDOVER §8). Beat 1 = the winner alone (.podin, ~2 s, tap skips); beat 2 = the podium,
+     a fixed 580x393 stage scaled to the screen (--podk, set by podFit), so it never scrolls. Sizes below are stage px. */
+  #overlay.podmode{background:radial-gradient(ellipse at 50% 40%, rgba(32,19,6,0.88), rgba(8,5,2,0.94));}
+  #overlay.podmode{box-sizing:border-box; padding:var(--sa-t) var(--sa-r) var(--sa-b) var(--sa-l);}
+  #overlay.podmode > .sheet{width:auto; max-width:none; max-height:none; overflow:visible; padding:0; background:none; border:0; border-radius:0; box-shadow:none;}
+  #overlay.podintro{cursor:pointer;}
+  .podin .winhead{height:170px;}
+  #overlay .winwrap.podin .winava{width:112px; height:112px; border-width:4px;}
+  #overlay .winwrap.podin .crown{width:72px;}
+  .winwrap.podin h2{font-size:42px; margin:10px 0 2px;}
+  .podinsub{font-weight:800; font-size:15px; letter-spacing:.04em; color:var(--ink); animation:h2pop .5s cubic-bezier(.2,.9,.3,1.35) .45s both;}
+  .podskip{margin-top:12px; font-size:12px; color:rgba(243,230,207,0.5); font-family:-apple-system, system-ui, sans-serif;}
+  @media (max-height:430px){ .podin .winhead{height:142px !important;} #overlay .winwrap.podin .winava{width:92px; height:92px;} #overlay .winwrap.podin .crown{width:60px;} .winwrap.podin h2{font-size:36px;} }
+  .pod{position:relative; width:580px; height:393px; flex:none; transform:scale(var(--podk,1)); color:var(--ink);
+    font-family:-apple-system, system-ui, 'Segoe UI', Roboto, sans-serif; text-align:left; animation:podrise .45s cubic-bezier(.2,.9,.3,1.15) backwards;}
+  @keyframes podrise{from{opacity:0; transform:scale(calc(var(--podk,1) * 0.94));} to{opacity:1; transform:scale(var(--podk,1));}}
+  .phead{position:absolute; left:14px; top:8px; right:218px; display:flex; align-items:center; gap:8px;}
+  .pod .phead h2{margin:0; font-family:var(--serif); font-weight:400; font-size:26px; line-height:1.15; color:#ffd76b; text-shadow:0 2px 0 #6b3d0e; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .pdom{flex:none; font-family:var(--serif); font-size:11px; letter-spacing:1.5px; color:#2a1605; background:linear-gradient(180deg,#ffd76b,#d8a52f); border-radius:7px; padding:2px 7px;}
+  .pasks{position:absolute; left:14px; top:44px; z-index:5;} .pasks:empty{display:none;}
+  .pnotes{flex:none; display:flex; flex-direction:column; gap:4px;}
+  .pnote{font-size:11px; line-height:1.3; color:rgba(243,230,207,0.8);}
+  .pod .pprac{margin:0; padding:2px 0; font-size:11px; text-align:left; color:#ffd76b; text-decoration:underline;}
+  .pod .quitnote{margin:0; padding:5px 8px; font-size:11px; line-height:1.3; border-radius:8px;}
+  .pask{display:inline-flex; align-items:center; gap:7px; background:rgba(0,0,0,0.6); border:1.5px solid #ffd76b; border-radius:11px; padding:5px 10px; font-size:13px; font-weight:600;}
+  .pask svg{width:16px; height:16px; color:#ffd76b; flex:none;} .pask b{color:#ffd76b;}
+  .ptm{flex:none; font-size:12px; font-weight:800; color:#fff; background:rgba(255,255,255,0.14); border-radius:7px; padding:1px 6px; font-variant-numeric:tabular-nums;}
+  .ppodium{position:absolute; left:10px; bottom:57px; width:362px; height:240px;}
+  .pslot{position:absolute; bottom:0; width:116px; display:flex; flex-direction:column; align-items:center;}
+  .ptile{position:relative; width:88px; height:96px; margin-bottom:-3px; z-index:2; cursor:pointer;}
+  .pslot.p1 .ptile{width:108px; height:116px;}
+  .pface{position:relative; width:100%; height:100%; box-sizing:border-box; border:3px solid; border-radius:12px; overflow:hidden; box-shadow:0 6px 14px rgba(0,0,0,0.55);}
+  .pslot.p1 .pface{border-color:#ffd76b !important; box-shadow:0 0 0 3px rgba(255,215,107,0.3), 0 0 26px rgba(255,200,80,0.55);}
+  .pfimg{position:absolute; left:0; top:0; width:100%; height:100%; object-fit:cover; object-position:50% 14%;}
+  .pfini{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-family:var(--serif); font-size:36px; color:#fff;}
+  .pnm{position:absolute; left:6px; right:6px; bottom:3px; z-index:6; font-family:var(--serif); font-size:13px; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-shadow:0 1px 3px #000, 0 0 6px #000; pointer-events:none;}
+  .pface .vb{top:4px; width:26px; height:26px;} .pface .vb svg{width:14px; height:14px;}
+  .pface .vb.vcam{left:4px;} .pface .vb.vmic{right:4px;}
+  .pcrown{position:absolute; top:-24px; left:50%; width:40px; margin-left:-20px; z-index:4; pointer-events:none; filter:drop-shadow(0 3px 5px rgba(0,0,0,0.5));}
+  .pyou{position:absolute; top:-15px; left:50%; transform:translateX(-50%); z-index:5; font-size:10px; font-weight:900; letter-spacing:.08em; color:#3a2408; background:#f6e7c4; border-radius:6px; padding:1px 6px;}
+  .pslot.p1 .pyou{top:-42px;}
+  .pmk{position:absolute; inset:0; z-index:7; pointer-events:none;}
+  .pv{position:absolute; right:-7px; bottom:-7px; width:26px; height:26px; box-sizing:border-box; border-radius:50%; border:2px solid #fff; display:flex; align-items:center; justify-content:center; font-style:normal; font-size:14px; font-weight:900; line-height:1; color:#fff; box-shadow:0 2px 6px rgba(0,0,0,0.5);}
+  .pv svg{width:14px; height:14px;} .pv.y{background:#2e9a44;} .pv.n{background:#c8372d;} .pv.w{background:#5a4a38; color:#f6e7c4;}
+  .pgg{position:absolute; left:-12px; top:44%; font-style:normal; font-size:10px; font-weight:900; color:#3a2408; background:#e9c45a; border-radius:6px; padding:1px 5px; box-shadow:0 1px 4px rgba(0,0,0,0.5);}
+  .pod.allin .pface, .pod.allin .prface{box-shadow:0 0 0 3px rgba(80,210,110,0.6), 0 0 18px rgba(80,210,110,0.55) !important;}
+  .ptile.sel .pface{outline:3px solid #fff; outline-offset:2px;} .pdrow.sel{border-color:#fff !important;}
+  .pstep{position:relative; width:116px; box-sizing:border-box; border-radius:10px 10px 0 0; background:linear-gradient(180deg,#6b4520,#3e2510); border:1.5px solid rgba(233,196,90,0.45); border-bottom:0; display:flex; flex-direction:column; align-items:center; padding-top:9px; gap:4px;}
+  .pslot.p1 .pstep{background:linear-gradient(180deg,#a8742c,#5a3612); border-color:#ffd76b;}
+  .prk{position:absolute; top:5px; left:7px; font-size:10.5px; font-weight:800; color:rgba(243,230,207,0.7);}
+  .pquit{font-size:10px; font-weight:700; color:#f0a08f; white-space:nowrap;} .pstep .pquit{position:absolute; top:5px; right:6px;}
+  .pstvp{font-size:26px; font-weight:800; line-height:1; color:#fff;} .pstvp small{font-size:11px; color:#e9c45a; margin-left:2px;}
+  .pslot.p1 .pstvp{font-size:32px;}
+  .pbks{display:flex; gap:3px; justify-content:center; align-items:center; white-space:nowrap; padding:0 2px;}
+  .pbk{display:flex; align-items:center; gap:1px; font-size:11px; font-weight:800;} .pbk img{height:16px; width:auto;}
+  .pground{position:absolute; left:-6px; right:-6px; bottom:-3px; height:4px; border-radius:2px; background:#e9c45a; opacity:.6;}
+  .pside{position:absolute; right:10px; top:10px; bottom:57px; width:198px; display:flex; flex-direction:column; gap:5px; min-height:0;}
+  .pdrow{display:flex; align-items:center; gap:6px; flex:none; height:44px; box-sizing:border-box; padding:3px 8px 3px 4px; border-radius:10px; background:rgba(0,0,0,0.42); border:1px solid rgba(233,196,90,0.25); cursor:pointer;}
+  .pdrow.me{border-color:#f6e7c4;}
+  .prrk{width:22px; flex:none; font-size:10.5px; font-weight:800; color:rgba(243,230,207,0.6);}
+  .prfw{position:relative; flex:none;}
+  .prface{position:relative; width:36px; height:36px; box-sizing:border-box; border:2px solid; border-radius:50%; overflow:hidden;}
+  .prface .vvid{border-radius:50%;} .prface .pfini{font-size:16px;}
+  .pdrow .pv{width:20px; height:20px; right:-6px; bottom:-5px;} .pdrow .pv svg{width:11px; height:11px;}
+  .pdrow .pgg{left:auto; right:-12px; top:-7px; bottom:auto;}
+  .prn{flex:1; min-width:0; font-family:var(--serif); font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .prn small{font-family:-apple-system, system-ui, sans-serif; font-size:10px; color:rgba(243,230,207,0.65);}
+  .pvr{display:flex; gap:4px; flex:none;} .pvr:empty{display:none;}
+  .pdrow .pvr .vb{width:26px; height:26px;} .pdrow .pvr .vb svg{width:13px; height:13px;} .pdrow .pvr .vbars{display:none !important;}
+  .pdrow:not(.me) .pvr .vb{width:20px; height:20px;} .pdrow:not(.me) .pvr .vb svg{width:11px; height:11px;}
+  .pdrow:not(.me) .pvr .vb:not(.vred){display:none;}   /* others: the live picture already says 'on'; only a red 'off' shows */
+  .prvp{flex:none; font-size:18px; font-weight:800; color:#fff;}
+  .pod.n6 .pdrow{height:40px;} .pod.n6 .prface{width:32px; height:32px;}
+  #podpanel{flex:1; min-height:0; display:flex; flex-direction:column; gap:5px; overflow-x:hidden; overflow-y:auto; overscroll-behavior:contain;}
+  .pah{font-size:10.5px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:#e9c45a; margin:3px 0 0 2px;}
+  .paw{flex:none; display:flex; align-items:center; gap:7px; padding:5px 8px; border-radius:10px; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.16); cursor:pointer;}
+  .paic{font-size:18px; line-height:1; flex:none;}
+  .pat{min-width:0; font-size:11px; line-height:1.25;} .pat b{display:block; font-size:12px; color:var(--gold);}
+  .pnone{font-size:12px; color:rgba(243,230,207,0.6); padding:2px;}
+  .pdet{border-radius:12px; background:#2a190a; border:2px solid var(--gold); padding:4px 10px 7px;}
+  .pdh{display:flex; align-items:center; font-family:var(--serif); font-size:16px; color:#ffd76b;}
+  .pdh span{flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .pdx{flex:none; width:32px; height:28px; margin-right:-6px; padding:0; background:none; border:0; color:var(--ink); font-size:22px; line-height:1; cursor:pointer;}
+  .pdl{display:flex; align-items:center; gap:7px; padding:3px 0; font-size:12px; border-top:1px solid rgba(233,196,90,0.15);}
+  .pdl img, .pdl i{flex:none; width:22px; height:17px; object-fit:contain;}
+  .pdl span{flex:1; min-width:0;} .pdl b{color:#fff;}
+  .pdl.pdt{border-top:1.5px solid rgba(233,196,90,0.5); font-weight:800;}
+  .pdx2{margin-top:3px; font-size:10.5px; line-height:1.3; color:rgba(243,230,207,0.8);}
+  .pod.n6 .pdl{padding:2px 0;}
+  .pstrip{position:absolute; left:10px; right:10px; bottom:8px; height:44px; display:flex; align-items:center; gap:6px;}
+  .pstrip .btn{flex:none; height:44px; box-sizing:border-box; display:flex; align-items:center; justify-content:center; gap:6px; padding:0 12px; border-radius:12px; font-family:var(--serif); font-size:15px; font-weight:400; white-space:nowrap;}
+  .pstrip .btn svg{width:18px; height:18px; flex:none;}
+  .pstrip .btn.grow{flex:1; min-width:0;}
+  .pstrip .btn.ic{width:44px; padding:0;}
+  .pmsg{flex:1; min-width:0; height:44px; box-sizing:border-box; display:flex; align-items:center; gap:8px; padding:0 12px; border-radius:12px; background:rgba(0,0,0,0.5); border:1.5px solid rgba(233,196,90,0.45); font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .pmsg.no{background:rgba(110,30,22,0.92); border-color:rgba(235,120,100,0.7); color:#fff;} .pmsg svg{width:16px; height:16px; flex:none;}
+  .pwait{position:relative; flex:1; min-width:0; height:44px; box-sizing:border-box; display:flex; align-items:center; gap:8px; padding:0 10px; border-radius:12px; border:1.5px solid #ffd76b; background:rgba(0,0,0,0.55); overflow:hidden; font-size:12.5px; font-weight:600;}
+  .pwtxt{flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .pprog{position:absolute; left:0; bottom:0; height:3px; background:#ffd76b; transition:width 1s linear;}
+  .pgo{flex:1; height:44px; box-sizing:border-box; display:flex; align-items:center; justify-content:center; gap:8px; border-radius:12px; background:linear-gradient(180deg,#7fe08f,#2e9a44); border:2px solid #d9ffe0; color:#fff; font-family:var(--serif); font-size:17px; text-shadow:0 1px 2px rgba(0,0,0,0.35);}
+  .pgo svg{width:20px; height:20px;}
   @keyframes confettifall{0%{transform:translate(0,-14vh) rotate(0);opacity:0}
     8%{opacity:1}92%{opacity:1}100%{transform:translate(var(--sway,0px),106vh) rotate(700deg);opacity:0.2}}
   .sheet{width:min(440px,92vw); max-height:88vh; overflow:auto;
@@ -2329,7 +2430,7 @@
 (function () {
   'use strict';
   const C = window.Catan;
-  const APP_VERSION = 'v268';   // shown in the corner so you can confirm the live build (bump with the SW version)
+  const APP_VERSION = 'v269';   // shown in the corner so you can confirm the live build (bump with the SW version)
   let ARCHIVE = null;   // { at } while a past game (Stats → Recent games) is on screen: read-only, nothing is written
   const RES = ['brick', 'wood', 'sheep', 'wheat', 'ore'];
   const ICON = { brick: '🧱', wood: '🪵', sheep: '🐑', wheat: '🌾', ore: '🪨' };
@@ -4395,7 +4496,7 @@
   }
 
   // ---- overlays (unchanged logic) -----------------------------------------
-  function showOverlay(html) { const o = $('overlay'); o.onclick = null; o.innerHTML = `<div class="sheet">${html}</div>`; o.classList.remove('hidden', 'menu', 'devmode', 'trademode', 'qmode'); document.body.classList.remove('trading'); const rr = $('radialroot'); rr.classList.remove('open'); rr.classList.add('hidden'); $('radialtab').classList.add('hidden'); $('settingstab').classList.add('hidden'); $('dicetab').classList.add('hidden'); $('trophytab').classList.add('hidden'); closeEmojiTray(); hideChip(); }
+  function showOverlay(html) { const o = $('overlay'); o.onclick = null; o.innerHTML = `<div class="sheet">${html}</div>`; o.classList.remove('hidden', 'menu', 'devmode', 'trademode', 'qmode', 'podmode', 'podintro'); document.body.classList.remove('trading'); const rr = $('radialroot'); rr.classList.remove('open'); rr.classList.add('hidden'); $('radialtab').classList.add('hidden'); $('settingstab').classList.add('hidden'); $('dicetab').classList.add('hidden'); $('trophytab').classList.add('hidden'); closeEmojiTray(); hideChip(); }
   function showFullMenu(html) { const o = $('overlay'); o.onclick = null; o.innerHTML = html; o.classList.remove('hidden', 'devmode', 'trademode', 'qmode'); o.classList.add('menu'); document.body.classList.remove('trading'); }
   // Re-render a menu sheet without replaying its slide-up / reloading images: if the
   // same view is already open, swap only its inner content; otherwise mount fresh.
@@ -4410,7 +4511,7 @@
       const ms = o.querySelector('.menuscreen'); if (ms) ms.dataset.view = view;
     }
   }
-  function hideOverlay() { document.body.classList.remove('vwin'); const o = $('overlay'); o.classList.add('hidden'); o.classList.remove('menu', 'devmode', 'trademode', 'qmode'); document.body.classList.remove('trading'); o.innerHTML = ''; o.onclick = null; }
+  function hideOverlay() { document.body.classList.remove('vwin'); const o = $('overlay'); o.classList.add('hidden'); o.classList.remove('menu', 'devmode', 'trademode', 'qmode', 'podmode', 'podintro'); document.body.classList.remove('trading'); o.innerHTML = ''; o.onclick = null; }
   // discard order: starting from the player AFTER the roller, around the table,
   // with the roller last (matches the original app).
   function discardOrder() {
@@ -4765,15 +4866,16 @@
     const out = [];
     const robbed = (e) => robbedCount(e.c);
     const rob = ent.slice().sort((a, b) => robbed(b) - robbed(a))[0];
-    if (rob && robbed(rob) >= AWARD_MIN_ROBBED) out.push(['🦹', 'Robber magnet', `${name(rob.c)} got robbed ${robbed(rob)} times.`]);
+    if (rob && robbed(rob) >= AWARD_MIN_ROBBED) out.push(['🦹', 'Robber magnet', `${name(rob.c)} got robbed ${robbed(rob)} times.`, rob.c, `robbed ${robbed(rob)} times`]);
     const gap = (e) => e.g.got - e.g.fair;
     const luck = ent.filter((e) => e.g).sort((a, b) => gap(b) - gap(a));
     const bar = luck.length && luck[0].g.cards ? AWARD_MIN_LUCK_CARDS : AWARD_MIN_LUCK;
     const line = (e) => e.g.cards ? `The dice paid ${name(e.c)} ${e.g.got} cards. Fair dice would have paid about ${Math.round(e.g.fair)}.`
       : `${name(e.c)}'s numbers came up ${e.g.got} times. Normal is about ${Math.round(e.g.fair)}.`;
-    if (luck.length && gap(luck[0]) >= bar) out.push(['🍀', 'Blessed by the dice', line(luck[0])]);
+    const short = (e) => e.g.cards ? `${e.g.got} cards, fair ${Math.round(e.g.fair)}` : `numbers hit ${e.g.got}, normal ${Math.round(e.g.fair)}`;
+    if (luck.length && gap(luck[0]) >= bar) out.push(['🍀', 'Blessed by the dice', line(luck[0]), luck[0].c, short(luck[0])]);
     const worst = luck[luck.length - 1];
-    if (worst && gap(worst) <= -bar) out.push(['💀', 'Cursed by the dice', line(worst)]);
+    if (worst && gap(worst) <= -bar) out.push(['💀', 'Cursed by the dice', line(worst), worst.c, short(worst)]);
     return out;
   }
   function diceDetail(t) {
@@ -5116,46 +5218,236 @@
   function showVictory(quiet) {   // quiet = returning from the dice stats: no fanfare/confetti replay
     if (quittingNow) return;     // I just quit: no fanfare on my way out
     if (ARCHIVE) quiet = true;   // a past game: no fanfare
-    victoryShownFor = gameKey(); victoryFinal = cupFinal(state); if (voiceOn() && LIVE.room) document.body.classList.add('vwin');   // with voice on: corners grow, faces stay live
+    victoryShownFor = gameKey(); victoryFinal = cupFinal(state); if (state.cup && voiceOn() && LIVE.room) document.body.classList.add('vwin');   // cups, with voice on: corners grow around the card (the podium shows the faces itself)
     if (!quiet) playSound('win', 0.8);
     if (state.cup) { showCupVictory(quiet); return; }
     if (!ARCHIVE) STATS.loaded = false;   // a game just ended -> every client refetches stats on the next lobby visit
-    const winner = state.players.find((p) => p.color === state.winner);
-    const wi = state.players.indexOf(winner);
-    const wavSrc = seatAvatarSrc(winner, wi);
-    const wav = wavSrc ? `<img src="${wavSrc}" alt="">` : '';
-    const rows = finishOrder(state);   // the real finish: winner first, a quitter last
-    // Domination: the winner held every rival under 10 points (all VP revealed at game end)
-    // (only a real win in a game to 10+: never after a quit, and a short game's target makes "under 10" meaningless)
-    const domination = rows.length > 1 && !state.quitBy && (state.targetPoints || 10) >= 10 && rows[0].vp >= (state.targetPoints || 10) && rows.every((s) => s.p.color === winner.color || s.vp < 10);   // a real win (not a surrender at 6-5)
-    const standings = rows
-      .map(({ p, vp }, i) => `<div class="standing${p.color === winner.color ? ' win' : ''}" style="animation-delay:${(0.5 + i * 0.12).toFixed(2)}s"><span class="nm"><span class="dot" style="background:${PCOLOR[p.color]}"></span>${escapeHtml(p.name)}${p.color === state.quitBy ? ' <span class="quittag">🚪 quit</span>' : ''}</span><span class="pvp">${vp} VP</span></div>`)
-      .join('');
-    const crown = `<img class="crown" src="assets/hud/crown.png" alt="">`;
-    const domBadge = domination ? `<div class="dombadge">DOMINATION<span>every rival held under 10</span></div>` : '';
-    showOverlay(`<div class="winwrap${domination ? ' domination' : ''}">
-      <div class="winhead"><div class="winrays"></div>${crown}
-        <div class="winava" style="background:${PCOLOR[winner.color]}">${wav}</div></div>
-      <h2 id="vtitle">${victoryTitle()}</h2>
-      ${ARCHIVE ? `<div class="pastnote">📅 Final board · ${pastWhen()}</div>` : ''}
-      ${PRACTICE.on ? '<div class="quitnote">🧪 Practice game: nothing recorded.</div>' : state.friendly ? '<div class="quitnote">🤝 Friendly game: not recorded in Stats.</div>' : ''}
-      ${quitNoteHTML()}
-      ${PRACTICE.on ? `<button class="btn full" onclick="CATAN.practiceStart(false)">Play again</button>` : myColor ? `<div id="rmpanel">${rematchPanelHTML()}</div>` : ''}
-      ${domBadge}
-      <div id="ggrow">${ggHTML()}</div>
-      <div style="margin:12px 0">${standings}</div>
-      ${awardsHTML()}
-      <div class="winrow"><button class="btn wood" onclick="CATAN.viewBoard()">🗺️ View board</button><button class="btn wood" onclick="CATAN.openDiceStats('victory')">📊 Dice stats</button></div>
-      ${ARCHIVE ? `<button class="btn full" onclick="CATAN.closePast()">Back to stats</button>`
-        : myColor
-          ? `<button class="btn wood full" onclick="CATAN.leaveEnded()">${PRACTICE.on ? 'Back to the practice table' : 'Back to lobby'}</button>`
-          : `<button class="btn full" onclick="CATAN.confirmExit()">Back to lobby</button>`}</div>`);
-    syncRmBar();   /* a watcher leaves for themselves — never resets the players' table */
-    refreshGG();
-    $('overlay').onclick = (e) => { if (e.target.id === 'overlay') CATAN.viewBoard(); };   // tap outside the card = look at the board
-    if (quiet) return;
-    spawnConfetti($('overlay'), domination ? 120 : 64);
-    if (domination) setTimeout(() => playSound('win', 0.55), 500);   // a second flourish for the blowout
+    if (quiet) podMain(); else podIntro();
+  }
+  // ---- game over, option B (HANDOVER §8, canvas "Design & UX sweep" boards 13-20) -------------------------------
+  // Beat 1 (podIntro, ~2 s, tap skips): just the winner, fanfare, confetti, nothing to read. Beat 2 (podMain): the top
+  // three on podium steps (their live faces when on the call), 4th and lower in rows beside them, awards (or the tapped
+  // player's score) in the same column, and one strip of actions at the bottom. Drawn on a fixed 580x393 stage scaled
+  // to the screen, so it never scrolls. The rematch vote shows on the faces and in the strip (the pinned #rmbar only
+  // shows while someone is on the board). Cups keep their own card (showCupVictory).
+  const POD_W = 580, POD_H = 393, POD_INTRO_MS = 2200;
+  let podSel = null, podTok = 0;
+  function podOn() { const o = $('overlay'); return !!(o && o.classList.contains('podmode') && !o.classList.contains('podintro') && !o.classList.contains('hidden')); }
+  function podFit() {
+    const p = document.querySelector('#overlay .pod'); if (!p) return;
+    const cs = getComputedStyle(document.documentElement), px = (v) => parseFloat(cs.getPropertyValue(v)) || 0;
+    const w = innerWidth - px('--sa-l') - px('--sa-r'), h = innerHeight - px('--sa-t') - px('--sa-b');
+    p.style.setProperty('--podk', Math.max(0.5, Math.min(1.7, w / POD_W, h / POD_H)).toFixed(3));
+  }
+  window.addEventListener('resize', () => setTimeout(podFit, 60));
+  function podDomination(rows) {   // the winner held every rival under 10 (all VP revealed at game end); only a real win to 10+
+    return rows.length > 1 && !state.quitBy && (state.targetPoints || 10) >= 10 && rows[0].vp >= (state.targetPoints || 10) && rows.every((s) => s.p.color === state.winner || s.vp < 10);
+  }
+  function podIntro() {
+    const tok = ++podTok, rows = finishOrder(state), w = state.players.find((p) => p.color === state.winner), dom = podDomination(rows);
+    const src = seatAvatarSrc(w, state.players.indexOf(w)), wr = rows.find((r) => r.p.color === w.color);
+    showOverlay(`<div class="winwrap podin${dom ? ' domination' : ''}">
+      <div class="winhead"><div class="winrays"></div><img class="crown" src="assets/hud/crown.png" alt="">
+        <div class="winava" style="background:${PCOLOR[w.color]}">${src ? `<img src="${src}" alt="">` : ''}</div></div>
+      <h2>${victoryTitle()}</h2><div class="podinsub">${wr ? wr.vp : ''} VP</div>
+      ${dom ? '<div class="dombadge">DOMINATION<span>every rival held under 10</span></div>' : ''}
+      <div class="podskip">tap to skip</div></div>`);
+    const o = $('overlay'); o.classList.add('podmode', 'podintro');
+    o.onclick = () => { if (tok === podTok) podMain(); };
+    spawnConfetti(o, dom ? 120 : 64);
+    if (dom) setTimeout(() => playSound('win', 0.55), 500);
+    setTimeout(() => { if (tok === podTok && $('overlay').classList.contains('podintro')) podMain(); }, POD_INTRO_MS + (dom ? 600 : 0));
+  }
+  function podMain() {
+    podTok++; podSel = null;
+    showOverlay(podHTML());   // replaces the intro (and its confetti)
+    const o = $('overlay'); o.classList.add('podmode'); o.onclick = null;
+    podFit(); voiceMountVideos(); podRefresh(); syncRmBar();
+  }
+  const POD_ICO = {
+    re: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.5-4.6M4 13a8 8 0 0 0 14.5 4.6"/><path d="M5 2.5v4h4M19 21.5v-4h-4"/></svg>',
+    board: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.5l8.2 4.75v9.5L12 21.5l-8.2-4.75v-9.5z"/></svg>',
+    dice: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="4"/><circle cx="8.5" cy="8.5" r="1.4" fill="currentColor"/><circle cx="15.5" cy="15.5" r="1.4" fill="currentColor"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/></svg>',
+    door: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h4.5A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5H14"/><path d="M10 8l-4 4 4 4M6 12h10"/></svg>',
+    tick: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+    cross: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  };
+  const ordinal = (n) => n + (n === 1 ? 'st' : n === 2 ? 'nd' : n === 3 ? 'rd' : 'th');
+  // what a score is made of: settlements, cities, Longest Road, Largest Army, VP cards
+  function podParts(c) {
+    const p = state.players.find((x) => x.color === c); let st = 0, ci = 0;
+    Object.values(state.settlements || {}).forEach((b) => { if (b.owner === c) { if (b.type === 'city') ci++; else st++; } });
+    const vpc = p ? p.devCards.concat(p.newDevCards || []).filter((d) => d === 'victory_point').length : 0;
+    return { st, ci, road: !!(p && p.hasLongestRoad), army: !!(p && p.hasLargestArmy), vpc, len: C.longestRoadLength(state, c), kn: p ? p.playedKnights : 0 };
+  }
+  function podBits(c) {
+    const q = podParts(c), pc = ASSETS.pieces || {}, bd = HUD.badge || {}, im = (src, alt) => src ? `<img src="${src}" alt="${alt}">` : '';
+    return (q.st ? `<span class="pbk">${im(pc.settlement && pc.settlement[c], 'settlements')}${q.st}</span>` : '')
+      + (q.ci ? `<span class="pbk">${im(pc.city && pc.city[c], 'cities')}${q.ci}</span>` : '')
+      + (q.road ? `<span class="pbk" title="Longest Road">${im(bd.road, 'Longest Road')}</span>` : '')
+      + (q.army ? `<span class="pbk" title="Largest Army">${im(bd.army, 'Largest Army')}</span>` : '')
+      + (q.vpc ? `<span class="pbk" title="VP cards">${im(bd.vp, 'VP cards')}${q.vpc}</span>` : '');
+  }
+  function podFace(p, cls, noBadges) {   // a player's picture: their live camera (data-vid) when they're on the call, else their photo
+    const i = state.players.indexOf(p), src = seatAvatarSrc(p, i), pid = online ? seatPlayerId(p.color) : null;
+    const img = src ? `<img class="pfimg" src="${src}" alt="" onerror="this.remove()">` : `<span class="pfini">${escapeHtml((p.name || '?')[0])}</span>`;
+    return `<div class="${cls}"${pid ? ` data-vid="${escapeHtml(pid)}"` : ''} style="border-color:${PCOLOR[p.color]};background:${PCOLOR[p.color]}">${img}`
+      + (noBadges ? '' : `<span class="pvb" data-vb="${p.color}">${pid ? voiceBadges(pid) : ''}</span>`);
+  }
+  function podHTML() {
+    const rows = finishOrder(state), n = rows.length, top = rows.slice(0, Math.min(3, n)), rest = rows.slice(3);
+    const vpOf = {}; rows.forEach((r, i) => { vpOf[r.p.color] = { vp: r.vp, place: i + 1 }; });
+    const dom = podDomination(rows), quit = state.quitBy;
+    // podium: 2nd left, 1st in the middle, 3rd right (two players: just the two, centred)
+    const order = n >= 3 ? [1, 0, 2] : [1, 0], X = n >= 3 ? [0, 123, 246] : [61, 184];
+    const stepH = [96, 74, 60];
+    const slots = order.map((ri, k) => {
+      const r = top[ri]; if (!r) return '';
+      const p = r.p, c = p.color, me = online && c === myColor, first = ri === 0;
+      return `<div class="pslot${first ? ' p1' : ''}" style="left:${X[k]}px">
+        ${me ? '<span class="pyou">YOU</span>' : ''}${first ? '<img class="pcrown" src="assets/hud/crown.png" alt="">' : ''}
+        <div class="ptile" data-pc="${c}" onclick="CATAN.podPick('${c}')">${podFace(p, 'pface')}<span class="pnm">${escapeHtml(p.name)}</span></div>
+          <span class="pmk" data-mk="${c}"></span></div>
+        <div class="pstep" style="height:${stepH[ri]}px"><span class="prk">${ordinal(ri + 1)}</span>${c === quit ? '<span class="pquit">🚪 quit</span>' : ''}<b class="pstvp">${r.vp}<small>VP</small></b><span class="pbks">${podBits(c)}</span></div>
+      </div>`;
+    }).join('');
+    const rowsH = rest.map((r, i) => {
+      const p = r.p, c = p.color, me = online && c === myColor;
+      return `<div class="pdrow${me ? ' me' : ''}" data-pc="${c}" onclick="CATAN.podPick('${c}')"><span class="prrk">${ordinal(i + 4)}</span>
+        <div class="prfw">${podFace(p, 'prface', true)}</div><span class="pmk" data-mk="${c}"></span></div>
+        <span class="prn">${escapeHtml(p.name)}${me ? ' <small>(you)</small>' : ''}${c === quit ? ' <span class="pquit">🚪 quit</span>' : ''}</span>
+        <span class="vrow pvr" data-vb="${c}">${online && seatPlayerId(c) ? voiceBadges(seatPlayerId(c)) : ''}</span><b class="prvp">${r.vp}</b></div>`;
+    }).join('');
+    const notes = (ARCHIVE ? `<div class="pnote">📅 Final board · ${pastWhen()}</div>` : '')
+      + (PRACTICE.on ? `<div class="pnote">🧪 Practice game: nothing recorded.</div><div id="podprac">${podPracHTML()}</div>` : state.friendly ? '<div class="pnote">🤝 Friendly game: not recorded in Stats.</div>' : '')
+      + quitNoteHTML();
+    return `<div class="pod${n >= 6 ? ' n6' : ''}${rest.length ? '' : ' norest'}">
+      <div class="phead"><h2 id="vtitle">${victoryTitle()}</h2>${dom ? '<span class="pdom">DOMINATION</span>' : ''}</div>
+      <div class="pasks" id="podask"></div>
+      <div class="ppodium${n < 3 ? ' two' : ''}">${slots}<div class="pground"></div></div>
+      <div class="pside">${notes ? `<div class="pnotes">${notes}</div>` : ''}${rowsH}<div id="podpanel">${podPanelHTML()}</div></div>
+      <div class="pstrip" id="podstrip"></div>
+    </div>`;
+  }
+  // the right-hand panel: the awards, or (after a tap on someone) how that player scored
+  function podPanelHTML() {
+    if (podSel) {
+      const p = state.players.find((x) => x.color === podSel); if (!p) { podSel = null; return podPanelHTML(); }
+      const c = p.color, q = podParts(c), vp = C.victoryPoints(state, c, true), pc = ASSETS.pieces || {}, bd = HUD.badge || {};
+      const ln = (src, txt, pts) => `<div class="pdl">${src ? `<img src="${src}" alt="">` : '<i></i>'}<span>${txt}</span><b>${pts}</b></div>`;
+      const T = (state.tally || {})[c], g = luckGap(T), rob = robbedCount(c);
+      const extra = [g ? (g.cards ? `Dice paid ${g.got} cards, fair ${Math.round(g.fair)}.` : `Numbers came up ${g.got} times, normal ${Math.round(g.fair)}.`) : '',
+        rob ? `Robbed ${rob === 1 ? 'once' : rob === 2 ? 'twice' : rob + ' times'}.` : '', (state.gg || []).includes(c) ? 'Said GG.' : ''].filter(Boolean).join(' ');
+      return `<div class="pdet"><div class="pdh"><span>${escapeHtml(p.name)}</span><button class="pdx" onclick="event.stopPropagation();CATAN.podPick(null)" aria-label="Back to the awards">×</button></div>
+        ${ln(pc.settlement && pc.settlement[c], `${q.st} settlement${q.st === 1 ? '' : 's'}`, q.st)}
+        ${ln(pc.city && pc.city[c], `${q.ci} cit${q.ci === 1 ? 'y' : 'ies'}`, q.ci * 2)}
+        ${ln(bd.road, q.road ? `Longest Road, ${q.len}` : `Longest road ${q.len}`, q.road ? 2 : 0)}
+        ${ln(bd.army, q.army ? `Largest Army, ${q.kn} knight${q.kn === 1 ? '' : 's'}` : `${q.kn} knight${q.kn === 1 ? '' : 's'} played`, q.army ? 2 : 0)}
+        ${q.vpc ? ln(bd.vp, `${q.vpc} VP card${q.vpc === 1 ? '' : 's'}`, q.vpc) : ''}
+        <div class="pdl pdt"><i></i><span>Total</span><b>${vp} VP</b></div>
+        ${extra ? `<div class="pdx2">${extra}</div>` : ''}</div>`;
+    }
+    const a = gameAwards();
+    if (!a.length) return '<div class="pah">Awards</div><div class="pnone">No awards this game.</div>';
+    return '<div class="pah">Awards</div>' + a.map(([ic, t, , c, short]) => {
+      const p = state.players.find((x) => x.color === c);
+      return `<div class="paw" onclick="CATAN.podPick('${c}')"><span class="paic">${ic}</span><span class="pat"><b>${t}</b>${escapeHtml(p ? p.name : '')}${short ? ', ' + short : ''}</span></div>`;
+    }).join('');
+  }
+  function podPick(c) {
+    podSel = c && c !== podSel ? c : null;
+    const el = $('podpanel'); if (el) el.innerHTML = podPanelHTML();
+    document.querySelectorAll('#overlay .pod [data-pc]').forEach((t) => t.classList.toggle('sel', t.getAttribute('data-pc') === podSel));
+  }
+  // the vote on each face: ✓ said yes, … not yet, ✗ said no (for 4 s after); GG tag for those who said it
+  function podMark(c) {
+    const rm = state.rm, gg = (state.gg || []).includes(c) ? '<i class="pgg">GG</i>' : '';
+    let v = '';
+    if ((state.left || []).length) return gg;
+    if (rmPending(rm)) v = rm.votes && rm.votes[c] === 'y' ? `<i class="pv y">${POD_ICO.tick}</i>` : '<i class="pv w">…</i>';
+    else if (rm && rm.no === c && !rm.cancel && rmEndSeen[rm.id] && Date.now() - rmEndSeen[rm.id] < 4000) v = `<i class="pv n">${POD_ICO.cross}</i>`;
+    return gg + v;
+  }
+  // practice: try the vote from the other side (a computer asks); the computers answer a vote within a few seconds
+  function podPracHTML() { return PRACTICE.on && !rmPending(state.rm) ? '<button class="linkbtn pprac" onclick="CATAN.practiceBotAsk()">🧪 Let a computer ask for a rematch</button>' : ''; }
+  function practiceBotAsk() {
+    if (!PRACTICE.on || !state || state.phase !== 'ended' || rmPending(state.rm)) return;
+    const b = PRACTICE.bots[(Math.random() * PRACTICE.bots.length) | 0], id = Math.random().toString(36).slice(2, 8);
+    rmWrite((s) => { if (s.phase !== 'ended' || rmPending(s.rm)) return false; s.rm = { id, by: b, votes: { [b]: 'y' } }; });
+  }
+  function practiceRmTick() {   // each computer answers ~1.3 s apart; about 1 vote in 4, one of them says "not this time"
+    const rm = state.rm; if (!PRACTICE.on || !rmPending(rm) || rmAllIn(rm)) return;
+    if (!rmSeen[rm.id]) rmSeen[rm.id] = Date.now();
+    if (!(rm.id in PRACTICE_RM_NO)) { const left = PRACTICE.bots.filter((c) => rm.by !== c); PRACTICE_RM_NO[rm.id] = left.length && Math.random() < 0.25 ? left[(Math.random() * left.length) | 0] : null; }
+    const todo = PRACTICE.bots.filter((c) => !(rm.votes && rm.votes[c] === 'y'));
+    const done = PRACTICE.bots.length - todo.length;
+    if (!todo.length || Date.now() - rmSeen[rm.id] < 1300 * (done + 1)) return;
+    const c = todo[0], no = PRACTICE_RM_NO[rm.id] === c, id = rm.id;
+    rmWrite((s) => { if (!s.rm || s.rm.id !== id || !rmPending(s.rm)) return false; if (no) s.rm.no = c; else s.rm.votes[c] = 'y'; });
+  }
+  const PRACTICE_RM_NO = {};
+  function podPct(rm) { const t0 = rmSeen[rm.id] || Date.now(); return Math.max(0, Math.min(100, 100 * (RM_MS - (Date.now() - t0)) / RM_MS)).toFixed(1); }
+  function podTm(ms) { const s = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
+  function podStripHTML() {
+    const B = (cls, click, ico, label, aria) => `<button class="btn wood pb${cls}" onclick="${click}"${aria ? ` aria-label="${aria}"` : ''}>${ico || ''}${label || ''}</button>`;
+    const icons = () => B(' ic', 'CATAN.viewBoard()', POD_ICO.board, '', 'Look at the board') + B(' ic', "CATAN.openDiceStats('victory')", POD_ICO.dice, '', 'Dice stats');
+    const full = () => B('', 'CATAN.viewBoard()', POD_ICO.board, 'Board') + B('', "CATAN.openDiceStats('victory')", POD_ICO.dice, 'Dice');
+    if (ARCHIVE) return full() + B(' grow', 'CATAN.closePast()', POD_ICO.door, 'Back to stats');
+    if (!online || !myColor) return full() + B(' grow', 'CATAN.confirmExit()', POD_ICO.door, 'Lobby');   // watching
+    const gg = !(state.gg || []).includes(myColor) ? B('', 'CATAN.gg()', '', 'GG', 'Say good game') : '';
+    const lobby = (lbl) => B('', 'CATAN.leaveEnded()', POD_ICO.door, lbl, 'Leave for the lobby');
+    const rm = state.rm, left = state.left || [];
+    if (left.length) return `<div class="pmsg">🚪 ${escapeHtml(nameList(left))} ${left.length > 1 ? 'have' : 'has'} left. No rematch.</div>` + gg + icons() + B(' ic', 'CATAN.leaveEnded()', POD_ICO.door, '', 'Leave for the lobby');
+    if (qvOpen(state)) return '<div class="pmsg">First the table votes at the top ↑</div>' + icons() + B(' ic', 'CATAN.leaveEnded()', POD_ICO.door, '', 'Leave for the lobby');
+    const exitI = B(' ic', 'CATAN.leaveEnded()', POD_ICO.door, '', 'Leave for the lobby');
+    if (rmPending(rm)) {
+      if (rmAllIn(rm)) return `<div class="pgo">${POD_ICO.tick}Everyone's in! New game starting…</div>`;
+      const P = state.players, waitFor = nameList(P.filter((p) => !(rm.votes && rm.votes[p.color] === 'y')).map((p) => p.color));
+      if (rm.votes && rm.votes[myColor] === 'y') {
+        return `<div class="pwait"><span class="pwtxt">${rm.by === myColor ? 'Waiting for ' : 'You\'re in · waiting for '}${escapeHtml(waitFor)}</span><span class="ptm" data-rmtm></span><span class="pprog" id="podprog" style="width:${podPct(rm)}%"></span></div>`
+          + (rm.by === myColor ? B('', 'CATAN.rmCancel()', '', 'Cancel', 'Cancel the rematch') : '') + icons() + exitI;
+      }
+      return `<button class="btn pb grow" onclick="CATAN.rmVote('y')">${POD_ICO.tick}I'm in</button>` + B('', "CATAN.rmVote('n')", '', 'Not this time') + icons() + exitI;
+    }
+    if (rm && rm.id) {   // said no / ran out / cancelled: say so for 4 s, then the normal strip comes back
+      const t0 = rmEndSeen[rm.id] || (rmEndSeen[rm.id] = Date.now());
+      if (Date.now() - t0 < 4000) {
+        const who = rm.no === myColor ? 'You' : escapeHtml(nameOf(rm.no));
+        const msg = rm.cancel ? `${who} cancelled the rematch.` : rm.no ? `${who}: not this time. No rematch.` : 'Not everyone answered. No rematch.';
+        return `<div class="pmsg no">${rm.cancel ? '' : POD_ICO.cross}${msg}</div>` + icons() + exitI;
+      }
+    }
+    return `<button class="btn pb grow" onclick="CATAN.rmPropose()">${POD_ICO.re}Rematch</button>` + gg + full() + lobby(PRACTICE.on ? 'Back' : 'Lobby');
+  }
+  function podAskHTML() {   // under the title, for whoever hasn't answered yet: "Karim wants a rematch 0:52"
+    const rm = state.rm;
+    if (!online || !myColor || !rmPending(rm) || rmAllIn(rm) || (rm.votes && rm.votes[myColor] === 'y')) return '';
+    return `<div class="pask">${POD_ICO.re}<span><b>${escapeHtml(nameOf(rm.by))}</b> wants a rematch</span><span class="ptm" data-rmtm></span></div>`;
+  }
+  function podTick() {
+    const rm = state && state.rm; if (!rmPending(rm)) return;
+    if (!rmSeen[rm.id]) rmSeen[rm.id] = Date.now();
+    const left = RM_MS - (Date.now() - rmSeen[rm.id]), txt = podTm(left);
+    document.querySelectorAll('#overlay [data-rmtm]').forEach((el) => { if (el.textContent !== txt) el.textContent = txt; });
+    const pg = $('podprog'); if (pg) pg.style.width = Math.max(0, Math.min(100, 100 * left / RM_MS)).toFixed(1) + '%';
+  }
+  // cheap refresh (every second and on every update): only what changed is rewritten, so a tap never lands on a vanishing button
+  function podRefresh() {
+    if (!podOn() || !state || state.phase !== 'ended') return;
+    const set = (el, h) => { if (el && el._k !== h) { el._k = h; el.innerHTML = h; } };
+    set($('podstrip'), podStripHTML());
+    set($('podask'), podAskHTML());
+    set($('podprac'), podPracHTML());
+    document.querySelectorAll('#overlay .pod [data-mk]').forEach((el) => set(el, podMark(el.getAttribute('data-mk'))));
+    const pod = document.querySelector('#overlay .pod'); if (pod) pod.classList.toggle('allin', !!(rmPending(state.rm) && rmAllIn(state.rm)));
+    podTick();
+  }
+  function podVoice() {   // mic / camera badges changed: redraw them (the pictures themselves are kept by voiceMountVideos)
+    if (!podOn()) return;
+    document.querySelectorAll('#overlay .pod [data-vb]').forEach((el) => {
+      const id = online ? seatPlayerId(el.getAttribute('data-vb')) : null, h = id ? voiceBadges(id) : '';
+      if (el._k !== h) { el._k = h; el.innerHTML = h; }
+    });
   }
   // the game-over screen inside a cup: this game's winner + the standings (between games), or the champion
   function pastWhen() { const d = new Date(ARCHIVE.at); return `${MONTH_ABBR[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`; }
@@ -5883,6 +6175,7 @@
   function voiceRefresh() {
     if (state && document.body.classList.contains('ingame')) { try { renderPanels(); if (online && !myColor) { const h = $('hand'); if (h) h.innerHTML = handBar(); } } catch (_) { } }   // a watcher's switches live in the bottom bar
     else if (typeof renderLobby === 'function' && AUTH.me && LV.tab === 'play') { lobbySig = null; try { renderLobby(); } catch (_) { } }   // the chat tab keeps its scroll
+    podVoice();
     voiceMountVideos();
   }
   // live camera pictures: each player's <video> plays in a hidden holder that never moves (iOS won't paint a
@@ -5935,10 +6228,11 @@
   (function vDraw(t) {
     requestAnimationFrame(vDraw);
     if (!LIVE.room || document.hidden || t - vDrawAt < 66) return; vDrawAt = t;
-    let drew = false;
+    let drew = false; const podUp = podOn();
     document.querySelectorAll('canvas.vvid').forEach((cv) => {
       const box = cv.parentNode, id = box && box.getAttribute('data-vid'), v = id && LIVE.vids[id];
       if (!v || v.readyState < 2 || !v.videoWidth) return;
+      if (podUp && !box.closest('#overlay')) return;   // the podium covers the corners: draw only its faces
       if (VFC && !v._fresh && cv.width && v._vfcAt && t - v._vfcAt < 1000) return;   // same frame as last time: nothing to draw
       drew = true;
       const dpr = Math.min(1.5, window.devicePixelRatio || 1), bw = Math.round(box.clientWidth * dpr), bh = Math.round(box.clientHeight * dpr);   // v237: 1.5x is plenty for a soft camera picture (was 2x: 1.8x the pixels)
@@ -6916,6 +7210,7 @@
   function refreshGG() {
     if (!state || state.phase !== 'ended' || ARCHIVE) return;
     const el = $('ggrow'); if (el) el.innerHTML = ggHTML();
+    podRefresh();
     const k = gameKey(), seen = (ggSeen[k] = ggSeen[k] || new Set());
     (state.gg || []).forEach((c) => { if (!seen.has(c)) { seen.add(c); emojiBurst(c, 'GG', 3, 0); playSound('click', 0.4); } });
   }
@@ -6930,8 +7225,8 @@
   // ---- rematch by unanimous vote ---------------------------------------------------------------
   // Lives in the finished game's state: state.rm = { id, by, votes: {color: 'y'}, no?: color, lapsed?: bool }
   // and state.left = [colors who walked away]. Anyone left -> no rematch. Every seat must say yes;
-  // one "not this time" or RM_MS without everyone ends it. All in -> a clear 5·4·3·2·1, then go.
-  const RM_MS = 30000, rmSeen = {}, rmStarted = {};
+  // one "not this time" (or the asker's Cancel: no = asker + cancel) or RM_MS without everyone ends it. All in -> a clear 5·4·3·2·1, then go.
+  const RM_MS = 60000, rmSeen = {}, rmStarted = {};   // v-NEXT: 60 s to answer (was 30)
   let victoryShownFor = null, victoryFinal = false, cupQvDrawn = null, quittingNow = false;
   function gameKey() { return state && state.board ? state.board.hexes.map((h) => (h.terrain || '?')[0] + (h.token || '')).join('') + state.players.map((p) => p.color).join('') : ''; }
   function nameList(cs) { const ns = cs.map(nameOf); return ns.length < 2 ? (ns[0] || '') : ns.slice(0, -1).join(', ') + ' & ' + ns[ns.length - 1]; }
@@ -7043,7 +7338,7 @@
     if (left.length) return `<div class="rmleft">🚪 ${escapeHtml(nameList(left))} ${left.length > 1 ? 'have' : 'has'} left. A rematch isn't possible.</div>`;
     const rm = state.rm;
     if (!rmPending(rm)) {
-      const note = rm && rm.no ? `<div class="rmnote">✗ ${escapeHtml(nameOf(rm.no))}: not this time</div>`
+      const note = rm && rm.no ? `<div class="rmnote">${rm.cancel ? `${escapeHtml(nameOf(rm.no))} cancelled the rematch` : `✗ ${escapeHtml(nameOf(rm.no))}: not this time`}</div>`
         : rm && rm.lapsed ? `<div class="rmnote">The rematch lapsed. Not everyone answered.</div>` : '';
       return note + `<button class="btn full" style="margin-bottom:9px" onclick="CATAN.rmPropose()">🔁 ${state.cup ? 'Rematch the cup' : 'Rematch'}? Ask the table</button>`;
     }
@@ -7098,33 +7393,38 @@
     if (!pend) {   // said no / ran out: say so for a few seconds, then slide away
       const t0 = rmEndSeen[rm.id] || (rmEndSeen[rm.id] = Date.now());
       if (Date.now() - t0 > 4000) return null;
-      return { cls: 'no', html: `<div class="rmbt"><div class="rmbh">${rm.no ? `✗ <b>${escapeHtml(nameOf(rm.no))}</b>: not this time` : 'Not everyone answered'}</div><div class="rmbsub">No rematch.</div></div>` };
+      return { cls: 'no', html: `<div class="rmbt"><div class="rmbh">${rm.cancel ? `<b>${escapeHtml(nameOf(rm.no))}</b> cancelled the rematch` : rm.no ? `✗ <b>${escapeHtml(nameOf(rm.no))}</b>: not this time` : 'Not everyone answered'}</div><div class="rmbsub">No rematch.</div></div>` };
     }
     if (rmAllIn(rm)) return { cls: 'go', html: `<div class="rmbt"><div class="rmbh">🔁 Everyone's in! Rematch starting…</div><div class="rmbchips">${rmChips(rm)}</div></div>` };
     const mine = rm.votes[myColor] === 'y';
     const head = mine ? `🔁 Rematch · you're in` : `🔁 <b>${escapeHtml(nameOf(rm.by))}</b> wants ${state.cup ? 'to rematch the cup' : 'a rematch'}`;
     return { cls: '', timer: true, html: `<div class="rmbt"><div class="rmbh">${head}<span class="rmbtm" id="rmbsecs"></span></div><div class="rmbchips">${rmChips(rm)}</div></div>`
-      + (mine ? `<div class="rmbwait">⏳ Waiting for ${escapeHtml(waitFor())}…</div>`
+      + (mine ? `<div class="rmbwait">⏳ Waiting for ${escapeHtml(waitFor())}…</div>` + (rm.by === myColor ? `<button class="btn wood rmbno" onclick="CATAN.rmCancel()">Cancel</button>` : '')
         : `<button class="btn rmbyes" onclick="CATAN.rmVote('y')">✓ I'm in</button><button class="btn wood rmbno" onclick="CATAN.rmVote('n')">Not this time</button>`) };
   }
   // draw it (only rewritten when its content changes, so a tap never lands on a vanishing button)
   function syncRmBar() {
-    const m = rmBarModel(); let el = $('rmbar');
+    rmChime();
+    const onPod = podOn() && state && state.phase === 'ended' && !cupBetween(state) && !qvOpen(state);   // the podium shows the vote itself
+    const m = onPod ? null : rmBarModel(); let el = $('rmbar');
     if (!m) { if (el) el.classList.remove('show'); return; }
     if (!el) { el = document.createElement('div'); el.id = 'rmbar'; document.body.appendChild(el); }
     const k = m.cls + '|' + m.html;
     if (el._k !== k) { el._k = k; el.innerHTML = m.html; }
     el.className = 'show' + (m.cls ? ' ' + m.cls : '');
     const t = $('rmbsecs'), rm = state.rm;
-    if (t && m.timer && rm) { if (!rmSeen[rm.id]) rmSeen[rm.id] = Date.now(); t.textContent = '0:' + String(Math.max(0, Math.ceil((RM_MS - (Date.now() - rmSeen[rm.id])) / 1000))).padStart(2, '0'); }
+    if (t && m.timer && rm) { if (!rmSeen[rm.id]) rmSeen[rm.id] = Date.now(); t.textContent = podTm(RM_MS - (Date.now() - rmSeen[rm.id])); }
     if (t && m.qtimer) { const left = Math.max(0, m.qtimer - Date.now()); t.textContent = Math.floor(left / 60000) + ':' + String(Math.floor((left % 60000) / 1000)).padStart(2, '0'); }
+  }
+  function rmChime() {
+    if (!state || !myColor) return; const rm = state.rm;   // watchers don't vote
     // a quit vote just opened and I haven't voted -> chime + buzz, once
     if (qvOpen(state) && !state.qv.votes[myColor] && !rmChimed['qv' + state.qv.deadline]) {
       rmChimed['qv' + state.qv.deadline] = true; playSound('trade', 0.8);
       try { if (navigator.vibrate) navigator.vibrate([120, 60, 120]); } catch (_) { }
     }
     // somebody else just asked and I haven't answered -> chime + buzz, once per question
-    if (rm && rmPending(rm) && rm.by !== myColor && !(rm.votes[myColor] === 'y') && !rmChimed[rm.id]) {
+    if (rm && rmPending(rm) && !(state.left || []).length && rm.by !== myColor && !(rm.votes[myColor] === 'y') && !rmChimed[rm.id]) {
       rmChimed[rm.id] = true; playSound('trade', 0.8);
       try { if (navigator.vibrate) navigator.vibrate([120, 60, 120]); } catch (_) { }
     }
@@ -7141,10 +7441,11 @@
     const el = $('rmpanel'); if (el) el.innerHTML = rematchPanelHTML();
     const qn = $('quitnote'); if (qn) qn.outerHTML = quitNoteHTML();
     const vt = $('vtitle'); if (vt && state.quitBy) vt.innerHTML = victoryTitle();
-    syncRmBar();   // the vote itself: pinned at the top, over the results or the board
+    syncRmBar();   // the vote itself: pinned at the top, over the board (on the podium: the strip and the faces)
+    podRefresh();
     if (rmAllIn(rm) && !rmStarted[rm.id]) {
       rmStarted[rm.id] = true;
-      setTimeout(() => { if (state && state.phase === 'ended') LOBBY.rematch(true); }, 700);   // every phone tries; the version guard lets one win
+      setTimeout(() => { if (state && state.phase === 'ended') { if (PRACTICE.on) practiceStart(false); else LOBBY.rematch(true); } }, 700);   // every phone tries; the version guard lets one win
     }
   }
   // write to the finished game: local echo now, shared via the version-guarded update
@@ -7158,6 +7459,11 @@
     if (!online || !myColor || !state || state.phase !== 'ended') return;
     const id = Math.random().toString(36).slice(2, 8), me = myColor;
     rmWrite((s) => { if (s.phase !== 'ended' || (s.left && s.left.length && !cupBetween(s)) || rmPending(s.rm)) return false; s.rm = { id, by: me, votes: { [me]: 'y' } }; });
+  }
+  function rmCancel() {   // whoever asked can take it back (shows as their "no", so older builds understand it too)
+    const rm = state && state.rm; if (!rmPending(rm) || rm.by !== myColor) return;
+    const id = rm.id, me = myColor;
+    rmWrite((s) => { if (!s.rm || s.rm.id !== id || !rmPending(s.rm) || rmAllIn(s.rm)) return false; s.rm.no = me; s.rm.cancel = true; });
   }
   function rmVote(v) {
     const rm = state && state.rm; if (!rmPending(rm) || !myColor) return;
@@ -7187,7 +7493,7 @@
         svUpdate((s) => { if (!qvOpen(s)) return false; qvSettle(s, true); });
       }
     }
-    syncRmBar();
+    syncRmBar(); podRefresh(); practiceRmTick();
     const rm = state.rm; if (!rmPending(rm) || rmAllIn(rm) || cupBetween(state)) return;   // the cup's ready-up never lapses
     if (!rmSeen[rm.id]) rmSeen[rm.id] = Date.now();
     if (Date.now() - rmSeen[rm.id] > RM_MS) { const id = rm.id; rmWrite((s) => { if (!s.rm || s.rm.id !== id || !rmPending(s.rm) || rmAllIn(s.rm)) return false; s.rm.lapsed = true; }); return; }
@@ -7261,7 +7567,8 @@
   }
   // n emoji float out of a player's portrait toward the board, plus a "×n" combo tag
   function emojiBurst(color, emoji, n, combo) {
-    const c = cornerOf(color); if (!c) return;
+    const pt = podOn() && document.querySelector('#overlay .pod [data-pc="' + color + '"]');
+    const c = pt ? { el: pt, pos: 'bl' } : cornerOf(color); if (!c) return;   // on the podium: from their face
     const o = avatarCentre(c), top = c.pos[0] === 't', left = c.pos[1] === 'l';
     const k = Math.min(n, 12);
     for (let i = 0; i < k; i++) {
@@ -7278,7 +7585,8 @@
     if (combo > 1) comboTag(color, emoji + ' ×' + combo);
   }
   function comboTag(color, label) {
-    const c = cornerOf(color); if (!c) return;
+    const pt = podOn() && document.querySelector('#overlay .pod [data-pc="' + color + '"]');
+    const c = pt ? { el: pt, pos: 'bl' } : cornerOf(color); if (!c) return;
     const o = avatarCentre(c), top = c.pos[0] === 't', left = c.pos[1] === 'l';
     {
       const id = 'emocombo-' + color; let t = document.getElementById(id);
@@ -8102,6 +8410,9 @@
     tipsAgain: () => { SETTINGS.seen = []; saveSettings(); hideOverlay(); if (state && state.phase === 'play') { afterAction(); render(); } },   // replays the one-time tours
     gg: () => sayGG(),
     rmVote: (v) => rmVote(v),
+    rmCancel: () => rmCancel(),
+    podPick: (c) => podPick(c),
+    practiceBotAsk: () => practiceBotAsk(),
     qvVote: (y) => qvVote(!!y),
     poke: () => poke(),
     emo: (e) => { sendEmoji(e); bumpTray(); },
@@ -8129,7 +8440,7 @@
       if (trayMode === 'emo') { trayDraft.e = EMOJI_DEFAULT.split(' '); saveTrayEmojis(); } else { trayDraft.t = DEFAULT_QUICK_MSGS.slice(); saveTrayTexts(); }
       trayEdit();
     },
-    viewBoard: () => { endView = true; hideOverlay(); render(); },   // dismiss the victory to study the final board
+    viewBoard: () => { endView = true; hideOverlay(); render(); syncRmBar(); },   // dismiss the victory to study the final board
     showResults: () => { if (state && state.phase === 'ended') showVictory(true); },
     bannerTap: () => { if (state && state.phase === 'ended' && $('overlay').classList.contains('hidden')) showVictory(true); },
     dev: (c) => { hideOverlay(); if (c === 'knight') dispatch({ type: 'playKnight' }); else if (c === 'road_building') dispatch({ type: 'playRoadBuilding' }); else if (c === 'year_of_plenty') openYoP(); else if (c === 'monopoly') openMonopoly(); },
