@@ -2894,7 +2894,7 @@
         <span class="vrow pvr" data-vb="${c}">${online && seatPlayerId(c) ? voiceBadges(seatPlayerId(c)) : ''}</span><b class="prvp">${r.vp}</b></div>`;
     }).join('');
     const notes = (ARCHIVE ? `<div class="pnote">📅 Final board · ${pastWhen()}</div>` : '')
-      + (PRACTICE.on ? '<div class="pnote">🧪 Practice game: nothing recorded.</div>' : state.friendly ? '<div class="pnote">🤝 Friendly game: not recorded in Stats.</div>' : '')
+      + (PRACTICE.on ? `<div class="pnote">🧪 Practice game: nothing recorded.</div><div id="podprac">${podPracHTML()}</div>` : state.friendly ? '<div class="pnote">🤝 Friendly game: not recorded in Stats.</div>' : '')
       + quitNoteHTML();
     return `<div class="pod${n >= 6 ? ' n6' : ''}${rest.length ? '' : ' norest'}">
       <div class="phead"><h2 id="vtitle">${victoryTitle()}</h2>${dom ? '<span class="pdom">DOMINATION</span>' : ''}</div>
@@ -2942,6 +2942,24 @@
     else if (rm && rm.no === c && !rm.cancel && rmEndSeen[rm.id] && Date.now() - rmEndSeen[rm.id] < 4000) v = `<i class="pv n">${POD_ICO.cross}</i>`;
     return gg + v;
   }
+  // practice: try the vote from the other side (a computer asks); the computers answer a vote within a few seconds
+  function podPracHTML() { return PRACTICE.on && !rmPending(state.rm) ? '<button class="linkbtn pprac" onclick="CATAN.practiceBotAsk()">🧪 Let a computer ask for a rematch</button>' : ''; }
+  function practiceBotAsk() {
+    if (!PRACTICE.on || !state || state.phase !== 'ended' || rmPending(state.rm)) return;
+    const b = PRACTICE.bots[(Math.random() * PRACTICE.bots.length) | 0], id = Math.random().toString(36).slice(2, 8);
+    rmWrite((s) => { if (s.phase !== 'ended' || rmPending(s.rm)) return false; s.rm = { id, by: b, votes: { [b]: 'y' } }; });
+  }
+  function practiceRmTick() {   // each computer answers ~1.3 s apart; about 1 vote in 4, one of them says "not this time"
+    const rm = state.rm; if (!PRACTICE.on || !rmPending(rm) || rmAllIn(rm)) return;
+    if (!rmSeen[rm.id]) rmSeen[rm.id] = Date.now();
+    if (!(rm.id in PRACTICE_RM_NO)) { const left = PRACTICE.bots.filter((c) => rm.by !== c); PRACTICE_RM_NO[rm.id] = left.length && Math.random() < 0.25 ? left[(Math.random() * left.length) | 0] : null; }
+    const todo = PRACTICE.bots.filter((c) => !(rm.votes && rm.votes[c] === 'y'));
+    const done = PRACTICE.bots.length - todo.length;
+    if (!todo.length || Date.now() - rmSeen[rm.id] < 1300 * (done + 1)) return;
+    const c = todo[0], no = PRACTICE_RM_NO[rm.id] === c, id = rm.id;
+    rmWrite((s) => { if (!s.rm || s.rm.id !== id || !rmPending(s.rm)) return false; if (no) s.rm.no = c; else s.rm.votes[c] = 'y'; });
+  }
+  const PRACTICE_RM_NO = {};
   function podTm(ms) { const s = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
   function podStripHTML() {
     const B = (cls, click, ico, label, aria) => `<button class="btn wood pb${cls}" onclick="${click}"${aria ? ` aria-label="${aria}"` : ''}>${ico || ''}${label || ''}</button>`;
@@ -2951,7 +2969,6 @@
     if (!online || !myColor) return full() + B(' grow', 'CATAN.confirmExit()', POD_ICO.door, 'Lobby');   // watching
     const gg = !(state.gg || []).includes(myColor) ? B('', 'CATAN.gg()', '', 'GG', 'Say good game') : '';
     const lobby = (lbl) => B('', 'CATAN.leaveEnded()', POD_ICO.door, lbl, 'Leave for the lobby');
-    if (PRACTICE.on) return `<button class="btn pb grow" onclick="CATAN.practiceStart(false)">${POD_ICO.re}Play again</button>` + gg + full() + lobby('Back');
     const rm = state.rm, left = state.left || [];
     if (left.length) return `<div class="pmsg">🚪 ${escapeHtml(nameList(left))} ${left.length > 1 ? 'have' : 'has'} left. No rematch.</div>` + gg + icons() + B(' ic', 'CATAN.leaveEnded()', POD_ICO.door, '', 'Leave for the lobby');
     if (qvOpen(state)) return '<div class="pmsg">First the table votes at the top ↑</div>' + icons() + B(' ic', 'CATAN.leaveEnded()', POD_ICO.door, '', 'Leave for the lobby');
@@ -2973,11 +2990,11 @@
         return `<div class="pmsg no">${rm.cancel ? '' : POD_ICO.cross}${msg}</div>` + icons() + exitI;
       }
     }
-    return `<button class="btn pb grow" onclick="CATAN.rmPropose()">${POD_ICO.re}Rematch</button>` + gg + full() + lobby('Lobby');
+    return `<button class="btn pb grow" onclick="CATAN.rmPropose()">${POD_ICO.re}Rematch</button>` + gg + full() + lobby(PRACTICE.on ? 'Back' : 'Lobby');
   }
   function podAskHTML() {   // under the title, for whoever hasn't answered yet: "Karim wants a rematch 0:52"
     const rm = state.rm;
-    if (!online || !myColor || PRACTICE.on || !rmPending(rm) || rmAllIn(rm) || (rm.votes && rm.votes[myColor] === 'y')) return '';
+    if (!online || !myColor || !rmPending(rm) || rmAllIn(rm) || (rm.votes && rm.votes[myColor] === 'y')) return '';
     return `<div class="pask">${POD_ICO.re}<span><b>${escapeHtml(nameOf(rm.by))}</b> wants a rematch</span><span class="ptm" data-rmtm></span></div>`;
   }
   function podTick() {
@@ -2993,6 +3010,7 @@
     const set = (el, h) => { if (el && el._k !== h) { el._k = h; el.innerHTML = h; } };
     set($('podstrip'), podStripHTML());
     set($('podask'), podAskHTML());
+    set($('podprac'), podPracHTML());
     document.querySelectorAll('#overlay .pod [data-mk]').forEach((el) => set(el, podMark(el.getAttribute('data-mk'))));
     const pod = document.querySelector('#overlay .pod'); if (pod) pod.classList.toggle('allin', !!(rmPending(state.rm) && rmAllIn(state.rm)));
     podTick();
@@ -5000,7 +5018,7 @@
     podRefresh();
     if (rmAllIn(rm) && !rmStarted[rm.id]) {
       rmStarted[rm.id] = true;
-      setTimeout(() => { if (state && state.phase === 'ended') LOBBY.rematch(true); }, 700);   // every phone tries; the version guard lets one win
+      setTimeout(() => { if (state && state.phase === 'ended') { if (PRACTICE.on) practiceStart(false); else LOBBY.rematch(true); } }, 700);   // every phone tries; the version guard lets one win
     }
   }
   // write to the finished game: local echo now, shared via the version-guarded update
@@ -5048,7 +5066,7 @@
         svUpdate((s) => { if (!qvOpen(s)) return false; qvSettle(s, true); });
       }
     }
-    syncRmBar(); podRefresh();
+    syncRmBar(); podRefresh(); practiceRmTick();
     const rm = state.rm; if (!rmPending(rm) || rmAllIn(rm) || cupBetween(state)) return;   // the cup's ready-up never lapses
     if (!rmSeen[rm.id]) rmSeen[rm.id] = Date.now();
     if (Date.now() - rmSeen[rm.id] > RM_MS) { const id = rm.id; rmWrite((s) => { if (!s.rm || s.rm.id !== id || !rmPending(s.rm) || rmAllIn(s.rm)) return false; s.rm.lapsed = true; }); return; }
@@ -5966,6 +5984,7 @@
     rmVote: (v) => rmVote(v),
     rmCancel: () => rmCancel(),
     podPick: (c) => podPick(c),
+    practiceBotAsk: () => practiceBotAsk(),
     qvVote: (y) => qvVote(!!y),
     poke: () => poke(),
     emo: (e) => { sendEmoji(e); bumpTray(); },
